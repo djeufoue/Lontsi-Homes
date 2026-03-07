@@ -1,0 +1,74 @@
+﻿/* Base */
+a.navbar-brand {
+    white-space: normal;
+    text-align: center;
+    word-break: break-word;
+}
+
+a {
+    color: #0d6efd;
+}
+
+    a:hover {
+        color: #0b5ed7;
+    }
+
+/* App layout */
+.app-body {
+    min-height: 100vh;
+    background: #f6f7fb;
+}
+
+.app-container {
+    min-height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar */
+.navbar .nav-link {
+    font-weight: 500;
+}
+
+    .navbar .nav-link.active {
+        font-weight: 700;
+    }
+
+/* Buttons */
+.btn-primary {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+    .btn-outline-primary:hover {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+
+/* Cards */
+.card {
+    border: 1px solid rgba(0,0,0,.06);
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .03);
+    border-radius: .75rem;
+}
+
+.card-header {
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+/* Footer */
+.app-footer {
+    background: #fff;
+}
+
+/* Utilities */
+.shadow-sm {
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.06) !important;
+}
