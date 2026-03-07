@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
-using Common.Enums;
 using Common.CommunicationModels;
 using System.Security.Claims;
 
@@ -14,13 +14,16 @@ namespace RentHub.API.Controllers
     public class TenancyMembersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        public TenancyMembersController(ApplicationDbContext context)
+        private readonly UserManager<ApplicationUser> _userManager;
+
+        public TenancyMembersController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         /// <summary>
-        /// Adds a member to a tenancy.  Only the landlord associated with the tenancy may add members.
+        /// Adds a member to a tenancy. Only the landlord associated with the tenancy may add members.
         /// </summary>
         [HttpPost]
         [Authorize]
@@ -28,49 +31,58 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment!.Property)
                     .Include(t => t.Members)
                     .FirstOrDefaultAsync(t => t.Id == tenancyId);
+
                 if (tenancy == null) return NotFound("Tenancy not found.");
 
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Only landlord can add members
+
                 if (tenancy.Apartment!.Property!.LandlordId != userId)
-                {
                     return Forbid();
-                }
-                // Use the MaxMembers limit from the tenancy entity
-                if (tenancy.Members.Count >= tenancy.MaxMembers)
-                {
+
+                if (tenancy.Members.Count(m => !m.IsDeleted) >= tenancy.MaxMembers)
                     return BadRequest($"A tenancy cannot have more than {tenancy.MaxMembers} members.");
-                }
-                // Validate that the new member is not already part of the tenancy
-                if (tenancy.Members.Any(tm => tm.MemberId == request.MemberId))
-                {
+
+                var email = request.Email.Trim();
+                var memberUser = await _userManager.FindByEmailAsync(email);
+                if (memberUser == null)
+                    return NotFound("User not found for the provided email.");
+
+                if (tenancy.Members.Any(tm => !tm.IsDeleted && tm.MemberId == memberUser.Id))
                     return BadRequest("User is already a member of this tenancy.");
-                }
-                // Create new member entity
+
                 var member = new TenancyMember
                 {
                     TenancyId = tenancyId,
-                    MemberId = request.MemberId,
+                    MemberId = memberUser.Id,
                     Role = request.Role,
                     CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
                 };
+
                 _context.TenancyMembers.Add(member);
                 await _context.SaveChangesAsync();
-                // Map to DTO
+
                 var dto = new TenancyMemberDto
                 {
                     Id = member.Id,
+                    TenancyId = member.TenancyId,
                     MemberId = member.MemberId,
                     Role = member.Role.ToString(),
-                    UserName = member.Member != null ? member.Member.UserName ?? string.Empty : string.Empty
+                    FullName = memberUser.FullName ?? string.Empty,
+                    Email = memberUser.Email ?? string.Empty,
+                    CountryCode = memberUser.CountryCode ?? string.Empty,
+                    CreatedAt = member.CreatedAt
                 };
+
                 return Ok(dto);
             }
             catch (Exception ex)
@@ -92,14 +104,24 @@ namespace RentHub.API.Controllers
                     .Include(t => t.Members)
                     .ThenInclude(tm => tm.Member)
                     .FirstOrDefaultAsync(t => t.Id == tenancyId);
+
                 if (tenancy == null) return NotFound();
-                var dtos = tenancy.Members.Select(m => new TenancyMemberDto
-                {
-                    Id = m.Id,
-                    MemberId = m.MemberId,
-                    Role = m.Role.ToString(),
-                    UserName = m.Member != null ? m.Member.UserName ?? string.Empty : string.Empty
-                }).ToList();
+
+                var dtos = tenancy.Members
+                    .Where(m => !m.IsDeleted)
+                    .Select(m => new TenancyMemberDto
+                    {
+                        Id = m.Id,
+                        TenancyId = m.TenancyId,
+                        MemberId = m.MemberId,
+                        Role = m.Role.ToString(),
+                        FullName = m.Member?.FullName ?? string.Empty,
+                        Email = m.Member?.Email ?? string.Empty,
+                        CountryCode = m.Member?.CountryCode ?? string.Empty,
+                        CreatedAt = m.CreatedAt
+                    })
+                    .ToList();
+
                 return Ok(dtos);
             }
             catch (Exception ex)
