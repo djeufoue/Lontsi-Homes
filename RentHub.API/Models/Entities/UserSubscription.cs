@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace RentHub.API.Models.Entities
 {
     /// <summary>
-    /// Links a user to a subscription plan with start and end dates.  When EndDate
+    /// Links a user to a subscription plan with start and end dates. When EndDate
     /// expires the user loses features until they renew.
     /// </summary>
     public class UserSubscription
@@ -17,8 +17,16 @@ namespace RentHub.API.Models.Entities
         public DateTimeOffset StartDate { get; set; }
         public DateTimeOffset EndDate { get; set; }
 
+        // Plan snapshot captured at subscription creation to avoid plan updates
+        // changing active subscriptions already owned by landlords.
+        public string PlanNameSnapshot { get; set; } = string.Empty;
+        public decimal PlanPriceSnapshot { get; set; }
+        public int PlanDurationInDaysSnapshot { get; set; }
+        public int? PlanMaxPropertiesSnapshot { get; set; }
+        public int? PlanMaxApartmentsPerPropertySnapshot { get; set; }
+
         /// <summary>
-        /// Indicates whether the subscription has been approved by an administrator.  Landlords
+        /// Indicates whether the subscription has been approved by an administrator. Landlords
         /// cannot add owners, managers or tenants until their subscription has been approved.
         /// </summary>
         public bool IsApproved { get; set; } = false;

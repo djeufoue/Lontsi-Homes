@@ -1,0 +1,377 @@
+@model RentHub.Portal.ViewModels.Properties.PropertyOverviewVm
+@using Common.Enums
+@{
+    ViewData["Title"] = "Property Overview";
+    var totalPages = Model.UnitsPageSize <= 0 ? 1 : (int)Math.Ceiling((double)Model.TotalUnits / Model.UnitsPageSize);
+    var nextUnitsPage = Model.UnitsPage + 1;
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Property Workspace</p>
+        <h1 class="rh-heading-title">@Model.Property.Name</h1>
+        <p class="rh-heading-subtitle">@Model.Property.Address, @Model.Property.City</p>
+    </div>
+
+    <div class="rh-toolbar">
+        <a class="btn rh-btn-subtle" asp-action="Index">Back to Properties</a>
+    </div>
+</section>
+
+<section class="rh-property-summary mb-3">
+    <article class="rh-summary-card">
+        <p>Total Units</p>
+        <h3>@Model.TotalUnits</h3>
+        <small>Current property inventory</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Documents</p>
+        <h3>@Model.Documents.Count</h3>
+        <small>Policy and operational files</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Members</p>
+        <h3>@(Model.Managers.Count + 1)</h3>
+        <small>Landlord and assigned managers</small>
+    </article>
+</section>
+
+<div class="rh-section-grid">
+    <div>
+        <section class="rh-section-card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Units</span>
+                <small class="text-muted">@Model.TotalUnits total</small>
+            </div>
+            <div class="card-body">
+                <form method="get" asp-action="Overview" class="row g-2 mb-3">
+                    <input type="hidden" name="id" value="@Model.Property.Id" />
+                    <div class="col-md-8">
+                        <input class="form-control rh-input" type="text" name="apartmentSearch" value="@Model.ApartmentSearch" placeholder="Search units" />
+                    </div>
+                    <div class="col-md-4 d-grid">
+                        <button class="btn rh-btn-primary" type="submit">Filter Units</button>
+                    </div>
+                </form>
+
+                @if (!Model.Units.Any())
+                {
+                    <div class="rh-empty">No units found for this property.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle rh-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var unit in Model.Units)
+                                {
+                                    <tr>
+                                        <td>@unit.Name</td>
+                                        <td>@unit.Type</td>
+                                        <td>@unit.Status</td>
+                                        <td class="text-end">@unit.Price.ToString("N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Page @Model.UnitsPage / @totalPages</small>
+                    @if (nextUnitsPage <= totalPages)
+                    {
+                        <a class="btn btn-sm rh-btn-subtle" asp-action="Overview" asp-route-id="@Model.Property.Id" asp-route-apartmentSearch="@Model.ApartmentSearch" asp-route-unitsPage="@nextUnitsPage" asp-route-unitsPageSize="@Model.UnitsPageSize">
+                            See More Units
+                        </a>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="rh-section-card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Property Documents</span>
+            </div>
+            <div class="card-body">
+                @if (Model.CanWrite)
+                {
+                    <form method="post" asp-action="UploadPropertyDocument" enctype="multipart/form-data" class="row g-2 mb-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+                        <div class="col-md-5">
+                            <input class="form-control rh-input" type="file" name="file" required />
+                        </div>
+                        <div class="col-md-4">
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="type">
+                                    @foreach (var type in Enum.GetValues<DocumentTypeEnum>())
+                                    {
+                                        <option value="@type">@type</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-grid">
+                            <button class="btn rh-btn-primary" type="submit">Upload</button>
+                        </div>
+                    </form>
+                }
+
+                @if (!Model.Documents.Any())
+                {
+                    <div class="rh-empty">No property documents uploaded yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle rh-table">
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var doc in Model.Documents)
+                                {
+                                    <tr>
+                                        <td><a href="@doc.BlobUrl" target="_blank" rel="noopener">@doc.FileName</a></td>
+                                        <td>@doc.DocumentType</td>
+                                        <td>@doc.UploadedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td class="text-end">
+                                            @if (Model.CanWrite)
+                                            {
+                                                <form method="post" asp-action="DeleteDocument" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+                                                    <input type="hidden" name="documentId" value="@doc.Id" />
+                                                    <button class="btn btn-sm rh-btn-outline-danger" type="submit">Delete</button>
+                                                </form>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+
+    <div>
+        <section class="rh-section-card mb-3">
+            <div class="card-header">Property Settings</div>
+            <div class="card-body">
+                <form method="post" asp-action="UpdateSettings" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+
+                    <div class="col-12">
+                        <label class="form-label">Name</label>
+                        <input class="form-control rh-input" name="Name" value="@Model.Property.Name" @(Model.CanWrite ? null : "readonly") />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">City</label>
+                        <input class="form-control rh-input" name="City" value="@Model.Property.City" @(Model.CanWrite ? null : "readonly") />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Address</label>
+                        <input class="form-control rh-input" name="Address" value="@Model.Property.Address" @(Model.CanWrite ? null : "readonly") />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control rh-input" name="Description" rows="3" @(Model.CanWrite ? null : "readonly")>@Model.Property.Description</textarea>
+                    </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <div class="col-12 d-grid mt-1">
+                            <button class="btn rh-btn-primary" type="submit">Save Settings</button>
+                        </div>
+                    }
+                </form>
+            </div>
+        </section>
+
+        <section class="rh-section-card mb-3">
+            <div class="card-header">Dialog Settings (This Property)</div>
+            <div class="card-body">
+                <form method="post" asp-action="UpdateSuccessDialogSettings" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showCloseButton" name="showCloseButton" value="true" @(Model.SuccessDialogShowCloseButton ? "checked" : null) />
+                            <input type="hidden" name="showCloseButton" value="false" />
+                            <label class="form-check-label" for="showCloseButton">Show close button on success and error dialogs</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label">Auto close after (seconds)</label>
+                        <input class="form-control rh-input" type="number" min="2" max="30" name="autoCloseSeconds" value="@Model.SuccessDialogAutoCloseSeconds" />
+                        <small class="text-muted">Applies to property, tenancy, apartment, and document actions linked to this property.</small>
+                    </div>
+
+                    <div class="col-12 d-grid mt-1">
+                        <button class="btn rh-btn-subtle" type="submit">Save Dialog Preferences</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="rh-section-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Property Members</span>
+                @if (Model.CanWrite)
+                {
+                    <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                        Add Member
+                    </button>
+                }
+            </div>
+            <div class="card-body">
+                <div class="table-responsive mb-3">
+                    <table class="table align-middle rh-table">
+                        <thead>
+                            <tr>
+                                <th>Member</th>
+                                <th>Role</th>
+                                <th>Permission</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>@Model.Property.LandlordName</td>
+                                <td>Landlord</td>
+                                <td>ReadWrite</td>
+                                <td></td>
+                            </tr>
+                            @foreach (var manager in Model.Managers)
+                            {
+                                <tr>
+                                    <td>@manager.ManagerName</td>
+                                    <td>Manager</td>
+                                    <td>
+                                        @if (Model.CanWrite)
+                                        {
+                                            <form method="post" asp-action="UpdateManagerPermission" class="d-flex gap-2 align-items-center">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+                                                <input type="hidden" name="assignmentId" value="@manager.Id" />
+                                                <div class="rh-select-wrap" style="max-width: 160px;">
+                                                    <select class="form-select form-select-sm rh-input rh-select" name="permission">
+                                                        <option value="ReadOnly" selected="@(manager.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">ReadOnly</option>
+                                                        <option value="ReadWrite" selected="@(manager.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">ReadWrite</option>
+                                                    </select>
+                                                </div>
+                                                <button class="btn btn-sm rh-btn-subtle" type="submit">Save</button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            @manager.Permission
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (Model.CanWrite)
+                                        {
+                                            <form method="post" asp-action="RemoveManager">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+                                                <input type="hidden" name="assignmentId" value="@manager.Id" />
+                                                <button class="btn btn-sm rh-btn-outline-danger" type="submit">Remove</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (!Model.Managers.Any())
+                {
+                    <div class="rh-empty">No additional members assigned yet.</div>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+@if (Model.CanWrite)
+{
+    <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="AddMember">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@Model.Property.Id" />
+
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title">Add Property Member</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body row g-2">
+                        <div class="col-12">
+                            <label class="form-label">Role</label>
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="role">
+                                    <option value="Manager">Manager</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Email</label>
+                            <input class="form-control rh-input" name="Email" type="email" required />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Full Name</label>
+                            <input class="form-control rh-input" name="FullName" required />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Country Code</label>
+                            <input class="form-control rh-input" name="CountryCode" placeholder="e.g. +237" />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Allowed Access</label>
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="Permission">
+                                    <option value="ReadOnly">ReadOnly</option>
+                                    <option value="ReadWrite">ReadWrite</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn rh-btn-primary">Add Member</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

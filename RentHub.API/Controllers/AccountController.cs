@@ -6,7 +6,9 @@ using RentHub.API.Data;
 using Common.CommunicationModels;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Auth;
+using RentHub.API.Services.Email;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace RentHub.API.Controllers
 {
@@ -14,26 +16,32 @@ namespace RentHub.API.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
+        private const string OtpLoginProvider = "RentHub";
+        private const string ActivationOtpTokenName = "ActivationOtpCode";
+        private const string ActivationOtpExpiryTokenName = "ActivationOtpExpiryUnix";
+
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _context;
         private readonly TokenService _tokenService;
+        private readonly IEmailService _emailService;
 
         public AccountController(UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
             ApplicationDbContext context,
-            TokenService tokenService)
+            TokenService tokenService,
+            IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _context = context;
             _tokenService = tokenService;
+            _emailService = emailService;
         }
 
         /// <summary>
-        /// Registers a new user.  All self-registered accounts are considered landlords.  A subscription
-        /// plan must be specified and will remain pending until approved by an administrator.  Other
-        /// roles (Owner, Manager, Tenant) must be created by a landlord via dedicated endpoints.
+        /// Registers a new user. All self-registered accounts are landlords and must verify
+        /// their email with an OTP before login is allowed.
         /// </summary>
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -45,19 +53,17 @@ namespace RentHub.API.Controllers
                     return BadRequest(ModelState);
                 }
 
-                // Self-registration is allowed only for landlords. Other account types are created via separate endpoints.
                 if (!request.PlanId.HasValue)
                 {
                     return BadRequest("Please choose a subscription plan to complete landlord registration.");
                 }
 
-                // Check if user already exists (by email)
                 var existingUser = await _userManager.FindByEmailAsync(request.Email);
                 if (existingUser != null)
                 {
                     return BadRequest("An account with this email already exists. Please log in instead.");
                 }
-                // Validate the selected plan before creating user records.
+
                 var plan = await _context.SubscriptionPlans.FindAsync(request.PlanId.Value);
                 if (plan == null) return BadRequest("Invalid subscription plan.");
 
@@ -66,7 +72,8 @@ namespace RentHub.API.Controllers
                     UserName = request.Email,
                     Email = request.Email,
                     FullName = request.FullName,
-                    CountryCode = request.CountryCode
+                    CountryCode = request.CountryCode,
+                    EmailConfirmed = false
                 };
 
                 var result = await _userManager.CreateAsync(user, request.Password);
@@ -75,7 +82,6 @@ namespace RentHub.API.Controllers
                     return BadRequest(result.Errors);
                 }
 
-                // Assign landlord role and fail fast if this step fails.
                 var roleResult = await _userManager.AddToRoleAsync(user, "Landlord");
                 if (!roleResult.Succeeded)
                 {
@@ -83,15 +89,17 @@ namespace RentHub.API.Controllers
                     return BadRequest(roleResult.Errors);
                 }
 
-                // Register the user for the selected subscription plan. The subscription will need to be
-                // approved by an administrator before the landlord can add owners, managers or tenants.
-
                 var subscription = new UserSubscription
                 {
                     UserId = user.Id,
                     SubscriptionPlanId = plan.Id,
                     StartDate = DateTimeOffset.UtcNow,
                     EndDate = DateTimeOffset.UtcNow.AddDays(plan.DurationInDays),
+                    PlanNameSnapshot = plan.Name,
+                    PlanPriceSnapshot = plan.Price,
+                    PlanDurationInDaysSnapshot = plan.DurationInDays,
+                    PlanMaxPropertiesSnapshot = plan.MaxProperties,
+                    PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
                     IsApproved = false,
                     CreatedBy = user.Id,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -101,8 +109,94 @@ namespace RentHub.API.Controllers
                 _context.UserSubscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
+                await IssueActivationOtpAsync(user);
+
+                return Ok(new
+                {
+                    RequiresActivation = true,
+                    Email = user.Email,
+                    Message = "Registration successful. Check your email for an OTP code to activate your account."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Verifies account activation OTP and activates the account.
+        /// </summary>
+        [HttpPost("verify-activation-otp")]
+        public async Task<IActionResult> VerifyActivationOtp([FromBody] VerifyActivationOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+
+                var user = await _userManager.FindByEmailAsync(request.Email);
+                if (user == null)
+                    return BadRequest("Invalid email or OTP.");
+
+                if (user.EmailConfirmed)
+                    return BadRequest("Account is already activated.");
+
+                var storedOtp = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName);
+                var storedExpiry = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName);
+
+                if (string.IsNullOrWhiteSpace(storedOtp) || string.IsNullOrWhiteSpace(storedExpiry))
+                    return BadRequest("No valid OTP found. Please request a new code.");
+
+                if (!long.TryParse(storedExpiry, out var expiryUnix))
+                    return BadRequest("Invalid OTP state. Please request a new code.");
+
+                var expiryUtc = DateTimeOffset.FromUnixTimeSeconds(expiryUnix);
+                if (expiryUtc <= DateTimeOffset.UtcNow)
+                    return BadRequest("OTP has expired. Please request a new code.");
+
+                if (!string.Equals(storedOtp, request.Otp.Trim(), StringComparison.Ordinal))
+                    return BadRequest("Invalid OTP.");
+
+                user.EmailConfirmed = true;
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                    return BadRequest(updateResult.Errors);
+
+                await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName);
+                await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName);
+
                 var token = await _tokenService.GenerateTokenAsync(user);
-                return Ok(new { Token = token });
+                return Ok(new { Message = "Account activated successfully.", Token = token });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Resends activation OTP for non-activated accounts.
+        /// </summary>
+        [HttpPost("resend-activation-otp")]
+        public async Task<IActionResult> ResendActivationOtp([FromBody] ResendActivationOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid) return BadRequest(ModelState);
+
+                var user = await _userManager.FindByEmailAsync(request.Email);
+                if (user == null)
+                {
+                    return Ok(new { Message = "If the account exists, a new OTP has been sent." });
+                }
+
+                if (user.EmailConfirmed)
+                {
+                    return BadRequest("Account is already activated.");
+                }
+
+                await IssueActivationOtpAsync(user);
+                return Ok(new { Message = "A new OTP has been sent to your email." });
             }
             catch (Exception ex)
             {
@@ -119,10 +213,23 @@ namespace RentHub.API.Controllers
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
+
                 var user = await _userManager.FindByEmailAsync(request.Email);
                 if (user == null) return Unauthorized("Invalid email or password.");
+
                 var valid = await _userManager.CheckPasswordAsync(user, request.Password);
                 if (!valid) return Unauthorized("Invalid email or password.");
+
+                if (!user.EmailConfirmed)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "EMAIL_NOT_CONFIRMED",
+                        Email = user.Email,
+                        Message = "Account is not activated. Verify OTP to complete account activation."
+                    });
+                }
+
                 var token = await _tokenService.GenerateTokenAsync(user);
                 return Ok(new { Token = token });
             }
@@ -156,8 +263,7 @@ namespace RentHub.API.Controllers
         }
 
         /// <summary>
-        /// Generates a password reset token and returns it.  In production this token should be
-        /// emailed to the user.
+        /// Generates a password reset token and returns it. In production this token should be emailed.
         /// </summary>
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
@@ -167,7 +273,6 @@ namespace RentHub.API.Controllers
                 var user = await _userManager.FindByEmailAsync(request.Email);
                 if (user == null) return Ok(new { Message = "If the email exists, a reset token has been generated." });
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                // TODO: send token via email using EmailService
                 return Ok(new { Token = token });
             }
             catch (Exception ex)
@@ -197,7 +302,7 @@ namespace RentHub.API.Controllers
         }
 
         /// <summary>
-        /// Logs the user out.  With JWT this is typically handled on the client by discarding the token.
+        /// Logs the user out. With JWT this is typically handled on the client by discarding the token.
         /// </summary>
         [HttpPost("logout")]
         [Authorize]
@@ -205,7 +310,6 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                // For JWT, logout is a client-side operation.  Server can revoke tokens using a blacklist if needed.
                 return Ok(new { Message = "Logged out." });
             }
             catch (Exception ex)
@@ -213,5 +317,32 @@ namespace RentHub.API.Controllers
                 return StatusCode(500, new { Message = ex.Message });
             }
         }
+
+        private async Task IssueActivationOtpAsync(ApplicationUser user)
+        {
+            var otp = GenerateOtpCode();
+            var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
+
+            await _userManager.SetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName, otp);
+            await _userManager.SetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName, expiry.ToUnixTimeSeconds().ToString());
+
+            var subject = "RentHub Account Activation OTP";
+            var body = $@"Hello {(string.IsNullOrWhiteSpace(user.FullName) ? "User" : user.FullName)},
+
+Your RentHub activation OTP is: {otp}
+This code expires in 10 minutes.
+
+If you did not create this account, please ignore this email.";
+
+            await _emailService.SendEmailAsync(user.Email ?? string.Empty, subject, body);
+        }
+
+        private static string GenerateOtpCode()
+        {
+            var value = RandomNumberGenerator.GetInt32(0, 1000000);
+            return value.ToString("D6");
+        }
     }
 }
+
+

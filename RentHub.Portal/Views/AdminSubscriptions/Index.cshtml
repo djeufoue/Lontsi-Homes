@@ -1,0 +1,181 @@
+@model RentHub.Portal.ViewModels.AdminSubscriptions.AdminSubscriptionsIndexVm
+@{
+    ViewData["Title"] = "Subscription Control";
+    var pendingCount = Model.PendingSubscriptions.Count;
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Workspace</p>
+        <h1 class="rh-heading-title">Subscription Control Center</h1>
+        <p class="rh-heading-subtitle">Approve landlord subscriptions and update plan pricing/limits for future signups without changing active subscriptions.</p>
+    </div>
+</section>
+
+<section class="rh-property-summary mb-3">
+    <article class="rh-summary-card">
+        <p>Pending Approval</p>
+        <h3>@pendingCount</h3>
+        <small>Subscriptions waiting for admin action</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Active Plans</p>
+        <h3>@Model.Plans.Count</h3>
+        <small>Plans currently available for registration</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Approval Rule</p>
+        <h3>Required</h3>
+        <small>Landlords cannot create properties before approval</small>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Pending Subscription Approvals</h2>
+        <small class="text-muted">Approve subscriptions to unlock landlord operations.</small>
+    </div>
+
+    @if (!Model.PendingSubscriptions.Any())
+    {
+        <div class="rh-empty">No pending subscriptions right now.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle rh-table mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Plan</th>
+                        <th class="text-end">Price</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.PendingSubscriptions)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@(string.IsNullOrWhiteSpace(item.UserFullName) ? "N/A" : item.UserFullName)</div>
+                                <small class="text-muted">@item.UserEmail</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@item.PlanName</div>
+                                <small class="text-muted">@item.PlanDurationInDays days</small>
+                            </td>
+                            <td class="text-end">@item.PlanPrice.ToString("N0") XAF</td>
+                            <td>@item.StartDate.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                            <td>@item.EndDate.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                            <td class="text-end">
+                                <form asp-action="Approve" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="subscriptionId" value="@item.Id" />
+                                    <button type="submit" class="btn btn-sm rh-btn-primary">Approve</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Plan Settings</h2>
+        <small class="text-muted">Changes apply only to future subscriptions. Existing subscriptions keep their original snapshot.</small>
+    </div>
+
+    <div class="rh-admin-plan-grid">
+        @foreach (var plan in Model.Plans)
+        {
+            <article class="rh-admin-plan-card">
+                <div class="rh-admin-plan-head">
+                    <h3>@plan.Name</h3>
+                    <span class="rh-chip rh-chip-info">@plan.DurationInDays days</span>
+                </div>
+
+                <form asp-action="UpdatePlan" method="post" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="PlanId" value="@plan.Id" />
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Plan Name</label>
+                        <input class="form-control rh-input" name="Name" value="@plan.Name" required />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Description</label>
+                        <textarea class="form-control rh-input" name="Description" rows="2">@plan.Description</textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Price (XAF)</label>
+                        <input class="form-control rh-input" type="number" min="0" step="0.01" name="Price" value="@plan.Price" required />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Duration (days)</label>
+                        <input class="form-control rh-input" type="number" min="1" name="DurationInDays" value="@plan.DurationInDays" required />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Max Properties</label>
+                        <input class="form-control rh-input" type="number" min="0" name="MaxProperties" value="@(plan.MaxProperties?.ToString() ?? string.Empty)" />
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="UnlimitedProperties" value="true" @(plan.MaxProperties.HasValue ? null : "checked") />
+                            <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Max Apartments / Property</label>
+                        <input class="form-control rh-input" type="number" min="0" name="MaxApartmentsPerProperty" value="@(plan.MaxApartmentsPerProperty?.ToString() ?? string.Empty)" />
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="UnlimitedApartmentsPerProperty" value="true" @(plan.MaxApartmentsPerProperty.HasValue ? null : "checked") />
+                            <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12 d-grid mt-2">
+                        <button type="submit" class="btn rh-btn-primary">Save Plan Changes</button>
+                    </div>
+                </form>
+            </article>
+        }
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const cards = document.querySelectorAll(".rh-admin-plan-card");
+            cards.forEach(card => {
+                const unlimitedProps = card.querySelector("input[name='UnlimitedProperties']");
+                const propsInput = card.querySelector("input[name='MaxProperties']");
+                const unlimitedApts = card.querySelector("input[name='UnlimitedApartmentsPerProperty']");
+                const aptsInput = card.querySelector("input[name='MaxApartmentsPerProperty']");
+
+                const sync = () => {
+                    if (propsInput && unlimitedProps) {
+                        propsInput.disabled = unlimitedProps.checked;
+                        if (unlimitedProps.checked) propsInput.value = "";
+                    }
+
+                    if (aptsInput && unlimitedApts) {
+                        aptsInput.disabled = unlimitedApts.checked;
+                        if (unlimitedApts.checked) aptsInput.value = "";
+                    }
+                };
+
+                unlimitedProps?.addEventListener("change", sync);
+                unlimitedApts?.addEventListener("change", sync);
+                sync();
+            });
+        })();
+    </script>
+}

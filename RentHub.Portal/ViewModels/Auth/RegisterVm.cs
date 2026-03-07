@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace RentHub.Portal.ViewModels.Auth
 {
@@ -14,6 +14,11 @@ namespace RentHub.Portal.ViewModels.Auth
 
         [Required]
         public string Password { get; set; } = "";
+
+        [Required]
+        [Compare(nameof(Password), ErrorMessage = "Password and Confirm Password must match.")]
+        [Display(Name = "Confirm Password")]
+        public string ConfirmPassword { get; set; } = "";
 
         [Required]
         public int PlanId { get; set; }

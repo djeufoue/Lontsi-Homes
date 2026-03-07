@@ -45,7 +45,7 @@ namespace RentHub.API.Data
 
             builder.Entity<Tenancy>()
                 .HasOne(t => t.Apartment)
-                .WithMany()
+                .WithMany(a => a.Tenancies)
                 .HasForeignKey(t => t.ApartmentId);
 
             builder.Entity<Tenancy>()
@@ -53,6 +53,18 @@ namespace RentHub.API.Data
                 .WithMany()
                 .HasForeignKey(t => t.TenantId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<SubscriptionPlan>()
+                .Property(p => p.Price)
+                .HasPrecision(18, 2);
+
+            builder.Entity<Tenancy>()
+                .Property(t => t.MonthlyRent)
+                .HasPrecision(18, 2);
+
+            builder.Entity<UserSubscription>()
+                .Property(us => us.PlanPriceSnapshot)
+                .HasPrecision(18, 2);
 
             // Ensure that each owner is assigned only once per apartment
             builder.Entity<ApartmentOwner>()
@@ -82,3 +94,4 @@ namespace RentHub.API.Data
         }
     }
 }
+
