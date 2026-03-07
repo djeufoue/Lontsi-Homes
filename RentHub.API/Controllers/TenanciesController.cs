@@ -7,7 +7,6 @@ using RentHub.API.Models.Entities;
 using Common.Enums;
 using Common.CommunicationModels;
 using System.Security.Claims;
-using Common.CommunicationModels.Common.CommunicationModels;
 
 namespace RentHub.API.Controllers
 {

@@ -1,10 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Common.CommunicationModels;
 using Common.Enums;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Tenancies;
-using Common.CommunicationModels.Common.CommunicationModels;
 
 namespace RentHub.Portal.Controllers
 {
@@ -110,3 +109,4 @@ namespace RentHub.Portal.Controllers
         }
     }
 }
+
