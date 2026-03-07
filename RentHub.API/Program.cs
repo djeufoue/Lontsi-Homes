@@ -54,7 +54,7 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Database
-ConfigureDatabase(builder.Services, builder.Configuration);
+ConfigureDatabase(builder.Services, builder.Configuration, builder.Environment.IsDevelopment());
 
 // Identity
 ConfigureIdentity(builder.Services);
@@ -104,7 +104,14 @@ builder.Services.AddScoped<RentHub.API.Services.Auth.TokenService>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();
-builder.Services.AddScoped<IEmailService, StubEmailService>();
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
+{
+    builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+}
+else
+{
+    builder.Services.AddScoped<IEmailService, StubEmailService>();
+}
 
 // Rent reminder background worker
 builder.Services.AddHostedService<RentReminderHostedService>();
@@ -142,15 +149,21 @@ app.Run();
 
 
 // ---------- local helpers ----------
-void ConfigureDatabase(IServiceCollection services, IConfiguration configuration)
+void ConfigureDatabase(IServiceCollection services, IConfiguration configuration, bool isDevelopment)
 {
     var connectionString = configuration.GetConnectionString("DefaultConnection")
         ?? "Server=(localdb)\\mssqllocaldb;Database=RentHubDb;Trusted_Connection=True;MultipleActiveResultSets=true";
 
+    var enableSensitiveDataLogging = configuration.GetValue<bool>("EfCore:EnableSensitiveDataLogging");
+
     services.AddDbContext<ApplicationDbContext>(options =>
     {
         options.UseSqlServer(connectionString);
-        options.EnableSensitiveDataLogging();
+
+        if (isDevelopment && enableSensitiveDataLogging)
+        {
+            options.EnableSensitiveDataLogging();
+        }
     });
 }
 
@@ -167,4 +180,7 @@ void ConfigureIdentity(IServiceCollection services)
         options.Password.RequireUppercase = false;
     });
 }
+
+
+
 

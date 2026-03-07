@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Common.CommunicationModels;
 using Common.Enums;
+using RentHub.Portal.Helpers;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Apartments;
 
@@ -41,6 +42,7 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> Overview(int id, string? tenancySearch = null)
         {
             var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{id}/overview");
+            SuccessDialogHelper.ActivateForProperty(HttpContext.Session, overview.Apartment.PropertyId);
 
             if (!string.IsNullOrWhiteSpace(tenancySearch))
             {
@@ -67,15 +69,15 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> CreateTenancy(CreateTenancyRequest request)
         {
             await _api.PostAsync("tenancies", request);
+            TempData["Success"] = "Tenancy created successfully.";
             return RedirectToAction(nameof(Overview), new { id = request.ApartmentId });
         }
-
-        // ---------- Owners ----------
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> AssignOwner(int apartmentId, AssignApartmentOwnerRequest request)
         {
             await _api.PostAsync($"apartments/{apartmentId}/owners", request);
+            TempData["Success"] = "Owner assigned successfully.";
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
         }
 
@@ -83,6 +85,7 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, PermissionLevelEnum permission)
         {
             await _api.PutAsync($"apartments/{apartmentId}/owners/{assignmentId}", permission);
+            TempData["Success"] = "Owner permission updated.";
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
         }
 
@@ -90,16 +93,18 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> RemoveOwner(int apartmentId, int assignmentId)
         {
             await _api.DeleteAsync($"apartments/{apartmentId}/owners/{assignmentId}");
+            TempData["Success"] = "Owner removed.";
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
         }
-
-        // ---------- Documents ----------
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> UploadApartmentDocument(int apartmentId, IFormFile file, DocumentTypeEnum documentType, string? description)
         {
             if (file == null || file.Length == 0)
+            {
+                TempData["Error"] = "Please choose a file to upload.";
                 return RedirectToAction(nameof(Overview), new { id = apartmentId });
+            }
 
             var content = new MultipartFormDataContent();
             content.Add(new StringContent(documentType.ToString()), "DocumentType");
@@ -110,6 +115,7 @@ namespace RentHub.Portal.Controllers
             content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
 
             await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
+            TempData["Success"] = "Apartment document uploaded.";
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
         }
 
@@ -117,6 +123,7 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> DeleteDocument(int apartmentId, int documentId)
         {
             await _api.DeleteAsync($"documents/{documentId}");
+            TempData["Success"] = "Apartment document deleted.";
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
         }
     }

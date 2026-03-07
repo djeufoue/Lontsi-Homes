@@ -1,70 +1,175 @@
 @model RentHub.Portal.ViewModels.Auth.RegisterVm
+@using System.Linq
 @using RentHub.Portal.ViewModels.Auth
 @{
     ViewData["Title"] = "Register";
+    Layout = "_AuthLayout";
     var plans = ViewBag.Plans as IEnumerable<SubscriptionPlanOptionVm> ?? Enumerable.Empty<SubscriptionPlanOptionVm>();
+    var selectedPlan = plans.FirstOrDefault(p => p.Id == Model.PlanId);
+    var selectedPlanLabel = selectedPlan == null
+        ? "Select a plan"
+        : $"{selectedPlan.Name} - {selectedPlan.Price:0.00} XAF ({selectedPlan.DurationInDays} days)";
 }
 
-<div class="row justify-content-center mt-4">
-    <div class="col-12 col-lg-8 col-xl-7">
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-4">
-                <h1 class="h4 mb-3">Create landlord account</h1>
-                <p class="text-muted small mb-4">Registration requires selecting a subscription plan.</p>
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell rh-auth-shell-register">
+        <aside class="rh-auth-hero">
+            <span class="rh-auth-kicker">RentHub Platform</span>
+            <h1>Create your landlord workspace.</h1>
+            <p>Set up your account and subscription to start managing properties, units, and members professionally.</p>
+            <ul class="rh-auth-points">
+                <li>Subscription-based property limits</li>
+                <li>Shared management for property teams</li>
+                <li>Centralized records and documents</li>
+            </ul>
+        </aside>
 
-                <form asp-action="Register" method="post">
-                    @Html.AntiForgeryToken()
-                    <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+        <section class="rh-auth-card">
+            <div class="rh-auth-card-header">
+                <h2>Create account</h2>
+                <p>Complete the details below to continue.</p>
+            </div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label asp-for="FullName" class="form-label"></label>
-                            <input asp-for="FullName" class="form-control" autocomplete="name" />
-                            <span asp-validation-for="FullName" class="text-danger small"></span>
-                        </div>
+            <form asp-action="Register" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
 
-                        <div class="col-md-6">
-                            <label asp-for="Email" class="form-label"></label>
-                            <input asp-for="Email" class="form-control" autocomplete="email" />
-                            <span asp-validation-for="Email" class="text-danger small"></span>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label asp-for="CountryCode" class="form-label">Country code</label>
-                            <input asp-for="CountryCode" class="form-control" placeholder="e.g. +237" />
-                            <span asp-validation-for="CountryCode" class="text-danger small"></span>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label asp-for="Password" class="form-label"></label>
-                            <input asp-for="Password" type="password" class="form-control" autocomplete="new-password" />
-                            <span asp-validation-for="Password" class="text-danger small"></span>
-                        </div>
-
-                        <div class="col-12">
-                            <label asp-for="PlanId" class="form-label">Subscription plan</label>
-                            <select asp-for="PlanId" class="form-select">
-                                <option value="">Select a plan</option>
-                                @foreach (var plan in plans)
-                                {
-                                    <option value="@plan.Id">@plan.Name - @plan.Price XAF (@plan.DurationInDays days)</option>
-                                }
-                            </select>
-                            <span asp-validation-for="PlanId" class="text-danger small"></span>
-                        </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="FullName" class="form-label rh-auth-label"></label>
+                        <input asp-for="FullName" class="form-control rh-auth-input" autocomplete="name" placeholder="Your full name" />
+                        <span asp-validation-for="FullName" class="text-danger small"></span>
                     </div>
 
-                    <button type="submit" class="btn btn-primary w-100 mt-4">Create account</button>
-                </form>
-            </div>
-            <div class="card-footer bg-white text-center">
-                <span class="text-muted small">Already have an account?</span>
+                    <div class="col-md-6">
+                        <label asp-for="Email" class="form-label rh-auth-label"></label>
+                        <input asp-for="Email" class="form-control rh-auth-input" autocomplete="email" placeholder="name@company.com" />
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="CountryCode" class="form-label rh-auth-label">Country code</label>
+                        <input asp-for="CountryCode" class="form-control rh-auth-input" placeholder="e.g. +237" />
+                        <span asp-validation-for="CountryCode" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="Password" class="form-label rh-auth-label"></label>
+                        <input asp-for="Password" type="password" class="form-control rh-auth-input" autocomplete="new-password" placeholder="Create a strong password" />
+                        <span asp-validation-for="Password" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="ConfirmPassword" class="form-label rh-auth-label"></label>
+                        <input asp-for="ConfirmPassword" type="password" class="form-control rh-auth-input" autocomplete="new-password" placeholder="Repeat your password" />
+                        <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-12">
+                        <label asp-for="PlanId" class="form-label rh-auth-label">Subscription plan</label>
+
+                        <div class="rh-plan-picker" data-plan-picker>
+                            <button type="button" class="rh-plan-toggle" data-plan-toggle aria-expanded="false">
+                                <span data-plan-current>@selectedPlanLabel</span>
+                                <span class="rh-plan-chevron" aria-hidden="true"></span>
+                            </button>
+
+                            <div class="rh-plan-menu" data-plan-menu>
+                                <button type="button" class="rh-plan-option @(selectedPlan == null ? "is-active" : null)" data-value="" data-label="Select a plan">
+                                    <strong>Select a plan</strong>
+                                </button>
+
+                                @foreach (var plan in plans)
+                                {
+                                    var planLabel = $"{plan.Name} - {plan.Price:0.00} XAF ({plan.DurationInDays} days)";
+                                    <button type="button" class="rh-plan-option @(Model.PlanId == plan.Id ? "is-active" : null)" data-value="@plan.Id" data-label="@planLabel">
+                                        <strong>@plan.Name</strong>
+                                        <small>@plan.Price.ToString("0.00") XAF for @plan.DurationInDays days</small>
+                                    </button>
+                                }
+                            </div>
+
+                            <div class="rh-native-plan-wrap" aria-hidden="true">
+                                <select asp-for="PlanId" class="rh-native-plan-select" tabindex="-1">
+                                    <option value="">Select a plan</option>
+                                    @foreach (var plan in plans)
+                                    {
+                                        <option value="@plan.Id">@plan.Name - @plan.Price.ToString("0.00") XAF (@plan.DurationInDays days)</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+
+                        <span asp-validation-for="PlanId" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn rh-btn-primary w-100 mt-4">Create account</button>
+            </form>
+
+            <p class="rh-auth-footnote mb-0">
+                Already have an account?
                 <a asp-action="Login">Sign in</a>
-            </div>
-        </div>
+            </p>
+        </section>
     </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const picker = document.querySelector("[data-plan-picker]");
+            if (!picker) return;
+
+            const toggle = picker.querySelector("[data-plan-toggle]");
+            const menu = picker.querySelector("[data-plan-menu]");
+            const current = picker.querySelector("[data-plan-current]");
+            const select = picker.querySelector(".rh-native-plan-select");
+            const options = Array.from(picker.querySelectorAll(".rh-plan-option"));
+
+            const close = () => {
+                picker.classList.remove("is-open");
+                toggle.setAttribute("aria-expanded", "false");
+            };
+
+            const open = () => {
+                picker.classList.add("is-open");
+                toggle.setAttribute("aria-expanded", "true");
+            };
+
+            const setActive = (value) => {
+                const selected = options.find(o => o.dataset.value === value) || options[0];
+
+                options.forEach(o => o.classList.remove("is-active"));
+                selected.classList.add("is-active");
+                current.textContent = selected.dataset.label || "Select a plan";
+                select.value = value;
+            };
+
+            toggle.addEventListener("click", () => {
+                if (picker.classList.contains("is-open")) {
+                    close();
+                } else {
+                    open();
+                }
+            });
+
+            options.forEach(option => {
+                option.addEventListener("click", () => {
+                    setActive(option.dataset.value || "");
+                    close();
+                });
+            });
+
+            document.addEventListener("click", (event) => {
+                if (!picker.contains(event.target)) {
+                    close();
+                }
+            });
+
+            setActive(select.value || "");
+        })();
+    </script>
 }
+

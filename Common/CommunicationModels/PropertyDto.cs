@@ -2,7 +2,6 @@ namespace Common.CommunicationModels
 {
     /// <summary>
     /// Lightweight representation of a property used for listings.
-    /// Provides summary information without exposing navigation properties.
     /// </summary>
     public class PropertyDto
     {
@@ -11,5 +10,14 @@ namespace Common.CommunicationModels
         public string City { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public int ApartmentCount { get; set; }
+
+        public string LandlordId { get; set; } = string.Empty;
+        public string LandlordName { get; set; } = string.Empty;
+
+        // True if the current authenticated user can change property data.
+        public bool CanWrite { get; set; }
+
+        // Owned, Managed, Owner, Tenant, Admin
+        public string AccessSource { get; set; } = string.Empty;
     }
 }

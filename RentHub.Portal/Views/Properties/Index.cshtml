@@ -1,0 +1,240 @@
+@using System
+@using System.Linq
+@model RentHub.Portal.ViewModels.Properties.PropertyIndexVm
+@{
+    ViewData["Title"] = "Properties";
+    var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
+    var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Portfolio Workspace</p>
+        <h1 class="rh-heading-title">Properties</h1>
+        <p class="rh-heading-subtitle">@Model.TotalCount property(ies) available for role: <strong>@Model.UserRole</strong>.</p>
+    </div>
+
+    <div class="rh-toolbar">
+        @if (Model.CanCreateProperty)
+        {
+            <button class="btn rh-btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createPropertyModal">
+                Add New Property
+            </button>
+        }
+    </div>
+</section>
+
+<section class="rh-property-summary">
+    <article class="rh-summary-card">
+        <p>Total Properties</p>
+        <h3>@Model.TotalCount</h3>
+        <small>Across your accessible scope</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Current Role</p>
+        <h3>@Model.UserRole</h3>
+        <small>Role-based visibility enabled</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Create Access</p>
+        <h3>@(Model.CanCreateProperty ? "Enabled" : "Restricted")</h3>
+        <small>Subscription and rights controlled</small>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Filters</h2>
+        <small class="text-muted">Refine properties by search, city, access, and page size.</small>
+    </div>
+
+    <form method="get" asp-action="Index" class="rh-filter-grid">
+        <div>
+            <label class="form-label mb-1">Search</label>
+            <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="Name, city, address" />
+        </div>
+
+        <div>
+            <label class="form-label mb-1">City</label>
+            <input class="form-control rh-input" type="text" name="city" value="@Model.City" placeholder="Filter by city" />
+        </div>
+
+        <div>
+            <label class="form-label mb-1">Access Scope</label>
+            <div class="rh-select-wrap">
+                <select class="form-select rh-input rh-select" name="access">
+                    <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Access) ? "selected" : null)">All</option>
+                    <option value="owned" selected="@(Model.Access == "owned" ? "selected" : null)">Owned</option>
+                    <option value="managed" selected="@(Model.Access == "managed" ? "selected" : null)">Managed</option>
+                    <option value="owner" selected="@(Model.Access == "owner" ? "selected" : null)">Owner</option>
+                    <option value="tenant" selected="@(Model.Access == "tenant" ? "selected" : null)">Tenant</option>
+                </select>
+            </div>
+        </div>
+
+        <div>
+            <label class="form-label mb-1">Page Size</label>
+            <div class="rh-select-wrap">
+                <select class="form-select rh-input rh-select" name="pageSize">
+                    <option value="6" selected="@(Model.PageSize == 6 ? "selected" : null)">6</option>
+                    <option value="12" selected="@(Model.PageSize == 12 ? "selected" : null)">12</option>
+                    <option value="24" selected="@(Model.PageSize == 24 ? "selected" : null)">24</option>
+                </select>
+            </div>
+        </div>
+
+        <input type="hidden" name="page" value="1" />
+
+        <div class="d-flex align-items-end">
+            <button type="submit" class="btn rh-btn-primary w-100">Apply Filters</button>
+        </div>
+    </form>
+</section>
+
+@if (Model.CreationScopes.Any())
+{
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="rh-section-title mb-0">Creation Scope and Limits</h2>
+            <small class="text-muted">Plan limits and approval state for each landlord scope.</small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 rh-table">
+                <thead>
+                    <tr>
+                        <th>Landlord</th>
+                        <th>Current</th>
+                        <th>Limit</th>
+                        <th>Subscription</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var scope in Model.CreationScopes)
+                    {
+                        <tr>
+                            <td>@scope.LandlordName</td>
+                            <td>@scope.CurrentProperties</td>
+                            <td>@(scope.MaxProperties.HasValue ? scope.MaxProperties.Value : "Unlimited")</td>
+                            <td>@(scope.SubscriptionApproved ? "Approved" : "Pending/Inactive")</td>
+                            <td>@scope.StatusMessage</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+<section id="propertyGridHost">
+    @await Html.PartialAsync("_PropertyGrid", Model)
+</section>
+
+@if (Model.CanCreateProperty)
+{
+    <div class="modal fade" id="createPropertyModal" tabindex="-1" aria-labelledby="createPropertyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="Create">
+                    @Html.AntiForgeryToken()
+
+                    <div class="modal-header border-0 pb-0">
+                        <div>
+                            <h5 class="modal-title" id="createPropertyModalLabel">Add New Property</h5>
+                            <small class="text-muted">Create a property within an allowed scope.</small>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <input type="hidden" name="search" value="@Model.Search" />
+                        <input type="hidden" name="city" value="@Model.City" />
+                        <input type="hidden" name="access" value="@Model.Access" />
+                        <input type="hidden" name="page" value="@Model.Page" />
+                        <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                        <div class="row g-3">
+                            @if (allowScopeSelection)
+                            {
+                                <div class="col-12">
+                                    <label class="form-label">Create For Landlord</label>
+                                    <div class="rh-select-wrap">
+                                        <select class="form-select rh-input rh-select" name="LandlordId" required>
+                                            @foreach (var scope in Model.CreationScopes)
+                                            {
+                                                <option value="@scope.LandlordId" disabled="@(scope.CanCreate ? null : "disabled")">
+                                                    @scope.LandlordName (@scope.StatusMessage)
+                                                </option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                            }
+                            else if (firstScope != null)
+                            {
+                                <input type="hidden" name="LandlordId" value="@firstScope.LandlordId" />
+                            }
+
+                            <div class="col-md-6">
+                                <label class="form-label">Property Name</label>
+                                <input class="form-control rh-input" name="Name" required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">City</label>
+                                <input class="form-control rh-input" name="City" required />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <input class="form-control rh-input" name="Address" required />
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">Description (Optional)</label>
+                                <textarea class="form-control rh-input" name="Description" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn rh-btn-primary">Create Property</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const host = document.getElementById("propertyGridHost");
+            if (!host) return;
+
+            const endpoint = '@Url.Action("ListPartial", "Properties")';
+            const refreshMs = 20000;
+
+            const loadPartial = async () => {
+                const modal = document.getElementById("createPropertyModal");
+                if (modal && modal.classList.contains("show")) {
+                    return;
+                }
+
+                const params = new URLSearchParams(window.location.search);
+                if (!params.has("page")) params.set("page", "@Model.Page");
+                if (!params.has("pageSize")) params.set("pageSize", "@Model.PageSize");
+
+                const url = `${endpoint}?${params.toString()}`;
+                const response = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+                if (!response.ok) return;
+
+                host.innerHTML = await response.text();
+            };
+
+            setInterval(loadPartial, refreshMs);
+        })();
+    </script>
+}

@@ -1,3 +1,18 @@
+@using System
+@using RentHub.Portal.Helpers
+@{
+    var successMessage = TempData["Success"] as string;
+    var errorMessage = TempData["Error"] as string;
+    var successDialog = SuccessDialogHelper.GetActive(Context.Session);
+
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var isDashboard = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
+    var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
+    var isSubscriptionsAdmin = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
+
+    var userName = User.Identity?.Name;
+    var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,130 +22,195 @@
 
     <script type="importmap"></script>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/RentHub.Portal.styles.css" asp-append-version="true" />
 </head>
-<body class="app-body">
-
-    <header class="sticky-top">
-        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
-            <div class="container-fluid">
-                <a class="navbar-brand fw-bold" asp-area="" asp-controller="Home" asp-action="Index">
-                    RentHub Portal
-                </a>
-
-                <button class="navbar-toggler" type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#mainNavbar"
-                        aria-controls="mainNavbar"
-                        aria-expanded="false"
-                        aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="mainNavbar">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <a class="nav-link" asp-controller="Home" asp-action="Index">Dashboard</a>
-                        </li>
-
-                        @if (User?.Identity?.IsAuthenticated == true)
-                        {
-                            if (User.IsInRole("Landlord"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Properties" asp-action="Index">Properties</a>
-                                </li>
-
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Apartments" asp-action="Index">Units</a>
-                                </li>
-
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Tenancies" asp-action="Index">Tenancies</a>
-                                </li>
-                            }
-                            else
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-controller="Tenancies" asp-action="Index">Tenancies</a>
-                                </li>
-                            }
-                        }
-                    </ul>
-
-                    <ul class="navbar-nav ms-auto align-items-lg-center">
-                        @if (User?.Identity?.IsAuthenticated == true)
-                        {
-                            <li class="nav-item me-2">
-                                <span class="navbar-text text-muted small">
-                                    Signed in as <strong>@(User.Identity?.Name ?? "User")</strong>
-                                </span>
-                            </li>
-
-                            <li class="nav-item">
-                                <form asp-controller="Auth" asp-action="Logout" method="post" class="d-inline">
-                                    @Html.AntiForgeryToken()
-                                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                                        Logout
-                                    </button>
-                                </form>
-                            </li>
-                        }
-                        else
-                        {
-                            <li class="nav-item">
-                                <a class="btn btn-outline-primary btn-sm me-2" asp-controller="Auth" asp-action="Login">
-                                    Login
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="btn btn-primary btn-sm" asp-controller="Auth" asp-action="Register">
-                                    Register
-                                </a>
-                            </li>
-                        }
-                    </ul>
+<body class="rh-body">
+    <div class="rh-shell">
+        @if (User?.Identity?.IsAuthenticated == true)
+        {
+            <aside class="rh-sidebar" id="rhSidebar">
+                <div class="rh-sidebar-brand">
+                    <a asp-controller="Home" asp-action="Index">RentHub</a>
+                    <small>Operations Workspace</small>
                 </div>
-            </div>
-        </nav>
-    </header>
 
-    <div class="container-fluid app-container">
-        <main role="main" class="py-3">
-            @if (TempData["Success"] is string ok && !string.IsNullOrWhiteSpace(ok))
-            {
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    @ok
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <div class="rh-sidebar-user">
+                    <div class="rh-avatar">@userInitial</div>
+                    <div>
+                        <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
+                        <p class="rh-sidebar-user-role">Authenticated Session</p>
+                    </div>
                 </div>
-            }
 
-            @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
-            {
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    @err
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <nav class="rh-nav">
+                    <a class="rh-nav-link @(isDashboard ? "active" : null)" asp-controller="Home" asp-action="Index">
+                        <span class="rh-nav-icon">&#9635;</span>
+                        <span>Dashboard</span>
+                    </a>
+                    <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index">
+                        <span class="rh-nav-icon">&#9638;</span>
+                        <span>Properties</span>
+                    </a>
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
+                            <span class="rh-nav-icon">&#9881;</span>
+                            <span>Subscriptions</span>
+                        </a>
+                    }
+                </nav>
+
+                <div class="rh-sidebar-footer">
+                    <p>RentHub</p>
+                    <small>Manage everything from one place</small>
                 </div>
-            }
+            </aside>
+        }
 
-            @RenderBody()
-        </main>
+        <div class="rh-main">
+            <header class="rh-topbar">
+                <div class="rh-topbar-left">
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle">
+                            Menu
+                        </button>
+                    }
+                    <div class="rh-topbar-context">
+                        <p class="rh-topbar-title">@(ViewData["Title"] ?? "RentHub")</p>
+                        <small class="rh-topbar-caption">Premium property management control panel</small>
+                    </div>
+                </div>
 
-        <footer class="app-footer border-top text-muted py-3 mt-auto">
-            <div class="container-fluid d-flex justify-content-between">
+                <div class="rh-topbar-right">
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <form asp-controller="Auth" asp-action="Logout" method="post" class="d-inline">
+                            @Html.AntiForgeryToken()
+                            <button class="btn rh-btn-outline-danger btn-sm" type="submit">Logout</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Auth" asp-action="Login">Login</a>
+                        <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">Register</a>
+                    }
+                </div>
+            </header>
+
+            <main role="main" class="rh-page">
+                @RenderBody()
+            </main>
+
+            <footer class="rh-footer">
                 <div>&copy; 2026 - RentHub.Portal</div>
                 <div>
                     <a asp-controller="Home" asp-action="Privacy">Privacy</a>
                 </div>
-            </div>
-        </footer>
+            </footer>
+        </div>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="modal fade" id="successDialogModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rh-success-modal">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title">Action Completed</h5>
+                        @if (successDialog.ShowCloseButton)
+                        {
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        }
+                    </div>
+                    <div class="modal-body pt-0">
+                        <p class="mb-0">@successMessage</p>
+                    </div>
+                    @if (successDialog.ShowCloseButton)
+                    {
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="modal fade" id="errorDialogModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rh-error-modal">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title">Action Failed</h5>
+                        @if (successDialog.ShowCloseButton)
+                        {
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        }
+                    </div>
+                    <div class="modal-body pt-0">
+                        <p class="mb-0">@errorMessage</p>
+                    </div>
+                    @if (successDialog.ShowCloseButton)
+                    {
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn rh-btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <script>
+            (() => {
+                const allowManualClose = @(successDialog.ShowCloseButton ? "true" : "false");
+                const autoCloseMs = @(successDialog.AutoCloseSeconds * 1000);
+
+                const queue = [];
+                const errorEl = document.getElementById("errorDialogModal");
+                const successEl = document.getElementById("successDialogModal");
+
+                if (errorEl) queue.push(errorEl);
+                if (successEl) queue.push(successEl);
+
+                if (!queue.length) return;
+
+                const showAt = (index) => {
+                    if (index >= queue.length) return;
+
+                    const modalEl = queue[index];
+                    const modal = new bootstrap.Modal(modalEl, {
+                        backdrop: allowManualClose ? true : "static",
+                        keyboard: allowManualClose
+                    });
+
+                    modalEl.addEventListener("hidden.bs.modal", () => showAt(index + 1), { once: true });
+                    modal.show();
+
+                    if (autoCloseMs > 0) {
+                        setTimeout(() => modal.hide(), autoCloseMs);
+                    }
+                };
+
+                showAt(0);
+            })();
+        </script>
+    }
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

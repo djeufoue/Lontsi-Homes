@@ -244,7 +244,9 @@ namespace RentHub.API.Controllers
                     .OrderByDescending(us => us.EndDate)
                     .FirstOrDefaultAsync();
 
-                var maxApts = activeSubscription?.SubscriptionPlan?.MaxApartmentsPerProperty;
+                var maxApts = activeSubscription != null
+                    ? (activeSubscription.PlanMaxApartmentsPerPropertySnapshot ?? activeSubscription.SubscriptionPlan?.MaxApartmentsPerProperty)
+                    : null;
                 if (maxApts.HasValue)
                 {
                     var count = await _context.Apartments.CountAsync(a => a.PropertyId == request.PropertyId && !a.IsDeleted);
@@ -503,3 +505,5 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+

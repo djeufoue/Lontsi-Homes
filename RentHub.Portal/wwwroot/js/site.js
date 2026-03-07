@@ -1,4 +1,10 @@
-﻿// Please see documentation at https://learn.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
+(() => {
+  const body = document.body;
+  const toggle = document.getElementById("rhSidebarToggle");
 
-// Write your JavaScript code.
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      body.classList.toggle("sidebar-open");
+    });
+  }
+})();

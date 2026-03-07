@@ -2,34 +2,51 @@
     ViewData["Title"] = "Dashboard";
 }
 
-<div class="row g-4 mt-1">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h1 class="h4 mb-2">Dashboard</h1>
-                <p class="text-muted mb-0">Welcome back, @(User.Identity?.Name ?? "User").</p>
-            </div>
-        </div>
+<section class="rh-dashboard-hero">
+    <div>
+        <p class="rh-kicker">Operations Overview</p>
+        <h1 class="rh-heading-title">Dashboard</h1>
+        <p class="rh-heading-subtitle">Welcome back, @(User.Identity?.Name ?? "User"). Track your portfolio, team access, and latest actions in one workspace.</p>
     </div>
-
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
-                <h2 class="h6 text-uppercase text-muted mb-3">Quick Access</h2>
-
-                @if (User.IsInRole("Landlord"))
-                {
-                    <div class="d-flex flex-wrap gap-2">
-                        <a class="btn btn-primary" asp-controller="Properties" asp-action="Index">Properties</a>
-                        <a class="btn btn-outline-primary" asp-controller="Apartments" asp-action="Index">Units</a>
-                        <a class="btn btn-outline-primary" asp-controller="Tenancies" asp-action="Index">Tenancies</a>
-                    </div>
-                }
-                else
-                {
-                    <a class="btn btn-primary" asp-controller="Tenancies" asp-action="Index">Open Tenancies</a>
-                }
-            </div>
-        </div>
+    <div class="rh-toolbar">
+        <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Index">Go to Properties</a>
     </div>
-</div>
+</section>
+
+<section class="rh-dashboard-metrics">
+    <article class="rh-metric-card">
+        <p class="rh-metric-label">Workspace Status</p>
+        <p class="rh-metric-value">Online</p>
+        <small>Real-time sync active</small>
+    </article>
+    <article class="rh-metric-card">
+        <p class="rh-metric-label">Core Module</p>
+        <p class="rh-metric-value">Properties</p>
+        <small>Manage units, members, and documents</small>
+    </article>
+    <article class="rh-metric-card">
+        <p class="rh-metric-label">Access Mode</p>
+        <p class="rh-metric-value">Role Aware</p>
+        <small>Permissions enforced by backend policy</small>
+    </article>
+</section>
+
+<section class="rh-dashboard-grid">
+    <article class="rh-panel rh-panel-elevated">
+        <h2 class="rh-section-title">Property Workspace</h2>
+        <p class="mb-3">Open the full property module to create and manage assets, assign property members, upload documents, and control property-level settings.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Index">Open Properties</a>
+            <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Index" asp-route-access="owned">View Owned Properties</a>
+        </div>
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <h2 class="rh-section-title">Quick Guidance</h2>
+        <ul class="rh-guidance-list mb-0">
+            <li>Create a new property from the Properties page if your role and subscription allow it.</li>
+            <li>Use Property Overview to manage units, members, settings, and documents.</li>
+            <li>Configure success and error dialog behavior per property for a consistent user experience.</li>
+        </ul>
+    </article>
+</section>
