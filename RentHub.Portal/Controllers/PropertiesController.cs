@@ -8,7 +8,7 @@ using RentHub.Portal.Helpers;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Documents;
 using RentHub.Portal.ViewModels.Properties;
-using System.IO;
+using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
@@ -20,11 +20,13 @@ namespace RentHub.Portal.Controllers
 
         private readonly RentHubApiClient _api;
         private readonly ILogger<PropertiesController> _logger;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public PropertiesController(RentHubApiClient api, ILogger<PropertiesController> logger)
+        public PropertiesController(RentHubApiClient api, ILogger<PropertiesController> logger, IHttpClientFactory httpClientFactory)
         {
             _api = api;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpGet]
@@ -98,6 +100,8 @@ namespace RentHub.Portal.Controllers
                     City = vm.City,
                     Address = vm.Address,
                     Description = vm.Description,
+                    Latitude = vm.Latitude,
+                    Longitude = vm.Longitude,
                     LandlordId = vm.LandlordId
                 };
 
@@ -160,6 +164,42 @@ namespace RentHub.Portal.Controllers
             catch (Exception ex)
             {
                 return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Index)));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DocumentContent(int id, bool download = false)
+        {
+            try
+            {
+                var document = await _api.GetAsync<DocumentDto>($"documents/{id}");
+                if (string.IsNullOrWhiteSpace(document.BlobUrl))
+                {
+                    return NotFound();
+                }
+
+                var httpClient = _httpClientFactory.CreateClient();
+                using var response = await httpClient.GetAsync(document.BlobUrl, HttpCompletionOption.ResponseHeadersRead);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return NotFound();
+                }
+
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                var contentType = response.Content.Headers.ContentType?.MediaType;
+                if (string.IsNullOrWhiteSpace(contentType))
+                {
+                    contentType = GuessContentType(document.FileName, document.DocumentType);
+                }
+
+                return download
+                    ? File(bytes, contentType!, document.FileName)
+                    : File(bytes, contentType!);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Document content request failed in portal for document {DocumentId}.", id);
+                return NotFound();
             }
         }
 
@@ -316,7 +356,9 @@ namespace RentHub.Portal.Controllers
         {
             if (file == null || file.Length == 0)
             {
-                TempData["Error"] = "Please choose a file to upload.";
+                TempData["Error"] = type == DocumentTypeEnum.PropertyImage
+                    ? "Please choose an image to upload."
+                    : "Please choose a PDF file to upload.";
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                 return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
@@ -336,6 +378,12 @@ namespace RentHub.Portal.Controllers
                     SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                     return RedirectToAction(nameof(Overview), new { id = propertyId });
                 }
+            }
+            else if (!IsPdf(file))
+            {
+                TempData["Error"] = "Only PDF files are allowed in the property document section.";
+                SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
+                return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
 
             try
@@ -622,6 +670,31 @@ namespace RentHub.Portal.Controllers
                 Items = response.Items
             };
         }
+
+        private static bool IsPdf(IFormFile file)
+        {
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty);
+
+            return string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GuessContentType(string? fileName, DocumentTypeEnum documentType)
+        {
+            var extension = Path.GetExtension(fileName ?? string.Empty).ToLowerInvariant();
+            return extension switch
+            {
+                ".pdf" => "application/pdf",
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                ".bmp" => "image/bmp",
+                ".svg" => "image/svg+xml",
+                _ when documentType == DocumentTypeEnum.PropertyImage || documentType == DocumentTypeEnum.ApartmentImage => "image/*",
+                _ => "application/octet-stream"
+            };
+        }
     }
 }
-

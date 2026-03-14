@@ -209,3 +209,12 @@ C:\Projects\Rent Management Project\tempbuild\api\RentHub.API.runtimeconfig.json
 C:\Projects\Rent Management Project\tempbuild\api\RentHub.API.dll
 C:\Projects\Rent Management Project\tempbuild\api\RentHub.API.pdb
 C:\Projects\Rent Management Project\tempbuild\api\appsettings.Development.json
+C:\Projects\Rent Management Project\RentHub\RentHub.API\bin\Debug\net9.0\appsettings.Development.json
+C:\Projects\Rent Management Project\tempbuild\api3\appsettings.Development.json
+C:\Projects\Rent Management Project\tempbuild\api3\appsettings.json
+C:\Projects\Rent Management Project\tempbuild\api3\RentHub.API.staticwebassets.endpoints.json
+C:\Projects\Rent Management Project\tempbuild\api3\RentHub.API.deps.json
+C:\Projects\Rent Management Project\tempbuild\api3\RentHub.API.runtimeconfig.json
+C:\Projects\Rent Management Project\tempbuild\api3\RentHub.API.dll
+C:\Projects\Rent Management Project\tempbuild\api3\RentHub.API.pdb
+C:\Projects\Rent Management Project\RentHub\RentHub.API\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt

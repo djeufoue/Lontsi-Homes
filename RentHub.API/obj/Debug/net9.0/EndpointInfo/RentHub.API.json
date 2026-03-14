@@ -2094,6 +2094,20 @@
             "type": "string",
             "nullable": true
           },
+          "latitude": {
+            "maximum": 90,
+            "minimum": -90,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "longitude": {
+            "maximum": 180,
+            "minimum": -180,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
           "landlordId": {
             "type": "string",
             "nullable": true
@@ -2348,6 +2362,20 @@
           },
           "description": {
             "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "maximum": 90,
+            "minimum": -90,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "longitude": {
+            "maximum": 180,
+            "minimum": -180,
+            "type": "number",
+            "format": "double",
             "nullable": true
           }
         },

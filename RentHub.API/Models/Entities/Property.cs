@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace RentHub.API.Models.Entities
 {
     /// <summary>
-    /// A property groups multiple apartments.  Owned by a landlord.
+    /// A property groups multiple apartments. Owned by a landlord.
     /// </summary>
     public class Property
     {
@@ -14,6 +14,8 @@ namespace RentHub.API.Models.Entities
         public string Address { get; set; } = string.Empty;
         public string City { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
 
         // Owner of the property
         public string LandlordId { get; set; } = string.Empty;

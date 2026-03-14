@@ -12,6 +12,8 @@ namespace Common.CommunicationModels
         public string City { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
 
         public string LandlordId { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;

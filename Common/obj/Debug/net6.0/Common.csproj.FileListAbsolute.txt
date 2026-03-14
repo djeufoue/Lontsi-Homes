@@ -23,3 +23,6 @@ C:\Projects\Rent Management Project\tempbuild\portal\Common.pdb
 C:\Projects\Rent Management Project\tempbuild\api\Common.deps.json
 C:\Projects\Rent Management Project\tempbuild\api\Common.dll
 C:\Projects\Rent Management Project\tempbuild\api\Common.pdb
+C:\Projects\Rent Management Project\tempbuild\api3\Common.deps.json
+C:\Projects\Rent Management Project\tempbuild\api3\Common.dll
+C:\Projects\Rent Management Project\tempbuild\api3\Common.pdb

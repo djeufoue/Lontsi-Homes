@@ -9,6 +9,7 @@ using RentHub.API.Models.Entities;
 using RentHub.API.Helpers;
 using Common.CommunicationModels;
 using Common.Enums;
+using RentHub.API.Services.Storage;
 
 namespace RentHub.API.Controllers
 {
@@ -18,13 +19,14 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IStorageService _storageService;
 
-        public PropertiesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public PropertiesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
         {
             _context = context;
             _userManager = userManager;
+            _storageService = storageService;
         }
-
         /// <summary>
         /// Admin-only full property list endpoint.
         /// </summary>
@@ -315,6 +317,8 @@ namespace RentHub.API.Controllers
                     City = property.City,
                     Address = property.Address,
                     Description = property.Description,
+                    Latitude = property.Latitude,
+                    Longitude = property.Longitude,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
@@ -433,6 +437,8 @@ namespace RentHub.API.Controllers
                     City = normalizedCity,
                     Address = normalizedAddress,
                     Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+                    Latitude = request.Latitude,
+                    Longitude = request.Longitude,
                     LandlordId = landlordId,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -449,6 +455,8 @@ namespace RentHub.API.Controllers
                     City = propertyEntity.City,
                     Address = propertyEntity.Address,
                     Description = propertyEntity.Description,
+                    Latitude = propertyEntity.Latitude,
+                    Longitude = propertyEntity.Longitude,
                     LandlordId = propertyEntity.LandlordId,
                     LandlordName = landlord.FullName ?? landlord.Email ?? "",
                     Apartments = new List<ApartmentDto>()
@@ -509,6 +517,8 @@ namespace RentHub.API.Controllers
                 property.City = city;
                 property.Address = address;
                 property.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+                property.Latitude = request.Latitude;
+                property.Longitude = request.Longitude;
                 property.UpdatedBy = userId;
                 property.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -522,6 +532,8 @@ namespace RentHub.API.Controllers
                     City = property.City,
                     Address = property.Address,
                     Description = property.Description,
+                    Latitude = property.Latitude,
+                    Longitude = property.Longitude,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = new List<ApartmentDto>()
@@ -569,6 +581,8 @@ namespace RentHub.API.Controllers
                     City = property.City,
                     Address = property.Address,
                     Description = property.Description,
+                    Latitude = property.Latitude,
+                    Longitude = property.Longitude,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
@@ -602,21 +616,12 @@ namespace RentHub.API.Controllers
                     })
                     .ToListAsync();
 
-                var docs = await _context.Documents
+                var documentEntities = await _context.Documents
                     .Where(d => d.PropertyId == id && d.ApartmentId == null && d.TenancyId == null)
                     .OrderByDescending(d => d.CreatedAt)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
+
+                var docs = await DocumentHelpers.ToDtosAsync(documentEntities, _storageService);
 
                 var dto = new PropertyOverviewDto
                 {
@@ -635,6 +640,12 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
+
+
+
 
 
 

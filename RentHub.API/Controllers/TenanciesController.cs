@@ -6,6 +6,7 @@ using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using Common.Enums;
 using Common.CommunicationModels;
+using RentHub.API.Services.Storage;
 using System.Security.Claims;
 
 using RentHub.API.Helpers;
@@ -18,11 +19,13 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IStorageService _storageService;
 
-        public TenanciesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public TenanciesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
         {
             _context = context;
             _userManager = userManager;
+            _storageService = storageService;
         }
 
         /// <summary>
@@ -605,4 +608,5 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 

@@ -5,6 +5,7 @@ using Common.Enums;
 using RentHub.Portal.Helpers;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Apartments;
+using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
 {
@@ -12,119 +13,332 @@ namespace RentHub.Portal.Controllers
     public class ApartmentsController : Controller
     {
         private readonly RentHubApiClient _api;
+        private readonly ILogger<ApartmentsController> _logger;
 
-        public ApartmentsController(RentHubApiClient api)
+        public ApartmentsController(RentHubApiClient api, ILogger<ApartmentsController> logger)
         {
             _api = api;
+            _logger = logger;
         }
 
         [Authorize(Roles = "Landlord")]
         public async Task<IActionResult> Index(string? search = null)
         {
-            var items = await _api.GetAsync<List<ApartmentDto>>("apartments/mine");
-
-            if (!string.IsNullOrWhiteSpace(search))
+            try
             {
-                var s = search.Trim().ToLower();
-                items = items
-                    .Where(a => (a.Name ?? "").ToLower().Contains(s)
-                             || (a.PropertyName ?? "").ToLower().Contains(s))
-                    .ToList();
+                var items = await _api.GetAsync<List<ApartmentDto>>("apartments/mine");
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var s = search.Trim().ToLowerInvariant();
+                    items = items
+                        .Where(a => (a.Name ?? string.Empty).ToLowerInvariant().Contains(s)
+                                 || (a.PropertyName ?? string.Empty).ToLowerInvariant().Contains(s))
+                        .ToList();
+                }
+
+                return View(new ApartmentIndexVm
+                {
+                    Search = search,
+                    Items = items
+                });
             }
-
-            return View(new ApartmentIndexVm
+            catch (Exception ex)
             {
-                Search = search,
-                Items = items
-            });
+                return await HandleApiFailureAsync(ex, RedirectToAction("Index", "Properties"));
+            }
         }
 
-        public async Task<IActionResult> Overview(int id, string? tenancySearch = null)
+        [HttpGet]
+        public async Task<IActionResult> Overview(int id, string? tenancySearch = null, string? memberSearch = null)
         {
-            var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{id}/overview");
-            SuccessDialogHelper.ActivateForProperty(HttpContext.Session, overview.Apartment.PropertyId);
-
-            if (!string.IsNullOrWhiteSpace(tenancySearch))
+            try
             {
-                var s = tenancySearch.Trim().ToLower();
-                overview.Tenancies = overview.Tenancies
-                    .Where(t => (t.PropertyName ?? "").ToLower().Contains(s)
-                             || (t.ApartmentName ?? "").ToLower().Contains(s))
-                    .ToList();
+                var vm = await BuildOverviewVmAsync(id, tenancySearch, memberSearch);
+                SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.Apartment.PropertyId);
+                return View(vm);
             }
-
-            return View(new ApartmentOverviewVm
+            catch (Exception ex)
             {
-                ApartmentId = overview.Apartment.Id,
-                ApartmentName = overview.Apartment.Name,
-                PropertyName = overview.Apartment.PropertyName,
-                Tenancies = overview.Tenancies,
-                Owners = overview.Owners,
-                Documents = overview.Documents,
-                TenancySearch = tenancySearch
-            });
+                return await HandleApiFailureAsync(ex, RedirectToAction("Index", "Properties"));
+            }
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateTenancy(CreateTenancyRequest request)
         {
-            await _api.PostAsync("tenancies", request);
-            TempData["Success"] = "Tenancy created successfully.";
-            return RedirectToAction(nameof(Overview), new { id = request.ApartmentId });
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    TempData["Error"] = "Please complete the tenancy details before saving.";
+                    return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+                }
+
+                await _api.PostAsync("tenancies", request);
+                TempData["Success"] = "Tenancy created successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Create tenancy request failed in portal for apartment {ApartmentId}.", request.ApartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to create the tenancy right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(request.ApartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> AssignOwner(int apartmentId, AssignApartmentOwnerRequest request)
         {
-            await _api.PostAsync($"apartments/{apartmentId}/owners", request);
-            TempData["Success"] = "Owner assigned successfully.";
-            return RedirectToAction(nameof(Overview), new { id = apartmentId });
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    TempData["Error"] = "Please complete the apartment member details before saving.";
+                    return await RedirectToApartmentOverviewAsync(apartmentId);
+                }
+
+                await _api.PostAsync($"apartments/{apartmentId}/owners", request);
+                TempData["Success"] = "Apartment member added successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Assign apartment member request failed in portal for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to add the apartment member right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, PermissionLevelEnum permission)
         {
-            await _api.PutAsync($"apartments/{apartmentId}/owners/{assignmentId}", permission);
-            TempData["Success"] = "Owner permission updated.";
-            return RedirectToAction(nameof(Overview), new { id = apartmentId });
+            try
+            {
+                await _api.PutAsync($"apartments/{apartmentId}/owners/{assignmentId}", permission);
+                TempData["Success"] = "Apartment member access updated.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Update apartment member permission failed in portal for apartment {ApartmentId} assignment {AssignmentId}.", apartmentId, assignmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update apartment member access right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> RemoveOwner(int apartmentId, int assignmentId)
         {
-            await _api.DeleteAsync($"apartments/{apartmentId}/owners/{assignmentId}");
-            TempData["Success"] = "Owner removed.";
-            return RedirectToAction(nameof(Overview), new { id = apartmentId });
+            try
+            {
+                await _api.DeleteAsync($"apartments/{apartmentId}/owners/{assignmentId}");
+                TempData["Success"] = "Apartment member removed.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Remove apartment member failed in portal for apartment {ApartmentId} assignment {AssignmentId}.", apartmentId, assignmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to remove the apartment member right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> UploadApartmentDocument(int apartmentId, IFormFile file, DocumentTypeEnum documentType, string? description)
+        public async Task<IActionResult> UploadApartmentDocument(int apartmentId, IFormFile file, DocumentTypeEnum documentType)
         {
             if (file == null || file.Length == 0)
             {
-                TempData["Error"] = "Please choose a file to upload.";
-                return RedirectToAction(nameof(Overview), new { id = apartmentId });
+                TempData["Error"] = "Please choose a PDF file to upload.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
             }
 
-            var content = new MultipartFormDataContent();
-            content.Add(new StringContent(documentType.ToString()), "DocumentType");
+            if (!IsPdf(file))
+            {
+                TempData["Error"] = "Only PDF files are allowed in the apartment document section.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
+            }
 
-            if (!string.IsNullOrWhiteSpace(description))
-                content.Add(new StringContent(description), "Description");
+            try
+            {
+                var content = new MultipartFormDataContent();
+                content.Add(new StringContent(documentType.ToString()), "DocumentType");
+                content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
 
-            content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
+                await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
+                TempData["Success"] = "Apartment document uploaded.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Upload apartment document request failed in portal for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to upload the apartment document right now. Please try again.");
+            }
 
-            await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
-            TempData["Success"] = "Apartment document uploaded.";
-            return RedirectToAction(nameof(Overview), new { id = apartmentId });
+            return await RedirectToApartmentOverviewAsync(apartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteDocument(int apartmentId, int documentId)
         {
-            await _api.DeleteAsync($"documents/{documentId}");
-            TempData["Success"] = "Apartment document deleted.";
+            try
+            {
+                await _api.DeleteAsync($"documents/{documentId}");
+                TempData["Success"] = "Apartment document deleted.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Delete apartment document request failed in portal for apartment {ApartmentId} document {DocumentId}.", apartmentId, documentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to delete the apartment document right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        private async Task<ApartmentOverviewVm> BuildOverviewVmAsync(int id, string? tenancySearch, string? memberSearch)
+        {
+            var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{id}/overview");
+
+            var tenancies = overview.Tenancies ?? new List<TenancyDto>();
+            if (!string.IsNullOrWhiteSpace(tenancySearch))
+            {
+                var search = tenancySearch.Trim().ToLowerInvariant();
+                tenancies = tenancies
+                    .Where(t => (t.PropertyName ?? string.Empty).ToLowerInvariant().Contains(search)
+                             || (t.ApartmentName ?? string.Empty).ToLowerInvariant().Contains(search))
+                    .ToList();
+            }
+
+            var owners = overview.Owners ?? new List<ApartmentOwnerDto>();
+            if (!string.IsNullOrWhiteSpace(memberSearch))
+            {
+                var search = memberSearch.Trim().ToLowerInvariant();
+                owners = owners
+                    .Where(o => (o.OwnerName ?? string.Empty).ToLowerInvariant().Contains(search)
+                             || o.Permission.ToString().ToLowerInvariant().Contains(search))
+                    .ToList();
+            }
+
+            return new ApartmentOverviewVm
+            {
+                Apartment = overview.Apartment,
+                Tenancies = tenancies,
+                Owners = owners,
+                Documents = overview.Documents ?? new List<DocumentDto>(),
+                TenancySearch = tenancySearch,
+                MemberSearch = memberSearch,
+                CanWrite = overview.Apartment.CanWrite
+            };
+        }
+
+        private async Task<IActionResult> RedirectToApartmentOverviewAsync(int apartmentId)
+        {
+            var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{apartmentId}/overview");
+            SuccessDialogHelper.ActivateForProperty(HttpContext.Session, overview.Apartment.PropertyId);
             return RedirectToAction(nameof(Overview), new { id = apartmentId });
+        }
+
+        private Task<IActionResult> HandleApiFailureAsync(Exception ex, IActionResult? fallback = null)
+        {
+            _logger.LogError(ex, "Apartment request failed in portal.");
+
+            var apiError = ParseApiError(ex.Message);
+            TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to load the apartment workspace right now. Please try again.");
+            return Task.FromResult<IActionResult>(fallback ?? RedirectToAction("Index", "Properties"));
+        }
+
+        private static bool IsPdf(IFormFile file)
+        {
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty);
+
+            return string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static ApiErrorPayload ParseApiError(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return new ApiErrorPayload();
+
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+
+                if (root.ValueKind == JsonValueKind.String)
+                {
+                    return new ApiErrorPayload { Message = root.GetString() };
+                }
+
+                string? ReadString(string key)
+                {
+                    if (root.ValueKind == JsonValueKind.Object &&
+                        root.TryGetProperty(key, out var value) &&
+                        value.ValueKind == JsonValueKind.String)
+                    {
+                        return value.GetString();
+                    }
+
+                    return null;
+                }
+
+                return new ApiErrorPayload
+                {
+                    Code = ReadString("Code") ?? ReadString("code"),
+                    Message = ReadString("Message") ?? ReadString("message")
+                };
+            }
+            catch
+            {
+                return new ApiErrorPayload { Message = raw };
+            }
+        }
+
+        private static string SafeUserMessage(string? apiMessage, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(apiMessage))
+            {
+                return fallback;
+            }
+
+            return LooksTechnicalMessage(apiMessage) ? fallback : apiMessage;
+        }
+
+        private static bool LooksTechnicalMessage(string message)
+        {
+            var normalized = message.Trim();
+            if (normalized.Length == 0)
+            {
+                return true;
+            }
+
+            var technicalFragments = new[]
+            {
+                "exception",
+                "stack trace",
+                "inner exception",
+                "dbupdateexception",
+                "sqlexception",
+                "invalid column name",
+                "entity changes",
+                "microsoft.entityframeworkcore",
+                " at "
+            };
+
+            return technicalFragments.Any(fragment =>
+                normalized.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private sealed class ApiErrorPayload
+        {
+            public string? Code { get; set; }
+            public string? Message { get; set; }
         }
     }
 }

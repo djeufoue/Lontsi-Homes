@@ -37,7 +37,6 @@ C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\scop
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\scopedcss\bundle\RentHub.Portal.styles.css
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\scopedcss\projectbundle\RentHub.Portal.bundle.scp.css
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\7ftjtaaqui-61n19gt1b8.gz
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\k0f3fw3eud-nyohn2b0ir.gz
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\nnf64xi1dh-bqjiyaj88i.gz
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\zgd560empy-c2jlpeoesf.gz
 C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\jejewugbxr-erw9l3u2r3.gz
@@ -122,5 +121,5 @@ C:\Projects\Rent Management Project\tempbuild\portal\RentHub.Portal.deps.json
 C:\Projects\Rent Management Project\tempbuild\portal\RentHub.Portal.runtimeconfig.json
 C:\Projects\Rent Management Project\tempbuild\portal\RentHub.Portal.dll
 C:\Projects\Rent Management Project\tempbuild\portal\RentHub.Portal.pdb
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\ik5xjjo5ir-hymnmxxm2o.gz
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt
+C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\k0f3fw3eud-szkycjider.gz
+C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\ik5xjjo5ir-ihwad6lxzu.gz

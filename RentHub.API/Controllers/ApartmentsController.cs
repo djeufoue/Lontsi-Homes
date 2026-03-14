@@ -6,6 +6,7 @@ using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using Common.Enums;
 using Common.CommunicationModels;
+using RentHub.API.Services.Storage;
 using System.Security.Claims;
 
 using RentHub.API.Helpers;
@@ -18,11 +19,13 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IStorageService _storageService;
 
-        public ApartmentsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public ApartmentsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
         {
             _context = context;
             _userManager = userManager;
+            _storageService = storageService;
         }
 
         /// <summary>
@@ -101,7 +104,7 @@ namespace RentHub.API.Controllers
         /// Apartment Overview DTO in ONE call (for MVC): Apartment + Tenancies + Owners + Documents.
         /// Access: landlord, property manager, apartment owner, tenant/member of a tenancy.
         /// </summary>
-        [HttpGet("{id}/overview")]
+                [HttpGet("{id}/overview")]
         [Authorize]
         public async Task<IActionResult> GetApartmentOverview(int id)
         {
@@ -129,6 +132,13 @@ namespace RentHub.API.Controllers
 
                 if (!hasAccess) return Forbid();
 
+                bool canWrite =
+                    apt.Property.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        m.PropertyId == apt.PropertyId && m.ManagerId == userId && !m.IsDeleted && m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o =>
+                        o.ApartmentId == id && o.OwnerId == userId && !o.IsDeleted && o.Permission == PermissionLevelEnum.ReadWrite);
+
                 var tenancies = await _context.Tenancies
                     .Where(t => t.ApartmentId == id && !t.IsDeleted)
                     .OrderByDescending(t => t.StartDate)
@@ -153,25 +163,17 @@ namespace RentHub.API.Controllers
                         Id = o.Id,
                         OwnerId = o.OwnerId,
                         OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
-                        Permission = o.Permission
+                        Permission = o.Permission,
+                        AssignedAt = o.CreatedAt
                     })
                     .ToListAsync();
 
-                var docs = await _context.Documents
+                var documentEntities = await _context.Documents
                     .Where(d => d.ApartmentId == id && !d.IsDeleted)
                     .OrderByDescending(d => d.CreatedAt)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
+
+                var docs = await DocumentHelpers.ToDtosAsync(documentEntities, _storageService);
 
                 var dto = new ApartmentOverviewDto
                 {
@@ -184,7 +186,8 @@ namespace RentHub.API.Controllers
                         Type = apt.Type.ToString(),
                         Price = apt.Price,
                         Area = apt.Area,
-                        Status = apt.Status.ToString()
+                        Status = apt.Status.ToString(),
+                        CanWrite = canWrite
                     },
                     Tenancies = tenancies,
                     Owners = owners,
@@ -327,7 +330,8 @@ namespace RentHub.API.Controllers
                         Id = o.Id,
                         OwnerId = o.OwnerId,
                         OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
-                        Permission = o.Permission
+                        Permission = o.Permission,
+                        AssignedAt = o.CreatedAt
                     })
                     .ToListAsync();
 
@@ -507,6 +511,11 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
+
+
 
 
 
