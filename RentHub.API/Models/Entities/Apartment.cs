@@ -36,6 +36,16 @@ namespace RentHub.API.Models.Entities
         [Column(TypeName = "decimal(14,2)")]
         public decimal DepositPrice { get; set; }
 
+        /// <summary>
+        /// Number of days before the next rent due date to notify the main tenant.
+        /// </summary>
+        public int RentReminderDaysBeforeDue { get; set; } = 10;
+
+        /// <summary>
+        /// Number of days before tenancy end date to notify the tenant about lease termination.
+        /// </summary>
+        public int LeaseTerminationReminderDaysBeforeEnd { get; set; } = 30;
+
         public ApartmentStatusEnum Status { get; set; } = ApartmentStatusEnum.Vacant;
 
         public ApartmentTypeEnum Type { get; set; } = ApartmentTypeEnum.Studio;

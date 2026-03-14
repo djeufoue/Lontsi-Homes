@@ -164,6 +164,9 @@ namespace RentHub.API.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<int>("LeaseTerminationReminderDaysBeforeEnd")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -178,6 +181,9 @@ namespace RentHub.API.Migrations
                         .HasColumnType("decimal(14,2)");
 
                     b.Property<int>("PropertyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RentReminderDaysBeforeDue")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")

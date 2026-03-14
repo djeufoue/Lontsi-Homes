@@ -191,6 +191,15 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    @if (User?.Identity?.IsAuthenticated == true)
+    {
+        <script>
+            window.rhSession = {
+                keepAliveUrl: '@Url.Action("KeepAlive", "Auth")'
+            };
+        </script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js" crossorigin="anonymous"></script>
+    }
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @if (!string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(errorMessage))
@@ -198,6 +207,7 @@
         <script>
             (() => {
                 const allowManualClose = @(successDialog.ShowCloseButton ? "true" : "false");
+                const autoCloseEnabled = @(successDialog.AutoCloseEnabled ? "true" : "false");
                 const autoCloseMs = @(successDialog.AutoCloseSeconds * 1000);
 
                 const queue = [];
@@ -221,7 +231,7 @@
                     modalEl.addEventListener("hidden.bs.modal", () => showAt(index + 1), { once: true });
                     modal.show();
 
-                    if (autoCloseMs > 0) {
+                    if (autoCloseEnabled && autoCloseMs > 0) {
                         setTimeout(() => modal.hide(), autoCloseMs);
                     }
                 };

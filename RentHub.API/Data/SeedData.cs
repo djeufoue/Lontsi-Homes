@@ -18,6 +18,8 @@ namespace RentHub.API.Data
 
             // Safety net for existing databases that may have missed the snapshot migration.
             EnsureUserSubscriptionSnapshotColumns(context);
+            EnsureApartmentReminderColumns(context);
+            EnsureTenancyTenantColumnIsOptional(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -159,6 +161,64 @@ namespace RentHub.API.Data
                     us.PlanMaxApartmentsPerPropertySnapshot = COALESCE(us.PlanMaxApartmentsPerPropertySnapshot, sp.MaxApartmentsPerProperty)
                 FROM UserSubscriptions us
                 LEFT JOIN SubscriptionPlans sp ON sp.Id = us.SubscriptionPlanId;
+            ");
+        }
+
+        private static void EnsureApartmentReminderColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+                IF COL_LENGTH('Apartments', 'RentReminderDaysBeforeDue') IS NULL
+                BEGIN
+                    ALTER TABLE [Apartments]
+                    ADD [RentReminderDaysBeforeDue] int NOT NULL
+                        CONSTRAINT [DF_Apartments_RentReminderDaysBeforeDue] DEFAULT(10);
+                END
+
+                IF COL_LENGTH('Apartments', 'LeaseTerminationReminderDaysBeforeEnd') IS NULL
+                BEGIN
+                    ALTER TABLE [Apartments]
+                    ADD [LeaseTerminationReminderDaysBeforeEnd] int NOT NULL
+                        CONSTRAINT [DF_Apartments_LeaseTerminationReminderDaysBeforeEnd] DEFAULT(30);
+                END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                UPDATE [Apartments]
+                SET
+                    [RentReminderDaysBeforeDue] = CASE
+                        WHEN [RentReminderDaysBeforeDue] <= 0 THEN 10
+                        ELSE [RentReminderDaysBeforeDue]
+                    END,
+                    [LeaseTerminationReminderDaysBeforeEnd] = CASE
+                        WHEN [LeaseTerminationReminderDaysBeforeEnd] <= 0 THEN 30
+                        ELSE [LeaseTerminationReminderDaysBeforeEnd]
+                    END
+            ");
+        }
+
+        private static void EnsureTenancyTenantColumnIsOptional(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.foreign_keys
+                    WHERE name = 'FK_Tenancies_AspNetUsers_TenantId'
+                )
+                BEGIN
+                    ALTER TABLE [Tenancies] DROP CONSTRAINT [FK_Tenancies_AspNetUsers_TenantId];
+                END
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.columns c
+                    INNER JOIN sys.tables t ON c.object_id = t.object_id
+                    WHERE t.name = 'Tenancies'
+                      AND c.name = 'TenantId'
+                      AND c.is_nullable = 0
+                )
+                BEGIN
+                    ALTER TABLE [Tenancies] ALTER COLUMN [TenantId] nvarchar(450) NULL;
+                END
             ");
         }
     }

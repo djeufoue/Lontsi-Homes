@@ -19,6 +19,7 @@ namespace RentHub.Portal.ViewModels.Properties
         public List<ApartmentDto> Units { get; set; } = new();
 
         public bool SuccessDialogShowCloseButton { get; set; } = true;
+        public bool SuccessDialogAutoCloseEnabled { get; set; } = false;
         public int SuccessDialogAutoCloseSeconds { get; set; } = 5;
     }
 }

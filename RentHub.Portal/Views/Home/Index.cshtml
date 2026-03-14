@@ -1,6 +1,5 @@
 @{
     ViewData["Title"] = "Dashboard";
-    var userName = User.Identity?.Name ?? "Operator";
 }
 
 <section class="rh-dashboard-shell">
@@ -9,27 +8,6 @@
             <p class="rh-kicker">Operations Cockpit</p>
             <h1 class="rh-heading-title">Dashboard</h1>
             <p class="rh-heading-subtitle">A cleaner command center for portfolio health, occupancy movement, documents, and team activity.</p>
-        </div>
-
-        <div class="rh-dashboard-commandbar">
-            <label class="rh-dashboard-search" aria-label="Search anything">
-                <span>&#9906;</span>
-                <input type="text" placeholder="Search anything..." />
-            </label>
-
-            <a class="btn rh-dashboard-create" asp-controller="Properties" asp-action="Index">Create</a>
-
-            <div class="rh-dashboard-usercluster">
-                <button type="button" class="rh-dashboard-icon-btn" aria-label="Notifications">&#9716;</button>
-                <button type="button" class="rh-dashboard-icon-btn" aria-label="Messages">&#9685;</button>
-                <a class="rh-dashboard-userpill" asp-controller="Profile" asp-action="Index">
-                    <span class="rh-dashboard-useravatar">@userName.Trim()[0].ToString().ToUpperInvariant()</span>
-                    <span>
-                        <strong>@userName</strong>
-                        <small>View profile</small>
-                    </span>
-                </a>
-            </div>
         </div>
     </section>
 

@@ -258,7 +258,9 @@ namespace RentHub.API.Controllers
                         if (!hasAccess)
                             hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId);
                         if (!hasAccess)
-                            hasAccess = await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
+                            hasAccess = await _context.Tenancies.AnyAsync(t =>
+                                t.ApartmentId == apartmentId &&
+                                (t.TenantId == userId || t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId)));
                     }
                 }
                 if (!hasAccess && document.TenancyId.HasValue)
@@ -273,7 +275,7 @@ namespace RentHub.API.Controllers
                             hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId);
                         if (!hasAccess)
                             hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId);
-                        if (!hasAccess && tenancy.TenantId == userId) hasAccess = true;
+                        if (!hasAccess && (tenancy.TenantId == userId || await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId))) hasAccess = true;
                     }
                 }
                 if (!hasAccess) return Forbid();
@@ -329,7 +331,9 @@ namespace RentHub.API.Controllers
                 var hasAccess = apartment.Property?.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
-                    await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
+                    await _context.Tenancies.AnyAsync(t =>
+                        t.ApartmentId == apartmentId &&
+                        (t.TenantId == userId || t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId)));
                 if (!hasAccess) return Forbid();
 
                 var documents = await _context.Documents
@@ -363,7 +367,8 @@ namespace RentHub.API.Controllers
                 var hasAccess = apartment.Property?.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId) ||
-                    tenancy.TenantId == userId;
+                    tenancy.TenantId == userId ||
+                    await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
                 if (!hasAccess) return Forbid();
 
                 var documents = await _context.Documents
