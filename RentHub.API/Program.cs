@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
@@ -79,7 +80,34 @@ builder.Services.AddAuthentication(options =>
     if (jwtSettings is null)
         throw new InvalidOperationException("Missing 'JwtSettings' section in appsettings.");
 
-    options.MapInboundClaims = false;
+    // Map standard JWT claims (sub/nameid/role) to ClaimTypes so User.FindFirstValue(ClaimTypes.NameIdentifier) works consistently.
+    options.MapInboundClaims = true;
+
+
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = context =>
+        {
+            if (context.Principal?.Identity is ClaimsIdentity identity)
+            {
+                var existingUserId = identity.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrWhiteSpace(existingUserId))
+                {
+                    var fallbackUserId =
+                        identity.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ??
+                        identity.FindFirst(JwtRegisteredClaimNames.NameId)?.Value ??
+                        identity.FindFirst("nameid")?.Value;
+
+                    if (!string.IsNullOrWhiteSpace(fallbackUserId))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, fallbackUserId));
+                    }
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+    };
 
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -122,7 +150,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
-    SeedData.Initialize(services);
+    SeedData.Initialize(services, builder.Configuration);
 }
 
 // Pipeline
@@ -180,6 +208,8 @@ void ConfigureIdentity(IServiceCollection services)
         options.Password.RequireUppercase = false;
     });
 }
+
+
 
 
 

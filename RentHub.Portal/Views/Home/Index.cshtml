@@ -1,52 +1,184 @@
 @{
     ViewData["Title"] = "Dashboard";
+    var userName = User.Identity?.Name ?? "Operator";
 }
 
-<section class="rh-dashboard-hero">
-    <div>
-        <p class="rh-kicker">Operations Overview</p>
-        <h1 class="rh-heading-title">Dashboard</h1>
-        <p class="rh-heading-subtitle">Welcome back, @(User.Identity?.Name ?? "User"). Track your portfolio, team access, and latest actions in one workspace.</p>
-    </div>
-    <div class="rh-toolbar">
-        <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Index">Go to Properties</a>
-    </div>
-</section>
-
-<section class="rh-dashboard-metrics">
-    <article class="rh-metric-card">
-        <p class="rh-metric-label">Workspace Status</p>
-        <p class="rh-metric-value">Online</p>
-        <small>Real-time sync active</small>
-    </article>
-    <article class="rh-metric-card">
-        <p class="rh-metric-label">Core Module</p>
-        <p class="rh-metric-value">Properties</p>
-        <small>Manage units, members, and documents</small>
-    </article>
-    <article class="rh-metric-card">
-        <p class="rh-metric-label">Access Mode</p>
-        <p class="rh-metric-value">Role Aware</p>
-        <small>Permissions enforced by backend policy</small>
-    </article>
-</section>
-
-<section class="rh-dashboard-grid">
-    <article class="rh-panel rh-panel-elevated">
-        <h2 class="rh-section-title">Property Workspace</h2>
-        <p class="mb-3">Open the full property module to create and manage assets, assign property members, upload documents, and control property-level settings.</p>
-        <div class="d-flex flex-wrap gap-2">
-            <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Index">Open Properties</a>
-            <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Index" asp-route-access="owned">View Owned Properties</a>
+<section class="rh-dashboard-shell">
+    <section class="rh-dashboard-commanddeck rh-panel-elevated">
+        <div class="rh-dashboard-heading-block">
+            <p class="rh-kicker">Operations Cockpit</p>
+            <h1 class="rh-heading-title">Dashboard</h1>
+            <p class="rh-heading-subtitle">A cleaner command center for portfolio health, occupancy movement, documents, and team activity.</p>
         </div>
-    </article>
 
-    <article class="rh-panel rh-panel-elevated">
-        <h2 class="rh-section-title">Quick Guidance</h2>
-        <ul class="rh-guidance-list mb-0">
-            <li>Create a new property from the Properties page if your role and subscription allow it.</li>
-            <li>Use Property Overview to manage units, members, settings, and documents.</li>
-            <li>Configure success and error dialog behavior per property for a consistent user experience.</li>
-        </ul>
-    </article>
+        <div class="rh-dashboard-commandbar">
+            <label class="rh-dashboard-search" aria-label="Search anything">
+                <span>&#9906;</span>
+                <input type="text" placeholder="Search anything..." />
+            </label>
+
+            <a class="btn rh-dashboard-create" asp-controller="Properties" asp-action="Index">Create</a>
+
+            <div class="rh-dashboard-usercluster">
+                <button type="button" class="rh-dashboard-icon-btn" aria-label="Notifications">&#9716;</button>
+                <button type="button" class="rh-dashboard-icon-btn" aria-label="Messages">&#9685;</button>
+                <a class="rh-dashboard-userpill" asp-controller="Profile" asp-action="Index">
+                    <span class="rh-dashboard-useravatar">@userName.Trim()[0].ToString().ToUpperInvariant()</span>
+                    <span>
+                        <strong>@userName</strong>
+                        <small>View profile</small>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="rh-dashboard-workbench">
+        <div class="rh-dashboard-primary-column">
+            <article class="rh-dashboard-overview-card rh-panel rh-panel-elevated">
+                <div class="rh-dashboard-panel-head">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Overview</h2>
+                        <p class="rh-dashboard-panel-copy">Keep a visual pulse on your workspace and jump quickly into operational tasks.</p>
+                    </div>
+
+                    <div class="rh-dashboard-range-chip">Last 30 days</div>
+                </div>
+
+                <div class="rh-dashboard-statband">
+                    <div class="rh-dashboard-stat-tile">
+                        <span class="rh-dashboard-stat-icon">&#9787;</span>
+                        <p>Accessible Properties</p>
+                        <h3>Portfolio</h3>
+                        <small>Role-aware access remains active.</small>
+                    </div>
+
+                    <div class="rh-dashboard-stat-tile">
+                        <span class="rh-dashboard-stat-icon rh-dashboard-stat-icon-alt">&#9635;</span>
+                        <p>Focus Module</p>
+                        <h3>Properties</h3>
+                        <small>Units, members, documents, and settings.</small>
+                    </div>
+                </div>
+
+                <div class="rh-dashboard-storyline">
+                    <div>
+                        <h3>857 new workspace touches this month</h3>
+                        <p>Open the property module to add assets, adjust access, review member changes, and keep documentation aligned with the property team.</p>
+                    </div>
+
+                    <div class="rh-dashboard-avatar-row">
+                        <div class="rh-dashboard-mini-profile">
+                            <span class="rh-dashboard-mini-avatar">A</span>
+                            <small>Admin</small>
+                        </div>
+                        <div class="rh-dashboard-mini-profile">
+                            <span class="rh-dashboard-mini-avatar">L</span>
+                            <small>Landlord</small>
+                        </div>
+                        <div class="rh-dashboard-mini-profile">
+                            <span class="rh-dashboard-mini-avatar">M</span>
+                            <small>Manager</small>
+                        </div>
+                        <a class="rh-dashboard-arrowlink" asp-controller="Properties" asp-action="Index">&#8594;</a>
+                    </div>
+                </div>
+            </article>
+
+            <article class="rh-dashboard-chart-card rh-panel rh-panel-elevated">
+                <div class="rh-dashboard-panel-head">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Property activity view</h2>
+                        <p class="rh-dashboard-panel-copy">A stylized occupancy and operations trend block inspired by the new design references.</p>
+                    </div>
+
+                    <div class="rh-dashboard-range-chip">Last 7 days</div>
+                </div>
+
+                <div class="rh-dashboard-chart-stage">
+                    <div class="rh-dashboard-chart-bars">
+                        <span style="--bar-height: 28%;"></span>
+                        <span style="--bar-height: 44%;"></span>
+                        <span style="--bar-height: 36%;"></span>
+                        <span class="is-featured" style="--bar-height: 66%;"></span>
+                        <span style="--bar-height: 49%;"></span>
+                        <span style="--bar-height: 31%;"></span>
+                        <span style="--bar-height: 57%;"></span>
+                    </div>
+
+                    <div class="rh-dashboard-chart-metric">
+                        <strong>$10.2m</strong>
+                        <small>Portfolio projection layout</small>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div class="rh-dashboard-secondary-column">
+            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
+                <div class="rh-dashboard-panel-head compact">
+                    <h2 class="rh-dashboard-panel-title">Property modules</h2>
+                </div>
+
+                <div class="rh-dashboard-module-list">
+                    <div class="rh-dashboard-module-item">
+                        <div>
+                            <strong>Properties</strong>
+                            <small>Central listing, limits, and roles</small>
+                        </div>
+                        <span class="rh-chip rh-chip-primary">Active</span>
+                    </div>
+                    <div class="rh-dashboard-module-item">
+                        <div>
+                            <strong>Documents</strong>
+                            <small>Operational files and property rules</small>
+                        </div>
+                        <span class="rh-chip rh-chip-info">Live</span>
+                    </div>
+                    <div class="rh-dashboard-module-item">
+                        <div>
+                            <strong>Members</strong>
+                            <small>Landlord and manager access control</small>
+                        </div>
+                        <span class="rh-chip rh-chip-warning">Managed</span>
+                    </div>
+                </div>
+
+                <a class="btn rh-btn-subtle w-100 mt-2" asp-controller="Properties" asp-action="Index">Open properties</a>
+            </article>
+
+            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
+                <div class="rh-dashboard-panel-head compact">
+                    <h2 class="rh-dashboard-panel-title">Guided next steps</h2>
+                </div>
+
+                <div class="rh-dashboard-actionlist">
+                    <a class="rh-dashboard-actionitem" asp-controller="Properties" asp-action="Index">
+                        <span>Create and review properties</span>
+                        <strong>&#8250;</strong>
+                    </a>
+                    <a class="rh-dashboard-actionitem" asp-controller="Profile" asp-action="Index">
+                        <span>Review subscription and profile</span>
+                        <strong>&#8250;</strong>
+                    </a>
+                    <a class="rh-dashboard-actionitem" asp-controller="Properties" asp-action="Index" asp-route-access="owned">
+                        <span>See properties in your scope</span>
+                        <strong>&#8250;</strong>
+                    </a>
+                </div>
+            </article>
+
+            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
+                <div class="rh-dashboard-panel-head compact">
+                    <h2 class="rh-dashboard-panel-title">Quick guidance</h2>
+                </div>
+
+                <ul class="rh-guidance-list mb-0">
+                    <li>Create a new property from the Properties page if your role and subscription allow it.</li>
+                    <li>Use the Property Overview workspace to manage units, members, settings, documents, and map context.</li>
+                    <li>Keep dialog settings tuned per property for a more consistent success and error experience.</li>
+                </ul>
+            </article>
+        </div>
+    </section>
 </section>

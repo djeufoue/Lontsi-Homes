@@ -1,0 +1,226 @@
+@model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
+@{
+    ViewData["Title"] = "Profile";
+
+    var overview = Model.Overview;
+    var composedName = $"{overview.FirstName} {overview.LastName}".Trim();
+    var displayName = !string.IsNullOrWhiteSpace(overview.FullName)
+        ? overview.FullName
+        : composedName;
+
+    if (string.IsNullOrWhiteSpace(displayName))
+    {
+        displayName = overview.Email;
+    }
+
+    var now = Model.NowUtc;
+    var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
+    var currentPlanEndsInDays = hasCurrentPlan
+        ? Math.Max(0, (int)Math.Ceiling((overview.SubscriptionEndDate!.Value - now).TotalDays))
+        : 0;
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Profile Center</p>
+        <h1 class="rh-heading-title">@displayName</h1>
+        <p class="rh-heading-subtitle">Review your account identity, accessible properties, and subscription lifecycle in one place.</p>
+        <div class="rh-badge-row mt-2">
+            @if (overview.Roles.Any())
+            {
+                @foreach (var role in overview.Roles)
+                {
+                    <span class="rh-chip rh-chip-info">@role</span>
+                }
+            }
+            else
+            {
+                <span class="rh-chip rh-chip-warning">No role assigned</span>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="rh-profile-metrics mb-3">
+    <article class="rh-summary-card">
+        <p>Accessible Properties</p>
+        <h3>@overview.PropertyCount</h3>
+        <small>Total properties you can access</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Visible Units</p>
+        <h3>@overview.ApartmentCount</h3>
+        <small>Total apartments across your properties</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Current Subscription</p>
+        <h3>@(hasCurrentPlan ? overview.CurrentPlanName : "None")</h3>
+        @if (hasCurrentPlan)
+        {
+            <small>Ends on @overview.SubscriptionEndDate!.Value.LocalDateTime.ToString("yyyy-MM-dd")</small>
+        }
+        else
+        {
+            <small>No active subscription detected</small>
+        }
+    </article>
+    <article class="rh-summary-card">
+        <p>Approval Status</p>
+        <h3>@(overview.SubscriptionApproved ? "Approved" : "Pending")</h3>
+        @if (hasCurrentPlan)
+        {
+            <small>@currentPlanEndsInDays day(s) remaining</small>
+        }
+        else
+        {
+            <small>Activate a plan to unlock property limits</small>
+        }
+    </article>
+</section>
+
+<section class="rh-profile-grid">
+    <article class="rh-panel rh-panel-elevated">
+        <h2 class="rh-section-title mb-3">Account Information</h2>
+
+        <div class="rh-profile-info-grid">
+            <div class="rh-profile-info-item">
+                <p>Email</p>
+                <h3>@overview.Email</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>First Name</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.FirstName) ? overview.FirstName : "N/A")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Last Name</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.LastName) ? overview.LastName : "N/A")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Phone</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.PhoneNumber) ? overview.PhoneNumber : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Country Code</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.CountryCode) ? overview.CountryCode : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Single Active Plan Rule</p>
+                <h3>Enforced</h3>
+            </div>
+        </div>
+
+        <hr />
+
+        <h2 class="rh-section-title mb-2">Subscription Details</h2>
+        @if (hasCurrentPlan)
+        {
+            <div class="rh-profile-plan-banner">
+                <div>
+                    <p class="mb-1">Current Plan</p>
+                    <h3 class="mb-0">@overview.CurrentPlanName</h3>
+                </div>
+                <div class="text-end">
+                    <p class="mb-1">Price</p>
+                    <h3 class="mb-0">@((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</h3>
+                </div>
+            </div>
+            <div class="mt-2 text-muted small">
+                Started: @overview.SubscriptionStartDate?.LocalDateTime.ToString("yyyy-MM-dd") | Ends: @overview.SubscriptionEndDate?.LocalDateTime.ToString("yyyy-MM-dd")
+            </div>
+            <div class="mt-1 text-muted small">
+                @if (overview.SubscriptionApproved)
+                {
+                    <span>Plan is approved and active.</span>
+                }
+                else
+                {
+                    <span>Plan is active but waiting for admin approval before restricted actions are allowed.</span>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="rh-empty">No active subscription. Choose a plan below to subscribe.</div>
+        }
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <h2 class="rh-section-title mb-3">Properties You Can Access</h2>
+
+        @if (!overview.Properties.Any())
+        {
+            <div class="rh-empty">No properties available yet.</div>
+        }
+        else
+        {
+            <div class="rh-profile-property-list">
+                @foreach (var property in overview.Properties)
+                {
+                    <a class="rh-profile-property-item" asp-controller="Properties" asp-action="Overview" asp-route-id="@property.Id">
+                        <div>
+                            <h3>@property.Name</h3>
+                            <p>@property.City - @property.Address</p>
+                        </div>
+                        <div class="text-end">
+                            <span class="rh-chip rh-chip-primary">@property.AccessSource</span>
+                            <small>@property.ApartmentCount apartments</small>
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mt-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Upgrade Subscription</h2>
+        <small class="text-muted">A user can have only one active subscription at a time. Selecting another plan will replace the current active plan.</small>
+    </div>
+
+    @if (!overview.AvailablePlans.Any())
+    {
+        <div class="rh-empty">No plans available right now.</div>
+    }
+    else
+    {
+        <div class="rh-profile-plan-grid">
+            @foreach (var plan in overview.AvailablePlans)
+            {
+                var isCurrent = overview.CurrentPlanId.HasValue && overview.CurrentPlanId.Value == plan.Id && hasCurrentPlan;
+                <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty)">
+                    <div class="rh-admin-plan-head">
+                        <h3>@plan.Name</h3>
+                        <span class="rh-chip @(isCurrent ? "rh-chip-primary" : "rh-chip-info")">@plan.DurationInDays days</span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(plan.Description))
+                    {
+                        <p class="text-muted mb-2">@plan.Description</p>
+                    }
+
+                    <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
+
+                    <ul class="rh-profile-plan-meta">
+                        <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
+                        <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
+                    </ul>
+
+                    <form asp-action="Upgrade" method="post" class="mt-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="planId" value="@plan.Id" />
+                        @if (isCurrent)
+                        {
+                            <button type="button" class="btn rh-btn-subtle w-100" disabled>Current Plan</button>
+                        }
+                        else
+                        {
+                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Subscribe")</button>
+                        }
+                    </form>
+                </article>
+            }
+        </div>
+    }
+</section>
+

@@ -8,6 +8,8 @@ using Common.Enums;
 using RentHub.API.Services.Payments;
 using System.Security.Claims;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     [ApiController]
@@ -79,7 +81,7 @@ namespace RentHub.API.Controllers
                     finalAmount = request.Amount;
                 }
                 // Extract current user ID (the caller)
-                var currentUserId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+                var currentUserId = UserHelpers.GetUserId(User);
                 // Create payment record with audit info
                 var payment = new Payment
                 {
@@ -157,7 +159,7 @@ namespace RentHub.API.Controllers
                     .ThenInclude(t => t.Apartment)
                     .FirstOrDefaultAsync(p => p.Id == id);
                 if (payment == null) return NotFound("Payment not found.");
-                var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Determine if user can mark payment as paid
                 bool isLandlord = payment.LandlordId == userId;

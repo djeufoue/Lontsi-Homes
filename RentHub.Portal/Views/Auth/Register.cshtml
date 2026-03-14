@@ -36,9 +36,15 @@
 
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label asp-for="FullName" class="form-label rh-auth-label"></label>
-                        <input asp-for="FullName" class="form-control rh-auth-input" autocomplete="name" placeholder="Your full name" />
-                        <span asp-validation-for="FullName" class="text-danger small"></span>
+                        <label asp-for="FirstName" class="form-label rh-auth-label"></label>
+                        <input asp-for="FirstName" class="form-control rh-auth-input" autocomplete="given-name" placeholder="First name" />
+                        <span asp-validation-for="FirstName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="LastName" class="form-label rh-auth-label"></label>
+                        <input asp-for="LastName" class="form-control rh-auth-input" autocomplete="family-name" placeholder="Last name" />
+                        <span asp-validation-for="LastName" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-6">
@@ -48,8 +54,14 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label asp-for="CountryCode" class="form-label rh-auth-label">Country code</label>
-                        <input asp-for="CountryCode" class="form-control rh-auth-input" placeholder="e.g. +237" />
+                        <label asp-for="PhoneNumber" class="form-label rh-auth-label"></label>
+                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel" inputmode="numeric" placeholder="e.g. REMOVED_PRIVATE_VALUE" />
+                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
+                        <input asp-for="CountryCode" class="form-control rh-auth-input" inputmode="numeric" placeholder="e.g. +237" />
                         <span asp-validation-for="CountryCode" class="text-danger small"></span>
                     </div>
 
@@ -123,7 +135,6 @@
             if (!picker) return;
 
             const toggle = picker.querySelector("[data-plan-toggle]");
-            const menu = picker.querySelector("[data-plan-menu]");
             const current = picker.querySelector("[data-plan-current]");
             const select = picker.querySelector(".rh-native-plan-select");
             const options = Array.from(picker.querySelectorAll(".rh-plan-option"));
@@ -172,4 +183,3 @@
         })();
     </script>
 }
-

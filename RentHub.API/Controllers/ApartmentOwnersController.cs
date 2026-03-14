@@ -9,6 +9,8 @@ using Common.Enums;
 using System.Security.Claims;
 using System;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     /// <summary>
@@ -43,7 +45,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apartment = await _context.Apartments
@@ -102,7 +104,7 @@ namespace RentHub.API.Controllers
             try
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var apartment = await _context.Apartments
                     .Include(a => a.Property)
@@ -191,7 +193,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var assignment = await _context.ApartmentOwners
                     .Include(a => a.Apartment)
@@ -227,7 +229,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var assignment = await _context.ApartmentOwners
                     .Include(a => a.Apartment)

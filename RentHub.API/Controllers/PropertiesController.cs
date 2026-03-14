@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Helpers;
@@ -76,7 +77,7 @@ namespace RentHub.API.Controllers
                 page = page < 1 ? 1 : page;
                 pageSize = pageSize < 1 ? 12 : Math.Min(pageSize, 50);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var user = await _userManager.FindByIdAsync(userId);
@@ -249,7 +250,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var props = await _context.Properties
@@ -288,7 +289,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var user = await _userManager.FindByIdAsync(userId);
@@ -352,7 +353,7 @@ namespace RentHub.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -470,7 +471,7 @@ namespace RentHub.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var user = await _userManager.FindByIdAsync(userId);
@@ -540,7 +541,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var user = await _userManager.FindByIdAsync(userId);
@@ -634,4 +635,9 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
+
+
 

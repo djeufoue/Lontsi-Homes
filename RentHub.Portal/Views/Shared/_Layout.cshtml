@@ -9,6 +9,7 @@
     var isDashboard = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
     var isSubscriptionsAdmin = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
+    var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
 
     var userName = User.Identity?.Name;
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
@@ -40,13 +41,13 @@
                     <small>Operations Workspace</small>
                 </div>
 
-                <div class="rh-sidebar-user">
+                <a class="rh-sidebar-user rh-sidebar-user-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
                     <div class="rh-avatar">@userInitial</div>
                     <div>
                         <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
-                        <p class="rh-sidebar-user-role">Authenticated Session</p>
+                        <p class="rh-sidebar-user-role">View profile &amp; subscription</p>
                     </div>
-                </div>
+                </a>
 
                 <nav class="rh-nav">
                     <a class="rh-nav-link @(isDashboard ? "active" : null)" asp-controller="Home" asp-action="Index">
@@ -57,6 +58,7 @@
                         <span class="rh-nav-icon">&#9638;</span>
                         <span>Properties</span>
                     </a>
+          
                     @if (User.IsInRole("Admin"))
                     {
                         <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
@@ -214,3 +216,7 @@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
+
+
+
+

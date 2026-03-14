@@ -14,10 +14,12 @@ namespace RentHub.Portal.Controllers
     public class AuthController : Controller
     {
         private readonly RentHubApiClient _api;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(RentHubApiClient api)
+        public AuthController(RentHubApiClient api, ILogger<AuthController> logger)
         {
             _api = api;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -50,14 +52,22 @@ namespace RentHub.Portal.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Login failed in Portal for {Email}", vm.Email);
+
                 var apiError = ParseApiError(ex.Message);
                 if (string.Equals(apiError.Code, "EMAIL_NOT_CONFIRMED", StringComparison.OrdinalIgnoreCase))
                 {
-                    TempData["AuthInfo"] = apiError.Message ?? "Your account is not activated yet. Enter the OTP sent to your email.";
+                    TempData["AuthInfo"] = SafeUserMessage(
+                        apiError.Message,
+                        "Your account is not activated yet. Enter the OTP sent to your email.");
+
                     return RedirectToAction(nameof(VerifyAccount), new { email = apiError.Email ?? vm.Email });
                 }
 
-                ModelState.AddModelError(string.Empty, apiError.Message ?? ex.Message);
+                ModelState.AddModelError(
+                    string.Empty,
+                    SafeUserMessage(apiError.Message, "Unable to sign in right now. Please try again."));
+
                 return View(vm);
             }
         }
@@ -104,8 +114,13 @@ namespace RentHub.Portal.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Register failed in Portal for {Email}", vm.Email);
+
                 var apiError = ParseApiError(ex.Message);
-                ModelState.AddModelError(string.Empty, apiError.Message ?? ex.Message);
+                ModelState.AddModelError(
+                    string.Empty,
+                    SafeUserMessage(apiError.Message, "Unable to create your account right now. Please try again in a few minutes."));
+
                 ViewBag.Plans = await GetPlansAsync();
                 return View(vm);
             }
@@ -148,7 +163,7 @@ namespace RentHub.Portal.Controllers
 
                 var res = await _api.PostAsync<VerifyActivationOtpRequest, JsonElement>("Account/verify-activation-otp", req);
 
-                if (!res.TryGetProperty("Token", out var tokenElement) || string.IsNullOrWhiteSpace(tokenElement.GetString()))
+                if (!TryGetPropertyIgnoreCase(res, "token", out var tokenElement) || string.IsNullOrWhiteSpace(tokenElement.GetString()))
                 {
                     ModelState.AddModelError(string.Empty, "Account verified. Please log in.");
                     return RedirectToAction(nameof(Login));
@@ -163,8 +178,13 @@ namespace RentHub.Portal.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "VerifyAccount failed in Portal for {Email}", vm.Email);
+
                 var apiError = ParseApiError(ex.Message);
-                ModelState.AddModelError(string.Empty, apiError.Message ?? "OTP verification failed.");
+                ModelState.AddModelError(
+                    string.Empty,
+                    SafeUserMessage(apiError.Message, "OTP verification failed. Please try again."));
+
                 return View(vm);
             }
         }
@@ -188,8 +208,10 @@ namespace RentHub.Portal.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "ResendActivationOtp failed in Portal for {Email}", email);
+
                 var apiError = ParseApiError(ex.Message);
-                TempData["AuthError"] = apiError.Message ?? "Unable to resend OTP right now.";
+                TempData["AuthError"] = SafeUserMessage(apiError.Message, "Unable to resend OTP right now. Please try again.");
             }
 
             return RedirectToAction(nameof(VerifyAccount), new { email });
@@ -210,7 +232,12 @@ namespace RentHub.Portal.Controllers
         private async Task<string> LoginToApi(string email, string password)
         {
             var res = await _api.PostAsync<object, JsonElement>("Account/login", new { Email = email, Password = password });
-            if (!res.TryGetProperty("Token", out var t)) throw new Exception("Token missing from API response.");
+
+            if (!TryGetPropertyIgnoreCase(res, "token", out var t) || string.IsNullOrWhiteSpace(t.GetString()))
+            {
+                throw new Exception("Unable to sign in right now. Please try again.");
+            }
+
             return t.GetString()!;
         }
 
@@ -220,8 +247,10 @@ namespace RentHub.Portal.Controllers
             {
                 Email = vm.Email,
                 Password = vm.Password,
-                FullName = vm.FullName,
-                CountryCode = vm.CountryCode ?? string.Empty,
+                FirstName = vm.FirstName,
+                LastName = vm.LastName,
+                CountryCode = vm.CountryCode,
+                PhoneNumber = vm.PhoneNumber,
                 PlanId = vm.PlanId
             };
 
@@ -233,19 +262,19 @@ namespace RentHub.Portal.Controllers
                 Email = vm.Email
             };
 
-            if (res.TryGetProperty("Token", out var token))
+            if (TryGetPropertyIgnoreCase(res, "token", out var token))
                 output.Token = token.GetString();
 
-            if (res.TryGetProperty("RequiresActivation", out var requiresActivation) &&
+            if (TryGetPropertyIgnoreCase(res, "requiresActivation", out var requiresActivation) &&
                 (requiresActivation.ValueKind is JsonValueKind.True or JsonValueKind.False))
             {
                 output.RequiresActivation = requiresActivation.GetBoolean();
             }
 
-            if (res.TryGetProperty("Email", out var email))
+            if (TryGetPropertyIgnoreCase(res, "email", out var email))
                 output.Email = email.GetString();
 
-            if (res.TryGetProperty("Message", out var message))
+            if (TryGetPropertyIgnoreCase(res, "message", out var message))
                 output.Message = message.GetString();
 
             return output;
@@ -253,7 +282,16 @@ namespace RentHub.Portal.Controllers
 
         private async Task SignInWithJwt(string token, ClaimsPrincipal principal)
         {
+            const string jwtTokenClaimType = "jwt_token";
+
             HttpContext.Session.SetString("JWT_TOKEN", token);
+
+            if (principal.Identity is ClaimsIdentity identity &&
+                !identity.HasClaim(c => c.Type == jwtTokenClaimType))
+            {
+                identity.AddClaim(new Claim(jwtTokenClaimType, token));
+            }
+
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
         }
 
@@ -305,7 +343,60 @@ namespace RentHub.Portal.Controllers
             return new ClaimsPrincipal(identity);
         }
 
-                private static ApiErrorPayload ParseApiError(string raw)
+        private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        value = property.Value;
+                        return true;
+                    }
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static string SafeUserMessage(string? apiMessage, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(apiMessage))
+            {
+                return fallback;
+            }
+
+            return LooksTechnicalMessage(apiMessage) ? fallback : apiMessage;
+        }
+
+        private static bool LooksTechnicalMessage(string message)
+        {
+            var normalized = message.Trim();
+            if (normalized.Length == 0)
+            {
+                return true;
+            }
+
+            var technicalFragments = new[]
+            {
+                "exception",
+                "stack trace",
+                "inner exception",
+                "dbupdateexception",
+                "sqlexception",
+                "invalid column name",
+                "entity changes",
+                "microsoft.entityframeworkcore",
+                " at "
+            };
+
+            return technicalFragments.Any(fragment =>
+                normalized.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static ApiErrorPayload ParseApiError(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
                 return new ApiErrorPayload();
@@ -361,6 +452,11 @@ namespace RentHub.Portal.Controllers
         }
     }
 }
+
+
+
+
+
 
 
 

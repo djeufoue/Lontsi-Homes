@@ -1,0 +1,170 @@
+@model RentHub.Portal.ViewModels.Properties.PropertyOverviewVm
+@using System
+@using System.Linq
+@{
+    ViewData["Title"] = "Property Map";
+
+    var property = Model.Property;
+    var allUnits = property.Apartments?.ToList() ?? new List<Common.CommunicationModels.ApartmentDto>();
+    var onlineUnits = allUnits.Count(unit => !(unit.Status ?? string.Empty).Contains("offline", StringComparison.OrdinalIgnoreCase));
+    var offlineUnits = Math.Max(0, allUnits.Count - onlineUnits);
+    var mapQuery = Uri.EscapeDataString($"{property.Address}, {property.City}");
+    var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? "Landlord" : property.LandlordName;
+    var landlordInitial = landlordName.Trim()[0].ToString().ToUpperInvariant();
+}
+
+<section class="rh-map-shell">
+    <section class="rh-map-topbar rh-panel rh-panel-elevated">
+        <div>
+            <p class="rh-kicker">Geo Workspace</p>
+            <h1 class="rh-heading-title">@property.Name map</h1>
+            <p class="rh-heading-subtitle">An operations-style location board centered on @property.Address, @property.City.</p>
+        </div>
+
+        <div class="rh-map-toolbar">
+            <a class="btn rh-btn-subtle" asp-action="Overview" asp-route-id="@property.Id">Back to Overview</a>
+            <a class="btn rh-btn-primary" href="https://www.google.com/maps/search/?api=1&amp;query=@mapQuery" target="_blank" rel="noopener">Open in Maps</a>
+        </div>
+    </section>
+
+    <section class="rh-map-board">
+        <aside class="rh-map-summary-card rh-panel rh-panel-elevated">
+            <div class="rh-map-summary-head">
+                <span>Total units</span>
+                <button type="button">...</button>
+            </div>
+            <strong>@allUnits.Count</strong>
+            <small>Updated from the current property inventory</small>
+
+            <div class="rh-map-summary-stats">
+                <div>
+                    <span>Online</span>
+                    <strong>@onlineUnits</strong>
+                </div>
+                <div>
+                    <span>Offline</span>
+                    <strong>@offlineUnits</strong>
+                </div>
+            </div>
+        </aside>
+
+        <article class="rh-map-tracking-card rh-panel rh-panel-elevated">
+            <div class="rh-map-panel-head">
+                <div>
+                    <h2>Tracking</h2>
+                    <small>Property footprint and readiness around the saved address.</small>
+                </div>
+                <span class="rh-map-live-indicator">Status: live</span>
+            </div>
+
+            <div class="rh-map-tracker-grid">
+                <span></span>
+                <span></span>
+                <span class="is-active"></span>
+                <span></span>
+                <span></span>
+                <span class="is-soft"></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span class="is-active"></span>
+            </div>
+        </article>
+
+        <aside class="rh-map-devices-card rh-panel rh-panel-elevated">
+            <div class="rh-map-panel-head">
+                <div>
+                    <h2>Connected units</h2>
+                    <small>Operational cards based on the first units in this property.</small>
+                </div>
+            </div>
+
+            <div class="rh-map-device-list">
+                @if (!allUnits.Any())
+                {
+                    <div class="rh-empty">No units available for the map board yet.</div>
+                }
+                else
+                {
+                    @foreach (var unit in allUnits.Take(4))
+                    {
+                        <article class="rh-map-device-item">
+                            <div class="rh-map-device-row">
+                                <div>
+                                    <strong>@unit.Name</strong>
+                                    <small>@property.City, Cameroon</small>
+                                </div>
+                                <span>@unit.Status</span>
+                            </div>
+
+                            <div class="rh-map-device-meta">
+                                <div>
+                                    <span>Price</span>
+                                    <strong>@unit.Price.ToString("N0")</strong>
+                                </div>
+                                <div>
+                                    <span>Area</span>
+                                    <strong>@unit.Area.ToString("N0") sqm</strong>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                }
+            </div>
+        </aside>
+
+        <article class="rh-map-stage-card rh-panel rh-panel-elevated">
+            <div class="rh-map-stage-toolbar">
+                <div class="rh-select-wrap">
+                    <select class="form-select rh-input rh-select">
+                        <option>All units</option>
+                        <option>Available units</option>
+                        <option>Occupied units</option>
+                    </select>
+                </div>
+                <div class="rh-map-stage-actions">
+                    <button type="button" class="rh-map-utility-btn">Refresh</button>
+                    <button type="button" class="rh-map-utility-btn">Share</button>
+                </div>
+            </div>
+
+            <div class="rh-map-stage-canvas">
+                <div class="rh-map-grid-overlay"></div>
+                <div class="rh-map-street"></div>
+                <div class="rh-map-marker is-primary" style="left: 28%; top: 57%;"></div>
+                <div class="rh-map-marker" style="left: 52%; top: 65%;"></div>
+                <div class="rh-map-marker is-alert" style="left: 73%; top: 48%;"></div>
+                <div class="rh-map-callout">
+                    <small>Address reference</small>
+                    <strong>@property.Name</strong>
+                    <span>@property.Address</span>
+                </div>
+            </div>
+        </article>
+
+        <aside class="rh-map-profile-card rh-panel rh-panel-elevated">
+            <div class="rh-map-profile-row">
+                <span class="rh-avatar">@landlordInitial</span>
+                <div>
+                    <strong>@landlordName</strong>
+                    <small>Landlord profile</small>
+                </div>
+            </div>
+
+            <div class="rh-map-profile-lines">
+                <div>
+                    <span>City</span>
+                    <strong>@property.City</strong>
+                </div>
+                <div>
+                    <span>Documents</span>
+                    <strong>@Model.Documents.Count</strong>
+                </div>
+                <div>
+                    <span>Managers</span>
+                    <strong>@Model.Managers.Count</strong>
+                </div>
+            </div>
+        </aside>
+    </section>
+</section>

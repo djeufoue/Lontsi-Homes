@@ -8,9 +8,20 @@ namespace RentHub.Portal.ViewModels.Auth
         public string Email { get; set; } = "";
 
         [Required]
-        public string FullName { get; set; } = "";
+        [Display(Name = "First name")]
+        public string FirstName { get; set; } = "";
 
+        [Required]
+        [Display(Name = "Last name")]
+        public string LastName { get; set; } = "";
+
+        [Display(Name = "Country code")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
         public string? CountryCode { get; set; }
+
+        [Display(Name = "Phone number (optional)")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
+        public string? PhoneNumber { get; set; }
 
         [Required]
         public string Password { get; set; } = "";

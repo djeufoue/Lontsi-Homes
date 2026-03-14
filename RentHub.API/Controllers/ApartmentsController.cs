@@ -8,6 +8,8 @@ using Common.Enums;
 using Common.CommunicationModels;
 using System.Security.Claims;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     [ApiController]
@@ -67,7 +69,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apartments = await _context.Apartments
@@ -105,7 +107,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apt = await _context.Apartments
@@ -210,7 +212,7 @@ namespace RentHub.API.Controllers
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == request.PropertyId);
                 if (property == null) return NotFound("Property not found.");
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 bool canWrite =
@@ -299,7 +301,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apt = await _context.Apartments
@@ -345,7 +347,7 @@ namespace RentHub.API.Controllers
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apt = await _context.Apartments
@@ -426,7 +428,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var assignment = await _context.ApartmentOwners
@@ -468,7 +470,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var assignment = await _context.ApartmentOwners
@@ -505,5 +507,6 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 
 

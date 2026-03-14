@@ -10,30 +10,48 @@ namespace RentHub.API.Services.Storage
     /// </summary>
     public class AzureStorageService : IStorageService
     {
-        private readonly BlobContainerClient _containerClient;
+        private readonly string? _connectionString;
+        private readonly string _containerName;
+        private BlobContainerClient? _containerClient;
 
         public AzureStorageService(IConfiguration configuration)
         {
-            var connectionString = configuration.GetSection("AzureStorage:ConnectionString").Value
-                ?? throw new InvalidOperationException("Azure storage connection string is missing.");
-            var containerName = configuration.GetSection("AzureStorage:ContainerName").Value
+            _connectionString = configuration.GetSection("AzureStorage:ConnectionString").Value;
+            _containerName = configuration.GetSection("AzureStorage:ContainerName").Value
                 ?? "renthub-files";
-            var serviceClient = new BlobServiceClient(connectionString);
-            _containerClient = serviceClient.GetBlobContainerClient(containerName);
-            _containerClient.CreateIfNotExists();
         }
 
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string contentType)
         {
-            var blobClient = _containerClient.GetBlobClient(fileName);
+            var containerClient = await GetContainerClientAsync();
+            var blobClient = containerClient.GetBlobClient(fileName);
             await blobClient.UploadAsync(fileStream, new BlobHttpHeaders { ContentType = contentType });
             return blobClient.Uri.ToString();
         }
 
         public async Task DeleteFileAsync(string fileUrl)
         {
+            await GetContainerClientAsync();
             var blobClient = new BlobClient(new Uri(fileUrl));
             await blobClient.DeleteIfExistsAsync();
+        }
+
+        private async Task<BlobContainerClient> GetContainerClientAsync()
+        {
+            if (_containerClient != null)
+            {
+                return _containerClient;
+            }
+
+            if (string.IsNullOrWhiteSpace(_connectionString))
+            {
+                throw new InvalidOperationException("File storage is not configured yet. Please ask an administrator to set up Azure Storage.");
+            }
+
+            var serviceClient = new BlobServiceClient(_connectionString);
+            _containerClient = serviceClient.GetBlobContainerClient(_containerName);
+            await _containerClient.CreateIfNotExistsAsync();
+            return _containerClient;
         }
     }
 }
