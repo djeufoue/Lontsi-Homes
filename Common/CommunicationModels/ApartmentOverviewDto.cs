@@ -1,8 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Common.CommunicationModels
 {
@@ -25,5 +22,6 @@ namespace Common.CommunicationModels
         public decimal Price { get; set; }
         public double? Area { get; set; }
         public string Status { get; set; } = string.Empty;
+        public bool CanWrite { get; set; }
     }
 }

@@ -13,6 +13,11 @@ namespace RentHub.API.Services.Storage
         Task<string> UploadFileAsync(Stream fileStream, string fileName, string contentType);
 
         /// <summary>
+        /// Builds a temporary read URL for a stored file.
+        /// </summary>
+        Task<string> GetReadUrlAsync(string fileUrl, TimeSpan? lifetime = null);
+
+        /// <summary>
         /// Deletes a file at the specified URL.
         /// </summary>
         Task DeleteFileAsync(string fileUrl);

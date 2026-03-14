@@ -17,6 +17,7 @@
         .Where(doc => doc.DocumentType == DocumentTypeEnum.PropertyImage)
         .OrderByDescending(doc => doc.UploadedAt)
         .FirstOrDefault();
+    var propertyImageUrl = propertyImage != null ? Url.Action("DocumentContent", "Properties", new { id = propertyImage.Id }) : null;
     var propertyDocuments = Model.Documents
         .Where(doc => doc.DocumentType != DocumentTypeEnum.PropertyImage)
         .OrderByDescending(doc => doc.UploadedAt)
@@ -126,9 +127,11 @@
                 </div>
 
                 <div class="rh-property-image-frame">
-                    @if (propertyImage != null)
+                    @if (propertyImage != null && !string.IsNullOrWhiteSpace(propertyImageUrl))
                     {
-                        <img src="@propertyImage.BlobUrl" alt="@property.Name property image" class="rh-property-image" />
+                        <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#propertyImageLightbox" aria-label="Open property image">
+                            <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-property-image" />
+                        </button>
                     }
                     else
                     {
@@ -144,22 +147,41 @@
                 <div class="rh-overview-panel-head">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Property map</h2>
-                        <p class="rh-dashboard-panel-copy">A dedicated location board for the building and its surrounding access points.</p>
+                        <p class="rh-dashboard-panel-copy">Your saved latitude and longitude now pin the property on the map.</p>
                     </div>
 
                     <a class="btn rh-btn-subtle btn-sm" asp-action="Map" asp-route-id="@property.Id">Open full map</a>
                 </div>
 
-                <div class="rh-map-preview-stage">
-                    <div class="rh-map-preview-overlay">
-                        <div class="rh-map-preview-node is-primary" style="left: 24%; top: 62%;"></div>
-                        <div class="rh-map-preview-node" style="left: 49%; top: 46%;"></div>
-                        <div class="rh-map-preview-node is-alert" style="left: 68%; top: 58%;"></div>
-                        <div class="rh-map-preview-card">
-                            <small>@property.City</small>
-                            <strong>@property.Name</strong>
-                            <span>@property.Address</span>
-                        </div>
+                @{
+                    var previewLatitude = property.Latitude ?? 4.048300;
+                    var previewLongitude = property.Longitude ?? 9.704400;
+                    var previewLatText = previewLatitude.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+                    var previewLonText = previewLongitude.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+                    var previewBbox = string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "{0},{1},{2},{3}",
+                        previewLongitude - 0.006,
+                        previewLatitude - 0.006,
+                        previewLongitude + 0.006,
+                        previewLatitude + 0.006);
+                    var previewMarker = string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0},{1}", previewLatitude, previewLongitude);
+                    var previewEmbedUrl = $"https://www.openstreetmap.org/export/embed.html?bbox={Uri.EscapeDataString(previewBbox)}&layer=mapnik&marker={Uri.EscapeDataString(previewMarker)}";
+                }
+
+                <div class="rh-map-preview-stage rh-map-preview-stage-real">
+                    <iframe
+                        class="rh-map-iframe"
+                        src="@previewEmbedUrl"
+                        title="@property.Name location preview"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade">
+                    </iframe>
+                    <div class="rh-map-preview-card">
+                        <small>@property.City</small>
+                        <strong>@property.Name</strong>
+                        <span>@property.Address</span>
+                        <em class="rh-map-preview-coordinates">@previewLatText, @previewLonText</em>
                     </div>
                 </div>
             </article>
@@ -170,26 +192,12 @@
                         <h2 class="rh-dashboard-panel-title">Property documents</h2>
                         <p class="rh-dashboard-panel-copy">Rules, guides, and reference files linked to this property.</p>
                     </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addPropertyDocumentModal">Add+</button>
+                    }
                 </div>
-
-                @if (Model.CanWrite)
-                {
-                    <form method="post" asp-action="UploadPropertyDocument" enctype="multipart/form-data" class="rh-overview-doc-upload rh-overview-doc-upload-compact">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="propertyId" value="@property.Id" />
-                        <input class="form-control rh-input" type="file" name="file" required />
-                        <div class="rh-select-wrap">
-                            <select class="form-select rh-input rh-select" name="type">
-                                @foreach (var type in Enum.GetValues<DocumentTypeEnum>().Where(type => type != DocumentTypeEnum.PropertyImage && type != DocumentTypeEnum.ApartmentImage))
-                                {
-                                    <option value="@type">@type</option>
-                                }
-                            </select>
-                        </div>
-                        <button class="btn rh-btn-primary" type="submit">Upload</button>
-                    </form>
-                }
-
                 @if (!propertyDocuments.Any())
                 {
                     <div class="rh-empty">No property documents uploaded yet.</div>
@@ -199,7 +207,7 @@
                     <div class="rh-document-list rh-document-list-compact">
                         @foreach (var doc in propertyDocuments.Take(5))
                         {
-                            <article class="rh-document-item rh-document-item-previewable">
+                            <article class="rh-document-item rh-document-item-previewable rh-card-spotlight">
                                 <div class="rh-document-item-copy">
                                     <a asp-action="DocumentPreview" asp-route-id="@doc.Id" class="rh-document-title-link">@doc.FileName</a>
                                     <small>@doc.DocumentType • @doc.UploadedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
@@ -209,7 +217,7 @@
                                     <a class="btn btn-sm rh-btn-subtle" asp-action="DocumentPreview" asp-route-id="@doc.Id">Preview</a>
                                     @if (Model.CanWrite)
                                     {
-                                        <form method="post" asp-action="DeleteDocument" class="d-inline">
+                                        <form method="post" asp-action="DeleteDocument" class="d-inline" data-confirm-modal="true" data-confirm-title="Delete document?" data-confirm-message="This document will be removed from this property." data-confirm-proceed="Delete document">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="propertyId" value="@property.Id" />
                                             <input type="hidden" name="documentId" value="@doc.Id" />
@@ -229,7 +237,7 @@
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Apartments</h2>
-                        <p class="rh-dashboard-panel-copy">Search and manage the apartments in this property.</p>
+                        <p class="rh-dashboard-panel-copy">Manage the apartments in this property.</p>
                     </div>
 
                     <div class="rh-overview-inline-actions">
@@ -264,7 +272,7 @@
                     <div class="rh-unit-card-grid rh-unit-card-grid-compact">
                         @foreach (var unit in Model.Units)
                         {
-                            <a class="rh-unit-card rh-unit-card-link" asp-controller="Apartments" asp-action="Overview" asp-route-id="@unit.Id">
+                            <a class="rh-unit-card rh-unit-card-link rh-card-spotlight" asp-controller="Apartments" asp-action="Overview" asp-route-id="@unit.Id">
                                 <div class="rh-unit-card-head">
                                     <div>
                                         <h3>@unit.Name</h3>
@@ -316,14 +324,13 @@
                 </form>
 
                 <div class="rh-member-stack">
-                    <article class="rh-member-card is-landlord">
+                    <article class="rh-member-card rh-card-spotlight is-landlord">
                         <div class="rh-member-card-copy">
                             <strong>@landlordName</strong>
                             <small>Landlord</small>
                         </div>
                         <span class="rh-chip rh-chip-primary">ReadWrite</span>
                     </article>
-
                     @if (!members.Any())
                     {
                         <div class="rh-empty">No additional members assigned yet.</div>
@@ -332,7 +339,7 @@
                     {
                         @foreach (var manager in members.OrderByDescending(manager => manager.AssignedAt))
                         {
-                            <article class="rh-member-card">
+                            <article class="rh-member-card rh-card-spotlight">
                                 <div class="rh-member-card-copy">
                                     <strong>@manager.ManagerName</strong>
                                     <small>Manager • @manager.AssignedAt.LocalDateTime.ToString("yyyy-MM-dd")</small>
@@ -354,7 +361,7 @@
                                             <button class="btn btn-sm rh-btn-subtle" type="submit">Save</button>
                                         </form>
 
-                                        <form method="post" asp-action="RemoveManager">
+                                        <form method="post" asp-action="RemoveManager" data-confirm-modal="true" data-confirm-title="Remove property member?" data-confirm-message="This member will lose access to this property." data-confirm-proceed="Remove member">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="propertyId" value="@property.Id" />
                                             <input type="hidden" name="assignmentId" value="@manager.Id" />
@@ -397,6 +404,16 @@
                     <input class="form-control rh-input" name="City" value="@property.City" @(Model.CanWrite ? null : "readonly") />
                 </div>
 
+                <div class="col-md-6">
+                    <label class="form-label">Latitude</label>
+                    <input class="form-control rh-input" name="Latitude" type="number" step="0.000001" min="-90" max="90" value="@(property.Latitude?.ToString("F6") ?? string.Empty)" @(Model.CanWrite ? null : "readonly") />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Longitude</label>
+                    <input class="form-control rh-input" name="Longitude" type="number" step="0.000001" min="-180" max="180" value="@(property.Longitude?.ToString("F6") ?? string.Empty)" @(Model.CanWrite ? null : "readonly") />
+                </div>
+
                 <div class="col-12">
                     <label class="form-label">Address</label>
                     <input class="form-control rh-input" name="Address" value="@property.Address" @(Model.CanWrite ? null : "readonly") />
@@ -429,10 +446,12 @@
                 <input type="hidden" name="propertyId" value="@property.Id" />
 
                 <div class="col-12">
-                    <div class="form-check form-switch rh-form-switch">
-                        <input class="form-check-input" type="checkbox" id="showCloseButton" name="showCloseButton" value="true" @(Model.SuccessDialogShowCloseButton ? "checked" : null) />
+                    <div class="rh-form-switch-row">
                         <input type="hidden" name="showCloseButton" value="false" />
-                        <label class="form-check-label" for="showCloseButton">Show close button on success and error dialogs</label>
+                        <div class="form-check form-switch rh-form-switch">
+                            <input class="form-check-input" type="checkbox" id="showCloseButton" name="showCloseButton" value="true" @(Model.SuccessDialogShowCloseButton ? "checked" : null) />
+                            <label class="form-check-label" for="showCloseButton">Show close button on success and error dialogs</label>
+                        </div>
                     </div>
                 </div>
 
@@ -449,7 +468,6 @@
         </article>
     </section>
 </section>
-
 @if (Model.CanWrite)
 {
     <div class="modal fade" id="addApartmentModal" tabindex="-1" aria-hidden="true">
@@ -558,8 +576,65 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="addPropertyDocumentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="UploadPropertyDocument" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@property.Id" />
+
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title">Add Property Document</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Document file</label>
+                            <input class="form-control rh-input" type="file" name="file" accept=".pdf,application/pdf" required />
+                            <small class="text-muted">Only PDF files are allowed in this section.</small>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">Document type</label>
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="type">
+                                    @foreach (var type in Enum.GetValues<DocumentTypeEnum>().Where(type => type != DocumentTypeEnum.PropertyImage && type != DocumentTypeEnum.ApartmentImage))
+                                    {
+                                        <option value="@type">@type</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn rh-btn-primary">Upload document</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 }
 
+@if (propertyImage != null && !string.IsNullOrWhiteSpace(propertyImageUrl))
+{
+    <div class="modal fade" id="propertyImageLightbox" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content rh-image-lightbox-modal">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">@property.Name image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-0">
+                    <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-image-lightbox-preview" />
+                </div>
+            </div>
+        </div>
+    </div>
+}
 @section Scripts {
     <script>
         (() => {

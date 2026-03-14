@@ -1,12 +1,23 @@
 @model RentHub.Portal.ViewModels.Documents.DocumentPreviewVm
 @{
     ViewData["Title"] = "Document Preview";
+    var previewUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = false }) ?? string.Empty;
+    var downloadUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = true }) ?? string.Empty;
+    var fallbackShareUrl = !string.IsNullOrWhiteSpace(downloadUrl) ? downloadUrl : previewUrl;
 }
 
 <section class="rh-document-preview-shell">
     <section class="rh-document-preview-hero rh-panel rh-panel-elevated">
         <div>
-            @if (Model.PropertyId.HasValue)
+            @if (Model.TenancyId.HasValue)
+            {
+                <a class="rh-overview-backlink" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@Model.TenancyId.Value">&#8592; Back to tenancy overview</a>
+            }
+            else if (Model.ApartmentId.HasValue)
+            {
+                <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@Model.ApartmentId.Value">&#8592; Back to apartment overview</a>
+            }
+            else if (Model.PropertyId.HasValue)
             {
                 <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@Model.PropertyId.Value">&#8592; Back to property overview</a>
             }
@@ -20,8 +31,8 @@
         </div>
 
         <div class="rh-document-preview-actions">
-            <a class="btn rh-btn-subtle" href="@Model.Document.BlobUrl" target="_blank" rel="noopener">Download</a>
-            <button type="button" class="btn rh-btn-primary" data-share-url="@Model.Document.BlobUrl">Share</button>
+            <a class="btn rh-btn-subtle" href="@downloadUrl">Download</a>
+            <button type="button" class="btn rh-btn-primary" data-share-source="@previewUrl" data-share-fallback="@fallbackShareUrl" data-share-name="@Model.Document.FileName">Share</button>
         </div>
     </section>
 
@@ -37,18 +48,24 @@
             <div class="rh-document-preview-stage">
                 @if (Model.IsImage)
                 {
-                    <img src="@Model.Document.BlobUrl" alt="@Model.Document.FileName" class="rh-document-preview-image" />
+                    <img src="@previewUrl" alt="@Model.Document.FileName" class="rh-document-preview-image" />
                 }
                 else if (Model.IsPdf)
                 {
-                    <iframe src="@Model.Document.BlobUrl" title="@Model.Document.FileName" class="rh-document-preview-frame"></iframe>
+                    <object data="@previewUrl" type="application/pdf" class="rh-document-preview-frame">
+                        <div class="rh-document-preview-placeholder">
+                            <strong>PDF preview could not open in this browser</strong>
+                            <span>Use the download button to open the file locally.</span>
+                            <a class="btn rh-btn-primary" href="@downloadUrl">Download PDF</a>
+                        </div>
+                    </object>
                 }
                 else
                 {
                     <div class="rh-document-preview-placeholder">
                         <strong>Preview not available in browser</strong>
                         <span>Use the download button to open this file in its native application.</span>
-                        <a class="btn rh-btn-primary" href="@Model.Document.BlobUrl" target="_blank" rel="noopener">Open file</a>
+                        <a class="btn rh-btn-primary" href="@downloadUrl">Download file</a>
                     </div>
                 }
             </div>
@@ -101,26 +118,52 @@
 @section Scripts {
     <script>
         (() => {
-            const shareButton = document.querySelector('[data-share-url]');
+            const shareButton = document.querySelector('[data-share-source]');
             if (!shareButton) return;
 
             const originalLabel = shareButton.textContent;
+            const sourceUrl = shareButton.getAttribute('data-share-source');
+            const fallbackUrl = shareButton.getAttribute('data-share-fallback');
+            const fileName = shareButton.getAttribute('data-share-name') || 'document';
+
+            const setLabel = (label, timeout = 1600) => {
+                shareButton.textContent = label;
+                window.setTimeout(() => shareButton.textContent = originalLabel, timeout);
+            };
+
             shareButton.addEventListener('click', async () => {
-                const url = shareButton.getAttribute('data-share-url');
-                if (!url) return;
+                if (!sourceUrl) return;
 
                 try {
-                    if (navigator.share) {
-                        await navigator.share({ title: '@Model.Document.FileName', url });
-                    } else if (navigator.clipboard) {
-                        await navigator.clipboard.writeText(url);
+                    const response = await fetch(sourceUrl, { credentials: 'same-origin' });
+                    if (!response.ok) {
+                        throw new Error('preview-fetch-failed');
                     }
 
-                    shareButton.textContent = 'Shared';
-                    window.setTimeout(() => shareButton.textContent = originalLabel, 1400);
+                    const blob = await response.blob();
+                    const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: fileName });
+                        setLabel('Shared');
+                        return;
+                    }
+
+                    if (navigator.share && fallbackUrl) {
+                        await navigator.share({ title: fileName, url: fallbackUrl });
+                        setLabel('Link shared');
+                        return;
+                    }
+
+                    if (navigator.clipboard && fallbackUrl) {
+                        await navigator.clipboard.writeText(fallbackUrl);
+                        setLabel('Link copied');
+                        return;
+                    }
+
+                    throw new Error('share-not-supported');
                 } catch {
-                    shareButton.textContent = 'Copy failed';
-                    window.setTimeout(() => shareButton.textContent = originalLabel, 1600);
+                    setLabel('Share unavailable');
                 }
             });
         })();

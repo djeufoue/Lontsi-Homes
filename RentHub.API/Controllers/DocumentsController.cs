@@ -34,11 +34,6 @@ namespace RentHub.API.Controllers
             _storageService = storageService;
         }
 
-        /// <summary>
-        /// Uploads a document associated with a property.  Only the landlord of the property
-        /// or a manager with write permission may upload files for the property.
-        /// The document type must be provided to indicate how the file should be used.
-        /// </summary>
         [HttpPost("property/{propertyId}")]
         [Authorize]
         public async Task<IActionResult> UploadForProperty([FromRoute] int propertyId, [FromForm] UploadDocumentRequest request)
@@ -46,23 +41,16 @@ namespace RentHub.API.Controllers
             try
             {
                 if (request.File == null || request.File.Length == 0) return BadRequest("File is required.");
+                if (!ValidateUpload(request.File, request.Type, out var propertyValidationMessage)) return BadRequest(propertyValidationMessage);
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
-                // Check permissions: landlord or manager with write
-                bool canWrite = false;
-                if (property.LandlordId == userId)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    canWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                }
+
+                var canWrite = property.LandlordId == userId || await _context.PropertyManagerAssignments
+                    .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
                 if (!canWrite) return Forbid();
-                // Upload file to storage
+
                 var extension = Path.GetExtension(request.File.FileName);
                 var blobName = $"property-{propertyId}-{Guid.NewGuid()}{extension}";
                 string blobUrl;
@@ -70,7 +58,7 @@ namespace RentHub.API.Controllers
                 {
                     blobUrl = await _storageService.UploadFileAsync(stream, blobName, request.File.ContentType);
                 }
-                // Create document record
+
                 var document = new Document
                 {
                     UserId = userId,
@@ -84,16 +72,8 @@ namespace RentHub.API.Controllers
                 };
                 _context.Documents.Add(document);
                 await _context.SaveChangesAsync();
-                var dto = new DocumentDto
-                {
-                    Id = document.Id,
-                    FileName = document.FileName,
-                    BlobUrl = document.BlobUrl,
-                    DocumentType = document.DocumentType,
-                    UploadedAt = document.UploadedAt,
-                    PropertyId = document.PropertyId
-                };
-                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, dto);
+
+                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await DocumentHelpers.ToDtoAsync(document, _storageService));
             }
             catch (Exception ex)
             {
@@ -101,22 +81,18 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Uploads a document associated with an apartment.  Only the landlord, a manager
-        /// with write permission or an owner with write permission may upload files for
-        /// the apartment.
-        /// </summary>
         [HttpPost("apartment/{apartmentId}")]
         [Authorize]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadForApartment(
-            int apartmentId,
-            [FromForm] UploadApartmentDocumentRequest request)
+        public async Task<IActionResult> UploadForApartment(int apartmentId, [FromForm] UploadApartmentDocumentRequest request)
         {
             try
             {
                 if (request?.File == null || request.File.Length == 0)
                     return BadRequest("File is required.");
+
+                if (!ValidateUpload(request.File, request.DocumentType, out var uploadValidationMessage))
+                    return BadRequest(uploadValidationMessage);
 
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
@@ -129,36 +105,14 @@ namespace RentHub.API.Controllers
                 if (apartment == null)
                     return NotFound("Apartment not found.");
 
-                // Check permissions: landlord, manager write, or owner write
-                bool canWrite = false;
-                if (apartment.Property?.LandlordId == userId)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    // manager write on property
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == apartment.PropertyId &&
-                                       m.ManagerId == userId &&
-                                       m.Permission == PermissionLevelEnum.ReadWrite);
-
-                    // owner write on apartment
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == apartmentId &&
-                                       o.OwnerId == userId &&
-                                       o.Permission == PermissionLevelEnum.ReadWrite);
-
-                    canWrite = managerWrite || ownerWrite;
-                }
+                var canWrite = apartment.Property?.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite)
                     return Forbid();
 
-                // Upload file
                 var file = request.File;
-                var documentType = request.DocumentType;
-
                 var extension = Path.GetExtension(file.FileName);
                 var blobName = $"apartment-{apartmentId}-{Guid.NewGuid()}{extension}";
 
@@ -173,7 +127,7 @@ namespace RentHub.API.Controllers
                     UserId = userId,
                     FileName = file.FileName,
                     BlobUrl = blobUrl,
-                    DocumentType = documentType,
+                    DocumentType = request.DocumentType,
                     ApartmentId = apartmentId,
                     PropertyId = apartment.PropertyId,
                     CreatedBy = userId,
@@ -184,18 +138,7 @@ namespace RentHub.API.Controllers
                 _context.Documents.Add(document);
                 await _context.SaveChangesAsync();
 
-                var dto = new DocumentDto
-                {
-                    Id = document.Id,
-                    FileName = document.FileName,
-                    BlobUrl = document.BlobUrl,
-                    DocumentType = document.DocumentType,
-                    UploadedAt = document.UploadedAt,
-                    PropertyId = document.PropertyId,
-                    ApartmentId = document.ApartmentId
-                };
-
-                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, dto);
+                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await DocumentHelpers.ToDtoAsync(document, _storageService));
             }
             catch (Exception ex)
             {
@@ -203,22 +146,18 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Uploads a document associated with a tenancy.  Only the landlord, a manager
-        /// with write permission or an owner with write permission may upload files for
-        /// the tenancy.
-        /// </summary>
         [HttpPost("tenancy/{tenancyId}")]
         [Authorize]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadForTenancy(
-            int tenancyId,
-            [FromForm] UploadTenancyDocumentRequest request)
+        public async Task<IActionResult> UploadForTenancy(int tenancyId, [FromForm] UploadTenancyDocumentRequest request)
         {
             try
             {
                 if (request?.File == null || request.File.Length == 0)
                     return BadRequest("File is required.");
+
+                if (!ValidateUpload(request.File, request.DocumentType, out var uploadValidationMessage))
+                    return BadRequest(uploadValidationMessage);
 
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
@@ -236,34 +175,14 @@ namespace RentHub.API.Controllers
                 if (apartment == null)
                     return NotFound("Apartment not found.");
 
-                // Check permissions: landlord, manager write, owner write
-                bool canWrite = false;
-                if (apartment.Property?.LandlordId == userId)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == apartment.PropertyId &&
-                                       m.ManagerId == userId &&
-                                       m.Permission == PermissionLevelEnum.ReadWrite);
-
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == apartment.Id &&
-                                       o.OwnerId == userId &&
-                                       o.Permission == PermissionLevelEnum.ReadWrite);
-
-                    canWrite = managerWrite || ownerWrite;
-                }
+                var canWrite = apartment.Property?.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite)
                     return Forbid();
 
-                // Upload file
                 var file = request.File;
-                var documentType = request.DocumentType;
-
                 var extension = Path.GetExtension(file.FileName);
                 var blobName = $"tenancy-{tenancyId}-{Guid.NewGuid()}{extension}";
 
@@ -278,7 +197,7 @@ namespace RentHub.API.Controllers
                     UserId = userId,
                     FileName = file.FileName,
                     BlobUrl = blobUrl,
-                    DocumentType = documentType,
+                    DocumentType = request.DocumentType,
                     TenancyId = tenancyId,
                     ApartmentId = apartment.Id,
                     PropertyId = apartment.PropertyId,
@@ -290,19 +209,7 @@ namespace RentHub.API.Controllers
                 _context.Documents.Add(document);
                 await _context.SaveChangesAsync();
 
-                var dto = new DocumentDto
-                {
-                    Id = document.Id,
-                    FileName = document.FileName,
-                    BlobUrl = document.BlobUrl,
-                    DocumentType = document.DocumentType,
-                    UploadedAt = document.UploadedAt,
-                    PropertyId = document.PropertyId,
-                    ApartmentId = document.ApartmentId,
-                    TenancyId = document.TenancyId
-                };
-
-                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, dto);
+                return CreatedAtAction(nameof(GetDocument), new { id = document.Id }, await DocumentHelpers.ToDtoAsync(document, _storageService));
             }
             catch (Exception ex)
             {
@@ -310,10 +217,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Retrieves metadata about a single document.  Access is restricted to the
-        /// landlord, managers, owners or tenant associated with the document's entity.
-        /// </summary>
         [HttpGet("{id}")]
         [Authorize]
         public async Task<IActionResult> GetDocument(int id)
@@ -328,103 +231,54 @@ namespace RentHub.API.Controllers
                 if (document == null) return NotFound("Document not found.");
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Check access: uploader, landlord, manager, owner or tenant associated with the doc
-                bool hasAccess = document.UserId == userId;
-                // Property level access
+
+                var hasAccess = document.UserId == userId;
                 if (document.PropertyId.HasValue)
                 {
                     var propertyId = document.PropertyId.Value;
                     var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                     if (property != null)
                     {
-                        // landlord
                         if (property.LandlordId == userId) hasAccess = true;
-                        // manager on property
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.PropertyManagerAssignments
-                                .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
-                        }
-                        // owner of any apartment in property
+                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.ApartmentOwners
-                                .Include(o => o.Apartment)
-                                .AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
-                        }
+                            hasAccess = await _context.ApartmentOwners.Include(o => o.Apartment).AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
                     }
                 }
-                // Apartment level access
                 if (!hasAccess && document.ApartmentId.HasValue)
                 {
                     var apartmentId = document.ApartmentId.Value;
-                    var apartment = await _context.Apartments
-                        .Include(a => a.Property)
-                        .FirstOrDefaultAsync(a => a.Id == apartmentId);
+                    var apartment = await _context.Apartments.Include(a => a.Property).FirstOrDefaultAsync(a => a.Id == apartmentId);
                     if (apartment != null)
                     {
-                        // landlord
                         if (apartment.Property?.LandlordId == userId) hasAccess = true;
-                        // manager of property
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.PropertyManagerAssignments
-                                .AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
-                        }
-                        // owner of apartment
+                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.ApartmentOwners
-                                .AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId);
-                        }
-                        // tenant occupying apartment
+                            hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId);
                         if (!hasAccess)
-                        {
                             hasAccess = await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
-                        }
                     }
                 }
-                // Tenancy level access
                 if (!hasAccess && document.TenancyId.HasValue)
                 {
                     var tenancyId = document.TenancyId.Value;
-                    var tenancy = await _context.Tenancies
-                        .Include(t => t.Apartment!.Property)
-                        .FirstOrDefaultAsync(t => t.Id == tenancyId);
+                    var tenancy = await _context.Tenancies.Include(t => t.Apartment!.Property).FirstOrDefaultAsync(t => t.Id == tenancyId);
 
                     if (tenancy != null)
                     {
-                        // landlord
                         if (tenancy.Apartment!.Property!.LandlordId == userId) hasAccess = true;
-                        // manager of property
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.PropertyManagerAssignments
-                                .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId);
-                        }
-                        // owner of apartment
+                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId);
                         if (!hasAccess)
-                        {
-                            hasAccess = await _context.ApartmentOwners
-                                .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId);
-                        }
-                        // tenant
+                            hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId);
                         if (!hasAccess && tenancy.TenantId == userId) hasAccess = true;
                     }
                 }
                 if (!hasAccess) return Forbid();
-                var dto = new DocumentDto
-                {
-                    Id = document.Id,
-                    FileName = document.FileName,
-                    BlobUrl = document.BlobUrl,
-                    DocumentType = document.DocumentType,
-                    UploadedAt = document.UploadedAt,
-                    PropertyId = document.PropertyId,
-                    ApartmentId = document.ApartmentId,
-                    TenancyId = document.TenancyId
-                };
-                return Ok(dto);
+
+                return Ok(await DocumentHelpers.ToDtoAsync(document, _storageService));
             }
             catch (Exception ex)
             {
@@ -432,10 +286,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Lists all documents associated with a property.  Access is granted to the
-        /// landlord, managers and owners associated with any apartment in the property.
-        /// </summary>
         [HttpGet("property/{propertyId}")]
         [Authorize]
         public async Task<IActionResult> GetDocumentsForProperty(int propertyId)
@@ -446,34 +296,16 @@ namespace RentHub.API.Controllers
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
-                bool hasAccess = property.LandlordId == userId;
-                if (!hasAccess)
-                {
-                    hasAccess = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
-                    if (!hasAccess)
-                    {
-                        hasAccess = await _context.ApartmentOwners
-                            .Include(o => o.Apartment)
-                            .AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
-                    }
-                }
+                var hasAccess = property.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId) ||
+                    await _context.ApartmentOwners.Include(o => o.Apartment).AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
                 if (!hasAccess) return Forbid();
-                var docs = await _context.Documents
+
+                var documents = await _context.Documents
                     .Where(d => d.PropertyId == propertyId)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
-                return Ok(docs);
+
+                return Ok(await DocumentHelpers.ToDtosAsync(documents, _storageService));
             }
             catch (Exception ex)
             {
@@ -481,10 +313,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Lists all documents associated with an apartment.  Access is granted to the
-        /// landlord, managers, owners or the tenant occupying the apartment.
-        /// </summary>
         [HttpGet("apartment/{apartmentId}")]
         [Authorize]
         public async Task<IActionResult> GetDocumentsForApartment(int apartmentId)
@@ -497,38 +325,18 @@ namespace RentHub.API.Controllers
                     .Include(a => a.Property)
                     .FirstOrDefaultAsync(a => a.Id == apartmentId);
                 if (apartment == null) return NotFound("Apartment not found.");
-                bool hasAccess = apartment.Property?.LandlordId == userId;
-                if (!hasAccess)
-                {
-                    hasAccess = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
-                    if (!hasAccess)
-                    {
-                        hasAccess = await _context.ApartmentOwners
-                            .AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId);
-                        if (!hasAccess)
-                        {
-                            // tenant occupying
-                            hasAccess = await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
-                        }
-                    }
-                }
+
+                var hasAccess = apartment.Property?.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
+                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
+                    await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
                 if (!hasAccess) return Forbid();
-                var docs = await _context.Documents
+
+                var documents = await _context.Documents
                     .Where(d => d.ApartmentId == apartmentId)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
-                return Ok(docs);
+
+                return Ok(await DocumentHelpers.ToDtosAsync(documents, _storageService));
             }
             catch (Exception ex)
             {
@@ -536,10 +344,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Lists all documents associated with a tenancy.  Access is granted to the landlord,
-        /// managers, owners or the tenant involved in the tenancy.
-        /// </summary>
         [HttpGet("tenancy/{tenancyId}")]
         [Authorize]
         public async Task<IActionResult> GetDocumentsForTenancy(int tenancyId)
@@ -555,37 +359,18 @@ namespace RentHub.API.Controllers
                 if (tenancy == null) return NotFound("Tenancy not found.");
                 var apartment = tenancy.Apartment;
                 if (apartment == null) return NotFound("Apartment not found.");
-                bool hasAccess = apartment.Property?.LandlordId == userId;
-                if (!hasAccess)
-                {
-                    hasAccess = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
-                    if (!hasAccess)
-                    {
-                        hasAccess = await _context.ApartmentOwners
-                            .AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId);
-                        if (!hasAccess)
-                        {
-                            hasAccess = tenancy.TenantId == userId;
-                        }
-                    }
-                }
+
+                var hasAccess = apartment.Property?.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
+                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId) ||
+                    tenancy.TenantId == userId;
                 if (!hasAccess) return Forbid();
-                var docs = await _context.Documents
+
+                var documents = await _context.Documents
                     .Where(d => d.TenancyId == tenancyId)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
-                return Ok(docs);
+
+                return Ok(await DocumentHelpers.ToDtosAsync(documents, _storageService));
             }
             catch (Exception ex)
             {
@@ -593,11 +378,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Deletes a document.  Deletion is soft: the record is marked as deleted and the
-        /// underlying file is removed from storage.  Only the uploader, landlord, manager
-        /// with write permission or owner with write permission may delete documents.
-        /// </summary>
         [HttpDelete("{id}")]
         [Authorize]
         public async Task<IActionResult> DeleteDocument(int id)
@@ -613,7 +393,6 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 bool canDelete = document.UserId == userId;
-                // Check property-level rights
                 if (!canDelete && document.PropertyId.HasValue)
                 {
                     var propertyId = document.PropertyId.Value;
@@ -628,7 +407,6 @@ namespace RentHub.API.Controllers
                             .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
                     }
                 }
-                // Check apartment-level rights
                 if (!canDelete && document.ApartmentId.HasValue)
                 {
                     var apartmentId = document.ApartmentId.Value;
@@ -641,18 +419,15 @@ namespace RentHub.API.Controllers
                     }
                     if (!canDelete)
                     {
-                        // manager write
                         canDelete = await _context.PropertyManagerAssignments
                             .AnyAsync(m => m.PropertyId == apartment!.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
                     }
                     if (!canDelete)
                     {
-                        // owner write
                         canDelete = await _context.ApartmentOwners
                             .AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
                     }
                 }
-                // Check tenancy-level rights
                 if (!canDelete && document.TenancyId.HasValue)
                 {
                     var tenancyId = document.TenancyId.Value;
@@ -667,20 +442,18 @@ namespace RentHub.API.Controllers
                         }
                         if (!canDelete)
                         {
-                            // manager write
                             canDelete = await _context.PropertyManagerAssignments
                                 .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
                         }
                         if (!canDelete)
                         {
-                            // owner write
                             canDelete = await _context.ApartmentOwners
                                 .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
                         }
                     }
                 }
                 if (!canDelete) return Forbid();
-                // Soft delete and remove blob
+
                 document.IsDeleted = true;
                 document.DeletedBy = userId;
                 document.DeletedAt = DateTime.UtcNow;
@@ -692,7 +465,6 @@ namespace RentHub.API.Controllers
                 }
                 catch
                 {
-                    // If deleting file fails, ignore; we already soft-deleted the record.
                 }
                 return Ok(new { Message = "Document deleted." });
             }
@@ -700,6 +472,38 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private static bool ValidateUpload(IFormFile file, DocumentTypeEnum type, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty);
+
+            if (type == DocumentTypeEnum.PropertyImage || type == DocumentTypeEnum.ApartmentImage)
+            {
+                var isImage = contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                    || new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp" }.Contains(extension, StringComparer.OrdinalIgnoreCase);
+
+                if (!isImage)
+                {
+                    errorMessage = "Only image files are allowed for image sections.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            var isPdf = string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase);
+
+            if (!isPdf)
+            {
+                errorMessage = "Only PDF files are allowed in this document section.";
+                return false;
+            }
+
+            return true;
         }
     }
 }

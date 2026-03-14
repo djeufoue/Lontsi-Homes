@@ -527,6 +527,9 @@ namespace RentHub.API.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("float");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -537,6 +540,9 @@ namespace RentHub.API.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("float");
+
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
@@ -1239,6 +1245,7 @@ namespace RentHub.API.Migrations
         }
     }
 }
+
 
 
 
