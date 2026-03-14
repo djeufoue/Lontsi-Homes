@@ -7,6 +7,8 @@ using RentHub.API.Models.Entities;
 using Common.CommunicationModels;
 using System.Security.Claims;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     [ApiController]
@@ -41,7 +43,7 @@ namespace RentHub.API.Controllers
 
                 if (tenancy == null) return NotFound("Tenancy not found.");
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 if (tenancy.Apartment!.Property!.LandlordId != userId)
@@ -131,3 +133,4 @@ namespace RentHub.API.Controllers
         }
     }
 }
+

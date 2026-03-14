@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "RentHub.API\\RentHub.API.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "RentHub.Portal\\RentHub.Portal.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

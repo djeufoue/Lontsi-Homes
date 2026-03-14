@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RentHub.API.Data;
 
 #nullable disable
 
 namespace RentHub.API.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260307120000_AddSubscriptionPlanSnapshots")]
     public partial class AddSubscriptionPlanSnapshots : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -78,3 +82,5 @@ LEFT JOIN SubscriptionPlans sp ON sp.Id = us.SubscriptionPlanId;
         }
     }
 }
+
+

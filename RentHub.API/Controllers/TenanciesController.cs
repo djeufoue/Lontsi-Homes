@@ -8,6 +8,8 @@ using Common.Enums;
 using Common.CommunicationModels;
 using System.Security.Claims;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     [ApiController]
@@ -34,7 +36,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userIdClaim = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userIdClaim))
                 {
                     return Unauthorized();
@@ -89,7 +91,7 @@ namespace RentHub.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -201,7 +203,7 @@ namespace RentHub.API.Controllers
 
                 if (tenancy == null) return NotFound("Tenancy not found.");
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 // Determine if user is landlord of the apartment
@@ -252,7 +254,7 @@ namespace RentHub.API.Controllers
                     .Include(t => t.Apartment!.Property)
                     .FirstOrDefaultAsync(t => t.Id == id);
                 if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Validate new end date
                 if (request.NewEndDate <= tenancy.StartDate)
@@ -297,7 +299,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var apt = await _context.Apartments
@@ -351,7 +353,7 @@ namespace RentHub.API.Controllers
                 if (!ModelState.IsValid)
                     return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -451,7 +453,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -502,7 +504,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -603,3 +605,4 @@ namespace RentHub.API.Controllers
         }
     }
 }
+

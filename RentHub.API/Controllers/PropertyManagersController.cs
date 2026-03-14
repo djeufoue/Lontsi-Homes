@@ -30,7 +30,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
@@ -70,7 +70,7 @@ namespace RentHub.API.Controllers
             {
                 if (!ModelState.IsValid) return BadRequest(ModelState);
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
@@ -154,7 +154,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var assignment = await _context.PropertyManagerAssignments
@@ -189,7 +189,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
                 var assignment = await _context.PropertyManagerAssignments
@@ -219,5 +219,6 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 
 

@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "1aelIinV0o9Zu7s4WmCinzW3Ep9nPm0GlbqMQQjlitM=",
+  "Source": "RentHub.API",
+  "BasePath": "_content/RentHub.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

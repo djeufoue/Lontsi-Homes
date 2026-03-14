@@ -7,6 +7,8 @@ using RentHub.API.Models.Entities;
 using Common.Enums;
 using System.Security.Claims;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     /// <summary>
@@ -38,7 +40,7 @@ namespace RentHub.API.Controllers
                     .Include(t => t.Apartment)
                     .FirstOrDefaultAsync(t => t.Id == tenancyId);
                 if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Only the tenant may request extension
                 if (tenancy.TenantId != userId)
@@ -91,7 +93,7 @@ namespace RentHub.API.Controllers
                 }
                 var tenancy = request.Tenancy;
                 if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Determine if user can approve: landlord or manager/owner with write permission
                 bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;
@@ -153,7 +155,7 @@ namespace RentHub.API.Controllers
                 }
                 var tenancy = request.Tenancy;
                 if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Determine if user can reject: landlord or manager/owner with write permission
                 bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;

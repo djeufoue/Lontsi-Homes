@@ -6,9 +6,11 @@ namespace RentHub.Portal.ViewModels.Properties
     {
         public PropertyDetailDto Property { get; set; } = new();
         public List<PropertyManagerDto> Managers { get; set; } = new();
+        public List<PropertyManagerDto> FilteredManagers { get; set; } = new();
         public List<DocumentDto> Documents { get; set; } = new();
 
         public string? ApartmentSearch { get; set; }
+        public string? MemberSearch { get; set; }
         public bool CanWrite { get; set; }
 
         public int UnitsPage { get; set; } = 1;

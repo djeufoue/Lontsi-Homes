@@ -10,6 +10,8 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     /// <summary>
@@ -39,7 +41,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Determine if user is landlord; managers/owners cannot query settings globally
                 var isLandlord = await _context.Properties.AnyAsync(p => p.LandlordId == userId);
@@ -71,7 +73,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
@@ -139,7 +141,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Confirm user is a landlord (owns at least one property)
                 var isLandlord = await _context.Properties.AnyAsync(p => p.LandlordId == userId);

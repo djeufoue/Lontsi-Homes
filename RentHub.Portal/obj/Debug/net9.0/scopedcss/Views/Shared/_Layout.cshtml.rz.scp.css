@@ -1,0 +1,74 @@
+/* Base */
+a.navbar-brand[b-4crzyx7x6f] {
+    white-space: normal;
+    text-align: center;
+    word-break: break-word;
+}
+
+a[b-4crzyx7x6f] {
+    color: #0d6efd;
+}
+
+    a:hover[b-4crzyx7x6f] {
+        color: #0b5ed7;
+    }
+
+/* App layout */
+.app-body[b-4crzyx7x6f] {
+    min-height: 100vh;
+    background: #f6f7fb;
+}
+
+.app-container[b-4crzyx7x6f] {
+    min-height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar */
+.navbar .nav-link[b-4crzyx7x6f] {
+    font-weight: 500;
+}
+
+    .navbar .nav-link.active[b-4crzyx7x6f] {
+        font-weight: 700;
+    }
+
+/* Buttons */
+.btn-primary[b-4crzyx7x6f] {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-outline-primary[b-4crzyx7x6f] {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+    .btn-outline-primary:hover[b-4crzyx7x6f] {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+
+/* Cards */
+.card[b-4crzyx7x6f] {
+    border: 1px solid rgba(0,0,0,.06);
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .03);
+    border-radius: .75rem;
+}
+
+.card-header[b-4crzyx7x6f] {
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+/* Footer */
+.app-footer[b-4crzyx7x6f] {
+    background: #fff;
+}
+
+/* Utilities */
+.shadow-sm[b-4crzyx7x6f] {
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.06) !important;
+}

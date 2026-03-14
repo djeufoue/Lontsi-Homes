@@ -13,6 +13,8 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
+using RentHub.API.Helpers;
+
 namespace RentHub.API.Controllers
 {
     /// <summary>
@@ -44,7 +46,7 @@ namespace RentHub.API.Controllers
             try
             {
                 if (request.File == null || request.File.Length == 0) return BadRequest("File is required.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
@@ -116,7 +118,7 @@ namespace RentHub.API.Controllers
                 if (request?.File == null || request.File.Length == 0)
                     return BadRequest("File is required.");
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -218,7 +220,7 @@ namespace RentHub.API.Controllers
                 if (request?.File == null || request.File.Length == 0)
                     return BadRequest("File is required.");
 
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
@@ -324,7 +326,7 @@ namespace RentHub.API.Controllers
                     .Include(d => d.Tenancy)
                     .FirstOrDefaultAsync(d => d.Id == id);
                 if (document == null) return NotFound("Document not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Check access: uploader, landlord, manager, owner or tenant associated with the doc
                 bool hasAccess = document.UserId == userId;
@@ -440,7 +442,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
@@ -489,7 +491,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var apartment = await _context.Apartments
                     .Include(a => a.Property)
@@ -544,7 +546,7 @@ namespace RentHub.API.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment)
@@ -608,7 +610,7 @@ namespace RentHub.API.Controllers
                     .Include(d => d.Tenancy)
                     .FirstOrDefaultAsync(d => d.Id == id);
                 if (document == null) return NotFound("Document not found.");
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 bool canDelete = document.UserId == userId;
                 // Check property-level rights
