@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
+using RentHub.Portal.Hubs;
 using RentHub.Portal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<PortalAuthSessionService>();
+builder.Services.AddSignalR();
 
 // Cookie auth
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -12,6 +15,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         opt.LoginPath = "/Auth/Login";
         opt.AccessDeniedPath = "/Auth/AccessDenied";
+        opt.ExpireTimeSpan = TimeSpan.FromHours(8);
+        opt.SlidingExpiration = true;
+        opt.Cookie.HttpOnly = true;
+        opt.Cookie.IsEssential = true;
     });
 
 builder.Services.AddAuthorization();
@@ -49,5 +56,7 @@ app.MapControllerRoute(
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Auth}/{action=Login}/{id?}");
+
+app.MapHub<WorkspaceHub>("/hubs/workspace");
 
 app.Run();

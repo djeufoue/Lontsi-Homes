@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Mvc;
 using Common.CommunicationModels;
 using Common.Enums;
 using RentHub.Portal.Helpers;
+using RentHub.Portal.Hubs;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Documents;
 using RentHub.Portal.ViewModels.Properties;
@@ -21,12 +23,18 @@ namespace RentHub.Portal.Controllers
         private readonly RentHubApiClient _api;
         private readonly ILogger<PropertiesController> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IHubContext<WorkspaceHub> _workspaceHub;
 
-        public PropertiesController(RentHubApiClient api, ILogger<PropertiesController> logger, IHttpClientFactory httpClientFactory)
+        public PropertiesController(
+            RentHubApiClient api,
+            ILogger<PropertiesController> logger,
+            IHttpClientFactory httpClientFactory,
+            IHubContext<WorkspaceHub> workspaceHub)
         {
             _api = api;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _workspaceHub = workspaceHub;
         }
 
         [HttpGet]
@@ -140,6 +148,21 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> OverviewContent(int id, string? apartmentSearch = null, string? memberSearch = null, int unitsPage = 1, int unitsPageSize = 6)
+        {
+            try
+            {
+                var vm = await BuildPropertyOverviewVmAsync(id, apartmentSearch, memberSearch, unitsPage, unitsPageSize);
+                ViewData["PartialMode"] = true;
+                return PartialView("Overview", vm);
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, Content("<div class=\"rh-empty\">Unable to reload the property workspace right now.</div>", "text/html"));
+            }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Map(int id)
         {
             try
@@ -209,7 +232,13 @@ namespace RentHub.Portal.Controllers
         {
             if (!ModelState.IsValid)
             {
-                TempData["Error"] = "Please complete the apartment details before saving.";
+                const string message = "Please complete the apartment details before saving.";
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.PropertyId);
                 return RedirectToAction(nameof(Overview), new { id = vm.PropertyId });
             }
@@ -226,13 +255,26 @@ namespace RentHub.Portal.Controllers
                 };
 
                 await _api.PostAsync("apartments", request);
+                await BroadcastPropertyUpdateAsync(vm.PropertyId, "apartment-created");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Apartment added successfully." });
+                }
+
                 TempData["Success"] = "Apartment added successfully.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Create apartment request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to add the apartment right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to add the apartment right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.PropertyId);
@@ -241,9 +283,14 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult UpdateSuccessDialogSettings(int propertyId, bool showCloseButton, int autoCloseSeconds)
+        public IActionResult UpdateSuccessDialogSettings(int propertyId, bool autoCloseEnabled, int autoCloseSeconds)
         {
-            SuccessDialogHelper.SaveForProperty(HttpContext.Session, propertyId, showCloseButton, autoCloseSeconds);
+            SuccessDialogHelper.SaveForProperty(HttpContext.Session, propertyId, true, autoCloseEnabled, autoCloseSeconds);
+            if (IsAjaxRequest())
+            {
+                return Ok(new { Message = "Success dialog settings updated for this property." });
+            }
+
             TempData["Success"] = "Success dialog settings updated for this property.";
             return RedirectToAction(nameof(Overview), new { id = propertyId });
         }
@@ -255,13 +302,26 @@ namespace RentHub.Portal.Controllers
             try
             {
                 await _api.PutAsync($"properties/{propertyId}", request);
+                await BroadcastPropertyUpdateAsync(propertyId, "settings-updated");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Property settings updated." });
+                }
+
                 TempData["Success"] = "Property settings updated.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Update settings request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update property settings right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to update property settings right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -274,14 +334,26 @@ namespace RentHub.Portal.Controllers
         {
             if (!ModelState.IsValid)
             {
-                TempData["Error"] = "Please provide valid member details.";
+                const string message = "Please provide valid member details.";
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                 return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
 
             if (!string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase))
             {
-                TempData["Error"] = "Only Manager role is currently supported at property level.";
+                const string message = "Only Manager role is currently supported at property level.";
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                 return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
@@ -297,13 +369,26 @@ namespace RentHub.Portal.Controllers
                 };
 
                 await _api.PostAsync($"properties/{propertyId}/managers", request);
+                await BroadcastPropertyUpdateAsync(propertyId, "member-added");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Property member added successfully." });
+                }
+
                 TempData["Success"] = "Property member added successfully.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Add property member request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to add the property member right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to add the property member right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -317,13 +402,26 @@ namespace RentHub.Portal.Controllers
             try
             {
                 await _api.PutAsync($"properties/{propertyId}/managers/{assignmentId}", permission);
+                await BroadcastPropertyUpdateAsync(propertyId, "member-updated");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Member access updated." });
+                }
+
                 TempData["Success"] = "Member access updated.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Update member permission request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update member access right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to update member access right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -337,13 +435,26 @@ namespace RentHub.Portal.Controllers
             try
             {
                 await _api.DeleteAsync($"properties/{propertyId}/managers/{assignmentId}");
+                await BroadcastPropertyUpdateAsync(propertyId, "member-removed");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Property member removed." });
+                }
+
                 TempData["Success"] = "Property member removed.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Remove property member request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to remove the property member right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to remove the property member right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -356,9 +467,15 @@ namespace RentHub.Portal.Controllers
         {
             if (file == null || file.Length == 0)
             {
-                TempData["Error"] = type == DocumentTypeEnum.PropertyImage
+                var message = type == DocumentTypeEnum.PropertyImage
                     ? "Please choose an image to upload."
                     : "Please choose a PDF file to upload.";
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                 return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
@@ -367,21 +484,39 @@ namespace RentHub.Portal.Controllers
             {
                 if (file.Length > PropertyImageMaxBytes)
                 {
-                    TempData["Error"] = "Property images must be 2 MB or smaller.";
+                    const string message = "Property images must be 2 MB or smaller.";
+                    if (IsAjaxRequest())
+                    {
+                        return BadRequest(new { Message = message });
+                    }
+
+                    TempData["Error"] = message;
                     SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                     return RedirectToAction(nameof(Overview), new { id = propertyId });
                 }
 
                 if (string.IsNullOrWhiteSpace(file.ContentType) || !file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                 {
-                    TempData["Error"] = "Please upload a valid image file for the property image.";
+                    const string message = "Please upload a valid image file for the property image.";
+                    if (IsAjaxRequest())
+                    {
+                        return BadRequest(new { Message = message });
+                    }
+
+                    TempData["Error"] = message;
                     SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                     return RedirectToAction(nameof(Overview), new { id = propertyId });
                 }
             }
             else if (!IsPdf(file))
             {
-                TempData["Error"] = "Only PDF files are allowed in the property document section.";
+                const string message = "Only PDF files are allowed in the property document section.";
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
                 return RedirectToAction(nameof(Overview), new { id = propertyId });
             }
@@ -393,9 +528,17 @@ namespace RentHub.Portal.Controllers
                 content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
 
                 await _api.PostMultipartAsync<DocumentDto>($"documents/property/{propertyId}", content);
-                TempData["Success"] = type == DocumentTypeEnum.PropertyImage
+                await BroadcastPropertyUpdateAsync(propertyId, type == DocumentTypeEnum.PropertyImage ? "property-image-updated" : "document-added");
+
+                var message = type == DocumentTypeEnum.PropertyImage
                     ? "Property image uploaded."
                     : "Document uploaded.";
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = message });
+                }
+
+                TempData["Success"] = message;
             }
             catch (Exception ex)
             {
@@ -404,7 +547,13 @@ namespace RentHub.Portal.Controllers
                 var uploadFallback = type == DocumentTypeEnum.PropertyImage
                     ? "Unable to upload the property image right now. Please try again."
                     : "Unable to upload the property document right now. Please try again.";
-                TempData["Error"] = SafeUserMessage(apiError.Message, uploadFallback);
+                var message = SafeUserMessage(apiError.Message, uploadFallback);
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -418,13 +567,26 @@ namespace RentHub.Portal.Controllers
             try
             {
                 await _api.DeleteAsync($"documents/{documentId}");
+                await BroadcastPropertyUpdateAsync(propertyId, "document-deleted");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Document deleted." });
+                }
+
                 TempData["Success"] = "Document deleted.";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Delete property document request failed in portal.");
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to delete the property document right now. Please try again.");
+                var message = SafeUserMessage(apiError.Message, "Unable to delete the property document right now. Please try again.");
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
@@ -576,7 +738,8 @@ namespace RentHub.Portal.Controllers
                 UnitsPageSize = unitsPageSize,
                 TotalUnits = totalUnits,
                 Units = pagedUnits,
-                SuccessDialogShowCloseButton = dialogSettings.ShowCloseButton,
+                SuccessDialogShowCloseButton = true,
+                SuccessDialogAutoCloseEnabled = dialogSettings.AutoCloseEnabled,
                 SuccessDialogAutoCloseSeconds = dialogSettings.AutoCloseSeconds
             };
         }
@@ -696,5 +859,22 @@ namespace RentHub.Portal.Controllers
                 _ => "application/octet-stream"
             };
         }
+
+        private bool IsAjaxRequest()
+        {
+            return string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private Task BroadcastPropertyUpdateAsync(int propertyId, string changeType)
+        {
+            return _workspaceHub.Clients
+                .Group(WorkspaceHub.GetPropertyGroup(propertyId))
+                .SendAsync("PropertyUpdated", new { propertyId, changeType });
+        }
     }
 }
+
+
+
+
+

@@ -316,7 +316,9 @@ namespace RentHub.API.Controllers
                     apt.Property?.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apt.PropertyId && m.ManagerId == userId) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
-                    await _context.Tenancies.AnyAsync(t => t.ApartmentId == apartmentId && t.TenantId == userId);
+                    await _context.Tenancies.AnyAsync(t =>
+                        t.ApartmentId == apartmentId &&
+                        (t.TenantId == userId || t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId)));
 
                 if (!hasAccess) return Forbid();
 
@@ -383,9 +385,7 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite) return Forbid();
 
-                // Max members check (current members + optional primary tenant)
                 var currentCount = tenancy.Members.Count(m => !m.IsDeleted);
-                if (!string.IsNullOrEmpty(tenancy.TenantId)) currentCount += 1;
 
                 if (currentCount >= tenancy.MaxMembers)
                     return BadRequest($"Maximum number of members ({tenancy.MaxMembers}) reached for this tenancy.");
@@ -417,6 +417,12 @@ namespace RentHub.API.Controllers
                 var alreadyMember = tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == memberUser.Id);
                 if (alreadyMember) return BadRequest("User is already a member of this tenancy.");
 
+                if (request.Role == TenancyMemberRoleEnum.Primary &&
+                    tenancy.Members.Any(m => !m.IsDeleted && m.Role == TenancyMemberRoleEnum.Primary))
+                {
+                    return BadRequest("This tenancy already has a primary tenant.");
+                }
+
                 // Add member entity
                 var member = new TenancyMember
                 {
@@ -428,6 +434,15 @@ namespace RentHub.API.Controllers
                 };
 
                 _context.TenancyMembers.Add(member);
+
+                if (request.Role == TenancyMemberRoleEnum.Primary)
+                {
+                    tenancy.TenantId = memberUser.Id;
+                    tenancy.UpdatedBy = userId;
+                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+                    _context.Tenancies.Update(tenancy);
+                }
+
                 await _context.SaveChangesAsync();
 
                 var dto = new TenancyMemberDto
@@ -491,6 +506,15 @@ namespace RentHub.API.Controllers
                 member.UpdatedAt = DateTimeOffset.UtcNow;
 
                 _context.TenancyMembers.Update(member);
+
+                if (member.Role == TenancyMemberRoleEnum.Primary && tenancy.TenantId == member.MemberId)
+                {
+                    tenancy.TenantId = null;
+                    tenancy.UpdatedBy = userId;
+                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+                    _context.Tenancies.Update(tenancy);
+                }
+
                 await _context.SaveChangesAsync();
 
                 return Ok(new { Message = "Member removed successfully." });

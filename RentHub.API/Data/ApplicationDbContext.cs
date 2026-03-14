@@ -48,12 +48,6 @@ namespace RentHub.API.Data
                 .WithMany(a => a.Tenancies)
                 .HasForeignKey(t => t.ApartmentId);
 
-            builder.Entity<Tenancy>()
-                .HasOne(t => t.Tenant)
-                .WithMany()
-                .HasForeignKey(t => t.TenantId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             builder.Entity<SubscriptionPlan>()
                 .Property(p => p.Price)
                 .HasPrecision(18, 2);

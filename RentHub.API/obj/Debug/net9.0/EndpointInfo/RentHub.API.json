@@ -130,6 +130,18 @@
         }
       }
     },
+    "/api/Account/refresh": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Account/profile-overview": {
       "get": {
         "tags": [
@@ -460,6 +472,48 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Apartments/{apartmentId}/reminder-settings": {
+      "put": {
+        "tags": [
+          "Apartments"
+        ],
+        "parameters": [
+          {
+            "name": "apartmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentReminderSettingsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentReminderSettingsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentReminderSettingsRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -2336,6 +2390,24 @@
           "newPassword": {
             "minLength": 1,
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.UpdateApartmentReminderSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "rentReminderDaysBeforeDue": {
+            "maximum": 365,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "leaseTerminationReminderDaysBeforeEnd": {
+            "maximum": 365,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

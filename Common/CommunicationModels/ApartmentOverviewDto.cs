@@ -22,6 +22,8 @@ namespace Common.CommunicationModels
         public decimal Price { get; set; }
         public double? Area { get; set; }
         public string Status { get; set; } = string.Empty;
+        public int RentReminderDaysBeforeDue { get; set; }
+        public int LeaseTerminationReminderDaysBeforeEnd { get; set; }
         public bool CanWrite { get; set; }
     }
 }

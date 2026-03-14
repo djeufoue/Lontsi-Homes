@@ -295,6 +295,33 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("refresh")]
+        [Authorize]
+        public async Task<IActionResult> Refresh()
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                var token = await _tokenService.GenerateTokenAsync(user);
+                return Ok(new { Token = token });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "Refresh", "Unable to extend your session right now. Please sign in again.");
+            }
+        }
+
         [HttpGet("profile-overview")]
         [Authorize]
         public async Task<IActionResult> GetProfileOverview()
@@ -334,7 +361,9 @@ namespace RentHub.API.Controllers
                     .ToListAsync();
 
                 var tenantPropertyIds = await _context.Tenancies
-                    .Where(t => t.TenantId == userId && (t.EndDate == null || t.EndDate > now))
+                    .Where(t =>
+                        (t.TenantId == userId || t.Members.Any(m => !m.IsDeleted && m.MemberId == userId)) &&
+                        (t.EndDate == null || t.EndDate > now))
                     .Join(_context.Apartments, t => t.ApartmentId, a => a.Id, (t, a) => a.PropertyId)
                     .Distinct()
                     .ToListAsync();

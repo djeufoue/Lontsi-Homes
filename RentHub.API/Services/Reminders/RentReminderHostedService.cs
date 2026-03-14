@@ -2,9 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RentHub.API.Data;
+using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Sms;
+using Common.Enums;
 using System;
 using System.Linq;
 using System.Threading;
@@ -43,47 +45,89 @@ namespace RentHub.API.Services.Reminders
                         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
                         var smsService = scope.ServiceProvider.GetRequiredService<ISmsService>();
+                        var nowUtc = DateTimeOffset.UtcNow;
                         // Find active tenancies (not ended and not deleted)
                         var tenancies = db.Tenancies
-                            .Where(t => !t.IsDeleted && (!t.EndDate.HasValue || t.EndDate.Value >= DateTimeOffset.UtcNow))
+                            .Include(t => t.Members)
+                            .ThenInclude(m => m.Member)
+                            .Include(t => t.Apartment)
+                            .ThenInclude(a => a!.Property)
+                            .Where(t => !t.IsDeleted && (!t.EndDate.HasValue || t.EndDate.Value >= nowUtc))
                             .ToList();
                         foreach (var tenancy in tenancies)
                         {
-                            // Determine next due date.  For demonstration we assume rent is due
-                            // monthly on the anniversary of the start date.  This calculation
-                            // approximates the next due date by adding months until after today.
-                            var start = tenancy.StartDate.Date;
-                            var nextDue = start;
-                            while (nextDue <= DateTimeOffset.UtcNow) { nextDue = nextDue.AddMonths(1); }
+                            var apartment = tenancy.Apartment!;
+                            var property = apartment.Property!;
+                            var primaryTenant = tenancy.Members
+                                .Where(member => !member.IsDeleted && member.Role == TenancyMemberRoleEnum.Primary)
+                                .Select(member => member.Member)
+                                .FirstOrDefault(member => member != null)
+                                ?? tenancy.Members
+                                    .Where(member => !member.IsDeleted)
+                                    .Select(member => member.Member)
+                                    .FirstOrDefault(member => member != null);
+
+                            var payments = db.Payments
+                                .Where(payment => payment.TenancyId == tenancy.Id && payment.Status == PaymentStatusEnum.Success)
+                                .ToList();
+
                             // Get reminder settings for the property or landlord
                             ReminderSettings? settings = null;
-                            if (tenancy.Apartment != null)
+                            settings = db.ReminderSettings
+                                .FirstOrDefault(rs => rs.PropertyId == apartment.PropertyId);
+                            if (settings == null)
                             {
                                 settings = db.ReminderSettings
-                                    .FirstOrDefault(rs => rs.PropertyId == tenancy.Apartment.PropertyId);
-                                if (settings == null)
-                                {
-                                    settings = db.ReminderSettings
-                                        .FirstOrDefault(rs => rs.PropertyId == null && rs.LandlordId == tenancy.Apartment.Property!.LandlordId);
-                                }
+                                    .FirstOrDefault(rs => rs.PropertyId == null && rs.LandlordId == property.LandlordId);
                             }
-                            int dueDays = settings?.RentDueReminderDays ?? 10;
+
+                            int dueDays = apartment.RentReminderDaysBeforeDue > 0
+                                ? apartment.RentReminderDaysBeforeDue
+                                : settings?.RentDueReminderDays ?? 10;
                             int unpaidDays = settings?.RentUnpaidReminderDays ?? 5;
+
+                            var leaseTerminationReminderDays = apartment.LeaseTerminationReminderDaysBeforeEnd > 0
+                                ? apartment.LeaseTerminationReminderDaysBeforeEnd
+                                : 30;
+
+                            var snapshot = TenancyReminderHelpers.BuildSnapshot(
+                                tenancy,
+                                apartment,
+                                payments,
+                                dueDays,
+                                leaseTerminationReminderDays,
+                                nowUtc);
+
+                            if (!snapshot.NextRentDueDate.HasValue || primaryTenant == null)
+                            {
+                                continue;
+                            }
+
+                            var nextDue = snapshot.NextRentDueDate.Value;
                             // Send upcoming due reminder
-                            var daysUntilDue = (nextDue - DateTimeOffset.UtcNow).TotalDays;
+                            var daysUntilDue = (nextDue - nowUtc).TotalDays;
                             if (daysUntilDue > 0 && daysUntilDue <= dueDays)
                             {
-                                await SendReminderAsync(tenancy, nextDue, false, emailService, smsService);
+                                await SendReminderAsync(primaryTenant, nextDue, false, emailService, smsService);
                             }
+
                             // Send unpaid reminder if payment has not been made X days after due
-                            var daysSinceDue = (DateTimeOffset.UtcNow - nextDue).TotalDays;
+                            var daysSinceDue = (nowUtc - nextDue).TotalDays;
                             if (daysSinceDue > 0 && daysSinceDue >= unpaidDays)
                             {
-                                // Check if payment exists for this tenancy after due date
-                                var hasPayment = db.Payments.Any(p => p.TenancyId == tenancy.Id && !p.IsDeleted && p.PaymentDate >= nextDue);
-                                if (!hasPayment)
+                                if (snapshot.NextRentDueDate.Value <= nowUtc)
                                 {
-                                    await SendReminderAsync(tenancy, nextDue, true, emailService, smsService);
+                                    await SendReminderAsync(primaryTenant, nextDue, true, emailService, smsService);
+                                }
+                            }
+
+                            if (tenancy.EndDate.HasValue)
+                            {
+                                var endDate = tenancy.EndDate.Value;
+                                var daysUntilEnd = (endDate - nowUtc).TotalDays;
+                                if (daysUntilEnd > 0 && daysUntilEnd <= leaseTerminationReminderDays)
+                                {
+                                    await SendLeaseTerminationReminderAsync(primaryTenant, endDate, emailService, smsService);
                                 }
                             }
                         }
@@ -98,7 +142,7 @@ namespace RentHub.API.Services.Reminders
             }
         }
 
-        private async Task SendReminderAsync(Tenancy tenancy, DateTimeOffset dueDate, bool isUnpaid, IEmailService emailService, ISmsService smsService)
+        private async Task SendReminderAsync(ApplicationUser tenant, DateTimeOffset dueDate, bool isUnpaid, IEmailService emailService, ISmsService smsService)
         {
             try
             {
@@ -108,14 +152,37 @@ namespace RentHub.API.Services.Reminders
                     ? $"Your rent payment was due on {dueDate:yyyy-MM-dd} and is now overdue. Please settle your rent as soon as possible."
                     : $"Your rent is due on {dueDate:yyyy-MM-dd}. Please ensure payment is made before the due date.";
                 // Send email
-                if (!string.IsNullOrEmpty(tenancy.Tenant?.Email))
+                if (!string.IsNullOrEmpty(tenant.Email))
                 {
-                    await emailService.SendEmailAsync(tenancy.Tenant.Email, subject, message);
+                    await emailService.SendEmailAsync(tenant.Email, subject, message);
                 }
                 // Send SMS if tenant has a phone number on record
-                if (!string.IsNullOrEmpty(tenancy.Tenant?.PhoneNumber))
+                if (!string.IsNullOrEmpty(tenant.PhoneNumber))
                 {
-                    await smsService.SendSmsAsync(tenancy.Tenant.PhoneNumber, message);
+                    await smsService.SendSmsAsync(tenant.PhoneNumber, message);
+                }
+            }
+            catch
+            {
+                // Ignore failures; errors will be logged by the caller.
+            }
+        }
+
+        private async Task SendLeaseTerminationReminderAsync(ApplicationUser tenant, DateTimeOffset endDate, IEmailService emailService, ISmsService smsService)
+        {
+            try
+            {
+                const string subject = "Lease Termination Reminder";
+                var message = $"Your lease is scheduled to end on {endDate:yyyy-MM-dd}. Please review renewal or move-out arrangements before that date.";
+
+                if (!string.IsNullOrEmpty(tenant.Email))
+                {
+                    await emailService.SendEmailAsync(tenant.Email, subject, message);
+                }
+
+                if (!string.IsNullOrEmpty(tenant.PhoneNumber))
+                {
+                    await smsService.SendSmsAsync(tenant.PhoneNumber, message);
                 }
             }
             catch

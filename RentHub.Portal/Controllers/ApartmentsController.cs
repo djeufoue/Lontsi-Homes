@@ -65,7 +65,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateTenancy(CreateTenancyRequest request)
+        public async Task<IActionResult> CreateTenancy(CreateTenancyVm request)
         {
             try
             {
@@ -75,8 +75,43 @@ namespace RentHub.Portal.Controllers
                     return await RedirectToApartmentOverviewAsync(request.ApartmentId);
                 }
 
-                await _api.PostAsync("tenancies", request);
-                TempData["Success"] = "Tenancy created successfully.";
+                if (request.ContractDocument != null && request.ContractDocument.Length > 0 && !IsPdf(request.ContractDocument))
+                {
+                    TempData["Error"] = "The tenancy contract must be a PDF file.";
+                    return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+                }
+
+                var tenancy = await _api.PostAsync<CreateTenancyRequest, TenancyDto>("tenancies", new CreateTenancyRequest
+                {
+                    ApartmentId = request.ApartmentId,
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    MonthlyRent = request.MonthlyRent,
+                    MaxMembers = request.MaxMembers
+                });
+
+                if (request.ContractDocument != null && request.ContractDocument.Length > 0)
+                {
+                    var content = new MultipartFormDataContent();
+                    content.Add(new StringContent(DocumentTypeEnum.TenancyContract.ToString()), "DocumentType");
+                    content.Add(new StreamContent(request.ContractDocument.OpenReadStream()), "File", request.ContractDocument.FileName);
+
+                    try
+                    {
+                        await _api.PostMultipartAsync<DocumentDto>($"documents/tenancy/{tenancy.Id}", content);
+                        TempData["Success"] = "Tenancy created and contract uploaded successfully.";
+                    }
+                    catch (Exception uploadEx)
+                    {
+                        _logger.LogError(uploadEx, "Tenancy contract upload failed in portal for tenancy {TenancyId}.", tenancy.Id);
+                        var uploadApiError = ParseApiError(uploadEx.Message);
+                        TempData["Error"] = SafeUserMessage(uploadApiError.Message, "Tenancy was created, but the contract PDF could not be uploaded.");
+                    }
+                }
+                else
+                {
+                    TempData["Success"] = "Tenancy created successfully.";
+                }
             }
             catch (Exception ex)
             {
@@ -86,6 +121,30 @@ namespace RentHub.Portal.Controllers
             }
 
             return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateReminderSettings(int apartmentId, UpdateApartmentReminderSettingsRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    TempData["Error"] = "Please provide valid reminder settings for this apartment.";
+                    return await RedirectToApartmentOverviewAsync(apartmentId);
+                }
+
+                await _api.PutAsync($"apartments/{apartmentId}/reminder-settings", request);
+                TempData["Success"] = "Apartment reminder settings updated.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Update apartment reminder settings failed in portal for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the apartment reminder settings right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
         }
 
         [HttpPost, ValidateAntiForgeryToken]

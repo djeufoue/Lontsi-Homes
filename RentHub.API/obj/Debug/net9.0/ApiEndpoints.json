@@ -85,6 +85,16 @@
   },
   {
     "ContainingType": "RentHub.API.Controllers.AccountController",
+    "Method": "Refresh",
+    "RelativePath": "api/Account/refresh",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "RentHub.API.Controllers.AccountController",
     "Method": "Register",
     "RelativePath": "api/Account/register",
     "HttpMethod": "POST",
@@ -336,6 +346,27 @@
       {
         "Name": "ownerAssignmentId",
         "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "RentHub.API.Controllers.ApartmentsController",
+    "Method": "UpdateReminderSettings",
+    "RelativePath": "api/Apartments/{apartmentId}/reminder-settings",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "apartmentId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "Common.CommunicationModels.UpdateApartmentReminderSettingsRequest",
         "IsRequired": true
       }
     ],

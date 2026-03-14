@@ -142,17 +142,35 @@ namespace RentHub.API.Controllers
                 var tenancies = await _context.Tenancies
                     .Where(t => t.ApartmentId == id && !t.IsDeleted)
                     .OrderByDescending(t => t.StartDate)
-                    .Select(t => new TenancyDto
-                    {
-                        Id = t.Id,
-                        ApartmentName = apt.Name,
-                        PropertyName = apt.Property!.Name,
-                        StartDate = t.StartDate,
-                        EndDate = t.EndDate,
-                        MonthlyRent = t.MonthlyRent,
-                        IsOwner = apt.Property!.LandlordId == userId
-                    })
                     .ToListAsync();
+
+                var tenancyPayments = await _context.Payments
+                    .Where(payment => payment.TenancyId != null && tenancies.Select(t => t.Id).Contains(payment.TenancyId.Value))
+                    .ToListAsync();
+
+                var tenanciesDto = tenancies
+                    .Select(tenancy =>
+                    {
+                        var snapshot = TenancyReminderHelpers.BuildSnapshot(
+                            tenancy,
+                            apt,
+                            tenancyPayments.Where(payment => payment.TenancyId == tenancy.Id),
+                            apt.RentReminderDaysBeforeDue,
+                            apt.LeaseTerminationReminderDaysBeforeEnd,
+                            DateTimeOffset.UtcNow);
+
+                        return snapshot.ApplyTo(new TenancyDto
+                        {
+                            Id = tenancy.Id,
+                            ApartmentName = apt.Name,
+                            PropertyName = apt.Property!.Name,
+                            StartDate = tenancy.StartDate,
+                            EndDate = tenancy.EndDate,
+                            MonthlyRent = tenancy.MonthlyRent,
+                            IsOwner = apt.Property!.LandlordId == userId
+                        });
+                    })
+                    .ToList();
 
                 var owners = await _context.ApartmentOwners
                     .Include(o => o.Owner)
@@ -187,9 +205,11 @@ namespace RentHub.API.Controllers
                         Price = apt.Price,
                         Area = apt.Area,
                         Status = apt.Status.ToString(),
+                        RentReminderDaysBeforeDue = apt.RentReminderDaysBeforeDue,
+                        LeaseTerminationReminderDaysBeforeEnd = apt.LeaseTerminationReminderDaysBeforeEnd,
                         CanWrite = canWrite
                     },
-                    Tenancies = tenancies,
+                    Tenancies = tenanciesDto,
                     Owners = owners,
                     Documents = docs
                 };
@@ -289,6 +309,58 @@ namespace RentHub.API.Controllers
                 };
 
                 return CreatedAtAction(nameof(GetApartmentOverview), new { id = apt.Id }, dto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpPut("{apartmentId}/reminder-settings")]
+        [Authorize]
+        public async Task<IActionResult> UpdateReminderSettings(int apartmentId, [FromBody] UpdateApartmentReminderSettingsRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+                var apartment = await _context.Apartments
+                    .Include(a => a.Property)
+                    .FirstOrDefaultAsync(a => a.Id == apartmentId && !a.IsDeleted);
+
+                if (apartment == null) return NotFound("Apartment not found.");
+                if (apartment.Property == null) return NotFound("Property not found.");
+
+                var canWrite =
+                    apartment.Property.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        m.PropertyId == apartment.PropertyId &&
+                        m.ManagerId == userId &&
+                        !m.IsDeleted &&
+                        m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o =>
+                        o.ApartmentId == apartmentId &&
+                        o.OwnerId == userId &&
+                        !o.IsDeleted &&
+                        o.Permission == PermissionLevelEnum.ReadWrite);
+
+                if (!canWrite) return Forbid();
+
+                apartment.RentReminderDaysBeforeDue = request.RentReminderDaysBeforeDue;
+                apartment.LeaseTerminationReminderDaysBeforeEnd = request.LeaseTerminationReminderDaysBeforeEnd;
+                apartment.UpdatedBy = userId;
+                apartment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                _context.Apartments.Update(apartment);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { Message = "Apartment reminder settings updated." });
             }
             catch (Exception ex)
             {

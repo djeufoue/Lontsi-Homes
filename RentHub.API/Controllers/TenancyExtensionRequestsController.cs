@@ -42,8 +42,11 @@ namespace RentHub.API.Controllers
                 if (tenancy == null) return NotFound("Tenancy not found.");
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Only the tenant may request extension
-                if (tenancy.TenantId != userId)
+                // Only a tenancy member may request an extension.
+                var isTenancyMember = tenancy.TenantId == userId ||
+                    await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
+
+                if (!isTenancyMember)
                 {
                     return Forbid();
                 }

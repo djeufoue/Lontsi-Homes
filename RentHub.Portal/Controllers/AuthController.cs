@@ -14,11 +14,13 @@ namespace RentHub.Portal.Controllers
     public class AuthController : Controller
     {
         private readonly RentHubApiClient _api;
+        private readonly PortalAuthSessionService _authSession;
         private readonly ILogger<AuthController> _logger;
 
-        public AuthController(RentHubApiClient api, ILogger<AuthController> logger)
+        public AuthController(RentHubApiClient api, PortalAuthSessionService authSession, ILogger<AuthController> logger)
         {
             _api = api;
+            _authSession = authSession;
             _logger = logger;
         }
 
@@ -45,8 +47,7 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var token = await LoginToApi(vm.Email, vm.Password);
-                var principal = BuildPrincipalFromJwt(token);
-                await SignInWithJwt(token, principal);
+                await _authSession.PersistTokenAsync(token);
 
                 return RedirectToAction("Index", "Home");
             }
@@ -107,8 +108,7 @@ namespace RentHub.Portal.Controllers
                     return RedirectToAction(nameof(VerifyAccount), new { email = result.Email ?? vm.Email });
                 }
 
-                var principal = BuildPrincipalFromJwt(result.Token);
-                await SignInWithJwt(result.Token, principal);
+                await _authSession.PersistTokenAsync(result.Token);
 
                 return RedirectToAction("Index", "Home");
             }
@@ -170,8 +170,7 @@ namespace RentHub.Portal.Controllers
                 }
 
                 var token = tokenElement.GetString()!;
-                var principal = BuildPrincipalFromJwt(token);
-                await SignInWithJwt(token, principal);
+                await _authSession.PersistTokenAsync(token);
 
                 TempData["Success"] = "Your account has been activated successfully.";
                 return RedirectToAction("Index", "Home");
@@ -221,9 +220,32 @@ namespace RentHub.Portal.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
-            HttpContext.Session.Remove("JWT_TOKEN");
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            await _authSession.ClearAsync();
             return RedirectToAction(nameof(Login));
+        }
+
+        [HttpPost]
+        [Authorize]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> KeepAlive()
+        {
+            try
+            {
+                var token = await _api.RefreshTokenAsync();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    await _authSession.ClearAsync();
+                    return Unauthorized(new { Message = "Your session expired. Please sign in again." });
+                }
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "KeepAlive failed in portal.");
+                await _authSession.ClearAsync();
+                return Unauthorized(new { Message = "Your session expired. Please sign in again." });
+            }
         }
 
         [HttpGet]
@@ -280,67 +302,9 @@ namespace RentHub.Portal.Controllers
             return output;
         }
 
-        private async Task SignInWithJwt(string token, ClaimsPrincipal principal)
-        {
-            const string jwtTokenClaimType = "jwt_token";
-
-            HttpContext.Session.SetString("JWT_TOKEN", token);
-
-            if (principal.Identity is ClaimsIdentity identity &&
-                !identity.HasClaim(c => c.Type == jwtTokenClaimType))
-            {
-                identity.AddClaim(new Claim(jwtTokenClaimType, token));
-            }
-
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-        }
-
         private Task<List<SubscriptionPlanOptionVm>> GetPlansAsync()
         {
             return _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
-        }
-
-        private static ClaimsPrincipal BuildPrincipalFromJwt(string token)
-        {
-            var handler = new JwtSecurityTokenHandler();
-            if (!handler.CanReadToken(token))
-                throw new Exception("Received an invalid authentication token.");
-
-            var jwt = handler.ReadJwtToken(token);
-            var claims = jwt.Claims.Select(c => new Claim(c.Type, c.Value)).ToList();
-
-            var sub = claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-            if (!string.IsNullOrWhiteSpace(sub) && !claims.Any(c => c.Type == ClaimTypes.NameIdentifier))
-                claims.Add(new Claim(ClaimTypes.NameIdentifier, sub));
-
-            var email = claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                        ?? claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Email)?.Value;
-            if (!string.IsNullOrWhiteSpace(email) && !claims.Any(c => c.Type == ClaimTypes.Email))
-                claims.Add(new Claim(ClaimTypes.Email, email));
-
-            if (!claims.Any(c => c.Type == ClaimTypes.Name) && !string.IsNullOrWhiteSpace(email))
-                claims.Add(new Claim(ClaimTypes.Name, email));
-
-            var roleValues = claims
-                .Where(c => c.Type == ClaimTypes.Role || c.Type == "role")
-                .Select(c => c.Value)
-                .Where(v => !string.IsNullOrWhiteSpace(v))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            foreach (var role in roleValues)
-            {
-                if (!claims.Any(c => c.Type == ClaimTypes.Role && string.Equals(c.Value, role, StringComparison.OrdinalIgnoreCase)))
-                    claims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            var identity = new ClaimsIdentity(
-                claims,
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                ClaimTypes.Name,
-                ClaimTypes.Role);
-
-            return new ClaimsPrincipal(identity);
         }
 
         private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)

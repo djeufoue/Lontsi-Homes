@@ -60,6 +60,12 @@ namespace RentHub.API.Controllers
                 if (tenancy.Members.Any(tm => !tm.IsDeleted && tm.MemberId == memberUser.Id))
                     return BadRequest("User is already a member of this tenancy.");
 
+                if (request.Role == Common.Enums.TenancyMemberRoleEnum.Primary &&
+                    tenancy.Members.Any(tm => !tm.IsDeleted && tm.Role == Common.Enums.TenancyMemberRoleEnum.Primary))
+                {
+                    return BadRequest("This tenancy already has a primary tenant.");
+                }
+
                 var member = new TenancyMember
                 {
                     TenancyId = tenancyId,
@@ -71,6 +77,15 @@ namespace RentHub.API.Controllers
                 };
 
                 _context.TenancyMembers.Add(member);
+
+                if (request.Role == Common.Enums.TenancyMemberRoleEnum.Primary)
+                {
+                    tenancy.TenantId = memberUser.Id;
+                    tenancy.UpdatedBy = userId;
+                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+                    _context.Tenancies.Update(tenancy);
+                }
+
                 await _context.SaveChangesAsync();
 
                 var dto = new TenancyMemberDto
