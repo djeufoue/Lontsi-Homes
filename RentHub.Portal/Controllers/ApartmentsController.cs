@@ -242,6 +242,48 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadApartmentImages(int apartmentId, List<IFormFile> files)
+        {
+            files ??= new List<IFormFile>();
+            var validFiles = files.Where(file => file != null && file.Length > 0).ToList();
+            if (!validFiles.Any())
+            {
+                TempData["Error"] = "Please choose one or more image files to upload.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
+            }
+
+            if (validFiles.Any(file => !IsImage(file)))
+            {
+                TempData["Error"] = "Only image files are allowed in the apartment image gallery.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
+            }
+
+            try
+            {
+                foreach (var image in validFiles)
+                {
+                    var content = new MultipartFormDataContent();
+                    content.Add(new StringContent(DocumentTypeEnum.ApartmentImage.ToString()), "DocumentType");
+                    content.Add(new StreamContent(image.OpenReadStream()), "File", image.FileName);
+
+                    await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
+                }
+
+                TempData["Success"] = validFiles.Count == 1
+                    ? "Apartment image uploaded."
+                    : $"{validFiles.Count} apartment images uploaded.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Upload apartment images request failed in portal for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to upload apartment images right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> UploadApartmentImage(int apartmentId, IFormFile file, int? currentDocumentId = null)
         {
             if (file == null || file.Length == 0)
@@ -258,13 +300,14 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                var replacedExisting = currentDocumentId.HasValue && currentDocumentId.Value > 0;
                 var content = new MultipartFormDataContent();
                 content.Add(new StringContent(DocumentTypeEnum.ApartmentImage.ToString()), "DocumentType");
                 content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
 
                 await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
 
-                if (currentDocumentId.HasValue && currentDocumentId.Value > 0)
+                if (replacedExisting)
                 {
                     try
                     {
@@ -276,7 +319,9 @@ namespace RentHub.Portal.Controllers
                     }
                 }
 
-                TempData["Success"] = "Apartment image updated.";
+                TempData["Success"] = replacedExisting
+                    ? "Apartment image updated."
+                    : "Apartment image uploaded.";
             }
             catch (Exception ex)
             {

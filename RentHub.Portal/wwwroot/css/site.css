@@ -2647,6 +2647,15 @@ body.rh-auth-body {
   gap: 1rem;
 }
 
+.rh-apartment-mastgrid,
+.rh-apartment-workgrid {
+  align-items: start;
+}
+
+.rh-apartment-mastgrid .rh-overview-sidebarcard {
+  gap: 1rem;
+}
+
 .rh-apartment-workgrid {
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
 }

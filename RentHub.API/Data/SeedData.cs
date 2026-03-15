@@ -20,6 +20,7 @@ namespace RentHub.API.Data
             EnsureUserSubscriptionSnapshotColumns(context);
             EnsureApartmentReminderColumns(context);
             EnsureTenancyTenantColumnRemoved(context);
+            EnsureTenancyApartmentShadowColumnRemoved(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -220,6 +221,34 @@ namespace RentHub.API.Data
                 IF COL_LENGTH('Tenancies', 'TenantId') IS NOT NULL
                 BEGIN
                     ALTER TABLE [Tenancies] DROP COLUMN [TenantId];
+                END
+            ");
+        }
+
+        private static void EnsureTenancyApartmentShadowColumnRemoved(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+                IF EXISTS (
+                    SELECT 1
+                    FROM sys.foreign_keys
+                    WHERE name = 'FK_Tenancies_Apartments_ApartmentId1'
+                )
+                BEGIN
+                    ALTER TABLE [Tenancies] DROP CONSTRAINT [FK_Tenancies_Apartments_ApartmentId1];
+                END
+
+                IF EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'IX_Tenancies_ApartmentId1'
+                      AND object_id = OBJECT_ID('[Tenancies]')
+                )
+                BEGIN
+                    DROP INDEX [IX_Tenancies_ApartmentId1] ON [Tenancies];
+                END
+
+                IF COL_LENGTH('Tenancies', 'ApartmentId1') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [Tenancies] DROP COLUMN [ApartmentId1];
                 END
             ");
         }

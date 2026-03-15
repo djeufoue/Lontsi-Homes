@@ -121,31 +121,45 @@
       }
 
       form.dataset.autoSearchBound = "true";
+      const submitSectionRefresh = () => {
+        const propertyRoot = form.closest("[data-property-overview-root='true']");
+        if (propertyRoot && form.dataset.sectionSearch) {
+          const payload = Object.fromEntries(new FormData(form).entries());
+          refreshPropertyOverview(propertyRoot, {
+            sectionName: form.dataset.sectionSearch,
+            overrides: payload
+          }).catch(() => {
+            showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(propertyRoot));
+          });
+          return true;
+        }
+
+        const apartmentRoot = form.closest("[data-apartment-overview-root='true']");
+        if (apartmentRoot && form.dataset.sectionSearch) {
+          const payload = Object.fromEntries(new FormData(form).entries());
+          refreshApartmentOverview(apartmentRoot, {
+            sectionName: form.dataset.sectionSearch,
+            overrides: payload
+          }).catch(() => {
+            showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(apartmentRoot));
+          });
+          return true;
+        }
+
+        return false;
+      };
+
+      form.addEventListener("submit", (event) => {
+        if (submitSectionRefresh()) {
+          event.preventDefault();
+        }
+      });
+
       let timer = null;
       input.addEventListener("input", () => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
-          const propertyRoot = form.closest("[data-property-overview-root='true']");
-          if (propertyRoot && form.dataset.sectionSearch) {
-            const payload = Object.fromEntries(new FormData(form).entries());
-            refreshPropertyOverview(propertyRoot, {
-              sectionName: form.dataset.sectionSearch,
-              overrides: payload
-            }).catch(() => {
-              showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(propertyRoot));
-            });
-            return;
-          }
-
-          const apartmentRoot = form.closest("[data-apartment-overview-root='true']");
-          if (apartmentRoot && form.dataset.sectionSearch) {
-            const payload = Object.fromEntries(new FormData(form).entries());
-            refreshApartmentOverview(apartmentRoot, {
-              sectionName: form.dataset.sectionSearch,
-              overrides: payload
-            }).catch(() => {
-              showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(apartmentRoot));
-            });
+          if (submitSectionRefresh()) {
             return;
           }
 
