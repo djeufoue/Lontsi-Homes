@@ -16,6 +16,7 @@ using RentHub.API.Services.Storage;
 using RentHub.API.Services.Sms;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Reminders;
+using RentHub.API.Services.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -130,6 +131,7 @@ builder.Services.AddScoped<MomoService>();
 builder.Services.AddScoped<CardPaymentService>();
 builder.Services.AddScoped<IStorageService, AzureStorageService>();
 builder.Services.AddScoped<RentHub.API.Services.Auth.TokenService>();
+builder.Services.AddScoped<IUserOnboardingService, UserOnboardingService>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();

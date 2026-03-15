@@ -1,6 +1,6 @@
 {
   "Version": 1,
-  "Hash": "jU7X/uQMNHAchXt+bkYi6Yv1p+4y0nSenluiJZW4f00=",
+  "Hash": "UdWl5aod5gDOXzJXrIgwv0BjV2zqLEAcL66IzoZH0oU=",
   "Source": "RentHub.Portal",
   "BasePath": "_content/RentHub.Portal",
   "Mode": "Default",
@@ -668,12 +668,12 @@
       "OriginalItemSpec": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\lib\\bootstrap\\dist\\css\\bootstrap.rtl.min.css"
     },
     {
-      "Identity": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-nky8udpkvi.gz",
+      "Identity": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-0jscxv51rr.gz",
       "SourceId": "RentHub.Portal",
       "SourceType": "Discovered",
       "ContentRoot": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\",
       "BasePath": "_content/RentHub.Portal",
-      "RelativePath": "css/site#[.{fingerprint=nky8udpkvi}]?.css.gz",
+      "RelativePath": "css/site#[.{fingerprint=0jscxv51rr}]?.css.gz",
       "AssetKind": "All",
       "AssetMode": "All",
       "AssetRole": "Alternative",
@@ -682,8 +682,8 @@
       "RelatedAsset": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\css\\site.css",
       "AssetTraitName": "Content-Encoding",
       "AssetTraitValue": "gzip",
-      "Fingerprint": "bljuhi5p8x",
-      "Integrity": "r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU=",
+      "Fingerprint": "3ieuv2kit8",
+      "Integrity": "FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo=",
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\css\\site.css"
@@ -1438,8 +1438,8 @@
       "RelatedAsset": "",
       "AssetTraitName": "",
       "AssetTraitValue": "",
-      "Fingerprint": "nky8udpkvi",
-      "Integrity": "+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I=",
+      "Fingerprint": "0jscxv51rr",
+      "Integrity": "lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8=",
       "CopyToOutputDirectory": "Never",
       "CopyToPublishDirectory": "PreserveNewest",
       "OriginalItemSpec": "wwwroot\\css\\site.css"
@@ -2831,13 +2831,13 @@
       ]
     },
     {
-      "Route": "css/site.css",
-      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-nky8udpkvi.gz",
+      "Route": "css/site.0jscxv51rr.css",
+      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-0jscxv51rr.gz",
       "Selectors": [
         {
           "Name": "Content-Encoding",
           "Value": "gzip",
-          "Quality": "0.000101276079"
+          "Quality": "0.000096655712"
         }
       ],
       "ResponseHeaders": [
@@ -2847,19 +2847,19 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "9873"
+          "Value": "10345"
         },
         {
           "Name": "ETag",
-          "Value": "\"r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU=\""
+          "Value": "\"FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
         },
         {
           "Name": "Cache-Control",
-          "Value": "no-cache"
+          "Value": "max-age=31536000, immutable"
         },
         {
           "Name": "Content-Encoding",
@@ -2875,18 +2875,26 @@
         },
         {
           "Name": "ETag",
-          "Value": "W/\"+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I=\""
+          "Value": "W/\"lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8=\""
         }
       ],
       "EndpointProperties": [
         {
+          "Name": "fingerprint",
+          "Value": "0jscxv51rr"
+        },
+        {
+          "Name": "label",
+          "Value": "css/site.css"
+        },
+        {
           "Name": "integrity",
-          "Value": "sha256-+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I="
+          "Value": "sha256-lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8="
         }
       ]
     },
     {
-      "Route": "css/site.css",
+      "Route": "css/site.0jscxv51rr.css",
       "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\css\\site.css",
       "Selectors": [],
       "ResponseHeaders": [
@@ -2896,7 +2904,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "55223"
+          "Value": "58091"
         },
         {
           "Name": "Content-Type",
@@ -2904,121 +2912,21 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I=\""
+          "Value": "\"lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I="
-        }
-      ]
-    },
-    {
-      "Route": "css/site.css.gz",
-      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-nky8udpkvi.gz",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "9873"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "no-cache"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "integrity",
-          "Value": "sha256-r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU="
-        }
-      ]
-    },
-    {
-      "Route": "css/site.nky8udpkvi.css",
-      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-nky8udpkvi.gz",
-      "Selectors": [
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip",
-          "Quality": "0.000101276079"
-        }
-      ],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "9873"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
         },
         {
           "Name": "Cache-Control",
           "Value": "max-age=31536000, immutable"
-        },
-        {
-          "Name": "Content-Encoding",
-          "Value": "gzip"
-        },
-        {
-          "Name": "Vary",
-          "Value": "Content-Encoding"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "W/\"+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I=\""
         }
       ],
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "nky8udpkvi"
+          "Value": "0jscxv51rr"
         },
         {
           "Name": "label",
@@ -3026,13 +2934,13 @@
         },
         {
           "Name": "integrity",
-          "Value": "sha256-+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I="
+          "Value": "sha256-lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8="
         }
       ]
     },
     {
-      "Route": "css/site.nky8udpkvi.css",
-      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\css\\site.css",
+      "Route": "css/site.0jscxv51rr.css.gz",
+      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-0jscxv51rr.gz",
       "Selectors": [],
       "ResponseHeaders": [
         {
@@ -3041,7 +2949,7 @@
         },
         {
           "Name": "Content-Length",
-          "Value": "55223"
+          "Value": "10345"
         },
         {
           "Name": "Content-Type",
@@ -3049,56 +2957,11 @@
         },
         {
           "Name": "ETag",
-          "Value": "\"+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I=\""
+          "Value": "\"FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo=\""
         },
         {
           "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
-        },
-        {
-          "Name": "Cache-Control",
-          "Value": "max-age=31536000, immutable"
-        }
-      ],
-      "EndpointProperties": [
-        {
-          "Name": "fingerprint",
-          "Value": "nky8udpkvi"
-        },
-        {
-          "Name": "label",
-          "Value": "css/site.css"
-        },
-        {
-          "Name": "integrity",
-          "Value": "sha256-+dyhBLP0YFT3ypYTqKPJbAAxe6TE7wfHzjTr2akgW9I="
-        }
-      ]
-    },
-    {
-      "Route": "css/site.nky8udpkvi.css.gz",
-      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-nky8udpkvi.gz",
-      "Selectors": [],
-      "ResponseHeaders": [
-        {
-          "Name": "Accept-Ranges",
-          "Value": "bytes"
-        },
-        {
-          "Name": "Content-Length",
-          "Value": "9873"
-        },
-        {
-          "Name": "Content-Type",
-          "Value": "text/css"
-        },
-        {
-          "Name": "ETag",
-          "Value": "\"r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU=\""
-        },
-        {
-          "Name": "Last-Modified",
-          "Value": "Sun, 15 Mar 2026 02:01:20 GMT"
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
         },
         {
           "Name": "Cache-Control",
@@ -3116,7 +2979,7 @@
       "EndpointProperties": [
         {
           "Name": "fingerprint",
-          "Value": "nky8udpkvi"
+          "Value": "0jscxv51rr"
         },
         {
           "Name": "label",
@@ -3124,7 +2987,144 @@
         },
         {
           "Name": "integrity",
-          "Value": "sha256-r4dUtOFqXZ9az1uS+q02J4ifB7kEPq1JaMXEasqCUtU="
+          "Value": "sha256-FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo="
+        }
+      ]
+    },
+    {
+      "Route": "css/site.css",
+      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-0jscxv51rr.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.000096655712"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "10345"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8=\""
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8="
+        }
+      ]
+    },
+    {
+      "Route": "css/site.css",
+      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\wwwroot\\css\\site.css",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "58091"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-lLeuTLmU7WSX9I5r5tLiAohsTQCGOdFcj2yj2G1RUl8="
+        }
+      ]
+    },
+    {
+      "Route": "css/site.css.gz",
+      "AssetFile": "C:\\Projects\\Rent Management Project\\RentHub\\RentHub.Portal\\obj\\Debug\\net9.0\\compressed\\ik5xjjo5ir-0jscxv51rr.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "10345"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/css"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sun, 15 Mar 2026 15:40:37 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-FdQf9MiM4Hj8CBZyBeVKwaPX4bHt5aACwkixqwDjAMo="
         }
       ]
     },

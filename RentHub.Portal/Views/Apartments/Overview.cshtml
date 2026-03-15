@@ -11,7 +11,44 @@
     var apartmentDocuments = documents.Where(doc => doc.DocumentType != DocumentTypeEnum.ApartmentImage).ToList();
     var owners = Model.Owners ?? new List<Common.CommunicationModels.ApartmentOwnerDto>();
     var tenancies = Model.Tenancies ?? new List<Common.CommunicationModels.TenancyDto>();
-    var activeTenancies = tenancies.Count(tenancy => !tenancy.EndDate.HasValue || tenancy.EndDate.Value >= DateTimeOffset.UtcNow.Date);
+    var today = DateTimeOffset.UtcNow.Date;
+
+    string GetTenancyState(Common.CommunicationModels.TenancyDto tenancy)
+    {
+        if (tenancy.StartDate.Date > today)
+        {
+            return "Upcoming";
+        }
+
+        if (tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < today)
+        {
+            return "Closed";
+        }
+
+        return "Active";
+    }
+
+    string GetTenancyStateClass(string state) => state switch
+    {
+        "Active" => "rh-chip-primary",
+        "Upcoming" => "rh-chip-info",
+        _ => "rh-chip-warning"
+    };
+
+    int GetTenancySortRank(Common.CommunicationModels.TenancyDto tenancy) => GetTenancyState(tenancy) switch
+    {
+        "Active" => 0,
+        "Upcoming" => 1,
+        _ => 2
+    };
+
+    var sortedTenancies = tenancies
+        .OrderBy(GetTenancySortRank)
+        .ThenBy(tenancy => GetTenancyState(tenancy) == "Upcoming" ? tenancy.StartDate : DateTimeOffset.MaxValue)
+        .ThenByDescending(tenancy => tenancy.StartDate)
+        .ToList();
+
+    var activeTenancies = tenancies.Count(tenancy => GetTenancyState(tenancy) == "Active");
     var memberCount = owners.Count;
     var currentApartmentImage = apartmentImages.FirstOrDefault();
     var averageRent = tenancies.Any() ? tenancies.Average(tenancy => tenancy.MonthlyRent) : apartment.Price;
@@ -19,13 +56,13 @@
 
 <section class="rh-overview-shell rh-apartment-shell"
          data-apartment-overview-root="true"
-         data-overview-content-url="@Url.Action("Overview", "Apartments", new { id = apartment.Id })">
+         data-overview-content-url="@Url.Action("OverviewContent", "Apartments", new { id = apartment.Id })">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">&#8592; Back to property overview</a>
             <p class="rh-kicker">Apartment Workspace</p>
             <h1 class="rh-heading-title">@apartment.Name</h1>
-            <p class="rh-heading-subtitle">@apartment.PropertyName • @apartment.Type • @apartment.Status</p>
+            <p class="rh-heading-subtitle">@apartment.PropertyName - @apartment.Type - @apartment.Status</p>
 
             <div class="rh-overview-badges">
                 <span class="rh-chip rh-chip-primary">@apartment.Price.ToString("N0") rent</span>
@@ -40,157 +77,110 @@
         </div>
     </section>
 
-    <section class="rh-overview-mastgrid rh-apartment-mastgrid">
-        <article class="rh-overview-spotlight rh-panel rh-panel-elevated">
-            <div class="rh-overview-panel-head">
-                <div>
-                    <h2 class="rh-dashboard-panel-title">Apartment overview</h2>
-                    <p class="rh-dashboard-panel-copy">Tenancies, members, and supporting documents in one focused workspace.</p>
-                </div>
-                <div class="rh-dashboard-range-chip">Live apartment view</div>
+    <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
+        <div class="rh-overview-panel-head">
+            <div>
+                <h2 class="rh-dashboard-panel-title">Apartment overview</h2>
+                <p class="rh-dashboard-panel-copy">Live tenancy, member, reminder, and occupancy signals in one apartment board.</p>
             </div>
+            <div class="rh-dashboard-range-chip">Live apartment view</div>
+        </div>
 
-            <div class="rh-overview-spotlight-grid">
-                <div class="rh-overview-bigstat">
-                    <span>Active tenancies</span>
-                    <strong>@activeTenancies</strong>
-                    <small>Current apartment occupancy records</small>
-                </div>
-                <div class="rh-overview-bigstat alt">
-                    <span>Average tenancy rent</span>
-                    <strong>@averageRent.ToString("N0")</strong>
-                    <small>Latest tenancy billing snapshot</small>
-                </div>
+        <div class="rh-apartment-commanddeck-grid">
+            <div class="rh-overview-bigstat">
+                <span>Active tenancies</span>
+                <strong>@activeTenancies</strong>
+                <small>Current apartment occupancy records</small>
             </div>
-        </article>
-
-        <article class="rh-overview-sidebarcard rh-panel rh-panel-elevated">
-            <div class="rh-overview-sidebarstat">
+            <div class="rh-overview-bigstat alt">
+                <span>Average tenancy rent</span>
+                <strong>@averageRent.ToString("N0")</strong>
+                <small>Latest tenancy billing snapshot</small>
+            </div>
+            <div class="rh-apartment-stat-card rh-card-spotlight">
                 <span>Members</span>
                 <strong>@memberCount</strong>
                 <small>Owners and apartment collaborators</small>
             </div>
-            <div class="rh-overview-sidebarstat">
+            <div class="rh-apartment-stat-card rh-card-spotlight">
                 <span>Status</span>
                 <strong>@apartment.Status</strong>
                 <small>Operational apartment state</small>
             </div>
-            <div class="rh-overview-sidebarstat">
+            <div class="rh-apartment-stat-card rh-card-spotlight">
                 <span>Rent reminder</span>
                 <strong>@apartment.RentReminderDaysBeforeDue day(s)</strong>
                 <small>Lead time before the next due date</small>
             </div>
-        </article>
+        </div>
     </section>
 
     <section class="rh-overview-workgrid rh-apartment-workgrid">
         <div class="rh-overview-maincolumn">
-            <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-apartment-section="tenancies">
+            <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Tenancies</h2>
-                        <p class="rh-dashboard-panel-copy">Track tenancy records linked to this apartment.</p>
+                        <h2 class="rh-dashboard-panel-title">Apartment images</h2>
+                        <p class="rh-dashboard-panel-copy">Keep the gallery close at hand and manage the image currently in view.</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addTenancyModal">Add+</button>
+                        <div class="rh-overview-inline-actions">
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add+</button>
+                            <button type="button" class="rh-icon-btn" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal" data-apartment-image-manage-open="true" title="Manage current apartment image" aria-label="Manage current apartment image">
+                                <span class="rh-icon-pencil"></span>
+                            </button>
+                        </div>
                     }
                 </div>
 
-                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="tenancies">
-                    <input type="hidden" name="id" value="@apartment.Id" />
-                    <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
-                    <div class="rh-search-input-wrap">
-                        <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="tenancySearch" value="@Model.TenancySearch" placeholder="Search tenancy records" autocomplete="off" />
-                    </div>
-                </form>
-
-                @if (!tenancies.Any())
+                @if (!apartmentImages.Any())
                 {
-                    <div class="rh-empty">No tenancy records linked to this apartment yet.</div>
+                    <div class="rh-property-image-placeholder rh-apartment-image-placeholder">
+                        <strong>No apartment images yet</strong>
+                        <span>Add one or more landscape images so this apartment has a proper visual gallery.</span>
+                        @if (Model.CanWrite)
+                        {
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add images</button>
+                        }
+                    </div>
                 }
                 else
                 {
-                    <div class="rh-unit-card-grid rh-unit-card-grid-compact">
-                        @foreach (var tenancy in tenancies.OrderByDescending(item => item.StartDate))
-                        {
-                            <a class="rh-unit-card rh-unit-card-link rh-card-spotlight" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@tenancy.Id">
-                                <div class="rh-unit-card-head">
-                                    <div>
-                                        <h3>Tenancy #@tenancy.Id</h3>
-                                        <small>@tenancy.StartDate.LocalDateTime.ToString("dd MMM yyyy")@(tenancy.EndDate.HasValue ? $" to {tenancy.EndDate.Value.LocalDateTime:dd MMM yyyy}" : " • Open")</small>
-                                    </div>
-                                    <span class="rh-chip @(tenancy.EndDate.HasValue && tenancy.EndDate.Value < DateTimeOffset.UtcNow ? "rh-chip-warning" : "rh-chip-primary")">@(tenancy.EndDate.HasValue && tenancy.EndDate.Value < DateTimeOffset.UtcNow ? "Closed" : "Active")</span>
+                    <div class="rh-apartment-gallery" data-apartment-gallery="true">
+                        <div class="rh-apartment-gallery-stage">
+                            @for (var index = 0; index < apartmentImages.Count; index++)
+                            {
+                                var image = apartmentImages[index];
+                                <div class="rh-apartment-gallery-slide @(index == 0 ? "is-active" : string.Empty)"
+                                     data-gallery-slide
+                                     data-document-id="@image.Id"
+                                     data-image-url="@image.BlobUrl"
+                                     data-image-name="@image.FileName">
+                                    <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#apartmentImageLightbox" data-image-lightbox-trigger="true" data-image-url="@image.BlobUrl" data-image-name="@image.FileName" aria-label="Open apartment image">
+                                        <img src="@image.BlobUrl" alt="@image.FileName" class="rh-property-image" loading="lazy" />
+                                    </button>
                                 </div>
+                            }
 
-                                <div class="rh-unit-card-meta">
-                                    <span>Monthly rent <strong>@tenancy.MonthlyRent.ToString("N0")</strong></span>
-                                    <span>Apartment <strong>@tenancy.ApartmentName</strong></span>
-                                </div>
+                            @if (apartmentImages.Count > 1)
+                            {
+                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="Previous image">&#8592;</button>
+                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="Next image">&#8594;</button>
+                            }
+                        </div>
 
-                                <div class="rh-unit-card-schedule">
-                                    <span>Paid through <strong>@(tenancy.PaidThroughDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not yet covered")</strong></span>
-                                    <span>Next due <strong>@(tenancy.NextRentDueDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
-                                    <span>Reminder <strong>@(tenancy.NextRentReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
-                                    <span>Lease alert <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "No lease end")</strong></span>
-                                </div>
-
-                                @if (tenancy.IsPaidInAdvance)
-                                {
-                                    <div class="rh-inline-hint">Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished.</div>
-                                }
-                            </a>
-                        }
+                        <div class="rh-apartment-gallery-footer">
+                            <div>
+                                <strong data-gallery-current-name>@currentApartmentImage?.FileName</strong>
+                                <small><span data-gallery-current-index>1</span> / @apartmentImages.Count image(s)</small>
+                            </div>
+                        </div>
                     </div>
                 }
             </article>
 
-            <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact" data-apartment-section="documents">
-                <div class="rh-overview-panel-head align-start">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment documents</h2>
-                        <p class="rh-dashboard-panel-copy">Reference files and operational records for this apartment.</p>
-                    </div>
-
-                    @if (Model.CanWrite)
-                    {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentDocumentModal">Add+</button>
-                    }
-                </div>
-
-                @if (!apartmentDocuments.Any())
-                {
-                    <div class="rh-empty">No apartment documents uploaded yet.</div>
-                }
-                else
-                {
-                    <div class="rh-document-list rh-document-list-compact">
-                        @foreach (var document in apartmentDocuments)
-                        {
-                            <article class="rh-document-item rh-document-item-previewable rh-card-spotlight">
-                                <div class="rh-document-item-copy">
-                                    <a asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id" class="rh-document-title-link">@document.FileName</a>
-                                    <small>@document.DocumentType • @document.UploadedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
-                                </div>
-                                <div class="rh-document-actions">
-                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id">Preview</a>
-                                    @if (Model.CanWrite)
-                                    {
-                                        <form method="post" asp-action="DeleteDocument" data-confirm-modal="true" data-confirm-title="Delete apartment document?" data-confirm-message="This document will be removed from the apartment." data-confirm-proceed="Delete document">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="apartmentId" value="@apartment.Id" />
-                                            <input type="hidden" name="documentId" value="@document.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Delete</button>
-                                        </form>
-                                    }
-                                </div>
-                            </article>
-                        }
-                    </div>
-                }
-            </article>
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
                 <div class="rh-overview-panel-head align-start">
                     <div>
@@ -239,71 +229,6 @@
         </div>
 
         <div class="rh-overview-sidecolumn rh-overview-sidecolumn-priority">
-            <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
-                <div class="rh-overview-panel-head align-start">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment images</h2>
-                        <p class="rh-dashboard-panel-copy">Keep the gallery close at hand and manage the image currently in view.</p>
-                    </div>
-
-                    @if (Model.CanWrite)
-                    {
-                        <div class="rh-overview-inline-actions">
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add+</button>
-                            <button type="button" class="rh-icon-btn" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal" data-apartment-image-manage-open="true" title="Manage current apartment image" aria-label="Manage current apartment image">
-                                <span class="rh-icon-pencil"></span>
-                            </button>
-                        </div>
-                    }
-                </div>
-
-                @if (!apartmentImages.Any())
-                {
-                    <div class="rh-property-image-placeholder rh-apartment-image-placeholder">
-                        <strong>No apartment images yet</strong>
-                        <span>Add one or more landscape images so this apartment has a proper visual gallery.</span>
-                        @if (Model.CanWrite)
-                        {
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add images</button>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <div class="rh-apartment-gallery" data-apartment-gallery="true">
-                        <div class="rh-apartment-gallery-stage">
-                            @for (var index = 0; index < apartmentImages.Count; index++)
-                            {
-                                var image = apartmentImages[index];
-                                var imageUrl = Url.Action("DocumentContent", "Properties", new { id = image.Id });
-                                <div class="rh-apartment-gallery-slide @(index == 0 ? "is-active" : string.Empty)"
-                                     data-gallery-slide
-                                     data-document-id="@image.Id"
-                                     data-image-url="@imageUrl"
-                                     data-image-name="@image.FileName">
-                                    <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#apartmentImageLightbox" data-image-lightbox-trigger="true" data-image-url="@imageUrl" data-image-name="@image.FileName" aria-label="Open apartment image">
-                                        <img src="@imageUrl" alt="@image.FileName" class="rh-property-image" />
-                                    </button>
-                                </div>
-                            }
-
-                            @if (apartmentImages.Count > 1)
-                            {
-                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="Previous image">&#8592;</button>
-                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="Next image">&#8594;</button>
-                            }
-                        </div>
-
-                        <div class="rh-apartment-gallery-footer">
-                            <div>
-                                <strong data-gallery-current-name>@currentApartmentImage?.FileName</strong>
-                                <small><span data-gallery-current-index>1</span> / @apartmentImages.Count image(s)</small>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </article>
-
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
@@ -373,6 +298,136 @@
                     </div>
                 }
             </article>
+
+            <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-apartment-section="tenancies">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Tenancies</h2>
+                        <p class="rh-dashboard-panel-copy">Track tenancy records linked to this apartment.</p>
+                    </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addTenancyModal">Add+</button>
+                    }
+                </div>
+
+                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="tenancies">
+                    <input type="hidden" name="id" value="@apartment.Id" />
+                    <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
+                    <div class="rh-search-input-wrap">
+                        <span class="rh-search-icon"></span>
+                        <input class="form-control rh-input js-auto-submit" type="text" name="tenancySearch" value="@Model.TenancySearch" placeholder="Search tenancy records" autocomplete="off" />
+                    </div>
+                </form>
+
+                @if (!sortedTenancies.Any())
+                {
+                    <div class="rh-empty">No tenancy records linked to this apartment yet.</div>
+                }
+                else
+                {
+                    <div class="rh-unit-card-grid rh-unit-card-grid-compact rh-tenancy-card-grid">
+                        @foreach (var tenancy in sortedTenancies)
+                        {
+                            var tenancyState = GetTenancyState(tenancy);
+                            var tenancyStateClass = GetTenancyStateClass(tenancyState);
+                            var startDateLabel = tenancy.StartDate.LocalDateTime.ToString("dd MMM yyyy");
+                            var endDateLabel = tenancy.EndDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Open term";
+                            <article class="rh-unit-card rh-card-spotlight rh-tenancy-card-shell">
+                                <div class="rh-unit-card-head rh-tenancy-card-head">
+                                    <div>
+                                        <h3>Tenancy #@tenancy.Id</h3>
+                                        <small>@tenancy.ApartmentName</small>
+                                    </div>
+                                    <div class="rh-tenancy-card-head-actions">
+                                        <span class="rh-chip @tenancyStateClass">@tenancyState</span>
+                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@tenancy.Id">Open</a>
+                                        @if (Model.CanWrite)
+                                        {
+                                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#editTenancyModal-@tenancy.Id">Edit</button>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="rh-tenancy-dateband">
+                                    <div class="rh-tenancy-datepill start">
+                                        <span>Start date</span>
+                                        <strong>@startDateLabel</strong>
+                                    </div>
+                                    <div class="rh-tenancy-datepill end">
+                                        <span>End date</span>
+                                        <strong>@endDateLabel</strong>
+                                    </div>
+                                </div>
+
+                                <div class="rh-unit-card-meta rh-tenancy-card-meta">
+                                    <span>Monthly rent <strong>@tenancy.MonthlyRent.ToString("N0")</strong></span>
+                                    <span>Apartment <strong>@tenancy.ApartmentName</strong></span>
+                                    <span>Max members <strong>@tenancy.MaxMembers</strong></span>
+                                </div>
+
+                                <div class="rh-unit-card-schedule">
+                                    <span>Paid through <strong>@(tenancy.PaidThroughDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not yet covered")</strong></span>
+                                    <span>Next due <strong>@(tenancy.NextRentDueDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
+                                    <span>Reminder <strong>@(tenancy.NextRentReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
+                                    <span>Lease alert <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "No lease end")</strong></span>
+                                </div>
+
+                                @if (tenancy.IsPaidInAdvance)
+                                {
+                                    <div class="rh-inline-hint">Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished.</div>
+                                }
+                            </article>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact" data-apartment-section="documents">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Apartment documents</h2>
+                        <p class="rh-dashboard-panel-copy">Reference files and operational records for this apartment.</p>
+                    </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentDocumentModal">Add+</button>
+                    }
+                </div>
+
+                @if (!apartmentDocuments.Any())
+                {
+                    <div class="rh-empty">No apartment documents uploaded yet.</div>
+                }
+                else
+                {
+                    <div class="rh-document-list rh-document-list-compact">
+                        @foreach (var document in apartmentDocuments)
+                        {
+                            <article class="rh-document-item rh-document-item-previewable rh-card-spotlight">
+                                <div class="rh-document-item-copy">
+                                    <a asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id" class="rh-document-title-link">@document.FileName</a>
+                                    <small>@document.DocumentType - @document.UploadedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
+                                </div>
+                                <div class="rh-document-actions">
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id">Preview</a>
+                                    @if (Model.CanWrite)
+                                    {
+                                        <form method="post" asp-action="DeleteDocument" data-confirm-modal="true" data-confirm-title="Delete apartment document?" data-confirm-message="This document will be removed from the apartment." data-confirm-proceed="Delete document">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="apartmentId" value="@apartment.Id" />
+                                            <input type="hidden" name="documentId" value="@document.Id" />
+                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Delete</button>
+                                        </form>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </article>
         </div>
     </section>
 </section>
@@ -401,7 +456,6 @@
                             <label class="form-label">End date</label>
                             <input class="form-control rh-input" type="date" name="EndDate" />
                         </div>
-
                         <div class="col-md-6">
                             <label class="form-label">Monthly rent</label>
                             <input class="form-control rh-input" type="number" name="MonthlyRent" min="0" step="0.01" value="@apartment.Price" required />
@@ -429,6 +483,54 @@
         </div>
     </div>
 
+    @foreach (var tenancy in sortedTenancies)
+    {
+        <div class="modal fade" id="editTenancyModal-@tenancy.Id" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rh-modal-content">
+                    <form method="post" asp-action="UpdateTenancy">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="ApartmentId" value="@apartment.Id" />
+                        <input type="hidden" name="TenancyId" value="@tenancy.Id" />
+
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title">Edit Tenancy #@tenancy.Id</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Start date</label>
+                                <input class="form-control rh-input" type="date" name="StartDate" value="@tenancy.StartDate.ToString("yyyy-MM-dd")" required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">End date</label>
+                                <input class="form-control rh-input" type="date" name="EndDate" value="@(tenancy.EndDate?.ToString("yyyy-MM-dd") ?? string.Empty)" />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Monthly rent</label>
+                                <input class="form-control rh-input" type="number" name="MonthlyRent" min="0" step="0.01" value="@tenancy.MonthlyRent" required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Max members</label>
+                                <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@tenancy.MaxMembers" required />
+                                <small class="text-muted">The selected dates must not overlap another tenancy for this apartment.</small>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn rh-btn-primary">Save tenancy</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="modal fade" id="addApartmentMemberModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -452,7 +554,11 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Country code</label>
-                            <input class="form-control rh-input" name="CountryCode" placeholder="e.g. +237" />
+                            <input class="form-control rh-input" name="CountryCode" inputmode="numeric" placeholder="e.g. +237" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone number</label>
+                            <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="e.g. 658772239" />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Permission</label>
@@ -473,6 +579,7 @@
             </div>
         </div>
     </div>
+
     <div class="modal fade" id="addApartmentDocumentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -605,7 +712,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-0">
-                <img src="@(currentApartmentImage != null ? Url.Action("DocumentContent", "Properties", new { id = currentApartmentImage.Id }) : string.Empty)"
+                <img src="@(currentApartmentImage?.BlobUrl ?? string.Empty)"
                      alt="Apartment image preview"
                      class="rh-image-lightbox-preview"
                      id="apartmentImageLightboxPreview" />
@@ -613,8 +720,5 @@
         </div>
     </div>
 </div>
-
-
-
 
 

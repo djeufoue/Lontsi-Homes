@@ -3,7 +3,6 @@
     ViewData["Title"] = "Document Preview";
     var previewUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = false }) ?? string.Empty;
     var downloadUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = true }) ?? string.Empty;
-    var fallbackShareUrl = !string.IsNullOrWhiteSpace(downloadUrl) ? downloadUrl : previewUrl;
 }
 
 <section class="rh-document-preview-shell">
@@ -27,12 +26,11 @@
             }
             <p class="rh-kicker">@Model.SectionLabel</p>
             <h1 class="rh-heading-title">@Model.Document.FileName</h1>
-            <p class="rh-heading-subtitle">Preview, download, and share this file from one place.</p>
+            <p class="rh-heading-subtitle">Preview the file inline or download it when needed.</p>
         </div>
 
         <div class="rh-document-preview-actions">
             <a class="btn rh-btn-subtle" href="@downloadUrl">Download</a>
-            <button type="button" class="btn rh-btn-primary" data-share-source="@previewUrl" data-share-fallback="@fallbackShareUrl" data-share-name="@Model.Document.FileName">Share</button>
         </div>
     </section>
 
@@ -52,13 +50,17 @@
                 }
                 else if (Model.IsPdf)
                 {
-                    <object data="@previewUrl" type="application/pdf" class="rh-document-preview-frame">
+                    <iframe src="@previewUrl#toolbar=1&navpanes=0&scrollbar=1"
+                            class="rh-document-preview-frame"
+                            title="@Model.Document.FileName">
+                    </iframe>
+                    <div class="rh-document-preview-fallback">
                         <div class="rh-document-preview-placeholder">
                             <strong>PDF preview could not open in this browser</strong>
                             <span>Use the download button to open the file locally.</span>
                             <a class="btn rh-btn-primary" href="@downloadUrl">Download PDF</a>
                         </div>
-                    </object>
+                    </div>
                 }
                 else
                 {
@@ -114,58 +116,3 @@
         </aside>
     </section>
 </section>
-
-@section Scripts {
-    <script>
-        (() => {
-            const shareButton = document.querySelector('[data-share-source]');
-            if (!shareButton) return;
-
-            const originalLabel = shareButton.textContent;
-            const sourceUrl = shareButton.getAttribute('data-share-source');
-            const fallbackUrl = shareButton.getAttribute('data-share-fallback');
-            const fileName = shareButton.getAttribute('data-share-name') || 'document';
-
-            const setLabel = (label, timeout = 1600) => {
-                shareButton.textContent = label;
-                window.setTimeout(() => shareButton.textContent = originalLabel, timeout);
-            };
-
-            shareButton.addEventListener('click', async () => {
-                if (!sourceUrl) return;
-
-                try {
-                    const response = await fetch(sourceUrl, { credentials: 'same-origin' });
-                    if (!response.ok) {
-                        throw new Error('preview-fetch-failed');
-                    }
-
-                    const blob = await response.blob();
-                    const file = new File([blob], fileName, { type: blob.type || 'application/octet-stream' });
-
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({ files: [file], title: fileName });
-                        setLabel('Shared');
-                        return;
-                    }
-
-                    if (navigator.share && fallbackUrl) {
-                        await navigator.share({ title: fileName, url: fallbackUrl });
-                        setLabel('Link shared');
-                        return;
-                    }
-
-                    if (navigator.clipboard && fallbackUrl) {
-                        await navigator.clipboard.writeText(fallbackUrl);
-                        setLabel('Link copied');
-                        return;
-                    }
-
-                    throw new Error('share-not-supported');
-                } catch {
-                    setLabel('Share unavailable');
-                }
-            });
-        })();
-    </script>
-}

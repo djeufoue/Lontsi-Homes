@@ -960,6 +960,27 @@
   },
   {
     "ContainingType": "RentHub.API.Controllers.TenanciesController",
+    "Method": "UpdateTenancy",
+    "RelativePath": "api/Tenancies/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "Common.CommunicationModels.UpdateTenancyRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "RentHub.API.Controllers.TenanciesController",
     "Method": "ExtendTenancy",
     "RelativePath": "api/Tenancies/{id}/extend",
     "HttpMethod": "PUT",

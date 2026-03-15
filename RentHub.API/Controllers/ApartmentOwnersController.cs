@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System;
 
 using RentHub.API.Helpers;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -25,14 +26,17 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
+        private readonly IUserOnboardingService _userOnboardingService;
 
         public ApartmentOwnersController(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
-            RoleManager<ApplicationRole> roleManager)
+            RoleManager<ApplicationRole> roleManager,
+            IUserOnboardingService userOnboardingService)
         {
             _context = context;
             _userManager = userManager;
             _roleManager = roleManager;
+            _userOnboardingService = userOnboardingService;
         }
 
         /// <summary>
@@ -125,29 +129,12 @@ namespace RentHub.API.Controllers
                     return BadRequest("Your subscription is inactive or not approved. You cannot add owners.");
                 }
                 // Create or find owner user
-                var ownerUser = await _userManager.FindByEmailAsync(request.Email);
-                if (ownerUser == null)
-                {
-                    ownerUser = new ApplicationUser
-                    {
-                        UserName = request.Email,
-                        Email = request.Email,
-                        FullName = request.FullName,
-                        CountryCode = request.CountryCode
-                    };
-                    // Generate a temporary password
-                    var tempPassword = Guid.NewGuid().ToString("N").Substring(0, 8) + "@!";
-                    var createResult = await _userManager.CreateAsync(ownerUser, tempPassword);
-                    if (!createResult.Succeeded)
-                    {
-                        return BadRequest(createResult.Errors);
-                    }
-                }
-                // Ensure the user has the Owner role
-                if (!await _userManager.IsInRoleAsync(ownerUser, "Owner"))
-                {
-                    await _userManager.AddToRoleAsync(ownerUser, "Owner");
-                }
+                var ownerUser = (await _userOnboardingService.EnsureUserAsync(
+                    request.Email,
+                    request.FullName,
+                    request.CountryCode,
+                    request.PhoneNumber,
+                    "Owner")).User;
                 // Check if assignment already exists
                 var existing = await _context.ApartmentOwners
                     .FirstOrDefaultAsync(o => o.ApartmentId == apartmentId && o.OwnerId == ownerUser.Id);

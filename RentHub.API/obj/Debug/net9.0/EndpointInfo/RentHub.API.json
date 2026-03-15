@@ -1591,6 +1591,48 @@
         }
       }
     },
+    "/api/Tenancies/{id}": {
+      "put": {
+        "tags": [
+          "Tenancies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Tenancies/{tenancyId}/max-members": {
       "put": {
         "tags": [
@@ -1987,6 +2029,12 @@
             "type": "string"
           },
           "countryCode": {
+            "pattern": "^\\+?\\d+$",
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "pattern": "^\\+?\\d+$",
             "type": "string",
             "nullable": true
           },
@@ -2013,6 +2061,12 @@
             "type": "string"
           },
           "countryCode": {
+            "pattern": "^\\+?\\d+$",
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "pattern": "^\\+?\\d+$",
             "type": "string",
             "nullable": true
           },
@@ -2039,6 +2093,12 @@
             "nullable": true
           },
           "countryCode": {
+            "pattern": "^\\+?\\d+$",
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "pattern": "^\\+?\\d+$",
             "type": "string",
             "nullable": true
           },
@@ -2065,6 +2125,12 @@
             "nullable": true
           },
           "countryCode": {
+            "pattern": "^\\+?\\d+$",
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "pattern": "^\\+?\\d+$",
             "type": "string",
             "nullable": true
           },
@@ -2486,6 +2552,36 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.UpdateTenancyRequest": {
+        "required": [
+          "monthlyRent",
+          "startDate"
+        ],
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "monthlyRent": {
+            "minimum": 0,
+            "type": "number",
+            "format": "double"
+          },
+          "maxMembers": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

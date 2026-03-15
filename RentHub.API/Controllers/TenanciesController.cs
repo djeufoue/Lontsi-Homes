@@ -10,6 +10,7 @@ using RentHub.API.Services.Storage;
 using System.Security.Claims;
 
 using RentHub.API.Helpers;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -20,12 +21,18 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
+        private readonly IUserOnboardingService _userOnboardingService;
 
-        public TenanciesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
+        public TenanciesController(
+            ApplicationDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IStorageService storageService,
+            IUserOnboardingService userOnboardingService)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
+            _userOnboardingService = userOnboardingService;
         }
 
         /// <summary>
@@ -67,6 +74,7 @@ namespace RentHub.API.Controllers
                         StartDate = t.StartDate,
                         EndDate = t.EndDate,
                         MonthlyRent = t.MonthlyRent,
+                        MaxMembers = t.MaxMembers,
                         IsOwner = t.Apartment.Property.LandlordId == userIdClaim
                     })
                     .ToListAsync();
@@ -137,12 +145,7 @@ namespace RentHub.API.Controllers
                 // Overlap rule:
                 // existing.Start <= newEnd (or newEnd is null => always true)
                 // AND newStart <= existing.End (or existing.End is null => always true)
-                var hasOverlap = await _context.Tenancies
-                    .Where(t => !t.IsDeleted && t.ApartmentId == request.ApartmentId)
-                    .AnyAsync(t =>
-                        (newEnd == null || t.StartDate <= newEnd.Value) &&
-                        (t.EndDate == null || newStart <= t.EndDate.Value)
-                    );
+                var hasOverlap = await HasOverlappingTenancyAsync(request.ApartmentId, newStart, newEnd);
 
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
@@ -173,10 +176,89 @@ namespace RentHub.API.Controllers
                     StartDate = tenancy.StartDate,
                     EndDate = tenancy.EndDate,
                     MonthlyRent = tenancy.MonthlyRent,
+                    MaxMembers = tenancy.MaxMembers,
                     IsOwner = apartment.Property.LandlordId == userId
                 };
 
                 return Ok(dto);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Updates the tenancy schedule and billing values. Only the landlord, a manager with write permission,
+        /// or an apartment owner with write permission may update the tenancy. The new period cannot overlap
+        /// any other tenancy on the same apartment.
+        /// </summary>
+        [HttpPut("{id}")]
+        [Authorize]
+        public async Task<IActionResult> UpdateTenancy(int id, [FromBody] UpdateTenancyRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized();
+
+                var tenancy = await _context.Tenancies
+                    .Include(t => t.Apartment)
+                    .ThenInclude(a => a.Property)
+                    .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
+
+                if (tenancy == null)
+                    return NotFound("Tenancy not found.");
+
+                if (tenancy.Apartment?.Property == null)
+                    return NotFound("Property not found.");
+
+                var canWrite =
+                    tenancy.Apartment.Property.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        m.PropertyId == tenancy.Apartment.PropertyId &&
+                        m.ManagerId == userId &&
+                        !m.IsDeleted &&
+                        m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o =>
+                        o.ApartmentId == tenancy.ApartmentId &&
+                        o.OwnerId == userId &&
+                        !o.IsDeleted &&
+                        o.Permission == PermissionLevelEnum.ReadWrite);
+
+                if (!canWrite)
+                    return Forbid();
+
+                if (request.EndDate.HasValue && request.EndDate.Value < request.StartDate)
+                    return BadRequest("EndDate cannot be earlier than StartDate.");
+
+                if (request.MaxMembers <= 0)
+                    return BadRequest("MaxMembers must be greater than 0.");
+
+                var hasOverlap = await HasOverlappingTenancyAsync(
+                    tenancy.ApartmentId,
+                    request.StartDate,
+                    request.EndDate,
+                    tenancy.Id);
+
+                if (hasOverlap)
+                    return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
+
+                tenancy.StartDate = request.StartDate;
+                tenancy.EndDate = request.EndDate;
+                tenancy.MonthlyRent = request.MonthlyRent;
+                tenancy.MaxMembers = request.MaxMembers;
+                tenancy.UpdatedBy = userId;
+                tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+
+                _context.Tenancies.Update(tenancy);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { Message = "Tenancy updated successfully." });
             }
             catch (Exception ex)
             {
@@ -332,6 +414,7 @@ namespace RentHub.API.Controllers
                         StartDate = t.StartDate,
                         EndDate = t.EndDate,
                         MonthlyRent = t.MonthlyRent,
+                        MaxMembers = t.MaxMembers,
                         IsOwner = apt.Property!.LandlordId == userId
                     })
                     .ToListAsync();
@@ -393,24 +476,12 @@ namespace RentHub.API.Controllers
                 var email = (request.Email ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");
 
-                var memberUser = await _userManager.FindByEmailAsync(email);
-                if (memberUser == null)
-                {
-                    memberUser = new ApplicationUser
-                    {
-                        UserName = email,
-                        Email = email,
-                        FullName = request.FullName ?? string.Empty,
-                        CountryCode = request.CountryCode ?? string.Empty
-                    };
-
-                    var tempPassword = Guid.NewGuid().ToString("N") + "aA!1";
-                    var createRes = await _userManager.CreateAsync(memberUser, tempPassword);
-                    if (!createRes.Succeeded) return BadRequest(createRes.Errors);
-
-                    // if you have a role for tenancy member/tenant, assign it
-                    await _userManager.AddToRoleAsync(memberUser, "Tenant");
-                }
+                var memberUser = (await _userOnboardingService.EnsureUserAsync(
+                    email,
+                    request.FullName,
+                    request.CountryCode,
+                    request.PhoneNumber,
+                    "Tenant")).User;
 
                 // Prevent duplicates
                 var alreadyMember = tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == memberUser.Id);
@@ -427,6 +498,7 @@ namespace RentHub.API.Controllers
                 {
                     TenancyId = tenancyId,
                     MemberId = memberUser.Id,
+                    Role = request.Role,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
@@ -611,6 +683,15 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private Task<bool> HasOverlappingTenancyAsync(int apartmentId, DateTimeOffset startDate, DateTimeOffset? endDate, int? ignoredTenancyId = null)
+        {
+            return _context.Tenancies
+                .Where(t => !t.IsDeleted && t.ApartmentId == apartmentId && (!ignoredTenancyId.HasValue || t.Id != ignoredTenancyId.Value))
+                .AnyAsync(t =>
+                    (endDate == null || t.StartDate <= endDate.Value) &&
+                    (t.EndDate == null || startDate <= t.EndDate.Value));
         }
     }
 }

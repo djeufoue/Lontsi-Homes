@@ -7,7 +7,7 @@ using Common.CommunicationModels;
 using RentHub.API.Models.Entities;
 using RentHub.API.Helpers;
 using Common.Enums;
-using System.Security.Claims;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -16,12 +16,12 @@ namespace RentHub.API.Controllers
     public class PropertyManagersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IUserOnboardingService _userOnboardingService;
 
-        public PropertyManagersController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public PropertyManagersController(ApplicationDbContext context, IUserOnboardingService userOnboardingService)
         {
             _context = context;
-            _userManager = userManager;
+            _userOnboardingService = userOnboardingService;
         }
 
         [HttpGet]
@@ -92,25 +92,12 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                var managerUser = await _userManager.FindByEmailAsync(request.Email);
-                if (managerUser == null)
-                {
-                    managerUser = new ApplicationUser
-                    {
-                        UserName = request.Email,
-                        Email = request.Email,
-                        FullName = request.FullName,
-                        CountryCode = request.CountryCode
-                    };
-
-                    var tempPassword = Guid.NewGuid().ToString("N").Substring(0, 8) + "@!Aa1";
-                    var createResult = await _userManager.CreateAsync(managerUser, tempPassword);
-                    if (!createResult.Succeeded)
-                        return BadRequest(createResult.Errors);
-                }
-
-                if (!await _userManager.IsInRoleAsync(managerUser, "Manager"))
-                    await _userManager.AddToRoleAsync(managerUser, "Manager");
+                var managerUser = (await _userOnboardingService.EnsureUserAsync(
+                    request.Email,
+                    request.FullName,
+                    request.CountryCode,
+                    request.PhoneNumber,
+                    "Manager")).User;
 
                 var existing = await _context.PropertyManagerAssignments
                     .FirstOrDefaultAsync(m => m.PropertyId == propertyId && m.ManagerId == managerUser.Id);

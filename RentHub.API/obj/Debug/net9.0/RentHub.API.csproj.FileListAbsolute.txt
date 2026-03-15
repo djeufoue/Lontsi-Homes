@@ -246,4 +246,12 @@ C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.deps.json
 C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.runtimeconfig.json
 C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.dll
 C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.pdb
+C:\Projects\Rent Management Project\artifacts\api-verify\appsettings.Development.json
+C:\Projects\Rent Management Project\artifacts\api-verify\appsettings.json
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.staticwebassets.endpoints.json
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.exe
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.deps.json
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.runtimeconfig.json
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.dll
+C:\Projects\Rent Management Project\artifacts\api-verify\RentHub.API.pdb
 C:\Projects\Rent Management Project\RentHub\RentHub.API\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt

@@ -50,3 +50,12 @@ C:\Projects\Rent Management Project\_temp_api_run\Common.pdb
 C:\Projects\Rent Management Project\_temp_portal_build\Common.deps.json
 C:\Projects\Rent Management Project\_temp_portal_build\Common.dll
 C:\Projects\Rent Management Project\_temp_portal_build\Common.pdb
+C:\Projects\Rent Management Project\artifacts\portal-verify\Common.deps.json
+C:\Projects\Rent Management Project\artifacts\portal-verify\Common.dll
+C:\Projects\Rent Management Project\artifacts\portal-verify\Common.pdb
+C:\Projects\Rent Management Project\artifacts\api-verify\Common.deps.json
+C:\Projects\Rent Management Project\artifacts\api-verify\Common.dll
+C:\Projects\Rent Management Project\artifacts\api-verify\Common.pdb
+C:\Projects\Rent Management Project\artifacts\portal-docpreview-verify\Common.deps.json
+C:\Projects\Rent Management Project\artifacts\portal-docpreview-verify\Common.dll
+C:\Projects\Rent Management Project\artifacts\portal-docpreview-verify\Common.pdb
