@@ -7,9 +7,8 @@ using RentHub.API.Models.Entities;
 using Common.Enums;
 using Common.CommunicationModels;
 using RentHub.API.Services.Storage;
-using System.Security.Claims;
-
 using RentHub.API.Helpers;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -20,12 +19,18 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
+        private readonly IUserOnboardingService _userOnboardingService;
 
-        public ApartmentsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
+        public ApartmentsController(
+            ApplicationDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IStorageService storageService,
+            IUserOnboardingService userOnboardingService)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
+            _userOnboardingService = userOnboardingService;
         }
 
         /// <summary>
@@ -167,6 +172,7 @@ namespace RentHub.API.Controllers
                             StartDate = tenancy.StartDate,
                             EndDate = tenancy.EndDate,
                             MonthlyRent = tenancy.MonthlyRent,
+                            MaxMembers = tenancy.MaxMembers,
                             IsOwner = apt.Property!.LandlordId == userId
                         });
                     })
@@ -446,23 +452,12 @@ namespace RentHub.API.Controllers
                 var email = (request.Email ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");
 
-                var ownerUser = await _userManager.FindByEmailAsync(email);
-                if (ownerUser == null)
-                {
-                    ownerUser = new ApplicationUser
-                    {
-                        UserName = email,
-                        Email = email,
-                        FullName = request.FullName ?? "",
-                        CountryCode = request.CountryCode ?? ""
-                    };
-
-                    var tmpPwd = Guid.NewGuid().ToString("N") + "aA!1";
-                    var createRes = await _userManager.CreateAsync(ownerUser, tmpPwd);
-                    if (!createRes.Succeeded) return BadRequest(createRes.Errors);
-
-                    await _userManager.AddToRoleAsync(ownerUser, "Owner");
-                }
+                var ownerUser = (await _userOnboardingService.EnsureUserAsync(
+                    email,
+                    request.FullName,
+                    request.CountryCode,
+                    request.PhoneNumber,
+                    "Owner")).User;
 
                 var already = await _context.ApartmentOwners.AnyAsync(o =>
                     o.ApartmentId == apartmentId && o.OwnerId == ownerUser.Id && !o.IsDeleted);

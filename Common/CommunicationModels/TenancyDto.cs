@@ -14,6 +14,7 @@ namespace Common.CommunicationModels
         public DateTimeOffset StartDate { get; set; }
         public DateTimeOffset? EndDate { get; set; }
         public decimal MonthlyRent { get; set; }
+        public int MaxMembers { get; set; }
         public DateTimeOffset? PaidThroughDate { get; set; }
         public DateTimeOffset? NextRentDueDate { get; set; }
         public DateTimeOffset? NextRentReminderDate { get; set; }

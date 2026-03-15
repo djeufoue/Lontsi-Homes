@@ -64,6 +64,21 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> OverviewContent(int id, string? tenancySearch = null, string? memberSearch = null)
+        {
+            try
+            {
+                var vm = await BuildOverviewVmAsync(id, tenancySearch, memberSearch);
+                return PartialView("Overview", vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Apartment overview content request failed in portal for apartment {ApartmentId}.", id);
+                return Content("<div class=\"rh-empty\">Unable to reload the apartment workspace right now.</div>", "text/html");
+            }
+        }
+
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateTenancy(CreateTenancyVm request)
         {
@@ -118,6 +133,37 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "Create tenancy request failed in portal for apartment {ApartmentId}.", request.ApartmentId);
                 var apiError = ParseApiError(ex.Message);
                 TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to create the tenancy right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateTenancy(UpdateTenancyVm request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    TempData["Error"] = "Please complete the tenancy details before saving.";
+                    return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+                }
+
+                await _api.PutAsync($"tenancies/{request.TenancyId}", new UpdateTenancyRequest
+                {
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    MonthlyRent = request.MonthlyRent,
+                    MaxMembers = request.MaxMembers
+                });
+
+                TempData["Success"] = "Tenancy updated successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Update tenancy request failed in portal for apartment {ApartmentId} tenancy {TenancyId}.", request.ApartmentId, request.TenancyId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the tenancy right now. Please try again.");
             }
 
             return await RedirectToApartmentOverviewAsync(request.ApartmentId);

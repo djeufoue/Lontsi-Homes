@@ -8,6 +8,7 @@ using Common.CommunicationModels;
 using System.Security.Claims;
 
 using RentHub.API.Helpers;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -16,12 +17,12 @@ namespace RentHub.API.Controllers
     public class TenancyMembersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IUserOnboardingService _userOnboardingService;
 
-        public TenancyMembersController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        public TenancyMembersController(ApplicationDbContext context, IUserOnboardingService userOnboardingService)
         {
             _context = context;
-            _userManager = userManager;
+            _userOnboardingService = userOnboardingService;
         }
 
         /// <summary>
@@ -53,9 +54,12 @@ namespace RentHub.API.Controllers
                     return BadRequest($"A tenancy cannot have more than {tenancy.MaxMembers} members.");
 
                 var email = request.Email.Trim();
-                var memberUser = await _userManager.FindByEmailAsync(email);
-                if (memberUser == null)
-                    return NotFound("User not found for the provided email.");
+                var memberUser = (await _userOnboardingService.EnsureUserAsync(
+                    email,
+                    request.FullName,
+                    request.CountryCode,
+                    request.PhoneNumber,
+                    "Tenant")).User;
 
                 if (tenancy.Members.Any(tm => !tm.IsDeleted && tm.MemberId == memberUser.Id))
                     return BadRequest("User is already a member of this tenancy.");

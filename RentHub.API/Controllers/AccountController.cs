@@ -7,8 +7,8 @@ using Common.CommunicationModels;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Auth;
 using RentHub.API.Services.Email;
+using RentHub.API.Services.Users;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Linq;
 
 using RentHub.API.Helpers;
@@ -19,15 +19,12 @@ namespace RentHub.API.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
-        private const string OtpLoginProvider = "RentHub";
-        private const string ActivationOtpTokenName = "ActivationOtpCode";
-        private const string ActivationOtpExpiryTokenName = "ActivationOtpExpiryUnix";
-
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _context;
         private readonly TokenService _tokenService;
         private readonly IEmailService _emailService;
+        private readonly IUserOnboardingService _userOnboardingService;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -36,6 +33,7 @@ namespace RentHub.API.Controllers
             ApplicationDbContext context,
             TokenService tokenService,
             IEmailService emailService,
+            IUserOnboardingService userOnboardingService,
             ILogger<AccountController> logger)
         {
             _userManager = userManager;
@@ -43,6 +41,7 @@ namespace RentHub.API.Controllers
             _context = context;
             _tokenService = tokenService;
             _emailService = emailService;
+            _userOnboardingService = userOnboardingService;
             _logger = logger;
         }
 
@@ -125,7 +124,7 @@ namespace RentHub.API.Controllers
                 _context.UserSubscriptions.Add(subscription);
                 await _context.SaveChangesAsync();
 
-                await IssueActivationOtpAsync(user);
+                await _userOnboardingService.SendActivationOtpAsync(user);
 
                 return Ok(new
                 {
@@ -175,8 +174,8 @@ namespace RentHub.API.Controllers
                     return BadRequest("Account is already activated.");
                 }
 
-                var storedOtp = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName);
-                var storedExpiry = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName);
+                var storedOtp = await _userManager.GetAuthenticationTokenAsync(user, "RentHub", "ActivationOtpCode");
+                var storedExpiry = await _userManager.GetAuthenticationTokenAsync(user, "RentHub", "ActivationOtpExpiryUnix");
 
                 if (string.IsNullOrWhiteSpace(storedOtp) || string.IsNullOrWhiteSpace(storedExpiry))
                 {
@@ -206,8 +205,8 @@ namespace RentHub.API.Controllers
                     return BadRequest(updateResult.Errors);
                 }
 
-                await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName);
-                await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName);
+                await _userManager.RemoveAuthenticationTokenAsync(user, "RentHub", "ActivationOtpCode");
+                await _userManager.RemoveAuthenticationTokenAsync(user, "RentHub", "ActivationOtpExpiryUnix");
 
                 var token = await _tokenService.GenerateTokenAsync(user);
                 return Ok(new { Message = "Account activated successfully.", Token = token });
@@ -242,7 +241,7 @@ namespace RentHub.API.Controllers
                     return BadRequest("Account is already activated.");
                 }
 
-                await IssueActivationOtpAsync(user);
+                await _userOnboardingService.SendActivationOtpAsync(user);
                 return Ok(new { Message = "A new OTP has been sent to your email." });
             }
             catch (Exception ex)
@@ -582,31 +581,6 @@ namespace RentHub.API.Controllers
             {
                 return ServerError(ex, "Logout", "Unable to complete logout right now. Please try again.");
             }
-        }
-
-        private async Task IssueActivationOtpAsync(ApplicationUser user)
-        {
-            var otp = GenerateOtpCode();
-            var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
-
-            await _userManager.SetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpTokenName, otp);
-            await _userManager.SetAuthenticationTokenAsync(user, OtpLoginProvider, ActivationOtpExpiryTokenName, expiry.ToUnixTimeSeconds().ToString());
-
-            var subject = "RentHub Account Activation OTP";
-            var body = $@"Hello {(string.IsNullOrWhiteSpace(user.FullName) ? "User" : user.FullName)},
-
-Your RentHub activation OTP is: {otp}
-This code expires in 10 minutes.
-
-If you did not create this account, please ignore this email.";
-
-            await _emailService.SendEmailAsync(user.Email ?? string.Empty, subject, body);
-        }
-
-        private static string GenerateOtpCode()
-        {
-            var value = RandomNumberGenerator.GetInt32(0, 1000000);
-            return value.ToString("D6");
         }
 
         private async Task TryRollbackRegistrationAsync(ApplicationUser? createdUser)

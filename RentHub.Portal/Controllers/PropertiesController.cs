@@ -210,14 +210,22 @@ namespace RentHub.Portal.Controllers
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
                 var contentType = response.Content.Headers.ContentType?.MediaType;
-                if (string.IsNullOrWhiteSpace(contentType))
+                var inferredContentType = GuessContentType(document.FileName, document.DocumentType);
+                if (string.IsNullOrWhiteSpace(contentType) ||
+                    string.Equals(contentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase))
                 {
-                    contentType = GuessContentType(document.FileName, document.DocumentType);
+                    contentType = inferredContentType;
                 }
 
-                return download
-                    ? File(bytes, contentType!, document.FileName)
-                    : File(bytes, contentType!);
+                contentType ??= "application/octet-stream";
+
+                if (download)
+                {
+                    return File(bytes, contentType, document.FileName);
+                }
+
+                Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName.Replace("\"", string.Empty)}\"";
+                return File(bytes, contentType);
             }
             catch (Exception ex)
             {
@@ -365,6 +373,7 @@ namespace RentHub.Portal.Controllers
                     Email = vm.Email,
                     FullName = vm.FullName,
                     CountryCode = vm.CountryCode ?? string.Empty,
+                    PhoneNumber = vm.PhoneNumber ?? string.Empty,
                     Permission = vm.Permission
                 };
 
@@ -873,6 +882,7 @@ namespace RentHub.Portal.Controllers
         }
     }
 }
+
 
 
 
