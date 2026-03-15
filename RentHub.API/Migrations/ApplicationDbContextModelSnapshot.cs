@@ -478,7 +478,6 @@ namespace RentHub.API.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("TenantId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("TransactionId")
@@ -754,10 +753,6 @@ namespace RentHub.API.Migrations
                     b.Property<DateTimeOffset>("StartDate")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<string>("TenantId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -767,8 +762,6 @@ namespace RentHub.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ApartmentId");
-
-                    b.HasIndex("TenantId");
 
                     b.ToTable("Tenancies");
                 });
@@ -1154,15 +1147,7 @@ namespace RentHub.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Apartment");
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.TenancyExtensionRequest", b =>
@@ -1251,6 +1236,7 @@ namespace RentHub.API.Migrations
         }
     }
 }
+
 
 
 

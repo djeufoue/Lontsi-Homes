@@ -238,4 +238,12 @@ C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\RentHub.API.
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\RentHub.API.runtimeconfig.json
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\RentHub.API.dll
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\RentHub.API.pdb
+C:\Projects\Rent Management Project\_temp_api_run\appsettings.Development.json
+C:\Projects\Rent Management Project\_temp_api_run\appsettings.json
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.staticwebassets.endpoints.json
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.exe
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.deps.json
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.runtimeconfig.json
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.dll
+C:\Projects\Rent Management Project\_temp_api_run\RentHub.API.pdb
 C:\Projects\Rent Management Project\RentHub\RentHub.API\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt

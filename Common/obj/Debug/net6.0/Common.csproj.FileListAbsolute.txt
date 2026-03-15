@@ -44,3 +44,6 @@ C:\Projects\Rent Management Project\tempbuild\portal-session-live\Common.pdb
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\Common.deps.json
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\Common.dll
 C:\Projects\Rent Management Project\tempbuild\api-apartment-columns\Common.pdb
+C:\Projects\Rent Management Project\_temp_api_run\Common.deps.json
+C:\Projects\Rent Management Project\_temp_api_run\Common.dll
+C:\Projects\Rent Management Project\_temp_api_run\Common.pdb

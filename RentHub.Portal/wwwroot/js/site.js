@@ -125,13 +125,26 @@
       input.addEventListener("input", () => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
-          if (root?.dataset.propertyOverviewRoot === "true" && form.dataset.sectionSearch) {
+          const propertyRoot = form.closest("[data-property-overview-root='true']");
+          if (propertyRoot && form.dataset.sectionSearch) {
             const payload = Object.fromEntries(new FormData(form).entries());
-            refreshPropertyOverview(root, {
+            refreshPropertyOverview(propertyRoot, {
               sectionName: form.dataset.sectionSearch,
               overrides: payload
             }).catch(() => {
-              showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(root));
+              showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(propertyRoot));
+            });
+            return;
+          }
+
+          const apartmentRoot = form.closest("[data-apartment-overview-root='true']");
+          if (apartmentRoot && form.dataset.sectionSearch) {
+            const payload = Object.fromEntries(new FormData(form).entries());
+            refreshApartmentOverview(apartmentRoot, {
+              sectionName: form.dataset.sectionSearch,
+              overrides: payload
+            }).catch(() => {
+              showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(apartmentRoot));
             });
             return;
           }
@@ -340,11 +353,92 @@
     }
   };
 
+  const buildApartmentRefreshUrl = (root, overrides = {}) => {
+    const refreshUrl = new URL(root.dataset.overviewContentUrl, window.location.origin);
+    const defaults = {
+      tenancySearch: root.querySelector("form[data-section-search='tenancies'] input[name='tenancySearch']")?.value ?? "",
+      memberSearch: root.querySelector("form[data-section-search='members'] input[name='memberSearch']")?.value ?? ""
+    };
+
+    Object.entries({ ...defaults, ...overrides }).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        refreshUrl.searchParams.set(key, value);
+      }
+    });
+
+    return refreshUrl;
+  };
+
+  const refreshApartmentOverview = async (root, options = {}) => {
+    if (!root || root.dataset.refreshing === "true") {
+      return;
+    }
+
+    root.dataset.refreshing = "true";
+    try {
+      const response = await fetch(buildApartmentRefreshUrl(root, options.overrides || {}), {
+        headers: {
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        credentials: "same-origin"
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to refresh the apartment workspace right now.");
+      }
+
+      const html = await response.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const nextRoot = doc.querySelector("[data-apartment-overview-root='true']");
+      if (!nextRoot) {
+        throw new Error("Apartment workspace content was not returned.");
+      }
+
+      if (options.sectionName) {
+        const currentSection = root.querySelector(`[data-apartment-section='${options.sectionName}']`);
+        const nextSection = nextRoot.querySelector(`[data-apartment-section='${options.sectionName}']`);
+        if (!currentSection || !nextSection) {
+          throw new Error("Requested apartment section could not be refreshed.");
+        }
+
+        currentSection.replaceWith(nextSection);
+        initApartmentOverview(root);
+        return;
+      }
+
+      root.replaceWith(nextRoot);
+      initApartmentOverview(nextRoot);
+    } finally {
+      delete root.dataset.refreshing;
+    }
+  };
+
   const getDialogOptions = (root) => ({
     allowManualClose: true,
     autoCloseEnabled: root?.dataset.autoCloseEnabled === "true",
     autoCloseSeconds: Number(root?.dataset.autoCloseSeconds || 0)
   });
+
+  const getDialogOptionsForForm = (root, form) => {
+    const defaults = getDialogOptions(root);
+    if (!form?.action?.includes("UpdateSuccessDialogSettings")) {
+      return defaults;
+    }
+
+    const formData = new FormData(form);
+    const autoCloseEnabled = formData.get("autoCloseEnabled") === "true";
+    const autoCloseSeconds = Number(formData.get("autoCloseSeconds") || defaults.autoCloseSeconds || 0);
+
+    root.dataset.autoCloseEnabled = autoCloseEnabled ? "true" : "false";
+    root.dataset.autoCloseSeconds = String(autoCloseSeconds);
+
+    return {
+      allowManualClose: true,
+      autoCloseEnabled,
+      autoCloseSeconds
+    };
+  };
   const initLivePropertyForms = (root) => {
     root.querySelectorAll("form[data-live-submit='property-overview']").forEach((form) => {
       if (form.dataset.liveBound === "true") {
@@ -361,6 +455,7 @@
         }
 
         try {
+          const dialogOptions = getDialogOptionsForForm(root, form);
           const response = await fetch(form.action, {
             method: (form.method || "POST").toUpperCase(),
             body: new FormData(form),
@@ -372,7 +467,7 @@
 
           if (!response.ok) {
             const message = await parseAjaxMessage(response, "Unable to complete this action right now.");
-            showFeedbackModal("error", message, getDialogOptions(root));
+            showFeedbackModal("error", message, dialogOptions);
             return;
           }
 
@@ -385,7 +480,7 @@
             }
           }
 
-          showFeedbackModal("success", message, getDialogOptions(root));
+          showFeedbackModal("success", message, dialogOptions);
           await refreshPropertyOverview(root);
         } catch (error) {
           showFeedbackModal("error", error?.message || "Unable to complete this action right now.", getDialogOptions(root));
@@ -449,6 +544,134 @@
     ensureWorkspaceHub(root).catch(() => {
       // SignalR enhances live sync, but the page should still work without it.
     });
+  };
+
+  const initApartmentGallery = (root) => {
+    const gallery = root.querySelector("[data-apartment-gallery='true']");
+    if (!gallery || gallery.dataset.bound === "true") {
+      return;
+    }
+
+    const slides = Array.from(gallery.querySelectorAll("[data-gallery-slide]"));
+    if (!slides.length) {
+      return;
+    }
+
+    const currentName = gallery.querySelector("[data-gallery-current-name]");
+    const currentIndex = gallery.querySelector("[data-gallery-current-index]");
+    const manageOpen = root.querySelector("[data-apartment-image-manage-open='true']");
+    const manageModal = document.getElementById("manageApartmentImageModal");
+    const hiddenDocumentId = manageModal?.querySelector("input[name='currentDocumentId']");
+    const deleteDocumentId = manageModal?.querySelector("input[name='documentId']");
+    const imageNameTarget = manageModal?.querySelector("[data-current-image-name]");
+    const lightboxPreview = document.getElementById("apartmentImageLightboxPreview");
+    let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("is-active")));
+
+    const updateManageModal = () => {
+      const activeSlide = slides[activeIndex];
+      const documentId = activeSlide?.dataset.documentId || "";
+      const imageName = activeSlide?.dataset.imageName || "Current apartment image";
+      if (hiddenDocumentId) hiddenDocumentId.value = documentId;
+      if (deleteDocumentId) deleteDocumentId.value = documentId;
+      if (imageNameTarget) imageNameTarget.textContent = imageName;
+      if (lightboxPreview) {
+        lightboxPreview.alt = imageName;
+      }
+    };
+
+    const updateSlide = (nextIndex) => {
+      activeIndex = (nextIndex + slides.length) % slides.length;
+      slides.forEach((slide, index) => {
+        slide.classList.toggle("is-active", index === activeIndex);
+      });
+
+      if (currentName) {
+        currentName.textContent = slides[activeIndex].dataset.imageName || "Apartment image";
+      }
+
+      if (currentIndex) {
+        currentIndex.textContent = String(activeIndex + 1);
+      }
+
+      if (lightboxPreview) {
+        lightboxPreview.src = slides[activeIndex].dataset.imageUrl || "";
+        lightboxPreview.alt = slides[activeIndex].dataset.imageName || "Apartment image preview";
+      }
+
+      updateManageModal();
+    };
+
+    gallery.querySelector("[data-gallery-nav='prev']")?.addEventListener("click", () => updateSlide(activeIndex - 1));
+    gallery.querySelector("[data-gallery-nav='next']")?.addEventListener("click", () => updateSlide(activeIndex + 1));
+    manageOpen?.addEventListener("click", updateManageModal);
+    gallery.querySelectorAll("[data-image-lightbox-trigger='true']").forEach((trigger) => {
+      if (trigger.dataset.bound === "true") {
+        return;
+      }
+
+      trigger.dataset.bound = "true";
+      trigger.addEventListener("click", () => {
+        const imageUrl = trigger.dataset.imageUrl || slides[activeIndex]?.dataset.imageUrl || "";
+        const imageName = trigger.dataset.imageName || slides[activeIndex]?.dataset.imageName || "Apartment image preview";
+        if (lightboxPreview) {
+          lightboxPreview.src = imageUrl;
+          lightboxPreview.alt = imageName;
+        }
+      });
+    });
+    updateSlide(activeIndex);
+    gallery.dataset.bound = "true";
+  };
+
+  const initApartmentReminderEditor = (root) => {
+    const form = root.querySelector("#apartmentReminderForm");
+    if (!form) {
+      return;
+    }
+
+    const setMode = (isEditing) => {
+      form.dataset.inlineEditor = isEditing ? "editing" : "locked";
+      form.querySelectorAll("input[name]").forEach((field) => {
+        if (field.name === "__RequestVerificationToken" || field.name === "apartmentId") {
+          return;
+        }
+
+        field.readOnly = !isEditing;
+      });
+
+      const actionRow = form.querySelector(".rh-inline-editor-actions");
+      if (actionRow) {
+        actionRow.hidden = !isEditing;
+      }
+    };
+
+    const editToggle = root.querySelector("#apartmentReminderEditToggle");
+    const cancelButton = root.querySelector("#apartmentReminderCancel");
+
+    if (editToggle && editToggle.dataset.bound !== "true") {
+      editToggle.dataset.bound = "true";
+      editToggle.addEventListener("click", () => setMode(true));
+    }
+
+    if (cancelButton && cancelButton.dataset.bound !== "true") {
+      cancelButton.dataset.bound = "true";
+      cancelButton.addEventListener("click", () => {
+        form.reset();
+        setMode(false);
+      });
+    }
+
+    setMode(false);
+  };
+
+  const initApartmentOverview = (root = document.querySelector("[data-apartment-overview-root='true']")) => {
+    if (!root) {
+      return;
+    }
+
+    bindAutoSearchForms(root);
+    initApartmentGallery(root);
+    initApartmentReminderEditor(root);
   };
 
   const initSessionKeepAlive = () => {
@@ -579,8 +802,9 @@
     });
   }
 
-  bindAutoSearchForms(document);
   initPropertyOverview();
+  initApartmentOverview();
+  bindAutoSearchForms(document);
   initSessionKeepAlive();
 })();
 

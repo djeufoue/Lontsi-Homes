@@ -137,7 +137,6 @@ C:\Projects\Rent Management Project\tempbuild\portal-inline-settings\RentHub.Por
 C:\Projects\Rent Management Project\tempbuild\portal-inline-settings\RentHub.Portal.runtimeconfig.json
 C:\Projects\Rent Management Project\tempbuild\portal-inline-settings\RentHub.Portal.dll
 C:\Projects\Rent Management Project\tempbuild\portal-inline-settings\RentHub.Portal.pdb
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\ik5xjjo5ir-twb5mpx4jx.gz
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\appsettings.Development.json
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\appsettings.json
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\RentHub.Portal.staticwebassets.runtime.json
@@ -146,5 +145,5 @@ C:\Projects\Rent Management Project\tempbuild\portal-session-live\RentHub.Portal
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\RentHub.Portal.runtimeconfig.json
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\RentHub.Portal.dll
 C:\Projects\Rent Management Project\tempbuild\portal-session-live\RentHub.Portal.pdb
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\k0f3fw3eud-dq9ltl3xc2.gz
-C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\staticwebassets.upToDateCheck.txt
+C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\ik5xjjo5ir-j03p48uynu.gz
+C:\Projects\Rent Management Project\RentHub\RentHub.Portal\obj\Debug\net9.0\compressed\k0f3fw3eud-z392d5irqg.gz

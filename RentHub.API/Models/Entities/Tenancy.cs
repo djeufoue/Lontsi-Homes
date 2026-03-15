@@ -14,9 +14,6 @@ namespace RentHub.API.Models.Entities
         public int ApartmentId { get; set; }
         public Apartment? Apartment { get; set; }
 
-        // Optional legacy cache for the primary tenancy member id. This is not an FK anymore.
-        public string? TenantId { get; set; }
-
         public DateTimeOffset StartDate { get; set; }
         public DateTimeOffset? EndDate { get; set; }
 
@@ -42,3 +39,4 @@ namespace RentHub.API.Models.Entities
         public ICollection<TenancyMember> Members { get; set; } = new List<TenancyMember>();
     }
 }
+

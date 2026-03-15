@@ -362,7 +362,7 @@ namespace RentHub.API.Controllers
 
                 var tenantPropertyIds = await _context.Tenancies
                     .Where(t =>
-                        (t.TenantId == userId || t.Members.Any(m => !m.IsDeleted && m.MemberId == userId)) &&
+                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userId) &&
                         (t.EndDate == null || t.EndDate > now))
                     .Join(_context.Apartments, t => t.ApartmentId, a => a.Id, (t, a) => a.PropertyId)
                     .Distinct()
@@ -643,6 +643,7 @@ If you did not create this account, please ignore this email.";
         }
     }
 }
+
 
 
 

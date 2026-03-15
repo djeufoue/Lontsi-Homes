@@ -74,7 +74,7 @@ namespace RentHub.API.Helpers
 
             return await context.Tenancies.AnyAsync(t =>
                 t.Apartment!.PropertyId == propertyId &&
-                (t.TenantId == userId || t.Members.Any(mm => mm.MemberId == userId)));
+                t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
         }
 
         public static async Task<bool> CanWritePropertyAsync(
@@ -115,5 +115,6 @@ namespace RentHub.API.Helpers
         }
     }
 }
+
 
 

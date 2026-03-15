@@ -15,14 +15,14 @@
     <StaticWebAssetEndpoint Include="_content/RentHub.Portal/css/site.css">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\css\site.css'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
-      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-c0qNypZzBSGsGJOb6jdfFX40ZJUejSRT9NLTjhVw4Hc="}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"53516"},{"Name":"Content-Type","Value":"text/css"},{"Name":"ETag","Value":"\u0022c0qNypZzBSGsGJOb6jdfFX40ZJUejSRT9NLTjhVw4Hc=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 17:04:43 GMT"}]]]></ResponseHeaders>
+      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-fSAbO3CydEDr1hUKdS29Jo1vV5HPDOUieuX0\u002BjbKlbU="}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"55083"},{"Name":"Content-Type","Value":"text/css"},{"Name":"ETag","Value":"\u0022fSAbO3CydEDr1hUKdS29Jo1vV5HPDOUieuX0\u002BjbKlbU=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 23:04:32 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
-    <StaticWebAssetEndpoint Include="_content/RentHub.Portal/css/site.twb5mpx4jx.css">
+    <StaticWebAssetEndpoint Include="_content/RentHub.Portal/css/site.j03p48uynu.css">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\css\site.css'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
-      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"twb5mpx4jx"},{"Name":"integrity","Value":"sha256-c0qNypZzBSGsGJOb6jdfFX40ZJUejSRT9NLTjhVw4Hc="},{"Name":"label","Value":"_content/RentHub.Portal/css/site.css"}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"53516"},{"Name":"Content-Type","Value":"text/css"},{"Name":"ETag","Value":"\u0022c0qNypZzBSGsGJOb6jdfFX40ZJUejSRT9NLTjhVw4Hc=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 17:04:43 GMT"}]]]></ResponseHeaders>
+      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"j03p48uynu"},{"Name":"integrity","Value":"sha256-fSAbO3CydEDr1hUKdS29Jo1vV5HPDOUieuX0\u002BjbKlbU="},{"Name":"label","Value":"_content/RentHub.Portal/css/site.css"}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"55083"},{"Name":"Content-Type","Value":"text/css"},{"Name":"ETag","Value":"\u0022fSAbO3CydEDr1hUKdS29Jo1vV5HPDOUieuX0\u002BjbKlbU=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 23:04:32 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/RentHub.Portal/favicon.61n19gt1b8.ico">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\favicon.ico'))</AssetFile>
@@ -36,17 +36,17 @@
       <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-Jtxf9L\u002B5ITKRc1gIRl4VbUpGkRNfOBXjYTdhJD4facM="}]]]></EndpointProperties>
       <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=3600, must-revalidate"},{"Name":"Content-Length","Value":"5430"},{"Name":"Content-Type","Value":"image/x-icon"},{"Name":"ETag","Value":"\u0022Jtxf9L\u002B5ITKRc1gIRl4VbUpGkRNfOBXjYTdhJD4facM=\u0022"},{"Name":"Last-Modified","Value":"Mon, 09 Feb 2026 21:23:08 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
-    <StaticWebAssetEndpoint Include="_content/RentHub.Portal/js/site.dq9ltl3xc2.js">
-      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\js\site.js'))</AssetFile>
-      <Selectors><![CDATA[[]]]></Selectors>
-      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"dq9ltl3xc2"},{"Name":"integrity","Value":"sha256-hUUNpTxsB78\u002BgZ3b6X\u002BidNPM/4ztgu0Audvj7PGhDRw="},{"Name":"label","Value":"_content/RentHub.Portal/js/site.js"}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"17094"},{"Name":"Content-Type","Value":"text/javascript"},{"Name":"ETag","Value":"\u0022hUUNpTxsB78\u002BgZ3b6X\u002BidNPM/4ztgu0Audvj7PGhDRw=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 18:05:33 GMT"}]]]></ResponseHeaders>
-    </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/RentHub.Portal/js/site.js">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\js\site.js'))</AssetFile>
       <Selectors><![CDATA[[]]]></Selectors>
-      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-hUUNpTxsB78\u002BgZ3b6X\u002BidNPM/4ztgu0Audvj7PGhDRw="}]]]></EndpointProperties>
-      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"17094"},{"Name":"Content-Type","Value":"text/javascript"},{"Name":"ETag","Value":"\u0022hUUNpTxsB78\u002BgZ3b6X\u002BidNPM/4ztgu0Audvj7PGhDRw=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 18:05:33 GMT"}]]]></ResponseHeaders>
+      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-YSQiEQqxCnWe1ZYjK02ruBRNzPH1cRk1r441dLWDb8w="}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"27171"},{"Name":"Content-Type","Value":"text/javascript"},{"Name":"ETag","Value":"\u0022YSQiEQqxCnWe1ZYjK02ruBRNzPH1cRk1r441dLWDb8w=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 23:30:42 GMT"}]]]></ResponseHeaders>
+    </StaticWebAssetEndpoint>
+    <StaticWebAssetEndpoint Include="_content/RentHub.Portal/js/site.z392d5irqg.js">
+      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\js\site.js'))</AssetFile>
+      <Selectors><![CDATA[[]]]></Selectors>
+      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"z392d5irqg"},{"Name":"integrity","Value":"sha256-YSQiEQqxCnWe1ZYjK02ruBRNzPH1cRk1r441dLWDb8w="},{"Name":"label","Value":"_content/RentHub.Portal/js/site.js"}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"27171"},{"Name":"Content-Type","Value":"text/javascript"},{"Name":"ETag","Value":"\u0022YSQiEQqxCnWe1ZYjK02ruBRNzPH1cRk1r441dLWDb8w=\u0022"},{"Name":"Last-Modified","Value":"Sat, 14 Mar 2026 23:30:42 GMT"}]]]></ResponseHeaders>
     </StaticWebAssetEndpoint>
     <StaticWebAssetEndpoint Include="_content/RentHub.Portal/lib/bootstrap/dist/css/bootstrap-grid.bqjiyaj88i.css">
       <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\lib\bootstrap\dist\css\bootstrap-grid.css'))</AssetFile>
