@@ -51,8 +51,7 @@ namespace RentHub.API.Controllers
                     .Include(t => t.Members)
                     .Where(t =>
                         // Tenant (primary tenant or additional member)
-                        t.TenantId == userIdClaim ||
-                        t.Members.Any(m => m.MemberId == userIdClaim) ||
+                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userIdClaim) ||
                         // Landlord
                         t.Apartment!.Property!.LandlordId == userIdClaim ||
                         // Owner assigned to this apartment
@@ -148,7 +147,7 @@ namespace RentHub.API.Controllers
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
-                // Create tenancy (TenantId is optional now; keep null)
+                // Create tenancy. Members, including the primary tenant, are managed separately.
                 var tenancy = new Tenancy
                 {
                     ApartmentId = request.ApartmentId,
@@ -318,7 +317,7 @@ namespace RentHub.API.Controllers
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
                     await _context.Tenancies.AnyAsync(t =>
                         t.ApartmentId == apartmentId &&
-                        (t.TenantId == userId || t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId)));
+                        t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
 
                 if (!hasAccess) return Forbid();
 
@@ -435,14 +434,6 @@ namespace RentHub.API.Controllers
 
                 _context.TenancyMembers.Add(member);
 
-                if (request.Role == TenancyMemberRoleEnum.Primary)
-                {
-                    tenancy.TenantId = memberUser.Id;
-                    tenancy.UpdatedBy = userId;
-                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
-                    _context.Tenancies.Update(tenancy);
-                }
-
                 await _context.SaveChangesAsync();
 
                 var dto = new TenancyMemberDto
@@ -507,14 +498,6 @@ namespace RentHub.API.Controllers
 
                 _context.TenancyMembers.Update(member);
 
-                if (member.Role == TenancyMemberRoleEnum.Primary && tenancy.TenantId == member.MemberId)
-                {
-                    tenancy.TenantId = null;
-                    tenancy.UpdatedBy = userId;
-                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
-                    _context.Tenancies.Update(tenancy);
-                }
-
                 await _context.SaveChangesAsync();
 
                 return Ok(new { Message = "Member removed successfully." });
@@ -551,7 +534,6 @@ namespace RentHub.API.Controllers
 
                 // Access: tenant (primary), member, landlord, owner, manager
                 bool hasAccess =
-                    tenancy.TenantId == userId ||
                     tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == userId) ||
                     property.LandlordId == userId ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && !o.IsDeleted) ||
@@ -632,5 +614,8 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
 
 

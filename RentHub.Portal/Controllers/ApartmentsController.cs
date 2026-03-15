@@ -242,6 +242,53 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadApartmentImage(int apartmentId, IFormFile file, int? currentDocumentId = null)
+        {
+            if (file == null || file.Length == 0)
+            {
+                TempData["Error"] = "Please choose an image file to upload.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
+            }
+
+            if (!IsImage(file))
+            {
+                TempData["Error"] = "Only image files are allowed in the apartment image gallery.";
+                return await RedirectToApartmentOverviewAsync(apartmentId);
+            }
+
+            try
+            {
+                var content = new MultipartFormDataContent();
+                content.Add(new StringContent(DocumentTypeEnum.ApartmentImage.ToString()), "DocumentType");
+                content.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
+
+                await _api.PostMultipartAsync<DocumentDto>($"documents/apartment/{apartmentId}", content);
+
+                if (currentDocumentId.HasValue && currentDocumentId.Value > 0)
+                {
+                    try
+                    {
+                        await _api.DeleteAsync($"documents/{currentDocumentId.Value}");
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        _logger.LogWarning(deleteEx, "Apartment image replacement uploaded but old image delete failed for apartment {ApartmentId} document {DocumentId}.", apartmentId, currentDocumentId.Value);
+                    }
+                }
+
+                TempData["Success"] = "Apartment image updated.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Upload apartment image request failed in portal for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the apartment image right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteDocument(int apartmentId, int documentId)
         {
             try
@@ -254,6 +301,24 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "Delete apartment document request failed in portal for apartment {ApartmentId} document {DocumentId}.", apartmentId, documentId);
                 var apiError = ParseApiError(ex.Message);
                 TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to delete the apartment document right now. Please try again.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteApartmentImage(int apartmentId, int documentId)
+        {
+            try
+            {
+                await _api.DeleteAsync($"documents/{documentId}");
+                TempData["Success"] = "Apartment image deleted.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Delete apartment image request failed in portal for apartment {ApartmentId} document {DocumentId}.", apartmentId, documentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to delete the apartment image right now. Please try again.");
             }
 
             return await RedirectToApartmentOverviewAsync(apartmentId);
@@ -318,6 +383,16 @@ namespace RentHub.Portal.Controllers
 
             return string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsImage(IFormFile file)
+        {
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty);
+
+            return contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                || new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" }
+                    .Contains(extension, StringComparer.OrdinalIgnoreCase);
         }
 
         private static ApiErrorPayload ParseApiError(string raw)

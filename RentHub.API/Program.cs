@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -187,6 +188,7 @@ void ConfigureDatabase(IServiceCollection services, IConfiguration configuration
     services.AddDbContext<ApplicationDbContext>(options =>
     {
         options.UseSqlServer(connectionString);
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 
         if (isDevelopment && enableSensitiveDataLogging)
         {
@@ -208,6 +210,7 @@ void ConfigureIdentity(IServiceCollection services)
         options.Password.RequireUppercase = false;
     });
 }
+
 
 
 

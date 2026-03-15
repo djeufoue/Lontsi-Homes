@@ -128,7 +128,7 @@ namespace RentHub.API.Controllers
                         o.ApartmentId == id && o.OwnerId == userId && !o.IsDeleted) ||
                     await _context.Tenancies.AnyAsync(t =>
                         t.ApartmentId == id && !t.IsDeleted &&
-                        (t.TenantId == userId || t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId)));
+                        t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
 
                 if (!hasAccess) return Forbid();
 
@@ -583,6 +583,7 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 
 
 

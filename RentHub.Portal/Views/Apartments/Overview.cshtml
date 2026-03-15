@@ -17,7 +17,9 @@
     var averageRent = tenancies.Any() ? tenancies.Average(tenancy => tenancy.MonthlyRent) : apartment.Price;
 }
 
-<section class="rh-overview-shell rh-apartment-shell" data-apartment-overview-root="true">
+<section class="rh-overview-shell rh-apartment-shell"
+         data-apartment-overview-root="true"
+         data-overview-content-url="@Url.Action("Overview", "Apartments", new { id = apartment.Id })">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">&#8592; Back to property overview</a>
@@ -93,7 +95,7 @@
 
     <section class="rh-overview-workgrid rh-apartment-workgrid">
         <div class="rh-overview-maincolumn">
-            <article class="rh-overview-image-card rh-panel rh-panel-elevated">
+            <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Apartment images</h2>
@@ -154,7 +156,7 @@
                     </div>
                 }
             </article>
-<article class="rh-overview-units-card rh-panel rh-panel-elevated">
+            <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-apartment-section="tenancies">
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Tenancies</h2>
@@ -167,7 +169,7 @@
                     }
                 </div>
 
-                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form">
+                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="tenancies">
                     <input type="hidden" name="id" value="@apartment.Id" />
                     <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
                     <div class="rh-search-input-wrap">
@@ -216,7 +218,7 @@
                 }
             </article>
 
-            <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact">
+            <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact" data-apartment-section="documents">
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Apartment documents</h2>
@@ -263,7 +265,7 @@
         </div>
 
         <div class="rh-overview-sidecolumn rh-overview-sidecolumn-priority">
-            <article class="rh-overview-members-card rh-panel rh-panel-elevated">
+            <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Apartment members</h2>
@@ -276,7 +278,7 @@
                     }
                 </div>
 
-                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form">
+                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="members">
                     <input type="hidden" name="id" value="@apartment.Id" />
                     <input type="hidden" name="tenancySearch" value="@Model.TenancySearch" />
                     <div class="rh-search-input-wrap">
@@ -332,7 +334,7 @@
                     </div>
                 }
             </article>
-            <article class="rh-overview-members-card rh-panel rh-panel-elevated">
+            <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">Apartment reminder settings</h2>
@@ -516,25 +518,78 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="manageApartmentImageModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title">Manage Apartment Image</h5>
+                        <p class="text-muted mb-0">Replace or remove the image currently shown in the gallery.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body row g-3">
+                    <div class="col-12">
+                        <div class="rh-inline-settings-note">
+                            <strong data-current-image-name>@(currentApartmentImage?.FileName ?? "No image selected yet")</strong>
+                            <div class="mt-2">Use a landscape image under 2 MB for the best result.</div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <form method="post" asp-action="UploadApartmentImage" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="apartmentId" value="@apartment.Id" />
+                            <input type="hidden" name="currentDocumentId" value="@(currentApartmentImage?.Id)" />
+
+                            <label class="form-label">Replace current image</label>
+                            <input class="form-control rh-input" type="file" name="file" accept="image/*" required />
+                            <small class="text-muted d-block mt-2">Uploading here replaces only the image currently displayed in the gallery.</small>
+
+                            <div class="modal-footer border-0 px-0 pt-3 pb-0">
+                                <button type="submit" class="btn rh-btn-primary">Save current image</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    @if (currentApartmentImage != null)
+                    {
+                        <div class="col-12">
+                            <form method="post" asp-action="DeleteApartmentImage" data-confirm-modal="true" data-confirm-title="Delete apartment image?" data-confirm-message="This will remove the image currently shown in the gallery." data-confirm-proceed="Delete image">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="apartmentId" value="@apartment.Id" />
+                                <input type="hidden" name="documentId" value="@currentApartmentImage.Id" />
+
+                                <div class="modal-footer border-0 px-0 pt-0 pb-0 justify-content-start">
+                                    <button type="submit" class="btn rh-btn-outline-danger">Delete current image</button>
+                                </div>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
-@section Scripts {
-    <script>
-        (() => {
-            const forms = document.querySelectorAll('.rh-auto-search-form');
-            forms.forEach((form) => {
-                const input = form.querySelector('.js-auto-submit');
-                if (!input) return;
-
-                let timer;
-                input.addEventListener('input', () => {
-                    window.clearTimeout(timer);
-                    timer = window.setTimeout(() => form.submit(), 320);
-                });
-            });
-        })();
-    </script>
-}
+<div class="modal fade" id="apartmentImageLightbox" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content rh-image-lightbox-modal">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Apartment image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-0">
+                <img src="@(currentApartmentImage != null ? Url.Action("DocumentContent", "Properties", new { id = currentApartmentImage.Id }) : string.Empty)"
+                     alt="Apartment image preview"
+                     class="rh-image-lightbox-preview"
+                     id="apartmentImageLightboxPreview" />
+            </div>
+        </div>
+    </div>
+</div>
 
 
 

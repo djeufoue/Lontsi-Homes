@@ -109,7 +109,7 @@ namespace RentHub.API.Controllers
                 var ownerProps = ownerPropertyIds.ToHashSet();
 
                 var tenantPropertyIds = await _context.Tenancies
-                    .Where(t => t.TenantId == userId || t.Members.Any(mm => mm.MemberId == userId))
+                    .Where(t => t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId))
                     .Select(t => t.Apartment!.PropertyId)
                     .Distinct()
                     .ToListAsync();
@@ -640,6 +640,7 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 
 
 

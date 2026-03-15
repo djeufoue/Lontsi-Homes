@@ -78,14 +78,6 @@ namespace RentHub.API.Controllers
 
                 _context.TenancyMembers.Add(member);
 
-                if (request.Role == Common.Enums.TenancyMemberRoleEnum.Primary)
-                {
-                    tenancy.TenantId = memberUser.Id;
-                    tenancy.UpdatedBy = userId;
-                    tenancy.UpdatedAt = DateTimeOffset.UtcNow;
-                    _context.Tenancies.Update(tenancy);
-                }
-
                 await _context.SaveChangesAsync();
 
                 var dto = new TenancyMemberDto
@@ -148,4 +140,7 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
 

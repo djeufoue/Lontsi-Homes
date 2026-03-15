@@ -43,8 +43,7 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 // Only a tenancy member may request an extension.
-                var isTenancyMember = tenancy.TenantId == userId ||
-                    await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
+                var isTenancyMember = await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
 
                 if (!isTenancyMember)
                 {
@@ -195,3 +194,5 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+

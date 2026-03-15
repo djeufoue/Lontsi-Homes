@@ -64,7 +64,8 @@ namespace RentHub.API.Controllers
                 // Find the active tenancy between this tenant and landlord
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment!.Property)
-                    .FirstOrDefaultAsync(t => t.TenantId == request.TenantId && t.Apartment != null && t.Apartment!.Property!.LandlordId == request.LandlordId &&
+                    .Include(t => t.Members)
+                     .FirstOrDefaultAsync(t => t.Members.Any(m => !m.IsDeleted && m.MemberId == request.TenantId) && t.Apartment != null && t.Apartment!.Property!.LandlordId == request.LandlordId &&
                         (t.EndDate == null || t.EndDate >= DateTime.UtcNow) && t.StartDate <= DateTime.UtcNow);
                 decimal finalAmount;
                 if (tenancy != null)
@@ -201,3 +202,7 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
+

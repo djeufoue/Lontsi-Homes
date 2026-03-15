@@ -19,7 +19,7 @@ namespace RentHub.API.Data
             // Safety net for existing databases that may have missed the snapshot migration.
             EnsureUserSubscriptionSnapshotColumns(context);
             EnsureApartmentReminderColumns(context);
-            EnsureTenancyTenantColumnIsOptional(context);
+            EnsureTenancyTenantColumnRemoved(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -196,7 +196,7 @@ namespace RentHub.API.Data
             ");
         }
 
-        private static void EnsureTenancyTenantColumnIsOptional(ApplicationDbContext context)
+        private static void EnsureTenancyTenantColumnRemoved(ApplicationDbContext context)
         {
             context.Database.ExecuteSqlRaw(@"
                 IF EXISTS (
@@ -209,17 +209,21 @@ namespace RentHub.API.Data
                 END
 
                 IF EXISTS (
-                    SELECT 1
-                    FROM sys.columns c
-                    INNER JOIN sys.tables t ON c.object_id = t.object_id
-                    WHERE t.name = 'Tenancies'
-                      AND c.name = 'TenantId'
-                      AND c.is_nullable = 0
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'IX_Tenancies_TenantId'
+                      AND object_id = OBJECT_ID('[Tenancies]')
                 )
                 BEGIN
-                    ALTER TABLE [Tenancies] ALTER COLUMN [TenantId] nvarchar(450) NULL;
+                    DROP INDEX [IX_Tenancies_TenantId] ON [Tenancies];
+                END
+
+                IF COL_LENGTH('Tenancies', 'TenantId') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [Tenancies] DROP COLUMN [TenantId];
                 END
             ");
         }
     }
 }
+
+
