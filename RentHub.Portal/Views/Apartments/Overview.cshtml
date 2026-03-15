@@ -40,7 +40,7 @@
         </div>
     </section>
 
-    <section class="rh-overview-mastgrid">
+    <section class="rh-overview-mastgrid rh-apartment-mastgrid">
         <article class="rh-overview-spotlight rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head">
                 <div>
@@ -71,16 +71,6 @@
                 <small>Owners and apartment collaborators</small>
             </div>
             <div class="rh-overview-sidebarstat">
-                <span>Documents</span>
-                <strong>@apartmentDocuments.Count</strong>
-                <small>Reference files linked to this apartment</small>
-            </div>
-            <div class="rh-overview-sidebarstat">
-                <span>Images</span>
-                <strong>@apartmentImages.Count</strong>
-                <small>Apartment visual gallery</small>
-            </div>
-            <div class="rh-overview-sidebarstat">
                 <span>Status</span>
                 <strong>@apartment.Status</strong>
                 <small>Operational apartment state</small>
@@ -95,67 +85,6 @@
 
     <section class="rh-overview-workgrid rh-apartment-workgrid">
         <div class="rh-overview-maincolumn">
-            <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
-                <div class="rh-overview-panel-head align-start">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment images</h2>
-                        <p class="rh-dashboard-panel-copy">Swipe through the apartment gallery and manage the image currently in view.</p>
-                    </div>
-
-                    @if (Model.CanWrite)
-                    {
-                        <button type="button" class="rh-icon-btn" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal" data-apartment-image-manage-open="true" title="Manage current apartment image" aria-label="Manage current apartment image">
-                            <span class="rh-icon-pencil"></span>
-                        </button>
-                    }
-                </div>
-
-                @if (!apartmentImages.Any())
-                {
-                    <div class="rh-property-image-placeholder rh-apartment-image-placeholder">
-                        <strong>No apartment images yet</strong>
-                        <span>Add images so this apartment has a proper visual gallery.</span>
-                        @if (Model.CanWrite)
-                        {
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal">Add image</button>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <div class="rh-apartment-gallery" data-apartment-gallery="true">
-                        <div class="rh-apartment-gallery-stage">
-                            @for (var index = 0; index < apartmentImages.Count; index++)
-                            {
-                                var image = apartmentImages[index];
-                                var imageUrl = Url.Action("DocumentContent", "Properties", new { id = image.Id });
-                                <div class="rh-apartment-gallery-slide @(index == 0 ? "is-active" : string.Empty)"
-                                     data-gallery-slide
-                                     data-document-id="@image.Id"
-                                     data-image-url="@imageUrl"
-                                     data-image-name="@image.FileName">
-                                    <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#apartmentImageLightbox" data-image-lightbox-trigger="true" data-image-url="@imageUrl" data-image-name="@image.FileName" aria-label="Open apartment image">
-                                        <img src="@imageUrl" alt="@image.FileName" class="rh-property-image" />
-                                    </button>
-                                </div>
-                            }
-
-                            @if (apartmentImages.Count > 1)
-                            {
-                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="Previous image">&#8592;</button>
-                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="Next image">&#8594;</button>
-                            }
-                        </div>
-
-                        <div class="rh-apartment-gallery-footer">
-                            <div>
-                                <strong data-gallery-current-name>@currentApartmentImage?.FileName</strong>
-                                <small><span data-gallery-current-index>1</span> / @apartmentImages.Count image(s)</small>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </article>
             <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-apartment-section="tenancies">
                 <div class="rh-overview-panel-head align-start">
                     <div>
@@ -262,9 +191,119 @@
                     </div>
                 }
             </article>
+            <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Apartment reminder settings</h2>
+                        <p class="rh-dashboard-panel-copy">Control how early tenants are reminded about rent due dates and lease termination.</p>
+                    </div>
+                    @if (Model.CanWrite)
+                    {
+                        <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="Edit apartment reminder settings" aria-label="Edit apartment reminder settings">
+                            <span class="rh-icon-pencil"></span>
+                        </button>
+                    }
+                </div>
+
+                <form method="post" asp-action="UpdateReminderSettings" class="rh-inline-settings-grid rh-inline-editor-form" id="apartmentReminderForm" data-inline-editor="locked">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="apartmentId" value="@apartment.Id" />
+
+                    <div>
+                        <label class="form-label">Rent reminder lead days</label>
+                        <input class="form-control rh-input" type="number" min="0" max="365" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" @(Model.CanWrite ? "readonly" : "disabled") required />
+                        <small class="text-muted">Example: 10 means the main tenant is reminded 10 days before the next unpaid due date.</small>
+                    </div>
+
+                    <div>
+                        <label class="form-label">Lease termination lead days</label>
+                        <input class="form-control rh-input" type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" @(Model.CanWrite ? "readonly" : "disabled") required />
+                        <small class="text-muted">If the tenancy has an end date, the tenant will be notified this many days before the lease ends.</small>
+                    </div>
+
+                    <div class="rh-inline-settings-note">
+                        Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted.
+                    </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <div class="col-12 rh-inline-editor-actions" hidden>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button class="btn rh-btn-subtle" type="button" id="apartmentReminderCancel">Cancel</button>
+                                <button class="btn rh-btn-primary" type="submit">Save reminder settings</button>
+                            </div>
+                        </div>
+                    }
+                </form>
+            </article>
         </div>
 
         <div class="rh-overview-sidecolumn rh-overview-sidecolumn-priority">
+            <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Apartment images</h2>
+                        <p class="rh-dashboard-panel-copy">Keep the gallery close at hand and manage the image currently in view.</p>
+                    </div>
+
+                    @if (Model.CanWrite)
+                    {
+                        <div class="rh-overview-inline-actions">
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add+</button>
+                            <button type="button" class="rh-icon-btn" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal" data-apartment-image-manage-open="true" title="Manage current apartment image" aria-label="Manage current apartment image">
+                                <span class="rh-icon-pencil"></span>
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (!apartmentImages.Any())
+                {
+                    <div class="rh-property-image-placeholder rh-apartment-image-placeholder">
+                        <strong>No apartment images yet</strong>
+                        <span>Add one or more landscape images so this apartment has a proper visual gallery.</span>
+                        @if (Model.CanWrite)
+                        {
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add images</button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="rh-apartment-gallery" data-apartment-gallery="true">
+                        <div class="rh-apartment-gallery-stage">
+                            @for (var index = 0; index < apartmentImages.Count; index++)
+                            {
+                                var image = apartmentImages[index];
+                                var imageUrl = Url.Action("DocumentContent", "Properties", new { id = image.Id });
+                                <div class="rh-apartment-gallery-slide @(index == 0 ? "is-active" : string.Empty)"
+                                     data-gallery-slide
+                                     data-document-id="@image.Id"
+                                     data-image-url="@imageUrl"
+                                     data-image-name="@image.FileName">
+                                    <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#apartmentImageLightbox" data-image-lightbox-trigger="true" data-image-url="@imageUrl" data-image-name="@image.FileName" aria-label="Open apartment image">
+                                        <img src="@imageUrl" alt="@image.FileName" class="rh-property-image" />
+                                    </button>
+                                </div>
+                            }
+
+                            @if (apartmentImages.Count > 1)
+                            {
+                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="Previous image">&#8592;</button>
+                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="Next image">&#8594;</button>
+                            }
+                        </div>
+
+                        <div class="rh-apartment-gallery-footer">
+                            <div>
+                                <strong data-gallery-current-name>@currentApartmentImage?.FileName</strong>
+                                <small><span data-gallery-current-index>1</span> / @apartmentImages.Count image(s)</small>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </article>
+
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
@@ -333,51 +372,6 @@
                         }
                     </div>
                 }
-            </article>
-            <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
-                <div class="rh-overview-panel-head align-start">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment reminder settings</h2>
-                        <p class="rh-dashboard-panel-copy">Control how early tenants are reminded about rent due dates and lease termination.</p>
-                    </div>
-                    @if (Model.CanWrite)
-                    {
-                        <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="Edit apartment reminder settings" aria-label="Edit apartment reminder settings">
-                            <span class="rh-icon-pencil"></span>
-                        </button>
-                    }
-                </div>
-
-                <form method="post" asp-action="UpdateReminderSettings" class="rh-inline-settings-grid rh-inline-editor-form" id="apartmentReminderForm" data-inline-editor="locked">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="apartmentId" value="@apartment.Id" />
-
-                    <div>
-                        <label class="form-label">Rent reminder lead days</label>
-                        <input class="form-control rh-input" type="number" min="0" max="365" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" @(Model.CanWrite ? "readonly" : "disabled") required />
-                        <small class="text-muted">Example: 10 means the main tenant is reminded 10 days before the next unpaid due date.</small>
-                    </div>
-
-                    <div>
-                        <label class="form-label">Lease termination lead days</label>
-                        <input class="form-control rh-input" type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" @(Model.CanWrite ? "readonly" : "disabled") required />
-                        <small class="text-muted">If the tenancy has an end date, the tenant will be notified this many days before the lease ends.</small>
-                    </div>
-
-                    <div class="rh-inline-settings-note">
-                        Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted.
-                    </div>
-
-                    @if (Model.CanWrite)
-                    {
-                        <div class="col-12 rh-inline-editor-actions" hidden>
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <button class="btn rh-btn-subtle" type="button" id="apartmentReminderCancel">Cancel</button>
-                                <button class="btn rh-btn-primary" type="submit">Save reminder settings</button>
-                            </div>
-                        </div>
-                    }
-                </form>
             </article>
         </div>
     </section>
@@ -513,6 +507,35 @@
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn rh-btn-primary">Upload document</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addApartmentImagesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="UploadApartmentImages" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="apartmentId" value="@apartment.Id" />
+
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title">Add Apartment Images</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Select image files</label>
+                            <input class="form-control rh-input" type="file" name="files" accept="image/*" multiple required />
+                            <small class="text-muted">You can choose multiple images at once. Landscape images work best for the apartment gallery.</small>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn rh-btn-primary">Upload images</button>
                     </div>
                 </form>
             </div>
