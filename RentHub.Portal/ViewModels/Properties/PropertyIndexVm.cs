@@ -15,8 +15,11 @@ namespace RentHub.Portal.ViewModels.Properties
 
         public string UserRole { get; set; } = string.Empty;
         public bool CanCreateProperty { get; set; }
+        public bool ShowCreateEntryPoint { get; set; }
+        public bool RequiresSubscriptionCheckout { get; set; }
 
         public List<PropertyCreationScopeDto> CreationScopes { get; set; } = new();
+        public List<SubscriptionPlanDto> AvailablePlans { get; set; } = new();
         public List<PropertyDto> Items { get; set; } = new();
 
         public int TotalPages => PageSize <= 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);

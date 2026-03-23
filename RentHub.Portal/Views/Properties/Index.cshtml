@@ -1,5 +1,6 @@
 @using System
 @using System.Linq
+@using Common.Enums
 @model RentHub.Portal.ViewModels.Properties.PropertyIndexVm
 @{
     ViewData["Title"] = "Properties";
@@ -15,9 +16,9 @@
     </div>
 
     <div class="rh-toolbar">
-        @if (Model.CanCreateProperty)
+        @if (Model.ShowCreateEntryPoint)
         {
-            <button class="btn rh-btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#createPropertyModal">
+            <button class="btn rh-btn-primary" type="button" data-bs-toggle="modal" data-bs-target="@(Model.CanCreateProperty ? "#createPropertyModal" : "#subscriptionRequiredModal")">
                 Add New Property
             </button>
         }
@@ -217,6 +218,73 @@
         </div>
     </div>
 }
+else if (Model.RequiresSubscriptionCheckout)
+{
+    <div class="modal fade" id="subscriptionRequiredModal" tabindex="-1" aria-labelledby="subscriptionRequiredModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <h5 class="modal-title" id="subscriptionRequiredModalLabel">Choose a subscription before adding properties</h5>
+                        <small class="text-muted">Pay with MTN Money, Orange Money Cameroon, or Visa through Notch Pay.</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="rh-profile-plan-grid">
+                        @foreach (var plan in Model.AvailablePlans)
+                        {
+                            <article class="rh-profile-plan-card">
+                                <div class="rh-admin-plan-head">
+                                    <h3>@plan.Name</h3>
+                                    <span class="rh-chip rh-chip-info">@plan.DurationInDays days</span>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(plan.Description))
+                                {
+                                    <p class="text-muted mb-2">@plan.Description</p>
+                                }
+
+                                <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
+
+                                <ul class="rh-profile-plan-meta">
+                                    <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
+                                    <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
+                                </ul>
+
+                                <form asp-controller="Profile" asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="planId" value="@plan.Id" />
+
+                                    <label class="form-label mb-1">Payment method</label>
+                                    <div class="rh-select-wrap mb-2">
+                                        <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method>
+                                            <option value="@PaymentMethodEnum.Momo">MTN Money</option>
+                                            <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
+                                            <option value="@PaymentMethodEnum.Card">Visa</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="rh-form-switch-row mb-3" data-card-consent hidden>
+                                        <div class="form-check rh-form-switch">
+                                            <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="propertyCardConsent_@plan.Id" />
+                                            <label class="form-check-label" for="propertyCardConsent_@plan.Id">
+                                                Allow automatic Visa renewal for this subscription. Leave unchecked if you prefer to renew manually.
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" class="btn rh-btn-primary w-100">Continue to payment</button>
+                                </form>
+                            </article>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @section Scripts {
     <script>
@@ -228,8 +296,8 @@
             const refreshMs = 20000;
 
             const loadPartial = async () => {
-                const modal = document.getElementById("createPropertyModal");
-                if (modal && modal.classList.contains("show")) {
+                const activeModal = document.querySelector(".modal.show");
+                if (activeModal) {
                     return;
                 }
 
@@ -244,11 +312,24 @@
                 host.innerHTML = await response.text();
             };
 
-            setInterval(loadPartial, refreshMs);
+            const timer = window.setInterval(loadPartial, refreshMs);
+            window.addEventListener("beforeunload", () => window.clearInterval(timer), { once: true });
+        })();
+
+        (() => {
+            const forms = document.querySelectorAll("[data-subscription-form]");
+            forms.forEach(form => {
+                const methodSelect = form.querySelector("[data-payment-method]");
+                const cardConsent = form.querySelector("[data-card-consent]");
+                if (!methodSelect || !cardConsent) return;
+
+                const sync = () => {
+                    cardConsent.hidden = methodSelect.value !== "Card";
+                };
+
+                methodSelect.addEventListener("change", sync);
+                sync();
+            });
         })();
     </script>
 }
-
-
-
-

@@ -1,8 +1,9 @@
 @model RentHub.Portal.ViewModels.Documents.DocumentPreviewVm
 @{
     ViewData["Title"] = "Document Preview";
-    var previewUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = false }) ?? string.Empty;
-    var downloadUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = true }) ?? string.Empty;
+    var cacheBuster = Model.Document.UploadedAt.ToUnixTimeMilliseconds();
+    var previewUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = false, v = cacheBuster }) ?? string.Empty;
+    var downloadUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = true, v = cacheBuster }) ?? string.Empty;
 }
 
 <section class="rh-document-preview-shell">
@@ -116,3 +117,4 @@
         </aside>
     </section>
 </section>
+

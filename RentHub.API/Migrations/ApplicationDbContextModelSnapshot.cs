@@ -240,6 +240,9 @@ namespace RentHub.API.Migrations
                     b.Property<int>("Permission")
                         .HasColumnType("int");
 
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 

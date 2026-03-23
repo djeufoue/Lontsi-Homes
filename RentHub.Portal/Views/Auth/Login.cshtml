@@ -9,18 +9,18 @@
         <aside class="rh-auth-hero">
             <span class="rh-auth-kicker">RentHub Platform</span>
             <h1>Manage properties with precision and speed.</h1>
-            <p>One place for landlords, managers, and admins to control units, members, and documentation.</p>
+            <p>Landlords manage units and subscriptions. Visitors use verified accounts to contact landlords privately about available apartments.</p>
             <ul class="rh-auth-points">
-                <li>Live property updates</li>
-                <li>Role-aware access and controls</li>
-                <li>Professional workflows end-to-end</li>
+                <li>Private conversations per apartment</li>
+                <li>Verified visitor and landlord accounts</li>
+                <li>Professional property workflows end-to-end</li>
             </ul>
         </aside>
 
         <section class="rh-auth-card">
             <div class="rh-auth-card-header">
                 <h2>Welcome back</h2>
-                <p>Sign in to continue to your command center.</p>
+                <p>Sign in to continue.</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -30,6 +30,7 @@
 
             <form asp-action="Login" method="post" class="rh-auth-form">
                 @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
 
                 <div class="mb-3">
@@ -48,8 +49,13 @@
             </form>
 
             <p class="rh-auth-footnote mb-0">
-                No account yet?
-                <a asp-action="Register">Create one</a>
+                Want to list apartments?
+                <a asp-action="Register" asp-route-returnUrl="@Model.ReturnUrl">Create a landlord account</a>
+            </p>
+
+            <p class="rh-auth-footnote mb-0 mt-2">
+                Want to contact a landlord?
+                <a asp-action="RegisterVisitor" asp-route-returnUrl="@Model.ReturnUrl">Create a visitor account</a>
             </p>
         </section>
     </div>

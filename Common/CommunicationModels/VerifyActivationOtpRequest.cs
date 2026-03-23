@@ -8,8 +8,22 @@ namespace Common.CommunicationModels
         [EmailAddress]
         public string Email { get; set; } = string.Empty;
 
-        [Required]
         [StringLength(6, MinimumLength = 4)]
-        public string Otp { get; set; } = string.Empty;
+        public string? Otp { get; set; }
+
+        [Required]
+        [Display(Name = "Email OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string EmailOtp { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Payout OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string PayoutOtp { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "WhatsApp OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string WhatsAppOtp { get; set; } = string.Empty;
     }
 }

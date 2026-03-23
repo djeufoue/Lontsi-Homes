@@ -15,6 +15,8 @@ namespace RentHub.API.Services.Users
             ApplicationUser user,
             string? temporaryPassword = null,
             string? welcomeRoleLabel = null);
+
+        Task SendVisitorActivationOtpAsync(ApplicationUser user);
     }
 
     public sealed class InvitedUserResult

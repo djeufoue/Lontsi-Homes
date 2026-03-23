@@ -187,6 +187,7 @@ namespace RentHub.API.Controllers
                         Id = o.Id,
                         OwnerId = o.OwnerId,
                         OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
+                        Role = o.Role,
                         Permission = o.Permission,
                         AssignedAt = o.CreatedAt
                     })
@@ -408,6 +409,7 @@ namespace RentHub.API.Controllers
                         Id = o.Id,
                         OwnerId = o.OwnerId,
                         OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
+                        Role = o.Role,
                         Permission = o.Permission,
                         AssignedAt = o.CreatedAt
                     })
@@ -449,25 +451,43 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite) return Forbid();
 
-                var email = (request.Email ?? "").Trim();
+                var email = (request.Email ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");
 
+                var requestedRoleName = request.Role == ApartmentMemberRoleEnum.Owner ? "Owner" : "Manager";
                 var ownerUser = (await _userOnboardingService.EnsureUserAsync(
                     email,
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
-                    "Owner")).User;
+                    requestedRoleName)).User;
 
                 var already = await _context.ApartmentOwners.AnyAsync(o =>
                     o.ApartmentId == apartmentId && o.OwnerId == ownerUser.Id && !o.IsDeleted);
 
-                if (already) return BadRequest("This owner is already assigned to the apartment.");
+                if (already) return BadRequest("This member is already assigned to the apartment.");
+
+                var isPropertyMember = await _context.PropertyManagerAssignments.AnyAsync(m =>
+                    m.PropertyId == apt.PropertyId && m.ManagerId == ownerUser.Id && !m.IsDeleted);
+
+                if (isPropertyMember)
+                    return BadRequest("Property members cannot also be added as apartment or tenancy members within the same property.");
+
+                var isTenancyMemberOnApartment = await _context.TenancyMembers.AnyAsync(m =>
+                    !m.IsDeleted &&
+                    m.MemberId == ownerUser.Id &&
+                    m.Tenancy != null &&
+                    !m.Tenancy.IsDeleted &&
+                    m.Tenancy.ApartmentId == apartmentId);
+
+                if (isTenancyMemberOnApartment)
+                    return BadRequest("A tenancy member cannot also be added as an apartment member for the same apartment.");
 
                 var entity = new ApartmentOwner
                 {
                     ApartmentId = apartmentId,
                     OwnerId = ownerUser.Id,
+                    Role = request.Role,
                     Permission = request.Permission,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -482,7 +502,9 @@ namespace RentHub.API.Controllers
                     Id = entity.Id,
                     OwnerId = entity.OwnerId,
                     OwnerName = ownerUser.FullName ?? ownerUser.Email ?? "",
-                    Permission = entity.Permission
+                    Role = entity.Role,
+                    Permission = entity.Permission,
+                    AssignedAt = entity.CreatedAt
                 };
 
                 return Ok(dto);
@@ -495,7 +517,7 @@ namespace RentHub.API.Controllers
 
         [HttpPut("{apartmentId}/owners/{assignmentId}")]
         [Authorize]
-        public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, [FromBody] PermissionLevelEnum permission)
+        public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, [FromBody] UpdateApartmentMemberRequest request)
         {
             try
             {
@@ -520,14 +542,25 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite) return Forbid();
 
-                assignment.Permission = permission;
+                assignment.Role = request.Role;
+                assignment.Permission = request.Permission;
                 assignment.UpdatedBy = userId;
                 assignment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                var assignedUser = await _userManager.FindByIdAsync(assignment.OwnerId);
+                if (assignedUser != null)
+                {
+                    var requestedRoleName = request.Role == ApartmentMemberRoleEnum.Owner ? "Owner" : "Manager";
+                    if (!await _userManager.IsInRoleAsync(assignedUser, requestedRoleName))
+                    {
+                        await _userManager.AddToRoleAsync(assignedUser, requestedRoleName);
+                    }
+                }
 
                 _context.ApartmentOwners.Update(assignment);
                 await _context.SaveChangesAsync();
 
-                return Ok(new { Message = "Permission updated." });
+                return Ok(new { Message = "Apartment member updated." });
             }
             catch (Exception ex)
             {
@@ -578,6 +611,9 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
 
 
 

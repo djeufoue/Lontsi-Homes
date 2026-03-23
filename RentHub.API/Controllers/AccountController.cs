@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using Common.CommunicationModels;
+using Common.Enums;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Auth;
 using RentHub.API.Services.Email;
@@ -19,6 +20,16 @@ namespace RentHub.API.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
+        private const string OtpLoginProvider = "RentHub";
+        private const string ActivationOtpTokenName = "ActivationOtpCode";
+        private const string ActivationOtpExpiryTokenName = "ActivationOtpExpiryUnix";
+        private const string PhoneOtpTokenName = "PhoneOtpCode";
+        private const string PhoneOtpExpiryTokenName = "PhoneOtpExpiryUnix";
+        private const string PayoutOtpTokenName = "PayoutOtpCode";
+        private const string PayoutOtpExpiryTokenName = "PayoutOtpExpiryUnix";
+        private const string WhatsAppOtpTokenName = "WhatsAppOtpCode";
+        private const string WhatsAppOtpExpiryTokenName = "WhatsAppOtpExpiryUnix";
+
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly ApplicationDbContext _context;
@@ -61,21 +72,20 @@ namespace RentHub.API.Controllers
                     return BadRequest(ModelState);
                 }
 
-                if (!request.PlanId.HasValue)
-                {
-                    return BadRequest("Please choose a subscription plan to complete landlord registration.");
-                }
-
                 var existingUser = await _userManager.FindByEmailAsync(request.Email);
                 if (existingUser != null)
                 {
                     return BadRequest("An account with this email already exists. Please log in instead.");
                 }
 
-                var plan = await _context.SubscriptionPlans.FindAsync(request.PlanId.Value);
-                if (plan == null)
+                SubscriptionPlan? plan = null;
+                if (request.PlanId.HasValue)
                 {
-                    return BadRequest("Invalid subscription plan.");
+                    plan = await _context.SubscriptionPlans.FindAsync(request.PlanId.Value);
+                    if (plan == null)
+                    {
+                        return BadRequest("Invalid subscription plan.");
+                    }
                 }
 
                 var user = new ApplicationUser
@@ -85,6 +95,9 @@ namespace RentHub.API.Controllers
                     FullName = string.Join(" ", new[] { request.FirstName?.Trim(), request.LastName?.Trim() }.Where(v => !string.IsNullOrWhiteSpace(v))),
                     CountryCode = request.CountryCode?.Trim(),
                     PhoneNumber = request.PhoneNumber?.Trim(),
+                    PayoutPhoneNumber = request.PayoutPhoneNumber.Trim(),
+                    PayoutChannel = request.PayoutChannel,
+                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber.Trim(),
                     EmailConfirmed = false
                 };
 
@@ -104,24 +117,29 @@ namespace RentHub.API.Controllers
                     return BadRequest(roleResult.Errors);
                 }
 
-                var subscription = new UserSubscription
+                if (plan != null)
                 {
-                    UserId = user.Id,
-                    SubscriptionPlanId = plan.Id,
-                    StartDate = DateTimeOffset.UtcNow,
-                    EndDate = DateTimeOffset.UtcNow.AddDays(plan.DurationInDays),
-                    PlanNameSnapshot = plan.Name,
-                    PlanPriceSnapshot = plan.Price,
-                    PlanDurationInDaysSnapshot = plan.DurationInDays,
-                    PlanMaxPropertiesSnapshot = plan.MaxProperties,
-                    PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
-                    IsApproved = false,
-                    CreatedBy = user.Id,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    IsDeleted = false
-                };
+                    var subscription = new UserSubscription
+                    {
+                        UserId = user.Id,
+                        SubscriptionPlanId = plan.Id,
+                        StartDate = DateTimeOffset.UtcNow,
+                        EndDate = DateTimeOffset.UtcNow.AddDays(plan.DurationInDays),
+                        PlanNameSnapshot = plan.Name,
+                        PlanPriceSnapshot = plan.Price,
+                        PlanDurationInDaysSnapshot = plan.DurationInDays,
+                        PlanMaxPropertiesSnapshot = plan.MaxProperties,
+                        PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
+                        PaymentStatus = PaymentStatusEnum.Pending,
+                        IsApproved = false,
+                        CreatedBy = user.Id,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        IsDeleted = false
+                    };
 
-                _context.UserSubscriptions.Add(subscription);
+                    _context.UserSubscriptions.Add(subscription);
+                }
+
                 await _context.SaveChangesAsync();
 
                 await _userOnboardingService.SendActivationOtpAsync(user);
@@ -130,7 +148,7 @@ namespace RentHub.API.Controllers
                 {
                     RequiresActivation = true,
                     Email = user.Email,
-                    Message = "Registration successful. Check your email for an OTP code to activate your account."
+                    Message = "Registration successful. Check your email, payout number, and WhatsApp for OTP codes to activate your account."
                 });
             }
             catch (Exception ex)
@@ -146,6 +164,74 @@ namespace RentHub.API.Controllers
                 {
                     Code = "REGISTRATION_FAILED",
                     Message = "We could not complete account creation right now. Please try again in a few minutes."
+                });
+            }
+        }
+
+        [HttpPost("register-visitor")]
+        public async Task<IActionResult> RegisterVisitor([FromBody] RegisterVisitorRequest request)
+        {
+            ApplicationUser? createdUser = null;
+
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var existingUser = await _userManager.FindByEmailAsync(request.Email);
+                if (existingUser != null)
+                {
+                    return BadRequest("An account with this email already exists. Please log in instead.");
+                }
+
+                var user = new ApplicationUser
+                {
+                    UserName = request.Email,
+                    Email = request.Email,
+                    FullName = request.FullName?.Trim(),
+                    PhoneNumber = request.PhoneNumber.Trim(),
+                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber.Trim(),
+                    EmailConfirmed = false,
+                    PhoneNumberConfirmed = false,
+                    IsWhatsAppPhoneVerified = false
+                };
+
+                var result = await _userManager.CreateAsync(user, request.Password);
+                if (!result.Succeeded)
+                {
+                    return BadRequest(result.Errors);
+                }
+
+                createdUser = user;
+
+                var roleResult = await _userManager.AddToRoleAsync(user, "Visitor");
+                if (!roleResult.Succeeded)
+                {
+                    await _userManager.DeleteAsync(user);
+                    createdUser = null;
+                    return BadRequest(roleResult.Errors);
+                }
+
+                await _userOnboardingService.SendVisitorActivationOtpAsync(user);
+
+                return Ok(new
+                {
+                    RequiresActivation = true,
+                    Email = user.Email,
+                    Message = "Visitor account created. Check your email, phone number, and WhatsApp for OTP codes to activate your account."
+                });
+            }
+            catch (Exception ex)
+            {
+                await TryRollbackRegistrationAsync(createdUser);
+
+                _logger.LogError(ex, "Visitor registration failed for email {Email}", request.Email);
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    Code = "VISITOR_REGISTRATION_FAILED",
+                    Message = "We could not complete visitor account creation right now. Please try again in a few minutes."
                 });
             }
         }
@@ -174,39 +260,55 @@ namespace RentHub.API.Controllers
                     return BadRequest("Account is already activated.");
                 }
 
-                var storedOtp = await _userManager.GetAuthenticationTokenAsync(user, "RentHub", "ActivationOtpCode");
-                var storedExpiry = await _userManager.GetAuthenticationTokenAsync(user, "RentHub", "ActivationOtpExpiryUnix");
+                var emailOtp = string.IsNullOrWhiteSpace(request.EmailOtp)
+                    ? request.Otp?.Trim() ?? string.Empty
+                    : request.EmailOtp.Trim();
 
-                if (string.IsNullOrWhiteSpace(storedOtp) || string.IsNullOrWhiteSpace(storedExpiry))
+                var emailOtpResult = await ValidateOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, emailOtp, "email");
+                if (emailOtpResult != null)
                 {
-                    return BadRequest("No valid OTP found. Please request a new code.");
+                    return emailOtpResult;
                 }
 
-                if (!long.TryParse(storedExpiry, out var expiryUnix))
+                if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                 {
-                    return BadRequest("Invalid OTP state. Please request a new code.");
+                    var payoutOtpResult = await ValidateOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName, request.PayoutOtp.Trim(), "payout number");
+                    if (payoutOtpResult != null)
+                    {
+                        return payoutOtpResult;
+                    }
                 }
 
-                var expiryUtc = DateTimeOffset.FromUnixTimeSeconds(expiryUnix);
-                if (expiryUtc <= DateTimeOffset.UtcNow)
+                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                 {
-                    return BadRequest("OTP has expired. Please request a new code.");
-                }
-
-                if (!string.Equals(storedOtp, request.Otp.Trim(), StringComparison.Ordinal))
-                {
-                    return BadRequest("Invalid OTP.");
+                    var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp.Trim(), "WhatsApp");
+                    if (whatsAppOtpResult != null)
+                    {
+                        return whatsAppOtpResult;
+                    }
                 }
 
                 user.EmailConfirmed = true;
+                if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+                {
+                    user.IsPayoutPhoneVerified = true;
+                    user.PayoutPhoneVerifiedAt = DateTimeOffset.UtcNow;
+                }
+
+                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                {
+                    user.IsWhatsAppPhoneVerified = true;
+                    user.WhatsAppPhoneVerifiedAt = DateTimeOffset.UtcNow;
+                }
                 var updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
                 {
                     return BadRequest(updateResult.Errors);
                 }
 
-                await _userManager.RemoveAuthenticationTokenAsync(user, "RentHub", "ActivationOtpCode");
-                await _userManager.RemoveAuthenticationTokenAsync(user, "RentHub", "ActivationOtpExpiryUnix");
+                await RemoveOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName);
+                await RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName);
+                await RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName);
 
                 var token = await _tokenService.GenerateTokenAsync(user);
                 return Ok(new { Message = "Account activated successfully.", Token = token });
@@ -214,6 +316,69 @@ namespace RentHub.API.Controllers
             catch (Exception ex)
             {
                 return ServerError(ex, "VerifyActivationOtp", "Unable to verify OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost("verify-visitor-otp")]
+        public async Task<IActionResult> VerifyVisitorOtp([FromBody] VerifyVisitorOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var user = await _userManager.FindByEmailAsync(request.Email);
+                if (user == null)
+                {
+                    return BadRequest("Invalid email or OTP.");
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Visitor"))
+                {
+                    return BadRequest("This account is not registered as a visitor account.");
+                }
+
+                var emailOtpResult = await ValidateOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, request.EmailOtp.Trim(), "email");
+                if (emailOtpResult != null)
+                {
+                    return emailOtpResult;
+                }
+
+                var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp.Trim(), "phone number");
+                if (phoneOtpResult != null)
+                {
+                    return phoneOtpResult;
+                }
+
+                var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp.Trim(), "WhatsApp");
+                if (whatsAppOtpResult != null)
+                {
+                    return whatsAppOtpResult;
+                }
+
+                user.EmailConfirmed = true;
+                user.PhoneNumberConfirmed = true;
+                user.IsWhatsAppPhoneVerified = true;
+                user.WhatsAppPhoneVerifiedAt = DateTimeOffset.UtcNow;
+
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    return BadRequest(updateResult.Errors);
+                }
+
+                await RemoveOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName);
+                await RemoveOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName);
+                await RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName);
+
+                var token = await _tokenService.GenerateTokenAsync(user);
+                return Ok(new { Message = "Visitor account activated successfully.", Token = token });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "VerifyVisitorOtp", "Unable to verify visitor OTP right now. Please try again.");
             }
         }
 
@@ -238,15 +403,55 @@ namespace RentHub.API.Controllers
 
                 if (user.EmailConfirmed)
                 {
-                    return BadRequest("Account is already activated.");
+                    var payoutReady = string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) || user.IsPayoutPhoneVerified;
+                    var whatsAppReady = string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) || user.IsWhatsAppPhoneVerified;
+                    if (payoutReady && whatsAppReady)
+                    {
+                        return BadRequest("Account is already activated.");
+                    }
                 }
 
                 await _userOnboardingService.SendActivationOtpAsync(user);
-                return Ok(new { Message = "A new OTP has been sent to your email." });
+                return Ok(new { Message = "New OTP codes have been sent to your email, payout number, and WhatsApp." });
             }
             catch (Exception ex)
             {
                 return ServerError(ex, "ResendActivationOtp", "Unable to resend OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost("resend-visitor-otp")]
+        public async Task<IActionResult> ResendVisitorOtp([FromBody] ResendActivationOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var user = await _userManager.FindByEmailAsync(request.Email);
+                if (user == null)
+                {
+                    return Ok(new { Message = "If the visitor account exists, new OTP codes have been sent." });
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Visitor"))
+                {
+                    return BadRequest("This account is not registered as a visitor account.");
+                }
+
+                if (user.EmailConfirmed && user.PhoneNumberConfirmed && user.IsWhatsAppPhoneVerified)
+                {
+                    return BadRequest("Visitor account is already activated.");
+                }
+
+                await _userOnboardingService.SendVisitorActivationOtpAsync(user);
+                return Ok(new { Message = "New OTP codes have been sent to your email, phone number, and WhatsApp." });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "ResendVisitorOtp", "Unable to resend visitor OTP right now. Please try again.");
             }
         }
 
@@ -275,14 +480,48 @@ namespace RentHub.API.Controllers
                     return Unauthorized("Invalid email or password.");
                 }
 
+                var roles = await _userManager.GetRolesAsync(user);
+                var isVisitor = roles.Any(r => string.Equals(r, "Visitor", StringComparison.OrdinalIgnoreCase));
+
                 if (!user.EmailConfirmed)
                 {
                     return StatusCode(StatusCodes.Status403Forbidden, new
                     {
-                        Code = "EMAIL_NOT_CONFIRMED",
+                        Code = isVisitor ? "VISITOR_ACCOUNT_VERIFICATION_PENDING" : "EMAIL_NOT_CONFIRMED",
                         Email = user.Email,
-                        Message = "Account is not activated. Verify OTP to complete account activation."
+                        Message = isVisitor
+                            ? "Visitor account is not activated. Verify the OTP codes sent to your email, phone number, and WhatsApp."
+                            : "Account is not activated. Verify all OTP codes to complete account activation."
                     });
+                }
+
+                if (isVisitor)
+                {
+                    var visitorPhonePending = !string.IsNullOrWhiteSpace(user.PhoneNumber) && !user.PhoneNumberConfirmed;
+                    var visitorWhatsAppPending = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
+                    if (visitorPhonePending || visitorWhatsAppPending)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            Code = "VISITOR_ACCOUNT_VERIFICATION_PENDING",
+                            Email = user.Email,
+                            Message = "Your visitor verification is still pending. Verify the OTP codes sent to your email, phone number, and WhatsApp."
+                        });
+                    }
+                }
+                else
+                {
+                    var payoutVerificationPending = !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) && !user.IsPayoutPhoneVerified;
+                    var whatsAppVerificationPending = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
+                    if (payoutVerificationPending || whatsAppVerificationPending)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            Code = "ACCOUNT_VERIFICATION_PENDING",
+                            Email = user.Email,
+                            Message = "Your contact verification is still pending. Verify all OTP codes to complete account activation."
+                        });
+                    }
                 }
 
                 var token = await _tokenService.GenerateTokenAsync(user);
@@ -457,6 +696,11 @@ namespace RentHub.API.Controllers
                     FullName = fullName,
                     CountryCode = user.CountryCode,
                     PhoneNumber = user.PhoneNumber,
+                    PayoutPhoneNumber = user.PayoutPhoneNumber,
+                    PayoutChannel = user.PayoutChannel,
+                    IsPayoutPhoneVerified = user.IsPayoutPhoneVerified,
+                    WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
+                    IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
                     Roles = roles.ToList(),
                     PropertyCount = properties.Count,
                     ApartmentCount = properties.Sum(p => p.ApartmentCount),
@@ -614,6 +858,46 @@ namespace RentHub.API.Controllers
                 Code = "SERVER_ERROR",
                 Message = userMessage
             });
+        }
+
+        private async Task<IActionResult?> ValidateOtpAsync(
+            ApplicationUser user,
+            string otpTokenName,
+            string expiryTokenName,
+            string providedOtp,
+            string label)
+        {
+            var storedOtp = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, otpTokenName);
+            var storedExpiry = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, expiryTokenName);
+
+            if (string.IsNullOrWhiteSpace(storedOtp) || string.IsNullOrWhiteSpace(storedExpiry))
+            {
+                return BadRequest($"No valid {label} OTP found. Please request a new code.");
+            }
+
+            if (!long.TryParse(storedExpiry, out var expiryUnix))
+            {
+                return BadRequest($"Invalid {label} OTP state. Please request a new code.");
+            }
+
+            var expiryUtc = DateTimeOffset.FromUnixTimeSeconds(expiryUnix);
+            if (expiryUtc <= DateTimeOffset.UtcNow)
+            {
+                return BadRequest($"{label[..1].ToUpperInvariant()}{label[1..]} OTP has expired. Please request a new code.");
+            }
+
+            if (!string.Equals(storedOtp, providedOtp, StringComparison.Ordinal))
+            {
+                return BadRequest($"Invalid {label} OTP.");
+            }
+
+            return null;
+        }
+
+        private async Task RemoveOtpAsync(ApplicationUser user, string otpTokenName, string expiryTokenName)
+        {
+            await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, otpTokenName);
+            await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, expiryTokenName);
         }
     }
 }

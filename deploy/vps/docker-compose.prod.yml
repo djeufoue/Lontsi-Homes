@@ -1,0 +1,119 @@
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: renthub-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env.production
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - portal
+      - api
+    networks:
+      - renthub
+
+  portal:
+    build:
+      context: ../..
+      dockerfile: RentHub.Portal/Dockerfile
+    container_name: renthub-portal
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Api__BaseUrl: http://api:8080/api/
+      DataProtection__KeysPath: /var/aspnet/data-protection-keys
+    volumes:
+      - portal_keys:/var/aspnet/data-protection-keys
+    depends_on:
+      - api
+    expose:
+      - "8080"
+    networks:
+      - renthub
+
+  api:
+    build:
+      context: ../..
+      dockerfile: RentHub.API/Dockerfile
+    container_name: renthub-api
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=${SQL_DATABASE};User ID=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=True
+      JwtSettings__Issuer: ${JWT_ISSUER}
+      JwtSettings__Audience: ${JWT_AUDIENCE}
+      JwtSettings__ExpiryMinutes: ${JWT_EXPIRY_MINUTES}
+      JwtSettings__SigningKey: ${JWT_SIGNING_KEY}
+      AzureStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
+      AzureStorage__ContainerName: ${AZURE_STORAGE_CONTAINER}
+      Portal__BaseUrl: https://${PORTAL_DOMAIN}
+      Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
+      Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
+      Twilio__FromNumber: ${TWILIO_FROM_NUMBER}
+      Twilio__WhatsAppFromNumber: ${TWILIO_WHATSAPP_FROM_NUMBER}
+      Email__Smtp__Host: ${EMAIL_SMTP_HOST}
+      Email__Smtp__Port: ${EMAIL_SMTP_PORT}
+      Email__Smtp__Username: ${EMAIL_SMTP_USERNAME}
+      Email__Smtp__Password: ${EMAIL_SMTP_PASSWORD}
+      Email__Smtp__From: ${EMAIL_SMTP_FROM}
+      Email__Smtp__UseSsl: ${EMAIL_SMTP_USE_SSL}
+      NotchPay__BaseUrl: ${NOTCHPAY_BASE_URL}
+      NotchPay__ApiKey: ${NOTCHPAY_API_KEY}
+      NotchPay__WebhookSecret: ${NOTCHPAY_WEBHOOK_SECRET}
+      AdminSeed__Email: ${ADMIN_SEED_EMAIL}
+      AdminSeed__Password: ${ADMIN_SEED_PASSWORD}
+      AdminSeed__FullName: ${ADMIN_SEED_FULL_NAME}
+      AdminSeed__CountryCode: ${ADMIN_SEED_COUNTRY_CODE}
+      ReminderSettings__DaysBeforeDue: ${REMINDER_DAYS_BEFORE_DUE}
+      ReminderSettings__DaysAfterUnpaid: ${REMINDER_DAYS_AFTER_UNPAID}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    expose:
+      - "8080"
+    networks:
+      - renthub
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: renthub-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD}
+      MSSQL_MEMORY_LIMIT_MB: 2048
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - sqlserver_backup:/var/opt/mssql/backup
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" || exit 1
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    expose:
+      - "1433"
+    networks:
+      - renthub
+
+networks:
+  renthub:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
+  portal_keys:
+  sqlserver_data:
+  sqlserver_backup:

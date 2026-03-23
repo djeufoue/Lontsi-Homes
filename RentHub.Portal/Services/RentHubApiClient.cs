@@ -100,7 +100,7 @@ namespace RentHub.Portal.Services
 
         private static Exception BuildApiException(HttpStatusCode statusCode, string raw)
         {
-            if (statusCode == HttpStatusCode.Unauthorized || statusCode == HttpStatusCode.Forbidden)
+            if (statusCode == HttpStatusCode.Unauthorized)
             {
                 return new Exception("{\"Code\":\"AUTH_SESSION_EXPIRED\",\"Message\":\"Your session expired. Please sign in again.\"}");
             }

@@ -1,11 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using Common.Enums;
 
 namespace Common.CommunicationModels
 {
     /// <summary>
     /// Request payload for user registration. Self-registration always creates a landlord
     /// account. Other account types (Owner, Manager, Tenant) are created by landlords
-    /// through dedicated endpoints. The PlanId is required to choose a subscription.
+    /// through dedicated endpoints. A plan can be chosen during registration or later
+    /// from the subscription flow.
     /// </summary>
     public class RegisterRequest
     {
@@ -31,6 +33,20 @@ namespace Common.CommunicationModels
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
         public string? PhoneNumber { get; set; }
 
+        [Required]
+        [Display(Name = "Payout number")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Payout number must contain only digits and may start with +.")]
+        public string PayoutPhoneNumber { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Payout channel")]
+        public PayoutChannelEnum? PayoutChannel { get; set; }
+
+        [Required]
+        [Display(Name = "WhatsApp number")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string WhatsAppPhoneNumber { get; set; } = string.Empty;
+
         /// <summary>
         /// Optional account type input. This field is ignored for self-registration and is kept
         /// for backward compatibility. All self-registered users become landlords.
@@ -38,10 +54,8 @@ namespace Common.CommunicationModels
         public string? AccountType { get; set; }
 
         /// <summary>
-        /// The subscription plan identifier to associate with the landlord. This is required
-        /// during self-registration.
+        /// The optional subscription plan identifier to associate with the landlord.
         /// </summary>
-        [Required]
         public int? PlanId { get; set; }
     }
 }

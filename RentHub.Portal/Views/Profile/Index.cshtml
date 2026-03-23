@@ -1,4 +1,5 @@
 @model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
+@using Common.Enums
 @{
     ViewData["Title"] = "Profile";
 
@@ -24,7 +25,7 @@
     <div>
         <p class="rh-kicker">Profile Center</p>
         <h1 class="rh-heading-title">@displayName</h1>
-        <p class="rh-heading-subtitle">Review your account identity, accessible properties, and subscription lifecycle in one place.</p>
+        <p class="rh-heading-subtitle">Review your account identity, verified contact channels, accessible properties, and subscription lifecycle in one place.</p>
         <div class="rh-badge-row mt-2">
             @if (overview.Roles.Any())
             {
@@ -88,20 +89,28 @@
                 <h3>@overview.Email</h3>
             </div>
             <div class="rh-profile-info-item">
-                <p>First Name</p>
-                <h3>@(!string.IsNullOrWhiteSpace(overview.FirstName) ? overview.FirstName : "N/A")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Last Name</p>
-                <h3>@(!string.IsNullOrWhiteSpace(overview.LastName) ? overview.LastName : "N/A")</h3>
-            </div>
-            <div class="rh-profile-info-item">
                 <p>Phone</p>
                 <h3>@(!string.IsNullOrWhiteSpace(overview.PhoneNumber) ? overview.PhoneNumber : "Not provided")</h3>
             </div>
             <div class="rh-profile-info-item">
-                <p>Country Code</p>
-                <h3>@(!string.IsNullOrWhiteSpace(overview.CountryCode) ? overview.CountryCode : "Not provided")</h3>
+                <p>Payout Number</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Payout Network</p>
+                <h3>@(overview.PayoutChannel?.ToString() ?? "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Payout Verification</p>
+                <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>WhatsApp Number</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? overview.WhatsAppPhoneNumber : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>WhatsApp Verification</p>
+                <h3>@(overview.IsWhatsAppPhoneVerified ? "Verified" : "Pending")</h3>
             </div>
             <div class="rh-profile-info-item">
                 <p>Single Active Plan Rule</p>
@@ -134,7 +143,7 @@
                 }
                 else
                 {
-                    <span>Plan is active but waiting for admin approval before restricted actions are allowed.</span>
+                    <span>Plan exists but restricted actions stay blocked until the payment is confirmed.</span>
                 }
             </div>
         }
@@ -174,8 +183,8 @@
 
 <section class="rh-panel rh-panel-elevated mt-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="rh-section-title mb-0">Upgrade Subscription</h2>
-        <small class="text-muted">A user can have only one active subscription at a time. Selecting another plan will replace the current active plan.</small>
+        <h2 class="rh-section-title mb-0">Choose Subscription</h2>
+        <small class="text-muted">Use MTN Money, Orange Money Cameroon, or Visa. Visa can keep the auto-charge preference disabled if you do not want recurring card debits.</small>
     </div>
 
     @if (!overview.AvailablePlans.Any())
@@ -206,16 +215,35 @@
                         <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
                     </ul>
 
-                    <form asp-action="Upgrade" method="post" class="mt-2">
+                    <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="planId" value="@plan.Id" />
+
+                        <label class="form-label mb-1">Payment method</label>
+                        <div class="rh-select-wrap mb-2">
+                            <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method @(isCurrent ? "disabled" : null)>
+                                <option value="@PaymentMethodEnum.Momo">MTN Money</option>
+                                <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
+                                <option value="@PaymentMethodEnum.Card">Visa</option>
+                            </select>
+                        </div>
+
+                        <div class="rh-form-switch-row mb-3" data-card-consent hidden>
+                            <div class="form-check rh-form-switch">
+                                <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="cardConsent_@plan.Id" />
+                                <label class="form-check-label" for="cardConsent_@plan.Id">
+                                    Allow automatic card renewals for this Visa subscription. Leave it unchecked if you prefer to renew manually.
+                                </label>
+                            </div>
+                        </div>
+
                         @if (isCurrent)
                         {
                             <button type="button" class="btn rh-btn-subtle w-100" disabled>Current Plan</button>
                         }
                         else
                         {
-                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Subscribe")</button>
+                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Pay and subscribe")</button>
                         }
                     </form>
                 </article>
@@ -224,3 +252,23 @@
     }
 </section>
 
+@section Scripts {
+    <script>
+        (() => {
+            const forms = document.querySelectorAll("[data-subscription-form]");
+            forms.forEach(form => {
+                const methodSelect = form.querySelector("[data-payment-method]");
+                const cardConsent = form.querySelector("[data-card-consent]");
+                if (!methodSelect || !cardConsent) return;
+
+                const sync = () => {
+                    const isCard = methodSelect.value === "Card";
+                    cardConsent.hidden = !isCard;
+                };
+
+                methodSelect.addEventListener("change", sync);
+                sync();
+            });
+        })();
+    </script>
+}

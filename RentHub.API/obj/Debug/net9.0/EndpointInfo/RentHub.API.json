@@ -37,6 +37,37 @@
         }
       }
     },
+    "/api/Account/register-visitor": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.RegisterVisitorRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.RegisterVisitorRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.RegisterVisitorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Account/verify-activation-otp": {
       "post": {
         "tags": [
@@ -68,7 +99,69 @@
         }
       }
     },
+    "/api/Account/verify-visitor-otp": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.VerifyVisitorOtpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.VerifyVisitorOtpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.VerifyVisitorOtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Account/resend-activation-otp": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.ResendActivationOtpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.ResendActivationOtpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.ResendActivationOtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Account/resend-visitor-otp": {
       "post": {
         "tags": [
           "Account"
@@ -251,150 +344,6 @@
       "post": {
         "tags": [
           "Account"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/apartments/{apartmentId}/owners": {
-      "get": {
-        "tags": [
-          "ApartmentOwners"
-        ],
-        "parameters": [
-          {
-            "name": "apartmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "ApartmentOwners"
-        ],
-        "parameters": [
-          {
-            "name": "apartmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddOwnerRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddOwnerRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddOwnerRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/apartments/{apartmentId}/owners/{ownerAssignmentId}": {
-      "put": {
-        "tags": [
-          "ApartmentOwners"
-        ],
-        "parameters": [
-          {
-            "name": "apartmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "ownerAssignmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "ApartmentOwners"
-        ],
-        "parameters": [
-          {
-            "name": "apartmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "ownerAssignmentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
         ],
         "responses": {
           "200": {
@@ -613,17 +562,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentMemberRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentMemberRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateApartmentMemberRequest"
               }
             }
           }
@@ -658,6 +607,148 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Conversations/mine": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Conversations/{conversationId}": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Conversations/apartment/{apartmentId}/mine": {
+      "get": {
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "apartmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Conversations/apartment/{apartmentId}/start": {
+      "post": {
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "apartmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartConversationRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartConversationRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Conversations/{conversationId}/messages": {
+      "post": {
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.CreateConversationMessageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.CreateConversationMessageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.CreateConversationMessageRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK"
@@ -1341,6 +1432,82 @@
         }
       }
     },
+    "/api/public/apartments": {
+      "get": {
+        "tags": [
+          "PublicApartments"
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 12
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/public/apartments/{id}": {
+      "get": {
+        "tags": [
+          "PublicApartments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/ReminderSettings": {
       "get": {
         "tags": [
@@ -1530,6 +1697,82 @@
               "format": "int32"
             }
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Subscriptions/checkout/{planId}": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "name": "planId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartSubscriptionCheckoutRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartSubscriptionCheckoutRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.StartSubscriptionCheckoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Subscriptions/checkout-status/{reference}": {
+      "get": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "name": "reference",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Subscriptions/notchpay/webhook": {
+      "post": {
+        "tags": [
+          "Subscriptions"
         ],
         "responses": {
           "200": {
@@ -1786,6 +2029,55 @@
       }
     },
     "/api/Tenancies/{tenancyId}/members/{memberId}": {
+      "put": {
+        "tags": [
+          "Tenancies"
+        ],
+        "parameters": [
+          {
+            "name": "tenancyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyMemberRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyMemberRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Common.CommunicationModels.UpdateTenancyMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Tenancies"
@@ -1945,106 +2237,11 @@
           }
         }
       }
-    },
-    "/api/tenancies/{tenancyId}/members": {
-      "post": {
-        "tags": [
-          "TenancyMembers"
-        ],
-        "parameters": [
-          {
-            "name": "tenancyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddTenancyMemberRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddTenancyMemberRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Common.CommunicationModels.AddTenancyMemberRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "TenancyMembers"
-        ],
-        "parameters": [
-          {
-            "name": "tenancyId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
       "Common.CommunicationModels.AddManagerRequest": {
-        "required": [
-          "email",
-          "fullName"
-        ],
-        "type": "object",
-        "properties": {
-          "email": {
-            "minLength": 1,
-            "type": "string",
-            "format": "email"
-          },
-          "fullName": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "countryCode": {
-            "pattern": "^\\+?\\d+$",
-            "type": "string",
-            "nullable": true
-          },
-          "phoneNumber": {
-            "pattern": "^\\+?\\d+$",
-            "type": "string",
-            "nullable": true
-          },
-          "permission": {
-            "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
-          }
-        },
-        "additionalProperties": false
-      },
-      "Common.CommunicationModels.AddOwnerRequest": {
         "required": [
           "email",
           "fullName"
@@ -2111,7 +2308,8 @@
       "Common.CommunicationModels.AssignApartmentOwnerRequest": {
         "required": [
           "email",
-          "permission"
+          "permission",
+          "role"
         ],
         "type": "object",
         "properties": {
@@ -2133,6 +2331,9 @@
             "pattern": "^\\+?\\d+$",
             "type": "string",
             "nullable": true
+          },
+          "role": {
+            "$ref": "#/components/schemas/Common.Enums.ApartmentMemberRoleEnum"
           },
           "permission": {
             "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
@@ -2186,6 +2387,20 @@
             "minimum": 0,
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.CreateConversationMessageRequest": {
+        "required": [
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "maxLength": 1500,
+            "minLength": 1,
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -2361,7 +2576,9 @@
           "firstName",
           "lastName",
           "password",
-          "planId"
+          "payoutChannel",
+          "payoutPhoneNumber",
+          "whatsAppPhoneNumber"
         ],
         "type": "object",
         "properties": {
@@ -2392,13 +2609,62 @@
             "type": "string",
             "nullable": true
           },
+          "payoutPhoneNumber": {
+            "minLength": 1,
+            "pattern": "^\\+?\\d+$",
+            "type": "string"
+          },
+          "payoutChannel": {
+            "$ref": "#/components/schemas/Common.Enums.PayoutChannelEnum"
+          },
+          "whatsAppPhoneNumber": {
+            "minLength": 1,
+            "pattern": "^\\+?\\d+$",
+            "type": "string"
+          },
           "accountType": {
             "type": "string",
             "nullable": true
           },
           "planId": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.RegisterVisitorRequest": {
+        "required": [
+          "email",
+          "password",
+          "phoneNumber",
+          "whatsAppPhoneNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "minLength": 1,
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phoneNumber": {
+            "minLength": 1,
+            "pattern": "^\\+?\\d+$",
+            "type": "string"
+          },
+          "whatsAppPhoneNumber": {
+            "minLength": 1,
+            "pattern": "^\\+?\\d+$",
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -2456,6 +2722,51 @@
           "newPassword": {
             "minLength": 1,
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.StartConversationRequest": {
+        "required": [
+          "initialMessage"
+        ],
+        "type": "object",
+        "properties": {
+          "initialMessage": {
+            "maxLength": 1500,
+            "minLength": 2,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.StartSubscriptionCheckoutRequest": {
+        "required": [
+          "paymentMethod"
+        ],
+        "type": "object",
+        "properties": {
+          "paymentMethod": {
+            "$ref": "#/components/schemas/Common.Enums.PaymentMethodEnum"
+          },
+          "allowAutomaticCardPayments": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.CommunicationModels.UpdateApartmentMemberRequest": {
+        "required": [
+          "permission",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Common.Enums.ApartmentMemberRoleEnum"
+          },
+          "permission": {
+            "$ref": "#/components/schemas/Common.Enums.PermissionLevelEnum"
           }
         },
         "additionalProperties": false
@@ -2556,6 +2867,18 @@
         },
         "additionalProperties": false
       },
+      "Common.CommunicationModels.UpdateTenancyMemberRequest": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Common.Enums.TenancyMemberRoleEnum"
+          }
+        },
+        "additionalProperties": false
+      },
       "Common.CommunicationModels.UpdateTenancyRequest": {
         "required": [
           "monthlyRent",
@@ -2589,7 +2912,9 @@
       "Common.CommunicationModels.VerifyActivationOtpRequest": {
         "required": [
           "email",
-          "otp"
+          "emailOtp",
+          "payoutOtp",
+          "whatsAppOtp"
         ],
         "type": "object",
         "properties": {
@@ -2601,10 +2926,66 @@
           "otp": {
             "maxLength": 6,
             "minLength": 4,
+            "type": "string",
+            "nullable": true
+          },
+          "emailOtp": {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          },
+          "payoutOtp": {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          },
+          "whatsAppOtp": {
+            "maxLength": 6,
+            "minLength": 4,
             "type": "string"
           }
         },
         "additionalProperties": false
+      },
+      "Common.CommunicationModels.VerifyVisitorOtpRequest": {
+        "required": [
+          "email",
+          "emailOtp",
+          "phoneOtp",
+          "whatsAppOtp"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "minLength": 1,
+            "type": "string",
+            "format": "email"
+          },
+          "emailOtp": {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          },
+          "phoneOtp": {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          },
+          "whatsAppOtp": {
+            "maxLength": 6,
+            "minLength": 4,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Common.Enums.ApartmentMemberRoleEnum": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "format": "int32"
       },
       "Common.Enums.ApartmentTypeEnum": {
         "enum": [
@@ -2637,6 +3018,14 @@
         "type": "integer",
         "format": "int32"
       },
+      "Common.Enums.PayoutChannelEnum": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
       "Common.Enums.PermissionLevelEnum": {
         "enum": [
           0,
@@ -2648,7 +3037,9 @@
       "Common.Enums.TenancyMemberRoleEnum": {
         "enum": [
           1,
-          2
+          2,
+          3,
+          4
         ],
         "type": "integer",
         "format": "int32"

@@ -1,4 +1,5 @@
 @using System
+@using System.Linq
 @using RentHub.Portal.Helpers
 @{
     var successMessage = TempData["Success"] as string;
@@ -6,12 +7,21 @@
     var successDialog = SuccessDialogHelper.GetActive(Context.Session);
 
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
-    var isDashboard = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var isHome = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
+    var isMarketingPage = isHome;
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
+    var isMessages = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
     var isSubscriptionsAdmin = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
 
-    var userName = User.Identity?.Name;
+    var userPrincipal = User;
+    var isAuthenticated = userPrincipal?.Identity?.IsAuthenticated == true;
+    var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
+    var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
+    var showSidebar = isAuthenticated && !isMarketingPage;
+
+    var userName = User?.Identity?.Name;
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
 }
 <!DOCTYPE html>
@@ -19,7 +29,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - RentHub.Portal</title>
+    <title>@ViewData["Title"] - RentHub</title>
 
     <script type="importmap"></script>
 
@@ -31,35 +41,50 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/RentHub.Portal.styles.css" asp-append-version="true" />
 </head>
-<body class="rh-body">
-    <div class="rh-shell">
-        @if (User?.Identity?.IsAuthenticated == true)
+<body class="rh-body @(isMarketingPage ? "rh-body-public" : null)">
+    <div class="rh-shell @(showSidebar ? "has-sidebar" : "has-public-nav")">
+        @if (showSidebar)
         {
             <aside class="rh-sidebar" id="rhSidebar">
                 <div class="rh-sidebar-brand">
                     <a asp-controller="Home" asp-action="Index">RentHub</a>
-                    <small>Operations Workspace</small>
+                    <small>Workspace</small>
                 </div>
 
-                <a class="rh-sidebar-user rh-sidebar-user-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
-                    <div class="rh-avatar">@userInitial</div>
-                    <div>
-                        <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
-                        <p class="rh-sidebar-user-role">View profile &amp; subscription</p>
-                    </div>
-                </a>
+                @if (userPrincipal?.IsInRole("Visitor") != true)
+                {
+                    <a class="rh-sidebar-user rh-sidebar-user-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
+                        <div class="rh-avatar">@userInitial</div>
+                        <div>
+                            <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
+                            <p class="rh-sidebar-user-role">Workspace profile</p>
+                        </div>
+                    </a>
+                }
 
                 <nav class="rh-nav">
-                    <a class="rh-nav-link @(isDashboard ? "active" : null)" asp-controller="Home" asp-action="Index">
+                    <a class="rh-nav-link @(isHome ? "active" : null)" asp-controller="Home" asp-action="Index">
                         <span class="rh-nav-icon">&#9635;</span>
-                        <span>Dashboard</span>
+                        <span>Public Home</span>
                     </a>
-                    <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index">
-                        <span class="rh-nav-icon">&#9638;</span>
-                        <span>Properties</span>
-                    </a>
-          
-                    @if (User.IsInRole("Admin"))
+
+                    @if (canSeeProperties)
+                    {
+                        <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index">
+                            <span class="rh-nav-icon">&#9638;</span>
+                            <span>My Properties</span>
+                        </a>
+                    }
+
+                    @if (canSeeMessages)
+                    {
+                        <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index">
+                            <span class="rh-nav-icon">&#9993;</span>
+                            <span>Messages</span>
+                        </a>
+                    }
+
+                    @if (userPrincipal?.IsInRole("Admin") == true)
                     {
                         <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
                             <span class="rh-nav-icon">&#9881;</span>
@@ -70,29 +95,41 @@
 
                 <div class="rh-sidebar-footer">
                     <p>RentHub</p>
-                    <small>Manage everything from one place</small>
+                    <small>Public listings and landlord operations</small>
                 </div>
             </aside>
         }
 
-        <div class="rh-main">
-            <header class="rh-topbar">
+        <div class="rh-main @(showSidebar ? null : "is-public")">
+            <header class="rh-topbar @(isMarketingPage ? "is-public" : null)">
                 <div class="rh-topbar-left">
-                    @if (User?.Identity?.IsAuthenticated == true)
+                    @if (showSidebar)
                     {
                         <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle">
                             Menu
                         </button>
                     }
                     <div class="rh-topbar-context">
-                        <p class="rh-topbar-title">@(ViewData["Title"] ?? "RentHub")</p>
-                        <small class="rh-topbar-caption">Premium property management control panel</small>
+                        <p class="rh-topbar-title">@(isMarketingPage ? "RentHub" : (ViewData["Title"] ?? "RentHub"))</p>
+                        <small class="rh-topbar-caption">@(isMarketingPage ? "Public apartment showcase and landlord services" : "Operational workspace")</small>
                     </div>
                 </div>
 
                 <div class="rh-topbar-right">
-                    @if (User?.Identity?.IsAuthenticated == true)
+                    <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Home" asp-action="Index">Home</a>
+
+                    @if (isAuthenticated)
                     {
+                        if (canSeeProperties)
+                        {
+                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Properties" asp-action="Index">My Properties</a>
+                        }
+
+                        if (canSeeMessages)
+                        {
+                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Conversations" asp-action="Index">Messages</a>
+                        }
+
                         <form asp-controller="Auth" asp-action="Logout" method="post" class="d-inline">
                             @Html.AntiForgeryToken()
                             <button class="btn rh-btn-outline-danger btn-sm" type="submit">Logout</button>
@@ -101,17 +138,17 @@
                     else
                     {
                         <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Auth" asp-action="Login">Login</a>
-                        <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">Register</a>
+                        <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">Become a Landlord</a>
                     }
                 </div>
             </header>
 
-            <main role="main" class="rh-page">
+            <main role="main" class="rh-page @(isMarketingPage ? "rh-page-public" : null)">
                 @RenderBody()
             </main>
 
-            <footer class="rh-footer">
-                <div>&copy; 2026 - RentHub.Portal</div>
+            <footer class="rh-footer @(isMarketingPage ? "is-public" : null)">
+                <div>&copy; 2026 - RentHub</div>
                 <div>
                     <a asp-controller="Home" asp-action="Privacy">Privacy</a>
                 </div>
@@ -191,7 +228,7 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    @if (User?.Identity?.IsAuthenticated == true)
+    @if (isAuthenticated)
     {
         <script>
             window.rhSession = {
@@ -244,7 +281,5 @@
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
-
-
 
 

@@ -7,8 +7,6 @@ using RentHub.API.Models.Entities;
 using Common.Enums;
 using Common.CommunicationModels;
 using RentHub.API.Services.Storage;
-using System.Security.Claims;
-
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
 
@@ -35,37 +33,27 @@ namespace RentHub.API.Controllers
             _userOnboardingService = userOnboardingService;
         }
 
-        /// <summary>
-        /// Lists all tenancies for the current user.  Landlords see tenancies for their properties,
-        /// tenants see their own tenancies, owners see tenancies for apartments they manage, and
-        /// property managers see tenancies for properties they manage.
-        /// </summary>
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> GetTenancies()
         {
             try
             {
-                var userIdClaim = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userIdClaim))
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrEmpty(userId))
                 {
                     return Unauthorized();
                 }
-                // Tenancies associated with the user in any capacity: landlord, tenant, member, owner or manager
+
                 var tenancies = await _context.Tenancies
                     .Include(t => t.Apartment)
                     .ThenInclude(a => a.Property)
                     .Include(t => t.Members)
                     .Where(t =>
-                        // Tenant (primary tenant or additional member)
-                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userIdClaim) ||
-                        // Landlord
-                        t.Apartment!.Property!.LandlordId == userIdClaim ||
-                        // Owner assigned to this apartment
-                        _context.ApartmentOwners.Any(o => o.ApartmentId == t.ApartmentId && o.OwnerId == userIdClaim) ||
-                        // Manager assigned to the property
-                        _context.PropertyManagerAssignments.Any(m => m.PropertyId == t.Apartment.PropertyId && m.ManagerId == userIdClaim)
-                    )
+                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userId) ||
+                        t.Apartment!.Property!.LandlordId == userId ||
+                        _context.ApartmentOwners.Any(o => !o.IsDeleted && o.ApartmentId == t.ApartmentId && o.OwnerId == userId) ||
+                        _context.PropertyManagerAssignments.Any(m => !m.IsDeleted && m.PropertyId == t.Apartment!.PropertyId && m.ManagerId == userId))
                     .Select(t => new TenancyDto
                     {
                         Id = t.Id,
@@ -75,9 +63,10 @@ namespace RentHub.API.Controllers
                         EndDate = t.EndDate,
                         MonthlyRent = t.MonthlyRent,
                         MaxMembers = t.MaxMembers,
-                        IsOwner = t.Apartment.Property.LandlordId == userIdClaim
+                        IsOwner = t.Apartment.Property.LandlordId == userId
                     })
                     .ToListAsync();
+
                 return Ok(tenancies);
             }
             catch (Exception ex)
@@ -86,12 +75,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Creates a new tenancy under an apartment. Only the landlord, a manager with write permission,
-        /// or an owner with write permission may create a tenancy.
-        /// Dates are DateTimeOffset.
-        /// Ensures no other tenancy overlaps in the same apartment for the requested period.
-        /// </summary>
         [HttpPost]
         [Authorize]
         public async Task<IActionResult> CreateTenancy([FromBody] CreateTenancyRequest request)
@@ -107,7 +90,7 @@ namespace RentHub.API.Controllers
 
                 var apartment = await _context.Apartments
                     .Include(a => a.Property)
-                    .FirstOrDefaultAsync(a => a.Id == request.ApartmentId);
+                    .FirstOrDefaultAsync(a => a.Id == request.ApartmentId && !a.IsDeleted);
 
                 if (apartment == null)
                     return NotFound("Apartment not found.");
@@ -115,14 +98,15 @@ namespace RentHub.API.Controllers
                 if (apartment.Property == null)
                     return NotFound("Property not found.");
 
-                // Permission: landlord, manager RW on property, or owner RW on apartment
-                bool canWrite =
+                var canWrite =
                     apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        !m.IsDeleted &&
                         m.PropertyId == apartment.PropertyId &&
                         m.ManagerId == userId &&
                         m.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
                         o.ApartmentId == request.ApartmentId &&
                         o.OwnerId == userId &&
                         o.Permission == PermissionLevelEnum.ReadWrite);
@@ -130,36 +114,31 @@ namespace RentHub.API.Controllers
                 if (!canWrite)
                     return Forbid();
 
-                // Validations
+                var hasApartmentOwner = await _context.ApartmentOwners.AnyAsync(o =>
+                    !o.IsDeleted &&
+                    o.ApartmentId == request.ApartmentId &&
+                    o.Role == ApartmentMemberRoleEnum.Owner);
+
+                if (hasApartmentOwner)
+                    return BadRequest("A tenancy cannot be created for an apartment that already has an apartment member with the Owner role.");
+
                 if (request.EndDate.HasValue && request.EndDate.Value < request.StartDate)
                     return BadRequest("EndDate cannot be earlier than StartDate.");
 
                 if (request.MaxMembers <= 0)
                     return BadRequest("MaxMembers must be greater than 0.");
 
-                // ---- Overlap check (no clashing leases for the same apartment)
-                // We treat null EndDate as "open-ended".
-                var newStart = request.StartDate;
-                var newEnd = request.EndDate;
-
-                // Overlap rule:
-                // existing.Start <= newEnd (or newEnd is null => always true)
-                // AND newStart <= existing.End (or existing.End is null => always true)
-                var hasOverlap = await HasOverlappingTenancyAsync(request.ApartmentId, newStart, newEnd);
-
+                var hasOverlap = await HasOverlappingTenancyAsync(request.ApartmentId, request.StartDate, request.EndDate);
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
-                // Create tenancy. Members, including the primary tenant, are managed separately.
                 var tenancy = new Tenancy
                 {
                     ApartmentId = request.ApartmentId,
-
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
                     MonthlyRent = request.MonthlyRent,
                     MaxMembers = request.MaxMembers,
-
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
@@ -168,7 +147,7 @@ namespace RentHub.API.Controllers
                 _context.Tenancies.Add(tenancy);
                 await _context.SaveChangesAsync();
 
-                var dto = new TenancyDto
+                return Ok(new TenancyDto
                 {
                     Id = tenancy.Id,
                     ApartmentName = apartment.Name,
@@ -178,9 +157,7 @@ namespace RentHub.API.Controllers
                     MonthlyRent = tenancy.MonthlyRent,
                     MaxMembers = tenancy.MaxMembers,
                     IsOwner = apartment.Property.LandlordId == userId
-                };
-
-                return Ok(dto);
+                });
             }
             catch (Exception ex)
             {
@@ -188,11 +165,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Updates the tenancy schedule and billing values. Only the landlord, a manager with write permission,
-        /// or an apartment owner with write permission may update the tenancy. The new period cannot overlap
-        /// any other tenancy on the same apartment.
-        /// </summary>
         [HttpPut("{id}")]
         [Authorize]
         public async Task<IActionResult> UpdateTenancy(int id, [FromBody] UpdateTenancyRequest request)
@@ -220,14 +192,14 @@ namespace RentHub.API.Controllers
                 var canWrite =
                     tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        !m.IsDeleted &&
                         m.PropertyId == tenancy.Apartment.PropertyId &&
                         m.ManagerId == userId &&
-                        !m.IsDeleted &&
                         m.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
                         o.ApartmentId == tenancy.ApartmentId &&
                         o.OwnerId == userId &&
-                        !o.IsDeleted &&
                         o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite)
@@ -266,10 +238,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Updates the maximum number of members allowed for a tenancy.  Only the landlord of the
-        /// apartment or an authorized manager/owner with write permission may modify this value.
-        /// </summary>
         [HttpPut("{tenancyId}/max-members")]
         [Authorize]
         public async Task<IActionResult> UpdateMaxTenancyMembers(int tenancyId, [FromBody] int maxMembers)
@@ -277,45 +245,35 @@ namespace RentHub.API.Controllers
             try
             {
                 if (maxMembers <= 0)
-                {
                     return BadRequest("MaxMembers must be a positive integer.");
-                }
+
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment)
                     .ThenInclude(a => a.Property)
-                    .FirstOrDefaultAsync(t => t.Id == tenancyId);
+                    .FirstOrDefaultAsync(t => t.Id == tenancyId && !t.IsDeleted);
 
-                if (tenancy == null) return NotFound("Tenancy not found.");
+                if (tenancy == null)
+                    return NotFound("Tenancy not found.");
 
                 var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized();
 
-                // Determine if user is landlord of the apartment
-                bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;
-                bool canWrite = false;
-                if (isLandlord)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    // Check owner write permission
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    // Check manager write permission
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    canWrite = ownerWrite || managerWrite;
-                }
+                var canWrite =
+                    tenancy.Apartment!.Property!.LandlordId == userId ||
+                    await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => !m.IsDeleted && m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
+
                 if (!canWrite)
-                {
                     return Forbid();
-                }
+
                 tenancy.MaxMembers = maxMembers;
                 tenancy.UpdatedBy = userId;
-                tenancy.UpdatedAt = DateTime.UtcNow;
+                tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+
                 _context.Tenancies.Update(tenancy);
                 await _context.SaveChangesAsync();
+
                 return Ok(new { Message = "MaxMembers updated successfully.", TenancyId = tenancy.Id, MaxMembers = tenancy.MaxMembers });
             }
             catch (Exception ex)
@@ -324,10 +282,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Extends or renews a tenancy by setting a new end date.  Only the landlord or
-        /// an authorized manager/owner with write permission may perform this operation.
-        /// </summary>
         [HttpPut("{id}/extend")]
         [Authorize]
         public async Task<IActionResult> ExtendTenancy(int id, [FromBody] ExtendTenancyRequest request)
@@ -335,40 +289,34 @@ namespace RentHub.API.Controllers
             try
             {
                 var tenancy = await _context.Tenancies
-                    .Include(t => t.Apartment!.Property)
-                    .FirstOrDefaultAsync(t => t.Id == id);
-                if (tenancy == null) return NotFound("Tenancy not found.");
+                    .Include(t => t.Apartment!)
+                    .ThenInclude(a => a.Property)
+                    .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
+
+                if (tenancy == null)
+                    return NotFound("Tenancy not found.");
+
                 var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Validate new end date
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized();
+
                 if (request.NewEndDate <= tenancy.StartDate)
-                {
                     return BadRequest("New end date must be after the tenancy start date.");
-                }
-                // Determine if user can modify end date
-                bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;
-                bool canWrite = false;
-                if (isLandlord)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == tenancy!.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    canWrite = ownerWrite || managerWrite;
-                }
+
+                var canWrite =
+                    tenancy.Apartment!.Property!.LandlordId == userId ||
+                    await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => !m.IsDeleted && m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
+
                 if (!canWrite)
-                {
                     return Forbid();
-                }
+
                 tenancy.EndDate = request.NewEndDate;
                 tenancy.UpdatedBy = userId;
-                tenancy.UpdatedAt = DateTime.UtcNow;
+                tenancy.UpdatedAt = DateTimeOffset.UtcNow;
                 _context.Tenancies.Update(tenancy);
                 await _context.SaveChangesAsync();
+
                 return Ok(new { Message = "Tenancy extended successfully.", TenancyId = tenancy.Id, NewEndDate = tenancy.EndDate });
             }
             catch (Exception ex)
@@ -386,18 +334,18 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-                var apt = await _context.Apartments
+                var apartment = await _context.Apartments
                     .Include(a => a.Property)
-                    .FirstOrDefaultAsync(a => a.Id == apartmentId);
+                    .FirstOrDefaultAsync(a => a.Id == apartmentId && !a.IsDeleted);
 
-                if (apt == null) return NotFound("Apartment not found.");
+                if (apartment == null) return NotFound("Apartment not found.");
 
-                // Access: landlord, manager of property, owner of apartment, or tenant of any tenancy in apt
-                bool hasAccess =
-                    apt.Property?.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apt.PropertyId && m.ManagerId == userId) ||
-                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
+                var hasAccess =
+                    apartment.Property?.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => !m.IsDeleted && m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
+                    await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == apartmentId && o.OwnerId == userId) ||
                     await _context.Tenancies.AnyAsync(t =>
+                        !t.IsDeleted &&
                         t.ApartmentId == apartmentId &&
                         t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
 
@@ -409,13 +357,13 @@ namespace RentHub.API.Controllers
                     .Select(t => new TenancyDto
                     {
                         Id = t.Id,
-                        ApartmentName = apt.Name,
-                        PropertyName = apt.Property!.Name,
+                        ApartmentName = apartment.Name,
+                        PropertyName = apartment.Property!.Name,
                         StartDate = t.StartDate,
                         EndDate = t.EndDate,
                         MonthlyRent = t.MonthlyRent,
                         MaxMembers = t.MaxMembers,
-                        IsOwner = apt.Property!.LandlordId == userId
+                        IsOwner = apartment.Property!.LandlordId == userId
                     })
                     .ToListAsync();
 
@@ -427,10 +375,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Adds a member to a tenancy. Only landlord / manager RW / owner RW can add members.
-        /// Will create the user if not exists (optional behavior), then add to tenancy.
-        /// </summary>
         [HttpPost("{tenancyId}/members")]
         [Authorize]
         public async Task<IActionResult> AddTenancyMember(int tenancyId, [FromBody] AddTenancyMemberRequest request)
@@ -448,19 +392,21 @@ namespace RentHub.API.Controllers
                     .Include(t => t.Apartment)
                     .ThenInclude(a => a.Property)
                     .Include(t => t.Members)
-                    .FirstOrDefaultAsync(t => t.Id == tenancyId);
+                    .ThenInclude(m => m.Member)
+                    .FirstOrDefaultAsync(t => t.Id == tenancyId && !t.IsDeleted);
 
                 if (tenancy == null) return NotFound("Tenancy not found.");
                 if (tenancy.Apartment?.Property == null) return NotFound("Property not found.");
 
-                // permission: landlord OR manager RW OR owner RW
-                bool canWrite =
+                var canWrite =
                     tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        !m.IsDeleted &&
                         m.PropertyId == tenancy.Apartment.PropertyId &&
                         m.ManagerId == userId &&
                         m.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
                         o.ApartmentId == tenancy.ApartmentId &&
                         o.OwnerId == userId &&
                         o.Permission == PermissionLevelEnum.ReadWrite);
@@ -468,13 +414,12 @@ namespace RentHub.API.Controllers
                 if (!canWrite) return Forbid();
 
                 var currentCount = tenancy.Members.Count(m => !m.IsDeleted);
-
                 if (currentCount >= tenancy.MaxMembers)
                     return BadRequest($"Maximum number of members ({tenancy.MaxMembers}) reached for this tenancy.");
 
-                // Find or create user
                 var email = (request.Email ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");
+                if (string.IsNullOrWhiteSpace(email))
+                    return BadRequest("Email is required.");
 
                 var memberUser = (await _userOnboardingService.EnsureUserAsync(
                     email,
@@ -483,17 +428,32 @@ namespace RentHub.API.Controllers
                     request.PhoneNumber,
                     "Tenant")).User;
 
-                // Prevent duplicates
                 var alreadyMember = tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == memberUser.Id);
-                if (alreadyMember) return BadRequest("User is already a member of this tenancy.");
+                if (alreadyMember)
+                    return BadRequest("User is already a member of this tenancy.");
 
-                if (request.Role == TenancyMemberRoleEnum.Primary &&
-                    tenancy.Members.Any(m => !m.IsDeleted && m.Role == TenancyMemberRoleEnum.Primary))
+                var isPropertyMember = await _context.PropertyManagerAssignments.AnyAsync(m =>
+                    !m.IsDeleted &&
+                    m.PropertyId == tenancy.Apartment.PropertyId &&
+                    m.ManagerId == memberUser.Id);
+
+                if (isPropertyMember)
+                    return BadRequest("Property members cannot also be added as apartment or tenancy members within the same property.");
+
+                var isApartmentMember = await _context.ApartmentOwners.AnyAsync(o =>
+                    !o.IsDeleted &&
+                    o.ApartmentId == tenancy.ApartmentId &&
+                    o.OwnerId == memberUser.Id);
+
+                if (isApartmentMember)
+                    return BadRequest("An apartment member cannot also be added as a tenancy member for the same apartment.");
+
+                if (request.Role == TenancyMemberRoleEnum.MainTenant &&
+                    tenancy.Members.Any(m => !m.IsDeleted && m.Role == TenancyMemberRoleEnum.MainTenant))
                 {
-                    return BadRequest("This tenancy already has a primary tenant.");
+                    return BadRequest("This tenancy already has a main tenant.");
                 }
 
-                // Add member entity
                 var member = new TenancyMember
                 {
                     TenancyId = tenancyId,
@@ -505,19 +465,19 @@ namespace RentHub.API.Controllers
                 };
 
                 _context.TenancyMembers.Add(member);
-
                 await _context.SaveChangesAsync();
 
-                var dto = new TenancyMemberDto
+                return Ok(new TenancyMemberDto
                 {
                     Id = member.Id,
                     TenancyId = member.TenancyId,
                     MemberId = member.MemberId,
+                    Role = member.Role.ToString(),
                     FullName = memberUser.FullName ?? string.Empty,
+                    Email = memberUser.Email ?? string.Empty,
+                    CountryCode = memberUser.CountryCode ?? string.Empty,
                     CreatedAt = member.CreatedAt
-                };
-
-                return Ok(dto);
+                });
             }
             catch (Exception ex)
             {
@@ -525,9 +485,69 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Removes a tenancy member (soft delete). Only landlord / manager RW / owner RW.
-        /// </summary>
+        [HttpPut("{tenancyId}/members/{memberId}")]
+        [Authorize]
+        public async Task<IActionResult> UpdateTenancyMember(int tenancyId, int memberId, [FromBody] UpdateTenancyMemberRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrEmpty(userId))
+                    return Unauthorized();
+
+                var tenancy = await _context.Tenancies
+                    .Include(t => t.Apartment)
+                    .ThenInclude(a => a.Property)
+                    .Include(t => t.Members)
+                    .FirstOrDefaultAsync(t => t.Id == tenancyId && !t.IsDeleted);
+
+                if (tenancy == null) return NotFound("Tenancy not found.");
+                if (tenancy.Apartment?.Property == null) return NotFound("Property not found.");
+
+                var canWrite =
+                    tenancy.Apartment.Property.LandlordId == userId ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        !m.IsDeleted &&
+                        m.PropertyId == tenancy.Apartment.PropertyId &&
+                        m.ManagerId == userId &&
+                        m.Permission == PermissionLevelEnum.ReadWrite) ||
+                    await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
+                        o.ApartmentId == tenancy.ApartmentId &&
+                        o.OwnerId == userId &&
+                        o.Permission == PermissionLevelEnum.ReadWrite);
+
+                if (!canWrite) return Forbid();
+
+                var member = await _context.TenancyMembers
+                    .FirstOrDefaultAsync(m => m.Id == memberId && m.TenancyId == tenancyId && !m.IsDeleted);
+
+                if (member == null)
+                    return NotFound("Tenancy member not found.");
+
+                if (request.Role == TenancyMemberRoleEnum.MainTenant &&
+                    tenancy.Members.Any(m => !m.IsDeleted && m.Id != memberId && m.Role == TenancyMemberRoleEnum.MainTenant))
+                {
+                    return BadRequest("This tenancy already has a main tenant.");
+                }
+
+                member.Role = request.Role;
+                member.UpdatedBy = userId;
+                member.UpdatedAt = DateTimeOffset.UtcNow;
+                _context.TenancyMembers.Update(member);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { Message = "Tenancy member updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
         [HttpDelete("{tenancyId}/members/{memberId}")]
         [Authorize]
         public async Task<IActionResult> RemoveTenancyMember(int tenancyId, int memberId)
@@ -541,18 +561,20 @@ namespace RentHub.API.Controllers
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment)
                     .ThenInclude(a => a.Property)
-                    .FirstOrDefaultAsync(t => t.Id == tenancyId);
+                    .FirstOrDefaultAsync(t => t.Id == tenancyId && !t.IsDeleted);
 
                 if (tenancy == null) return NotFound("Tenancy not found.");
                 if (tenancy.Apartment?.Property == null) return NotFound("Property not found.");
 
-                bool canWrite =
+                var canWrite =
                     tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
+                        !m.IsDeleted &&
                         m.PropertyId == tenancy.Apartment.PropertyId &&
                         m.ManagerId == userId &&
                         m.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
                         o.ApartmentId == tenancy.ApartmentId &&
                         o.OwnerId == userId &&
                         o.Permission == PermissionLevelEnum.ReadWrite);
@@ -560,16 +582,14 @@ namespace RentHub.API.Controllers
                 if (!canWrite) return Forbid();
 
                 var member = await _context.TenancyMembers
-                    .FirstOrDefaultAsync(m => m.Id == memberId && m.TenancyId == tenancyId);
+                    .FirstOrDefaultAsync(m => m.Id == memberId && m.TenancyId == tenancyId && !m.IsDeleted);
 
                 if (member == null) return NotFound("Tenancy member not found.");
 
                 member.IsDeleted = true;
                 member.UpdatedBy = userId;
                 member.UpdatedAt = DateTimeOffset.UtcNow;
-
                 _context.TenancyMembers.Update(member);
-
                 await _context.SaveChangesAsync();
 
                 return Ok(new { Message = "Member removed successfully." });
@@ -598,75 +618,62 @@ namespace RentHub.API.Controllers
                     .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
 
                 if (tenancy == null) return NotFound("Tenancy not found.");
-                if (tenancy.Apartment == null) return NotFound("Apartment not found.");
-                if (tenancy.Apartment.Property == null) return NotFound("Property not found.");
+                if (tenancy.Apartment?.Property == null) return NotFound("Property not found.");
 
-                var apartment = tenancy.Apartment;
-                var property = tenancy.Apartment.Property;
-
-                // Access: tenant (primary), member, landlord, owner, manager
-                bool hasAccess =
+                var hasAccess =
                     tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == userId) ||
-                    property.LandlordId == userId ||
-                    await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && !o.IsDeleted) ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == property.Id && m.ManagerId == userId && !m.IsDeleted);
+                    tenancy.Apartment.Property.LandlordId == userId ||
+                    await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId) ||
+                    await _context.PropertyManagerAssignments.AnyAsync(m => !m.IsDeleted && m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId);
 
                 if (!hasAccess) return Forbid();
 
-                // CanWrite: landlord OR manager RW OR owner RW
-                bool canWrite =
-                    property.LandlordId == userId ||
+                var canWrite =
+                    tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
-                        m.PropertyId == property.Id &&
-                        m.ManagerId == userId &&
                         !m.IsDeleted &&
+                        m.PropertyId == tenancy.Apartment.PropertyId &&
+                        m.ManagerId == userId &&
                         m.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.ApartmentOwners.AnyAsync(o =>
+                        !o.IsDeleted &&
                         o.ApartmentId == tenancy.ApartmentId &&
                         o.OwnerId == userId &&
-                        !o.IsDeleted &&
                         o.Permission == PermissionLevelEnum.ReadWrite);
 
-                // Members DTO
                 var members = tenancy.Members
                     .Where(m => !m.IsDeleted)
-                    .OrderByDescending(m => m.CreatedAt)
+                    .OrderBy(m => m.Role == TenancyMemberRoleEnum.MainTenant ? 0 : 1)
+                    .ThenByDescending(m => m.CreatedAt)
                     .Select(m => new TenancyMemberDto
                     {
                         Id = m.Id,
                         TenancyId = m.TenancyId,
                         MemberId = m.MemberId,
-                        FullName = m.Member != null ? (m.Member.FullName ?? m.Member.Email ?? "") : "",
+                        Role = m.Role.ToString(),
+                        FullName = m.Member != null ? (m.Member.FullName ?? m.Member.Email ?? string.Empty) : string.Empty,
+                        Email = m.Member?.Email ?? string.Empty,
+                        CountryCode = m.Member?.CountryCode ?? string.Empty,
                         CreatedAt = m.CreatedAt
                     })
                     .ToList();
 
-                // Documents (tenancy contracts etc.)
-                var docs = await _context.Documents
+                var documentEntities = await _context.Documents
                     .Where(d => d.TenancyId == tenancy.Id && !d.IsDeleted)
                     .OrderByDescending(d => d.CreatedAt)
-                    .Select(d => new DocumentDto
-                    {
-                        Id = d.Id,
-                        FileName = d.FileName,
-                        BlobUrl = d.BlobUrl,
-                        DocumentType = d.DocumentType,
-                        UploadedAt = d.UploadedAt,
-                        PropertyId = d.PropertyId,
-                        ApartmentId = d.ApartmentId,
-                        TenancyId = d.TenancyId
-                    })
                     .ToListAsync();
 
-                var dto = new TenancyOverviewDto
+                var docs = await DocumentHelpers.ToDtosAsync(documentEntities, _storageService);
+
+                return Ok(new TenancyOverviewDto
                 {
                     Tenancy = new TenancyDetailsDto
                     {
                         Id = tenancy.Id,
                         ApartmentId = tenancy.ApartmentId,
-                        ApartmentName = apartment.Name,
-                        PropertyId = apartment.PropertyId,
-                        PropertyName = property.Name,
+                        ApartmentName = tenancy.Apartment.Name,
+                        PropertyId = tenancy.Apartment.PropertyId,
+                        PropertyName = tenancy.Apartment.Property.Name,
                         StartDate = tenancy.StartDate,
                         EndDate = tenancy.EndDate,
                         MonthlyRent = tenancy.MonthlyRent,
@@ -675,9 +682,7 @@ namespace RentHub.API.Controllers
                     },
                     Members = members,
                     Documents = docs
-                };
-
-                return Ok(dto);
+                });
             }
             catch (Exception ex)
             {
@@ -695,8 +700,3 @@ namespace RentHub.API.Controllers
         }
     }
 }
-
-
-
-
-

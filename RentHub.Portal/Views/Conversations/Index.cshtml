@@ -1,0 +1,94 @@
+@using System
+@model RentHub.Portal.ViewModels.Conversations.ConversationInboxVm
+@{
+    ViewData["Title"] = "Messages";
+}
+
+<section class="rh-conversation-page">
+    <div class="rh-conversation-layout">
+        <aside class="rh-conversation-sidebar rh-panel rh-panel-elevated">
+            <div class="rh-conversation-head">
+                <div>
+                    <span class="rh-public-kicker">Inbox</span>
+                    <h1>@(Model.IsVisitor ? "Your apartment chats" : "Visitor inquiries")</h1>
+                </div>
+            </div>
+
+            @if (Model.Items.Count == 0)
+            {
+                <div class="rh-empty">No conversations yet.</div>
+            }
+            else
+            {
+                <div class="rh-conversation-list">
+                    @foreach (var item in Model.Items)
+                    {
+                        <a class="rh-conversation-list-item @(Model.SelectedConversationId == item.ConversationId ? "is-active" : null)" asp-action="Index" asp-route-conversationId="@item.ConversationId">
+                            <div class="rh-conversation-thumb">
+                                @if (!string.IsNullOrWhiteSpace(item.LeadImageUrl))
+                                {
+                                    <img src="@item.LeadImageUrl" alt="@item.ApartmentName" />
+                                }
+                                else
+                                {
+                                    <span>@(string.IsNullOrWhiteSpace(item.ApartmentName) ? "?" : item.ApartmentName.Substring(0, 1).ToUpperInvariant())</span>
+                                }
+                            </div>
+                            <div>
+                                <strong>@item.ApartmentName</strong>
+                                <p>@item.CounterpartyName</p>
+                                <small>@item.LastMessagePreview</small>
+                            </div>
+                            @if (item.HasUnreadMessages)
+                            {
+                                <span class="rh-conversation-unread"></span>
+                            }
+                        </a>
+                    }
+                </div>
+            }
+        </aside>
+
+        <section class="rh-conversation-thread rh-panel rh-panel-elevated">
+            @if (Model.SelectedConversation == null)
+            {
+                <div class="rh-empty">Select a conversation to read and reply.</div>
+            }
+            else
+            {
+                <div class="rh-conversation-thread-head">
+                    <div>
+                        <span class="rh-public-kicker">Apartment</span>
+                        <h2>@Model.SelectedConversation.ApartmentName</h2>
+                        <p>@Model.SelectedConversation.PropertyName, @Model.SelectedConversation.City</p>
+                    </div>
+                    <div class="rh-conversation-thread-meta">
+                        <span class="rh-public-status status-@Model.SelectedConversation.Status.ToLowerInvariant()">@Model.SelectedConversation.Status</span>
+                        <strong>@Model.SelectedConversation.Price.ToString("N0") XAF</strong>
+                    </div>
+                </div>
+
+                <div class="rh-public-chat-thread rh-public-chat-thread-inbox">
+                    @foreach (var message in Model.SelectedConversation.Messages)
+                    {
+                        <div class="rh-chat-bubble @(message.SentByCurrentUser ? "is-self" : "is-other")">
+                            <strong>@message.SenderName</strong>
+                            <p>@message.Body</p>
+                            <small>@message.SentAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
+                        </div>
+                    }
+                </div>
+
+                <form asp-action="SendMessage" method="post" class="rh-public-chat-form mt-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="conversationId" value="@Model.SelectedConversation.ConversationId" />
+                    <label class="form-label rh-auth-label">Reply</label>
+                    <textarea name="message" class="form-control rh-auth-input" rows="4" placeholder="Write your reply"></textarea>
+                    <button type="submit" class="btn rh-btn-primary mt-3">Send Reply</button>
+                </form>
+            }
+        </section>
+    </div>
+</section>
+
+

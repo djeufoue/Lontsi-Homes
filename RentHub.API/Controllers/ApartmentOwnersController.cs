@@ -20,7 +20,8 @@ namespace RentHub.API.Controllers
     /// simply manage the unit on behalf of the landlord.
     /// </summary>
     [ApiController]
-    [Route("api/apartments/{apartmentId}/owners")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    [Route("api/[controller]")]
     public class ApartmentOwnersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -243,3 +244,5 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+

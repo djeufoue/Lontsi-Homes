@@ -40,8 +40,24 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQXV0aFxSZWdpc3Rlci5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Auth/RegisterVisitor.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQXV0aFxSZWdpc3RlclZpc2l0b3IuY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Auth/VerifyAccount.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQXV0aFxWZXJpZnlBY2NvdW50LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Auth/VerifyVisitorAccount.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQXV0aFxWZXJpZnlWaXNpdG9yQWNjb3VudC5jc2h0bWw=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Conversations/Index.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcQ29udmVyc2F0aW9uc1xJbmRleC5jc2h0bWw=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Home/Apartment.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxBcGFydG1lbnQuY3NodG1s
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Home/Index.cshtml]
@@ -86,6 +102,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Shared/_ValidationScriptsPartial.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcU2hhcmVkXF9WYWxpZGF0aW9uU2NyaXB0c1BhcnRpYWwuY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/Tenancies/Overview.cshtml]
+build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVGVuYW5jaWVzXE92ZXJ2aWV3LmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Projects/Rent Management Project/RentHub/RentHub.Portal/Views/_ViewImports.cshtml]

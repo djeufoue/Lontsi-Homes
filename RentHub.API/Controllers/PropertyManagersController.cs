@@ -100,10 +100,22 @@ namespace RentHub.API.Controllers
                     "Manager")).User;
 
                 var existing = await _context.PropertyManagerAssignments
-                    .FirstOrDefaultAsync(m => m.PropertyId == propertyId && m.ManagerId == managerUser.Id);
+                    .FirstOrDefaultAsync(m => m.PropertyId == propertyId && m.ManagerId == managerUser.Id && !m.IsDeleted);
 
                 if (existing != null)
                     return BadRequest("This user is already a manager of the property.");
+
+                var isApartmentMember = await _context.ApartmentOwners
+                    .AnyAsync(o => !o.IsDeleted && o.OwnerId == managerUser.Id && o.Apartment != null && o.Apartment.PropertyId == propertyId);
+
+                if (isApartmentMember)
+                    return BadRequest("Apartment members cannot also be assigned as property members within the same property.");
+
+                var isTenancyMember = await _context.TenancyMembers
+                    .AnyAsync(m => !m.IsDeleted && m.MemberId == managerUser.Id && m.Tenancy != null && !m.Tenancy.IsDeleted && m.Tenancy.Apartment != null && m.Tenancy.Apartment.PropertyId == propertyId);
+
+                if (isTenancyMember)
+                    return BadRequest("Tenancy members cannot also be assigned as property members within the same property.");
 
                 var assignment = new PropertyManagerAssignment
                 {
@@ -206,6 +218,7 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
 
 
 

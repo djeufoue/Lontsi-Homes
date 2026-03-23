@@ -24,6 +24,8 @@ namespace RentHub.API.Data
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<Document> Documents => Set<Document>();
+        public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
+        public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
         // Extension requests and settings
         public DbSet<TenancyExtensionRequest> TenancyExtensionRequests => Set<TenancyExtensionRequest>();
@@ -59,6 +61,22 @@ namespace RentHub.API.Data
             builder.Entity<UserSubscription>()
                 .Property(us => us.PlanPriceSnapshot)
                 .HasPrecision(18, 2);
+
+            builder.Entity<ApartmentConversation>()
+                .HasIndex(c => new { c.ApartmentId, c.VisitorId })
+                .IsUnique();
+
+            builder.Entity<ApartmentConversation>()
+                .HasOne(c => c.Apartment)
+                .WithMany()
+                .HasForeignKey(c => c.ApartmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<ConversationMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Ensure that each owner is assigned only once per apartment
             builder.Entity<ApartmentOwner>()

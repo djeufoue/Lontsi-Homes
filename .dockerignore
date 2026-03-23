@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.nuget-appdata/
+.nuget-packages/
+build-verify/
+*.user
+*.suo
+*.cache
+*.pdb
+*.zip
+deploy/vps/.env.production

@@ -19,6 +19,7 @@ namespace RentHub.API.Models.Entities
         public string OwnerId { get; set; } = string.Empty;
         public ApplicationUser? Owner { get; set; }
 
+        public ApartmentMemberRoleEnum Role { get; set; } = ApartmentMemberRoleEnum.Owner;
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
 
         // Audit fields

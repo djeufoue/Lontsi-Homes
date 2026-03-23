@@ -5,7 +5,9 @@ namespace Common.Enums
     /// </summary>
     public enum TenancyMemberRoleEnum
     {
-        Primary = 1,
-        CoTenant = 2
+        MainTenant = 1,
+        CoTenant = 2,
+        Children = 3,
+        Visitor = 4
     }
 }
