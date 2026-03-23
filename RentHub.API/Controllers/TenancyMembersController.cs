@@ -13,7 +13,8 @@ using RentHub.API.Services.Users;
 namespace RentHub.API.Controllers
 {
     [ApiController]
-    [Route("api/tenancies/{tenancyId}/members")]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    [Route("api/[controller]")]
     public class TenancyMembersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -64,8 +65,8 @@ namespace RentHub.API.Controllers
                 if (tenancy.Members.Any(tm => !tm.IsDeleted && tm.MemberId == memberUser.Id))
                     return BadRequest("User is already a member of this tenancy.");
 
-                if (request.Role == Common.Enums.TenancyMemberRoleEnum.Primary &&
-                    tenancy.Members.Any(tm => !tm.IsDeleted && tm.Role == Common.Enums.TenancyMemberRoleEnum.Primary))
+                if (request.Role == Common.Enums.TenancyMemberRoleEnum.MainTenant &&
+                    tenancy.Members.Any(tm => !tm.IsDeleted && tm.Role == Common.Enums.TenancyMemberRoleEnum.MainTenant))
                 {
                     return BadRequest("This tenancy already has a primary tenant.");
                 }
@@ -144,6 +145,9 @@ namespace RentHub.API.Controllers
         }
     }
 }
+
+
+
 
 
 

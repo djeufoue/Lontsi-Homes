@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Common.Enums;
 
 namespace RentHub.API.Models.Entities
 {
@@ -10,6 +11,13 @@ namespace RentHub.API.Models.Entities
     {
         public string? FullName { get; set; }
         public string? CountryCode { get; set; }
+        public string? PayoutPhoneNumber { get; set; }
+        public PayoutChannelEnum? PayoutChannel { get; set; }
+        public bool IsPayoutPhoneVerified { get; set; }
+        public DateTimeOffset? PayoutPhoneVerifiedAt { get; set; }
+        public string? WhatsAppPhoneNumber { get; set; }
+        public bool IsWhatsAppPhoneVerified { get; set; }
+        public DateTimeOffset? WhatsAppPhoneVerifiedAt { get; set; }
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation properties

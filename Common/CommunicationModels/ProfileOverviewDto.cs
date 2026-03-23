@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Common.Enums;
 
 namespace Common.CommunicationModels
 {
@@ -12,6 +13,11 @@ namespace Common.CommunicationModels
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
         public string? PhoneNumber { get; set; }
+        public string? PayoutPhoneNumber { get; set; }
+        public PayoutChannelEnum? PayoutChannel { get; set; }
+        public bool IsPayoutPhoneVerified { get; set; }
+        public string? WhatsAppPhoneNumber { get; set; }
+        public bool IsWhatsAppPhoneVerified { get; set; }
         public List<string> Roles { get; set; } = new();
 
         public int PropertyCount { get; set; }

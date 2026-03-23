@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Common.Enums;
 
 namespace RentHub.Portal.ViewModels.Auth
 {
@@ -24,6 +25,20 @@ namespace RentHub.Portal.ViewModels.Auth
         public string? PhoneNumber { get; set; }
 
         [Required]
+        [Display(Name = "Rent payout number")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Payout number must contain only digits and may start with +.")]
+        public string PayoutPhoneNumber { get; set; } = "";
+
+        [Required]
+        [Display(Name = "Payout channel")]
+        public PayoutChannelEnum? PayoutChannel { get; set; }
+
+        [Required]
+        [Display(Name = "WhatsApp number")]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string WhatsAppPhoneNumber { get; set; } = "";
+
+        [Required]
         public string Password { get; set; } = "";
 
         [Required]
@@ -31,7 +46,7 @@ namespace RentHub.Portal.ViewModels.Auth
         [Display(Name = "Confirm Password")]
         public string ConfirmPassword { get; set; } = "";
 
-        [Required]
-        public int PlanId { get; set; }
+        public int? PlanId { get; set; }
+        public string? ReturnUrl { get; set; }
     }
 }

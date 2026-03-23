@@ -9,5 +9,7 @@ namespace RentHub.Portal.ViewModels.Auth
 
         [Required]
         public string Password { get; set; } = "";
+
+        public string? ReturnUrl { get; set; }
     }
 }

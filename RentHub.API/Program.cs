@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.HttpOverrides;
 
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
@@ -20,9 +21,17 @@ using RentHub.API.Services.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Controllers & endpoints
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpClient();
 
 // Swagger (register a v1 doc + JWT auth button)
 builder.Services.AddSwaggerGen(c =>
@@ -127,6 +136,7 @@ builder.Services.AddAuthentication(options =>
 
 // Domain services
 builder.Services.AddScoped<IPaymentService, OrangeMoneyService>();
+builder.Services.AddScoped<INotchPayService, NotchPayService>();
 builder.Services.AddScoped<MomoService>();
 builder.Services.AddScoped<CardPaymentService>();
 builder.Services.AddScoped<IStorageService, AzureStorageService>();
@@ -157,6 +167,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Pipeline
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseRouting();
 

@@ -60,7 +60,7 @@ namespace RentHub.API.Services.Reminders
                             var apartment = tenancy.Apartment!;
                             var property = apartment.Property!;
                             var primaryTenant = tenancy.Members
-                                .Where(member => !member.IsDeleted && member.Role == TenancyMemberRoleEnum.Primary)
+                                .Where(member => !member.IsDeleted && member.Role == TenancyMemberRoleEnum.MainTenant)
                                 .Select(member => member.Member)
                                 .FirstOrDefault(member => member != null)
                                 ?? tenancy.Members
@@ -193,3 +193,4 @@ namespace RentHub.API.Services.Reminders
         }
     }
 }
+

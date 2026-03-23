@@ -40,7 +40,9 @@ namespace RentHub.API.Helpers
 
             if (!activeSubscription.IsApproved)
             {
-                scope.StatusMessage = "Subscription is pending approval.";
+                scope.StatusMessage = activeSubscription.PaymentStatus == PaymentStatusEnum.Success
+                    ? "Subscription is awaiting final approval."
+                    : "Subscription payment is pending.";
                 return scope;
             }
 
@@ -115,6 +117,8 @@ namespace RentHub.API.Helpers
         }
     }
 }
+
+
 
 
 

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Common.Enums;
 
 namespace RentHub.API.Models.Entities
 {
@@ -24,6 +25,13 @@ namespace RentHub.API.Models.Entities
         public int PlanDurationInDaysSnapshot { get; set; }
         public int? PlanMaxPropertiesSnapshot { get; set; }
         public int? PlanMaxApartmentsPerPropertySnapshot { get; set; }
+        public PaymentMethodEnum? PaymentMethod { get; set; }
+        public PaymentStatusEnum PaymentStatus { get; set; } = PaymentStatusEnum.Pending;
+        public string PaymentReference { get; set; } = string.Empty;
+        public string? PaymentProviderTransactionId { get; set; }
+        public string? PaymentAuthorizationUrl { get; set; }
+        public bool AllowAutomaticCardPayments { get; set; }
+        public DateTimeOffset? PaymentCompletedAt { get; set; }
 
         /// <summary>
         /// Indicates whether the subscription has been approved by an administrator. Landlords

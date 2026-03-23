@@ -16,5 +16,12 @@ namespace RentHub.API.Services.Sms
         /// <param name="to">The recipient phone number including country code.</param>
         /// <param name="message">The body of the SMS message.</param>
         Task SendSmsAsync(string to, string message);
+
+        /// <summary>
+        /// Sends a WhatsApp message to the specified phone number.
+        /// </summary>
+        /// <param name="to">The recipient phone number including country code.</param>
+        /// <param name="message">The message body.</param>
+        Task SendWhatsAppAsync(string to, string message);
     }
 }

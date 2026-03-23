@@ -9,8 +9,20 @@ namespace RentHub.Portal.ViewModels.Auth
         public string Email { get; set; } = string.Empty;
 
         [Required]
-        [Display(Name = "OTP Code")]
+        [Display(Name = "Email OTP")]
         [StringLength(6, MinimumLength = 4)]
-        public string Otp { get; set; } = string.Empty;
+        public string EmailOtp { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Payout OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string PayoutOtp { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "WhatsApp OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string WhatsAppOtp { get; set; } = string.Empty;
+
+        public string? ReturnUrl { get; set; }
     }
 }

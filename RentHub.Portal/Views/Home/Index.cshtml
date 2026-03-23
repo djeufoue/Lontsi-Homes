@@ -1,162 +1,172 @@
+@using System
+@model RentHub.Portal.ViewModels.Home.PublicHomeIndexVm
 @{
-    ViewData["Title"] = "Dashboard";
+    ViewData["Title"] = "RentHub";
 }
 
-<section class="rh-dashboard-shell">
-    <section class="rh-dashboard-commanddeck rh-panel-elevated">
-        <div class="rh-dashboard-heading-block">
-            <p class="rh-kicker">Operations Cockpit</p>
-            <h1 class="rh-heading-title">Dashboard</h1>
-            <p class="rh-heading-subtitle">A cleaner command center for portfolio health, occupancy movement, documents, and team activity.</p>
+<section class="rh-public-home">
+    <section class="rh-public-hero">
+        <div class="rh-public-hero-copy">
+            <span class="rh-public-kicker">RentHub</span>
+            <h1>Discover apartments. Manage rentals. Keep conversations private.</h1>
+            <p>RentHub helps visitors find apartments, contact landlords through verified private chat, and helps landlords manage subscriptions, properties, apartments, and rent workflows from one place.</p>
+            <div class="rh-public-hero-actions">
+                @if (Model.IsLandlordOperator)
+                {
+                    <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Index">View My Properties</a>
+                }
+                else
+                {
+                    <a class="btn rh-btn-primary" asp-controller="Auth" asp-action="Register">Create Landlord Account</a>
+                }
+
+                @if (Model.CanOpenMessages)
+                {
+                    <a class="btn rh-btn-subtle" asp-controller="Conversations" asp-action="Index">Open Messages</a>
+                }
+                else
+                {
+                    <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login">Log In</a>
+                }
+            </div>
+        </div>
+
+        <div class="rh-public-hero-metrics">
+            <div class="rh-public-metric-card">
+                <strong>@Model.TotalCount</strong>
+                <span>apartments in the public showcase</span>
+            </div>
+            <div class="rh-public-metric-card">
+                <strong>Private chat</strong>
+                <span>verified visitor conversations with landlords</span>
+            </div>
+            <div class="rh-public-metric-card">
+                <strong>MTN, Orange, Visa</strong>
+                <span>subscription checkout options for landlords</span>
+            </div>
         </div>
     </section>
 
-    <section class="rh-dashboard-workbench">
-        <div class="rh-dashboard-primary-column">
-            <article class="rh-dashboard-overview-card rh-panel rh-panel-elevated">
-                <div class="rh-dashboard-panel-head">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Overview</h2>
-                        <p class="rh-dashboard-panel-copy">Keep a visual pulse on your workspace and jump quickly into operational tasks.</p>
-                    </div>
+    <section class="rh-public-search-panel rh-panel rh-panel-elevated">
+        <form method="get" asp-action="Index" class="rh-public-search-form">
+            <input type="text" name="search" value="@Model.Search" class="form-control rh-auth-input" placeholder="Search by apartment, property, city, or address" />
+            <input type="text" name="city" value="@Model.City" class="form-control rh-auth-input" placeholder="City" />
+            <select name="status" class="form-select rh-auth-input rh-auth-select">
+                <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Status) ? "selected" : null)">All statuses</option>
+                <option value="Vacant" selected="@(string.Equals(Model.Status, "Vacant", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Available</option>
+                <option value="Occupied" selected="@(string.Equals(Model.Status, "Occupied", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Occupied</option>
+                <option value="Reserved" selected="@(string.Equals(Model.Status, "Reserved", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">Reserved</option>
+            </select>
+            <button type="submit" class="btn rh-btn-primary">Search</button>
+        </form>
+    </section>
 
-                    <div class="rh-dashboard-range-chip">Last 30 days</div>
-                </div>
-
-                <div class="rh-dashboard-statband">
-                    <div class="rh-dashboard-stat-tile">
-                        <span class="rh-dashboard-stat-icon">&#9787;</span>
-                        <p>Accessible Properties</p>
-                        <h3>Portfolio</h3>
-                        <small>Role-aware access remains active.</small>
-                    </div>
-
-                    <div class="rh-dashboard-stat-tile">
-                        <span class="rh-dashboard-stat-icon rh-dashboard-stat-icon-alt">&#9635;</span>
-                        <p>Focus Module</p>
-                        <h3>Properties</h3>
-                        <small>Units, members, documents, and settings.</small>
-                    </div>
-                </div>
-
-                <div class="rh-dashboard-storyline">
-                    <div>
-                        <h3>857 new workspace touches this month</h3>
-                        <p>Open the property module to add assets, adjust access, review member changes, and keep documentation aligned with the property team.</p>
-                    </div>
-
-                    <div class="rh-dashboard-avatar-row">
-                        <div class="rh-dashboard-mini-profile">
-                            <span class="rh-dashboard-mini-avatar">A</span>
-                            <small>Admin</small>
-                        </div>
-                        <div class="rh-dashboard-mini-profile">
-                            <span class="rh-dashboard-mini-avatar">L</span>
-                            <small>Landlord</small>
-                        </div>
-                        <div class="rh-dashboard-mini-profile">
-                            <span class="rh-dashboard-mini-avatar">M</span>
-                            <small>Manager</small>
-                        </div>
-                        <a class="rh-dashboard-arrowlink" asp-controller="Properties" asp-action="Index">&#8594;</a>
-                    </div>
-                </div>
-            </article>
-
-            <article class="rh-dashboard-chart-card rh-panel rh-panel-elevated">
-                <div class="rh-dashboard-panel-head">
-                    <div>
-                        <h2 class="rh-dashboard-panel-title">Property activity view</h2>
-                        <p class="rh-dashboard-panel-copy">A stylized occupancy and operations trend block inspired by the new design references.</p>
-                    </div>
-
-                    <div class="rh-dashboard-range-chip">Last 7 days</div>
-                </div>
-
-                <div class="rh-dashboard-chart-stage">
-                    <div class="rh-dashboard-chart-bars">
-                        <span style="--bar-height: 28%;"></span>
-                        <span style="--bar-height: 44%;"></span>
-                        <span style="--bar-height: 36%;"></span>
-                        <span class="is-featured" style="--bar-height: 66%;"></span>
-                        <span style="--bar-height: 49%;"></span>
-                        <span style="--bar-height: 31%;"></span>
-                        <span style="--bar-height: 57%;"></span>
-                    </div>
-
-                    <div class="rh-dashboard-chart-metric">
-                        <strong>$10.2m</strong>
-                        <small>Portfolio projection layout</small>
-                    </div>
-                </div>
-            </article>
+    <section class="rh-public-section">
+        <div class="rh-public-section-head rh-public-section-head-centered">
+            <div>
+                <span class="rh-public-kicker">Public Apartments</span>
+                <h2>Today's Apartment Listings</h2>
+                <p>Explore apartment cards with status, highlights, and a direct path to a verified private conversation with the landlord.</p>
+            </div>
         </div>
 
-        <div class="rh-dashboard-secondary-column">
-            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
-                <div class="rh-dashboard-panel-head compact">
-                    <h2 class="rh-dashboard-panel-title">Property modules</h2>
-                </div>
+        @if (Model.Apartments.Count == 0)
+        {
+            <div class="rh-empty">No apartments matched your filters yet.</div>
+        }
+        else
+        {
+            <div class="rh-public-card-grid">
+                @foreach (var apartment in Model.Apartments)
+                {
+                    var imageUrl = string.IsNullOrWhiteSpace(apartment.LeadImageUrl)
+                        ? "https://placehold.co/900x600/e7efe7/17324c?text=RentHub"
+                        : apartment.LeadImageUrl;
+                    var statusClass = apartment.Status.ToLowerInvariant();
+                    var statusLabel = string.Equals(apartment.Status, "Vacant", StringComparison.OrdinalIgnoreCase)
+                        ? "Available"
+                        : apartment.Status;
 
-                <div class="rh-dashboard-module-list">
-                    <div class="rh-dashboard-module-item">
-                        <div>
-                            <strong>Properties</strong>
-                            <small>Central listing, limits, and roles</small>
+                    <article class="rh-public-card rh-panel rh-panel-elevated">
+                        <a class="rh-public-card-media" asp-action="Apartment" asp-route-id="@apartment.ApartmentId">
+                            <img src="@imageUrl" alt="@apartment.ApartmentName" />
+                            <div class="rh-public-card-badges">
+                                <span class="rh-public-chip rh-public-chip-featured">Featured</span>
+                                <span class="rh-public-chip rh-public-chip-rental">For Rent</span>
+                            </div>
+                            <span class="rh-public-status rh-public-status-floating status-@statusClass">@statusLabel</span>
+                        </a>
+
+                        <div class="rh-public-card-body">
+                            <h3>@apartment.ApartmentName</h3>
+                            <p class="rh-public-card-location">@apartment.PropertyName, @apartment.City</p>
+
+                            <p class="rh-public-card-address">@apartment.Address</p>
+
+                            <div class="rh-public-spec-row">
+                                <span>@apartment.NumberOfRooms beds</span>
+                                <span>@apartment.NumberOfBathrooms baths</span>
+                                <span>@apartment.Area m²</span>
+                                <span>@apartment.Type</span>
+                            </div>
+
+                            <div class="rh-public-card-footer">
+                                <strong>@apartment.Price.ToString("N0") XAF</strong>
+                                <span class="rh-public-card-footer-meta">Private chat</span>
+                                <a class="btn rh-public-card-details" asp-action="Apartment" asp-route-id="@apartment.ApartmentId">Details</a>
+                            </div>
                         </div>
-                        <span class="rh-chip rh-chip-primary">Active</span>
-                    </div>
-                    <div class="rh-dashboard-module-item">
-                        <div>
-                            <strong>Documents</strong>
-                            <small>Operational files and property rules</small>
-                        </div>
-                        <span class="rh-chip rh-chip-info">Live</span>
-                    </div>
-                    <div class="rh-dashboard-module-item">
-                        <div>
-                            <strong>Members</strong>
-                            <small>Landlord and manager access control</small>
-                        </div>
-                        <span class="rh-chip rh-chip-warning">Managed</span>
-                    </div>
-                </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
 
-                <a class="btn rh-btn-subtle w-100 mt-2" asp-controller="Properties" asp-action="Index">Open properties</a>
+    <section class="rh-public-section rh-public-service-strip">
+        <div class="rh-public-section-head">
+            <div>
+                <span class="rh-public-kicker">How RentHub Works</span>
+                <h2>One public experience. One operations workspace.</h2>
+            </div>
+        </div>
+
+        <div class="rh-public-service-grid">
+            <article class="rh-public-service-card">
+                <h3>For visitors</h3>
+                <p>Browse apartments publicly, check whether a unit is available, reserved, or occupied, then create a verified visitor account to contact the landlord privately.</p>
             </article>
-
-            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
-                <div class="rh-dashboard-panel-head compact">
-                    <h2 class="rh-dashboard-panel-title">Guided next steps</h2>
-                </div>
-
-                <div class="rh-dashboard-actionlist">
-                    <a class="rh-dashboard-actionitem" asp-controller="Properties" asp-action="Index">
-                        <span>Create and review properties</span>
-                        <strong>&#8250;</strong>
-                    </a>
-                    <a class="rh-dashboard-actionitem" asp-controller="Profile" asp-action="Index">
-                        <span>Review subscription and profile</span>
-                        <strong>&#8250;</strong>
-                    </a>
-                    <a class="rh-dashboard-actionitem" asp-controller="Properties" asp-action="Index" asp-route-access="owned">
-                        <span>See properties in your scope</span>
-                        <strong>&#8250;</strong>
-                    </a>
-                </div>
+            <article class="rh-public-service-card">
+                <h3>For landlords</h3>
+                <p>Create a landlord account, verify payout and WhatsApp numbers, choose a subscription, and publish apartments with property and apartment images.</p>
             </article>
-
-            <article class="rh-dashboard-sidecard rh-panel rh-panel-elevated">
-                <div class="rh-dashboard-panel-head compact">
-                    <h2 class="rh-dashboard-panel-title">Quick guidance</h2>
-                </div>
-
-                <ul class="rh-guidance-list mb-0">
-                    <li>Create a new property from the Properties page if your role and subscription allow it.</li>
-                    <li>Use the Property Overview workspace to manage units, members, settings, documents, and map context.</li>
-                    <li>Keep dialog settings tuned per property for a more consistent success and error experience.</li>
-                </ul>
+            <article class="rh-public-service-card">
+                <h3>For operations</h3>
+                <p>Manage properties, apartments, documents, subscriptions, and incoming apartment conversations from the same RentHub workspace.</p>
             </article>
+        </div>
+    </section>
+
+    <section class="rh-public-section">
+        <div class="rh-public-section-head">
+            <div>
+                <span class="rh-public-kicker">Pricing</span>
+                <h2>Landlord subscription plans</h2>
+            </div>
+            <p>Visitors browse for free. Landlords subscribe to unlock property publishing and management limits.</p>
+        </div>
+
+        <div class="rh-public-pricing-grid">
+            @foreach (var plan in Model.Plans)
+            {
+                <article class="rh-public-price-card rh-panel rh-panel-elevated">
+                    <h3>@plan.Name</h3>
+                    <strong>@plan.Price.ToString("N0") XAF</strong>
+                    <p>@plan.DurationInDays days</p>
+                    <p>@(plan.Description ?? "Landlord subscription plan")</p>
+                    <a class="btn rh-btn-subtle w-100" asp-controller="Auth" asp-action="Register">Choose @plan.Name</a>
+                </article>
+            }
         </div>
     </section>
 </section>
+

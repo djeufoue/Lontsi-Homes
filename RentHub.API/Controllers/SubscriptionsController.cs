@@ -1,12 +1,13 @@
+using System.Text.Json;
 using Common.CommunicationModels;
+using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
-using RentHub.API.Models.Entities;
-using System.Security.Claims;
-
 using RentHub.API.Helpers;
+using RentHub.API.Models.Entities;
+using RentHub.API.Services.Payments;
 
 namespace RentHub.API.Controllers
 {
@@ -15,17 +16,19 @@ namespace RentHub.API.Controllers
     public class SubscriptionsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly INotchPayService _notchPayService;
         private readonly ILogger<SubscriptionsController> _logger;
 
-        public SubscriptionsController(ApplicationDbContext context, ILogger<SubscriptionsController> logger)
+        public SubscriptionsController(
+            ApplicationDbContext context,
+            INotchPayService notchPayService,
+            ILogger<SubscriptionsController> logger)
         {
             _context = context;
+            _notchPayService = notchPayService;
             _logger = logger;
         }
 
-        /// <summary>
-        /// Approves a user subscription. Only administrators can perform this action.
-        /// </summary>
         [HttpPost("approve/{subscriptionId}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ApproveSubscription(int subscriptionId)
@@ -34,33 +37,12 @@ namespace RentHub.API.Controllers
             {
                 var subscription = await _context.UserSubscriptions
                     .FirstOrDefaultAsync(us => us.Id == subscriptionId && !us.IsDeleted);
-                if (subscription == null) return NotFound("Subscription not found.");
-
-                var now = DateTimeOffset.UtcNow;
-                var adminUserId = UserHelpers.GetUserId(User);
-
-                subscription.IsApproved = true;
-                subscription.UpdatedBy = adminUserId;
-                subscription.UpdatedAt = now;
-
-                // Keep only one active subscription per user after approval.
-                var otherActiveSubscriptions = await _context.UserSubscriptions
-                    .Where(us =>
-                        us.UserId == subscription.UserId &&
-                        us.Id != subscription.Id &&
-                        !us.IsDeleted &&
-                        us.EndDate > now)
-                    .ToListAsync();
-
-                foreach (var other in otherActiveSubscriptions)
+                if (subscription == null)
                 {
-                    other.EndDate = now;
-                    other.UpdatedBy = adminUserId;
-                    other.UpdatedAt = now;
+                    return NotFound("Subscription not found.");
                 }
 
-                _context.UserSubscriptions.Update(subscription);
-                await _context.SaveChangesAsync();
+                await ActivateSubscriptionAsync(subscription, UserHelpers.GetUserId(User), markPaymentAsSuccess: false);
 
                 return Ok(new
                 {
@@ -80,9 +62,6 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Returns all available subscription plans.
-        /// </summary>
         [HttpGet("plans")]
         public async Task<IActionResult> GetPlans()
         {
@@ -115,36 +94,50 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Updates a subscription plan. This affects only future subscriptions;
-        /// active subscriptions keep their plan snapshot values.
-        /// </summary>
         [HttpPut("plans/{planId}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdatePlan(int planId, [FromBody] UpdateSubscriptionPlanRequest request)
         {
             try
             {
-                if (!ModelState.IsValid) return BadRequest(ModelState);
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
                 var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == planId);
-                if (plan == null) return NotFound("Plan not found.");
+                if (plan == null)
+                {
+                    return NotFound("Plan not found.");
+                }
 
                 if (!string.IsNullOrWhiteSpace(request.Name))
+                {
                     plan.Name = request.Name.Trim();
+                }
 
                 if (request.Description != null)
+                {
                     plan.Description = request.Description.Trim();
+                }
 
                 if (request.Price.HasValue)
                 {
-                    if (request.Price.Value < 0) return BadRequest("Price must be greater than or equal to 0.");
+                    if (request.Price.Value < 0)
+                    {
+                        return BadRequest("Price must be greater than or equal to 0.");
+                    }
+
                     plan.Price = request.Price.Value;
                 }
 
                 if (request.DurationInDays.HasValue)
                 {
-                    if (request.DurationInDays.Value < 1) return BadRequest("DurationInDays must be at least 1.");
+                    if (request.DurationInDays.Value < 1)
+                    {
+                        return BadRequest("DurationInDays must be at least 1.");
+                    }
+
                     plan.DurationInDays = request.DurationInDays.Value;
                 }
 
@@ -179,93 +172,261 @@ namespace RentHub.API.Controllers
             }
         }
 
-        /// <summary>
-        /// Subscribes the current user to the specified plan.
-        /// </summary>
         [HttpPost("subscribe/{planId}")]
         [Authorize]
-        public async Task<IActionResult> Subscribe(int planId)
+        public IActionResult Subscribe(int planId)
+        {
+            return BadRequest(new
+            {
+                Code = "SUBSCRIPTION_CHECKOUT_REQUIRED",
+                Message = "Use the subscription checkout flow to pay and activate this plan."
+            });
+        }
+
+        [HttpPost("checkout/{planId}")]
+        [Authorize]
+        public async Task<IActionResult> StartCheckout(int planId, [FromBody] StartSubscriptionCheckoutRequest request)
         {
             try
             {
-                var now = DateTimeOffset.UtcNow;
-
-                var plan = await _context.SubscriptionPlans
-                    .FirstOrDefaultAsync(p => p.Id == planId && !p.IsDeleted);
-                if (plan == null) return NotFound("Plan not found.");
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
 
                 var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
 
-                var activeSubscriptions = await _context.UserSubscriptions
-                    .Where(us => us.UserId == userId && !us.IsDeleted && us.EndDate > now)
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == planId && !p.IsDeleted);
+                if (plan == null)
+                {
+                    return NotFound("Plan not found.");
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var currentApproved = await _context.UserSubscriptions
+                    .Where(us =>
+                        us.UserId == userId &&
+                        us.SubscriptionPlanId == planId &&
+                        !us.IsDeleted &&
+                        us.IsApproved &&
+                        us.EndDate > now)
                     .OrderByDescending(us => us.EndDate)
-                    .ThenByDescending(us => us.StartDate)
-                    .ToListAsync();
+                    .FirstOrDefaultAsync();
 
-                var currentSubscription = activeSubscriptions.FirstOrDefault();
-
-                if (currentSubscription != null && currentSubscription.SubscriptionPlanId == plan.Id)
+                if (currentApproved != null)
                 {
-                    return Ok(new
+                    return BadRequest("This subscription plan is already active on your account.");
+                }
+
+                var pendingSubscription = await _context.UserSubscriptions
+                    .Where(us =>
+                        us.UserId == userId &&
+                        us.SubscriptionPlanId == planId &&
+                        !us.IsDeleted &&
+                        !us.IsApproved &&
+                        us.PaymentStatus != PaymentStatusEnum.Success)
+                    .OrderByDescending(us => us.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (pendingSubscription == null)
+                {
+                    pendingSubscription = new UserSubscription
                     {
-                        Message = "You are already on this subscription plan.",
-                        currentSubscription.StartDate,
-                        currentSubscription.EndDate,
-                        currentSubscription.IsApproved
-                    });
+                        UserId = userId,
+                        SubscriptionPlanId = plan.Id,
+                        StartDate = now,
+                        EndDate = now.AddDays(plan.DurationInDays),
+                        PlanNameSnapshot = plan.Name,
+                        PlanPriceSnapshot = plan.Price,
+                        PlanDurationInDaysSnapshot = plan.DurationInDays,
+                        PlanMaxPropertiesSnapshot = plan.MaxProperties,
+                        PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
+                        PaymentStatus = PaymentStatusEnum.Pending,
+                        CreatedBy = userId,
+                        CreatedAt = now,
+                        IsDeleted = false
+                    };
+
+                    _context.UserSubscriptions.Add(pendingSubscription);
+                    await _context.SaveChangesAsync();
                 }
 
-                await using var tx = await _context.Database.BeginTransactionAsync();
+                pendingSubscription.StartDate = now;
+                pendingSubscription.EndDate = now.AddDays(plan.DurationInDays);
+                pendingSubscription.PlanNameSnapshot = plan.Name;
+                pendingSubscription.PlanPriceSnapshot = plan.Price;
+                pendingSubscription.PlanDurationInDaysSnapshot = plan.DurationInDays;
+                pendingSubscription.PlanMaxPropertiesSnapshot = plan.MaxProperties;
+                pendingSubscription.PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty;
+                pendingSubscription.PaymentMethod = request.PaymentMethod;
+                pendingSubscription.AllowAutomaticCardPayments =
+                    request.PaymentMethod == PaymentMethodEnum.Card && request.AllowAutomaticCardPayments;
+                pendingSubscription.PaymentStatus = PaymentStatusEnum.Pending;
+                pendingSubscription.PaymentCompletedAt = null;
+                pendingSubscription.PaymentReference = BuildPaymentReference(pendingSubscription.Id);
+                pendingSubscription.UpdatedBy = userId;
+                pendingSubscription.UpdatedAt = now;
 
-                foreach (var sub in activeSubscriptions)
-                {
-                    sub.EndDate = now;
-                    sub.UpdatedBy = userId;
-                    sub.UpdatedAt = now;
-                    _context.UserSubscriptions.Update(sub);
-                }
+                var checkout = await _notchPayService.InitializeSubscriptionCheckoutAsync(
+                    user,
+                    plan,
+                    pendingSubscription,
+                    request.PaymentMethod,
+                    pendingSubscription.AllowAutomaticCardPayments);
 
-                var newSubscription = new UserSubscription
-                {
-                    UserId = userId,
-                    SubscriptionPlanId = plan.Id,
-                    StartDate = now,
-                    EndDate = now.AddDays(plan.DurationInDays),
-                    PlanNameSnapshot = plan.Name,
-                    PlanPriceSnapshot = plan.Price,
-                    PlanDurationInDaysSnapshot = plan.DurationInDays,
-                    PlanMaxPropertiesSnapshot = plan.MaxProperties,
-                    PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
-                    // Preserve approved state when replacing an already approved active plan.
-                    IsApproved = currentSubscription?.IsApproved == true,
-                    CreatedBy = userId,
-                    CreatedAt = now,
-                    IsDeleted = false
-                };
-
-                _context.UserSubscriptions.Add(newSubscription);
+                pendingSubscription.PaymentAuthorizationUrl = checkout.AuthorizationUrl;
+                pendingSubscription.PaymentProviderTransactionId = checkout.ProviderPaymentId;
+                _context.UserSubscriptions.Update(pendingSubscription);
                 await _context.SaveChangesAsync();
-                await tx.CommitAsync();
 
-                return Ok(new
+                return Ok(new SubscriptionCheckoutSessionDto
                 {
-                    Message = currentSubscription == null
-                        ? "Subscription activated."
-                        : "Subscription upgraded successfully.",
-                    newSubscription.StartDate,
-                    newSubscription.EndDate,
-                    newSubscription.IsApproved
+                    SubscriptionId = pendingSubscription.Id,
+                    PlanId = plan.Id,
+                    PlanName = plan.Name,
+                    Amount = plan.Price,
+                    Currency = "XAF",
+                    PaymentMethod = request.PaymentMethod,
+                    AllowAutomaticCardPayments = pendingSubscription.AllowAutomaticCardPayments,
+                    PaymentReference = pendingSubscription.PaymentReference,
+                    AuthorizationUrl = checkout.AuthorizationUrl,
+                    Status = checkout.Status
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to subscribe user to plan {PlanId}", planId);
+                _logger.LogError(ex, "Failed to initialize subscription checkout for plan {PlanId}", planId);
                 return StatusCode(StatusCodes.Status500InternalServerError, new
                 {
-                    Code = "SUBSCRIPTION_ACTIVATION_FAILED",
-                    Message = "Unable to activate subscription right now. Please try again."
+                    Code = "SUBSCRIPTION_CHECKOUT_FAILED",
+                    Message = "Unable to initialize the subscription payment right now. Please try again."
                 });
+            }
+        }
+
+        [HttpGet("checkout-status/{reference}")]
+        [Authorize]
+        public async Task<IActionResult> GetCheckoutStatus(string reference)
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var subscription = await _context.UserSubscriptions
+                    .FirstOrDefaultAsync(us =>
+                        us.PaymentReference == reference &&
+                        us.UserId == userId &&
+                        !us.IsDeleted);
+
+                if (subscription == null)
+                {
+                    return NotFound("Subscription payment not found.");
+                }
+
+                if (subscription.PaymentStatus != PaymentStatusEnum.Success)
+                {
+                    var remoteStatus = await _notchPayService.RetrievePaymentAsync(reference);
+                    if (remoteStatus != null)
+                    {
+                        await ApplyPaymentStatusAsync(subscription, remoteStatus.Status, remoteStatus.ProviderTransactionId, userId);
+                    }
+                }
+
+                return Ok(new SubscriptionCheckoutStatusDto
+                {
+                    SubscriptionId = subscription.Id,
+                    PlanId = subscription.SubscriptionPlanId,
+                    PlanName = subscription.PlanNameSnapshot,
+                    PaymentReference = subscription.PaymentReference,
+                    PaymentStatus = subscription.PaymentStatus.ToString(),
+                    SubscriptionApproved = subscription.IsApproved,
+                    PaymentCompleted = subscription.PaymentStatus == PaymentStatusEnum.Success,
+                    Message = subscription.PaymentStatus == PaymentStatusEnum.Success
+                        ? "Subscription activated successfully."
+                        : "Payment is still pending or needs another attempt."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve checkout status for reference {Reference}", reference);
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    Code = "SUBSCRIPTION_STATUS_FAILED",
+                    Message = "Unable to verify the subscription payment right now. Please try again."
+                });
+            }
+        }
+
+        [HttpPost("notchpay/webhook")]
+        [AllowAnonymous]
+        public async Task<IActionResult> HandleNotchPayWebhook()
+        {
+            string rawPayload;
+            using (var reader = new StreamReader(Request.Body))
+            {
+                rawPayload = await reader.ReadToEndAsync();
+            }
+
+            var signature = Request.Headers["X-Notch-Signature"].FirstOrDefault();
+            if (!_notchPayService.VerifyWebhookSignature(rawPayload, signature))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rawPayload);
+                var root = document.RootElement;
+                var eventType = ReadString(root, "type");
+                var reference = ReadString(root, "reference") ?? ReadString(root, "payment_reference");
+                var providerTransactionId = ReadString(root, "trxref") ?? ReadString(root, "transaction_id");
+
+                if (string.IsNullOrWhiteSpace(reference))
+                {
+                    return Ok(new { Message = "Webhook ignored." });
+                }
+
+                var subscription = await _context.UserSubscriptions
+                    .FirstOrDefaultAsync(us => us.PaymentReference == reference && !us.IsDeleted);
+
+                if (subscription == null)
+                {
+                    return Ok(new { Message = "Webhook ignored." });
+                }
+
+                switch (eventType?.Trim().ToLowerInvariant())
+                {
+                    case "payment.complete":
+                        await ApplyPaymentStatusAsync(subscription, "complete", providerTransactionId, "notchpay-webhook");
+                        break;
+                    case "payment.failed":
+                    case "payment.canceled":
+                    case "payment.cancelled":
+                    case "payment.expired":
+                        await ApplyPaymentStatusAsync(subscription, "failed", providerTransactionId, "notchpay-webhook");
+                        break;
+                }
+
+                return Ok(new { Message = "Webhook received." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process Notch Pay webhook.");
+                return Ok(new { Message = "Webhook received." });
             }
         }
 
@@ -309,6 +470,112 @@ namespace RentHub.API.Controllers
                 });
             }
         }
+
+        private async Task ApplyPaymentStatusAsync(
+            UserSubscription subscription,
+            string providerStatus,
+            string? providerTransactionId,
+            string? actor)
+        {
+            var normalizedStatus = (providerStatus ?? string.Empty).Trim().ToLowerInvariant();
+            if (normalizedStatus == "complete" || normalizedStatus == "success")
+            {
+                subscription.PaymentProviderTransactionId = providerTransactionId ?? subscription.PaymentProviderTransactionId;
+                await ActivateSubscriptionAsync(subscription, actor, markPaymentAsSuccess: true);
+                return;
+            }
+
+            if (normalizedStatus is "failed" or "canceled" or "cancelled" or "expired")
+            {
+                subscription.PaymentStatus = PaymentStatusEnum.Failed;
+                subscription.IsApproved = false;
+                subscription.PaymentProviderTransactionId = providerTransactionId ?? subscription.PaymentProviderTransactionId;
+                subscription.UpdatedBy = actor;
+                subscription.UpdatedAt = DateTimeOffset.UtcNow;
+                _context.UserSubscriptions.Update(subscription);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private async Task ActivateSubscriptionAsync(
+            UserSubscription subscription,
+            string? actor,
+            bool markPaymentAsSuccess)
+        {
+            var now = DateTimeOffset.UtcNow;
+
+            if (markPaymentAsSuccess)
+            {
+                subscription.PaymentStatus = PaymentStatusEnum.Success;
+                subscription.PaymentCompletedAt = now;
+            }
+
+            subscription.IsApproved = true;
+            subscription.UpdatedBy = actor;
+            subscription.UpdatedAt = now;
+
+            var otherActiveSubscriptions = await _context.UserSubscriptions
+                .Where(us =>
+                    us.UserId == subscription.UserId &&
+                    us.Id != subscription.Id &&
+                    !us.IsDeleted &&
+                    us.IsApproved &&
+                    us.EndDate > now)
+                .ToListAsync();
+
+            foreach (var other in otherActiveSubscriptions)
+            {
+                other.EndDate = now;
+                other.UpdatedBy = actor;
+                other.UpdatedAt = now;
+            }
+
+            _context.UserSubscriptions.Update(subscription);
+            await _context.SaveChangesAsync();
+        }
+
+        private static string BuildPaymentReference(int subscriptionId)
+        {
+            return $"rhsub_{subscriptionId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+        }
+
+        private static string? ReadString(JsonElement element, string propertyName)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return property.Value.ValueKind switch
+                        {
+                            JsonValueKind.String => property.Value.GetString(),
+                            JsonValueKind.Number => property.Value.ToString(),
+                            _ => null
+                        };
+                    }
+
+                    var nested = ReadString(property.Value, propertyName);
+                    if (!string.IsNullOrWhiteSpace(nested))
+                    {
+                        return nested;
+                    }
+                }
+            }
+
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    var nested = ReadString(item, propertyName);
+                    if (!string.IsNullOrWhiteSpace(nested))
+                    {
+                        return nested;
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 }
-

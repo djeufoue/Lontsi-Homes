@@ -1,10 +1,5 @@
-﻿using Common.Enums;
-using System;
-using System.Collections.Generic;
+using Common.Enums;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Common.CommunicationModels
 {
@@ -20,6 +15,9 @@ namespace Common.CommunicationModels
 
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
         public string? PhoneNumber { get; set; }
+
+        [Required]
+        public ApartmentMemberRoleEnum Role { get; set; } = ApartmentMemberRoleEnum.Owner;
 
         [Required]
         public PermissionLevelEnum Permission { get; set; }

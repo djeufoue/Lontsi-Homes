@@ -1,4 +1,5 @@
 using Common.CommunicationModels;
+using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
@@ -66,6 +67,76 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(
                     apiMessage,
                     "Unable to update your subscription right now. Please try again.");
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartCheckout(int planId, PaymentMethodEnum paymentMethod, bool allowAutomaticCardPayments)
+        {
+            if (planId <= 0)
+            {
+                TempData["Error"] = "Please choose a valid subscription plan.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var request = new StartSubscriptionCheckoutRequest
+                {
+                    PaymentMethod = paymentMethod,
+                    AllowAutomaticCardPayments = allowAutomaticCardPayments
+                };
+
+                var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(
+                    $"Subscriptions/checkout/{planId}",
+                    request);
+
+                if (string.IsNullOrWhiteSpace(session.AuthorizationUrl))
+                {
+                    TempData["Error"] = "Unable to open the payment page right now. Please try again.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                return Redirect(session.AuthorizationUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Subscription checkout failed for plan {PlanId}", planId);
+
+                var apiMessage = ParseApiMessage(ex.Message);
+                TempData["Error"] = SafeUserMessage(
+                    apiMessage,
+                    "Unable to initialize the subscription payment right now. Please try again.");
+
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SubscriptionCallback(string? reference = null)
+        {
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                TempData["Error"] = "Subscription payment reference is missing.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var status = await _api.GetAsync<SubscriptionCheckoutStatusDto>($"Subscriptions/checkout-status/{Uri.EscapeDataString(reference)}");
+                TempData[status.PaymentCompleted ? "Success" : "Error"] = string.IsNullOrWhiteSpace(status.Message)
+                    ? (status.PaymentCompleted ? "Subscription activated successfully." : "Subscription payment is still pending.")
+                    : status.Message;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Subscription callback lookup failed for reference {Reference}", reference);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to verify the subscription payment right now. Please refresh your profile in a moment.");
             }
 
             return RedirectToAction(nameof(Index));

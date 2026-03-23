@@ -218,18 +218,18 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, PermissionLevelEnum permission)
+        public async Task<IActionResult> UpdateOwnerPermission(int apartmentId, int assignmentId, UpdateApartmentMemberRequest request)
         {
             try
             {
-                await _api.PutAsync($"apartments/{apartmentId}/owners/{assignmentId}", permission);
-                TempData["Success"] = "Apartment member access updated.";
+                await _api.PutAsync($"apartments/{apartmentId}/owners/{assignmentId}", request);
+                TempData["Success"] = "Apartment member updated.";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Update apartment member permission failed in portal for apartment {ApartmentId} assignment {AssignmentId}.", apartmentId, assignmentId);
+                _logger.LogError(ex, "Update apartment member failed in portal for apartment {ApartmentId} assignment {AssignmentId}.", apartmentId, assignmentId);
                 var apiError = ParseApiError(ex.Message);
-                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update apartment member access right now. Please try again.");
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the apartment member right now. Please try again.");
             }
 
             return await RedirectToApartmentOverviewAsync(apartmentId);
@@ -435,7 +435,8 @@ namespace RentHub.Portal.Controllers
                 var search = memberSearch.Trim().ToLowerInvariant();
                 owners = owners
                     .Where(o => (o.OwnerName ?? string.Empty).ToLowerInvariant().Contains(search)
-                             || o.Permission.ToString().ToLowerInvariant().Contains(search))
+                             || o.Permission.ToString().ToLowerInvariant().Contains(search)
+                             || o.Role.ToString().ToLowerInvariant().Contains(search))
                     .ToList();
             }
 
@@ -567,3 +568,4 @@ namespace RentHub.Portal.Controllers
         }
     }
 }
+

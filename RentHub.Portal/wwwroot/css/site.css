@@ -2991,3 +2991,543 @@ body.rh-auth-body {
 .rh-inline-editor-actions {
     margin-top: 0.25rem;
 }
+
+/* Public home, apartment showcase, and conversation inbox */
+.rh-body-public {
+    background:
+        radial-gradient(circle at top right, rgba(17, 121, 108, 0.12), transparent 32%),
+        linear-gradient(180deg, #f6fbf9 0%, #eef5f2 100%);
+}
+
+.rh-main.is-public {
+    background: transparent;
+}
+
+.rh-topbar.is-public,
+.rh-footer.is-public {
+    background: transparent;
+    border: none;
+}
+
+.rh-page-public {
+    padding-top: 1.25rem;
+}
+
+.rh-public-home,
+.rh-public-apartment-page,
+.rh-conversation-page {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.rh-public-hero,
+.rh-public-apartment-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+    gap: 1.5rem;
+    align-items: stretch;
+}
+
+.rh-public-hero-copy,
+.rh-public-apartment-summary,
+.rh-public-search-panel,
+.rh-public-service-card,
+.rh-public-price-card,
+.rh-public-gallery-card,
+.rh-conversation-sidebar,
+.rh-conversation-thread,
+.rh-public-apartment-mainmedia {
+    border-radius: 28px;
+}
+
+.rh-public-hero-copy {
+    padding: 2.6rem;
+    background: linear-gradient(135deg, #113c3b 0%, #1d786d 55%, #61a98f 100%);
+    color: #f4fbf8;
+    box-shadow: 0 28px 70px rgba(16, 65, 58, 0.18);
+}
+
+.rh-public-kicker {
+    display: inline-block;
+    font-size: 0.82rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #198a78;
+    font-weight: 800;
+    margin-bottom: 0.85rem;
+}
+
+.rh-public-hero-copy .rh-public-kicker {
+    color: rgba(244, 251, 248, 0.72);
+}
+
+.rh-public-hero-copy h1,
+.rh-public-apartment-summary h1 {
+    font-size: clamp(2.3rem, 5vw, 4rem);
+    line-height: 1.02;
+    margin-bottom: 1rem;
+}
+
+.rh-public-hero-copy p,
+.rh-public-section-head p,
+.rh-public-subcopy,
+.rh-public-card-address,
+.rh-public-service-card p,
+.rh-public-price-card p,
+.rh-public-chat-cta p,
+.rh-chat-bubble p {
+    color: #4c6677;
+    line-height: 1.7;
+}
+
+.rh-public-hero-copy p {
+    color: rgba(244, 251, 248, 0.84);
+    max-width: 48rem;
+}
+
+.rh-public-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    margin-top: 1.5rem;
+}
+
+.rh-public-hero-metrics {
+    display: grid;
+    gap: 1rem;
+}
+
+.rh-public-metric-card {
+    padding: 1.4rem 1.45rem;
+    border: 1px solid rgba(17, 60, 59, 0.08);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 18px 38px rgba(27, 69, 63, 0.08);
+}
+
+.rh-public-metric-card strong {
+    display: block;
+    color: #123d3b;
+    font-size: 1.45rem;
+    margin-bottom: 0.35rem;
+}
+
+.rh-public-search-form,
+.rh-public-spec-row,
+.rh-public-spec-grid,
+.rh-public-service-grid,
+.rh-public-pricing-grid,
+.rh-public-card-grid,
+.rh-public-gallery-grid,
+.rh-public-detail-grid,
+.rh-conversation-layout {
+    display: grid;
+    gap: 1rem;
+}
+
+.rh-public-search-form {
+    grid-template-columns: 2fr 1fr 1fr auto;
+    align-items: center;
+}
+
+.rh-public-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.rh-public-section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: end;
+}
+
+.rh-public-section-head-centered {
+    justify-content: center;
+    text-align: center;
+}
+
+.rh-public-section-head-centered > div {
+    max-width: 760px;
+}
+
+.rh-public-section-head-centered p {
+    margin: 0.5rem auto 0;
+    color: #658094;
+}
+
+.rh-public-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.rh-public-card {
+    overflow: hidden;
+    border: 1px solid rgba(17, 60, 59, 0.08);
+    border-radius: 26px;
+    background: #fffdfa;
+    box-shadow: 0 24px 48px rgba(24, 40, 54, 0.08);
+    padding: 0;
+}
+
+.rh-public-card-media {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: #dce8e2;
+    border-radius: 26px 26px 0 0;
+}
+
+.rh-public-card-badges {
+    position: absolute;
+    top: 0.95rem;
+    left: 0.95rem;
+    display: flex;
+    gap: 0.45rem;
+    z-index: 2;
+}
+
+.rh-public-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.34rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.rh-public-chip-featured {
+    background: linear-gradient(135deg, #ff9d4d, #f2792a);
+    color: #fff;
+}
+
+.rh-public-chip-rental {
+    background: rgba(46, 67, 82, 0.85);
+    color: #fff;
+}
+
+.rh-public-card-media img,
+.rh-public-apartment-mainmedia img,
+.rh-public-gallery-card img,
+.rh-conversation-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.rh-public-card-body {
+    padding: 1.15rem 1.15rem 1rem;
+}
+
+.rh-public-card-body h3,
+.rh-public-section-head h2,
+.rh-public-service-card h3,
+.rh-public-price-card h3,
+.rh-conversation-thread-head h2 {
+    color: #17324c;
+    margin-bottom: 0.25rem;
+}
+
+.rh-public-card-location,
+.rh-conversation-list-item p,
+.rh-conversation-thread-head p {
+    margin-bottom: 0;
+    color: #658094;
+}
+
+.rh-public-card-footer strong,
+.rh-public-price,
+.rh-public-price-card strong,
+.rh-conversation-thread-meta strong {
+    color: #116c5b;
+    font-size: 1.1rem;
+}
+
+.rh-public-spec-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    color: #687f8f;
+    font-size: 0.85rem;
+    padding-top: 0.85rem;
+    margin-top: 0.9rem;
+    border-top: 1px solid rgba(17, 60, 59, 0.08);
+}
+
+.rh-public-spec-row span {
+    white-space: nowrap;
+}
+
+.rh-public-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-top: 0.95rem;
+    margin-top: 0.95rem;
+    border-top: 1px solid rgba(17, 60, 59, 0.08);
+}
+
+.rh-public-card-footer-meta {
+    color: #758a99;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.rh-public-card-details {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 88px;
+    padding: 0.5rem 0.85rem;
+    border: 1px solid rgba(226, 172, 105, 0.65);
+    border-radius: 999px;
+    color: #d28b39;
+    background: #fff7ec;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.rh-public-card-details:hover {
+    color: #b46d21;
+    background: #ffefd9;
+}
+
+.rh-public-service-grid,
+.rh-public-pricing-grid,
+.rh-public-detail-grid,
+.rh-public-gallery-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.rh-public-service-card,
+.rh-public-price-card {
+    padding: 1.45rem;
+    border: 1px solid rgba(17, 60, 59, 0.08);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.rh-public-apartment-mainmedia {
+    overflow: hidden;
+    min-height: 420px;
+}
+
+.rh-public-apartment-summary {
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(17, 60, 59, 0.08);
+}
+
+.rh-public-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.42rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    background: rgba(15, 127, 104, 0.12);
+    color: #0f7f68;
+}
+
+.rh-public-status-floating {
+    position: absolute;
+    right: 0.95rem;
+    bottom: 0.95rem;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 14px 28px rgba(24, 40, 54, 0.14);
+}
+
+.rh-public-status.status-occupied {
+    background: rgba(186, 64, 37, 0.12);
+    color: #b24a31;
+}
+
+.rh-public-status.status-reserved {
+    background: rgba(174, 120, 17, 0.14);
+    color: #9c6e13;
+}
+
+.rh-public-spec-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 1.4rem;
+}
+
+.rh-public-spec-grid div {
+    padding: 0.85rem 0.95rem;
+    border-radius: 18px;
+    background: rgba(14, 97, 86, 0.05);
+}
+
+.rh-public-spec-grid span {
+    display: block;
+    color: #698293;
+    font-size: 0.82rem;
+    margin-bottom: 0.15rem;
+}
+
+.rh-public-spec-grid strong {
+    color: #17324c;
+}
+
+.rh-public-chat-form textarea {
+    min-height: 130px;
+}
+
+.rh-public-chat-thread,
+.rh-public-chat-thread-inbox {
+    display: grid;
+    gap: 0.9rem;
+    max-height: 520px;
+    overflow: auto;
+    padding-right: 0.25rem;
+}
+
+.rh-chat-bubble {
+    max-width: 88%;
+    padding: 0.95rem 1rem;
+    border-radius: 22px;
+    background: #eef6f2;
+    border: 1px solid rgba(17, 60, 59, 0.06);
+}
+
+.rh-chat-bubble.is-self {
+    margin-left: auto;
+    background: linear-gradient(135deg, rgba(18, 108, 91, 0.96), rgba(43, 147, 120, 0.92));
+    color: #f4fbf8;
+}
+
+.rh-chat-bubble.is-self p,
+.rh-chat-bubble.is-self small,
+.rh-chat-bubble.is-self strong {
+    color: inherit;
+}
+
+.rh-chat-bubble strong {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.rh-chat-bubble p {
+    margin-bottom: 0.35rem;
+}
+
+.rh-chat-bubble small {
+    color: #6e8797;
+}
+
+.rh-conversation-layout {
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    align-items: start;
+}
+
+.rh-conversation-head {
+    margin-bottom: 1rem;
+}
+
+.rh-conversation-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.rh-conversation-list-item {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0.85rem;
+    border-radius: 20px;
+    color: inherit;
+    text-decoration: none;
+    background: rgba(249, 252, 251, 0.95);
+    border: 1px solid rgba(17, 60, 59, 0.06);
+}
+
+.rh-conversation-list-item.is-active {
+    border-color: rgba(17, 121, 108, 0.32);
+    background: rgba(228, 244, 239, 0.95);
+}
+
+.rh-conversation-thumb {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: #dce8e2;
+    color: #17324c;
+    font-weight: 800;
+}
+
+.rh-conversation-list-item small {
+    color: #7b92a1;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rh-conversation-unread {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #11796c;
+}
+
+.rh-conversation-thread-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.rh-conversation-thread-meta {
+    display: grid;
+    gap: 0.65rem;
+    justify-items: end;
+}
+
+.rh-public-breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    color: #658094;
+}
+
+.rh-public-breadcrumbs a {
+    color: #116c5b;
+    text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+    .rh-public-hero,
+    .rh-public-apartment-hero,
+    .rh-conversation-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .rh-public-search-form {
+        grid-template-columns: 1fr;
+    }
+
+    .rh-public-section-head,
+    .rh-public-card-footer,
+    .rh-conversation-thread-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rh-public-spec-grid,
+    .rh-public-spec-row {
+        grid-template-columns: 1fr;
+    }
+
+    .rh-chat-bubble {
+        max-width: 100%;
+    }
+}

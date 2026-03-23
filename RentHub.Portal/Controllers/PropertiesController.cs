@@ -177,6 +177,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> DocumentPreview(int id)
         {
             try
@@ -191,6 +192,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> DocumentContent(int id, bool download = false)
         {
             try
@@ -208,7 +210,6 @@ namespace RentHub.Portal.Controllers
                     return NotFound();
                 }
 
-                var bytes = await response.Content.ReadAsByteArrayAsync();
                 var contentType = response.Content.Headers.ContentType?.MediaType;
                 var inferredContentType = GuessContentType(document.FileName, document.DocumentType);
                 if (string.IsNullOrWhiteSpace(contentType) ||
@@ -219,13 +220,21 @@ namespace RentHub.Portal.Controllers
 
                 contentType ??= "application/octet-stream";
 
+                Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+                Response.Headers.Pragma = "no-cache";
+                Response.Headers.Expires = "0";
+                Response.Headers["X-Content-Type-Options"] = "nosniff";
+
                 if (download)
                 {
-                    return File(bytes, contentType, document.FileName);
+                    var downloadBytes = await response.Content.ReadAsByteArrayAsync();
+                    return File(downloadBytes, contentType, document.FileName);
                 }
 
+                var inlineBytes = await response.Content.ReadAsByteArrayAsync();
+                var inlineStream = new MemoryStream(inlineBytes);
                 Response.Headers.ContentDisposition = $"inline; filename=\"{document.FileName.Replace("\"", string.Empty)}\"";
-                return File(bytes, contentType);
+                return File(inlineStream, contentType, enableRangeProcessing: true);
             }
             catch (Exception ex)
             {
@@ -826,7 +835,14 @@ namespace RentHub.Portal.Controllers
             string E(string? value) => Uri.EscapeDataString(value ?? string.Empty);
 
             var endpoint = $"properties/dashboard?search={E(search)}&city={E(city)}&access={E(access)}&page={page}&pageSize={pageSize}";
-            var response = await _api.GetAsync<PropertyListResponseDto>(endpoint);
+            var dashboardTask = _api.GetAsync<PropertyListResponseDto>(endpoint);
+            var plansTask = _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
+            await Task.WhenAll(dashboardTask, plansTask);
+
+            var response = dashboardTask.Result;
+            var plans = plansTask.Result;
+            var isLandlord = string.Equals(response.UserRole, "Landlord", StringComparison.OrdinalIgnoreCase);
+            var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty;
 
             return new PropertyIndexVm
             {
@@ -838,7 +854,10 @@ namespace RentHub.Portal.Controllers
                 TotalCount = response.TotalCount,
                 UserRole = response.UserRole,
                 CanCreateProperty = response.CanCreateProperty,
+                ShowCreateEntryPoint = response.CanCreateProperty || isLandlord,
+                RequiresSubscriptionCheckout = requiresSubscriptionCheckout,
                 CreationScopes = response.CreationScopes,
+                AvailablePlans = plans,
                 Items = response.Items
             };
         }

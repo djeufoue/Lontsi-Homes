@@ -8,6 +8,7 @@ using RentHub.Portal.ViewModels.Auth;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
+using Common.Enums;
 
 namespace RentHub.Portal.Controllers
 {
@@ -26,15 +27,15 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public IActionResult Login()
+        public IActionResult Login(string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(returnUrl);
 
             if (TempData["AuthInfo"] is string info)
                 ViewBag.AuthInfo = info;
 
-            return View(new LoginVm());
+            return View(new LoginVm { ReturnUrl = returnUrl });
         }
 
         [HttpPost]
@@ -49,20 +50,30 @@ namespace RentHub.Portal.Controllers
                 var token = await LoginToApi(vm.Email, vm.Password);
                 await _authSession.PersistTokenAsync(token);
 
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(vm.ReturnUrl);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Login failed in Portal for {Email}", vm.Email);
 
                 var apiError = ParseApiError(ex.Message);
-                if (string.Equals(apiError.Code, "EMAIL_NOT_CONFIRMED", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(apiError.Code, "EMAIL_NOT_CONFIRMED", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(apiError.Code, "ACCOUNT_VERIFICATION_PENDING", StringComparison.OrdinalIgnoreCase))
                 {
                     TempData["AuthInfo"] = SafeUserMessage(
                         apiError.Message,
-                        "Your account is not activated yet. Enter the OTP sent to your email.");
+                        "Your account is not activated yet. Enter the OTP codes sent to your email, payout number, and WhatsApp.");
 
-                    return RedirectToAction(nameof(VerifyAccount), new { email = apiError.Email ?? vm.Email });
+                    return RedirectToAction(nameof(VerifyAccount), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
+                }
+
+                if (string.Equals(apiError.Code, "VISITOR_ACCOUNT_VERIFICATION_PENDING", StringComparison.OrdinalIgnoreCase))
+                {
+                    TempData["AuthInfo"] = SafeUserMessage(
+                        apiError.Message,
+                        "Your visitor account is not activated yet. Enter the OTP codes sent to your email, phone number, and WhatsApp.");
+
+                    return RedirectToAction(nameof(VerifyVisitorAccount), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
                 }
 
                 ModelState.AddModelError(
@@ -75,13 +86,13 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Register()
+        public async Task<IActionResult> Register(string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(returnUrl);
 
             ViewBag.Plans = await GetPlansAsync();
-            return View(new RegisterVm());
+            return View(new RegisterVm { ReturnUrl = returnUrl });
         }
 
         [HttpPost]
@@ -105,12 +116,12 @@ namespace RentHub.Portal.Controllers
                         ? "Account created. Check your email for OTP and activate your account."
                         : result.Message;
 
-                    return RedirectToAction(nameof(VerifyAccount), new { email = result.Email ?? vm.Email });
+                    return RedirectToAction(nameof(VerifyAccount), new { email = result.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
                 }
 
                 await _authSession.PersistTokenAsync(result.Token);
 
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(vm.ReturnUrl);
             }
             catch (Exception ex)
             {
@@ -128,10 +139,53 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public IActionResult VerifyAccount(string? email = null)
+        public IActionResult RegisterVisitor(string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(returnUrl);
+
+            return View(new RegisterVisitorVm { ReturnUrl = returnUrl });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RegisterVisitor(RegisterVisitorVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(vm);
+            }
+
+            try
+            {
+                var result = await RegisterVisitorToApi(vm);
+
+                TempData["AuthInfo"] = string.IsNullOrWhiteSpace(result.Message)
+                    ? "Visitor account created. Check your email, phone number, and WhatsApp for OTP codes."
+                    : result.Message;
+
+                return RedirectToAction(nameof(VerifyVisitorAccount), new { email = result.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Visitor register failed in Portal for {Email}", vm.Email);
+
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(
+                    string.Empty,
+                    SafeUserMessage(apiError.Message, "Unable to create your visitor account right now. Please try again."));
+
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult VerifyAccount(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
 
             if (TempData["AuthInfo"] is string info)
                 ViewBag.AuthInfo = info;
@@ -141,7 +195,8 @@ namespace RentHub.Portal.Controllers
 
             return View(new VerifyAccountVm
             {
-                Email = email ?? string.Empty
+                Email = email ?? string.Empty,
+                ReturnUrl = returnUrl
             });
         }
 
@@ -158,7 +213,9 @@ namespace RentHub.Portal.Controllers
                 var req = new VerifyActivationOtpRequest
                 {
                     Email = vm.Email,
-                    Otp = vm.Otp
+                    EmailOtp = vm.EmailOtp,
+                    PayoutOtp = vm.PayoutOtp,
+                    WhatsAppOtp = vm.WhatsAppOtp
                 };
 
                 var res = await _api.PostAsync<VerifyActivationOtpRequest, JsonElement>("Account/verify-activation-otp", req);
@@ -173,7 +230,7 @@ namespace RentHub.Portal.Controllers
                 await _authSession.PersistTokenAsync(token);
 
                 TempData["Success"] = "Your account has been activated successfully.";
-                return RedirectToAction("Index", "Home");
+                return RedirectToLocal(vm.ReturnUrl);
             }
             catch (Exception ex)
             {
@@ -183,6 +240,71 @@ namespace RentHub.Portal.Controllers
                 ModelState.AddModelError(
                     string.Empty,
                     SafeUserMessage(apiError.Message, "OTP verification failed. Please try again."));
+
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult VerifyVisitorAccount(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            return View(new VerifyVisitorAccountVm
+            {
+                Email = email ?? string.Empty,
+                ReturnUrl = returnUrl
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyVisitorAccount(VerifyVisitorAccountVm vm)
+        {
+            if (!ModelState.IsValid)
+                return View(vm);
+
+            try
+            {
+                var req = new VerifyVisitorOtpRequest
+                {
+                    Email = vm.Email,
+                    EmailOtp = vm.EmailOtp,
+                    PhoneOtp = vm.PhoneOtp,
+                    WhatsAppOtp = vm.WhatsAppOtp
+                };
+
+                var res = await _api.PostAsync<VerifyVisitorOtpRequest, JsonElement>("Account/verify-visitor-otp", req);
+
+                if (!TryGetPropertyIgnoreCase(res, "token", out var tokenElement) || string.IsNullOrWhiteSpace(tokenElement.GetString()))
+                {
+                    TempData["Success"] = "Visitor account verified. Please log in.";
+                    return RedirectToAction(nameof(Login), new { returnUrl = vm.ReturnUrl });
+                }
+
+                var token = tokenElement.GetString()!;
+                await _authSession.PersistTokenAsync(token);
+
+                TempData["Success"] = "Your visitor account has been activated successfully.";
+                return RedirectToLocal(vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VerifyVisitorAccount failed in Portal for {Email}", vm.Email);
+
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(
+                    string.Empty,
+                    SafeUserMessage(apiError.Message, "Visitor OTP verification failed. Please try again."));
 
                 return View(vm);
             }
@@ -203,7 +325,7 @@ namespace RentHub.Portal.Controllers
             {
                 var req = new ResendActivationOtpRequest { Email = email };
                 await _api.PostAsync("Account/resend-activation-otp", req);
-                TempData["AuthInfo"] = "A new OTP has been sent to your email.";
+                TempData["AuthInfo"] = "New OTP codes have been sent to your email, payout number, and WhatsApp.";
             }
             catch (Exception ex)
             {
@@ -214,6 +336,34 @@ namespace RentHub.Portal.Controllers
             }
 
             return RedirectToAction(nameof(VerifyAccount), new { email });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendVisitorOtp(string email, string? returnUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["AuthError"] = "Email is required to resend visitor OTP.";
+                return RedirectToAction(nameof(VerifyVisitorAccount), new { returnUrl });
+            }
+
+            try
+            {
+                var req = new ResendActivationOtpRequest { Email = email };
+                await _api.PostAsync("Account/resend-visitor-otp", req);
+                TempData["AuthInfo"] = "New OTP codes have been sent to your email, phone number, and WhatsApp.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ResendVisitorOtp failed in Portal for {Email}", email);
+
+                var apiError = ParseApiError(ex.Message);
+                TempData["AuthError"] = SafeUserMessage(apiError.Message, "Unable to resend visitor OTP right now. Please try again.");
+            }
+
+            return RedirectToAction(nameof(VerifyVisitorAccount), new { email, returnUrl });
         }
 
         [HttpPost]
@@ -273,6 +423,9 @@ namespace RentHub.Portal.Controllers
                 LastName = vm.LastName,
                 CountryCode = vm.CountryCode,
                 PhoneNumber = vm.PhoneNumber,
+                PayoutPhoneNumber = vm.PayoutPhoneNumber,
+                PayoutChannel = vm.PayoutChannel,
+                WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber,
                 PlanId = vm.PlanId
             };
 
@@ -298,6 +451,34 @@ namespace RentHub.Portal.Controllers
 
             if (TryGetPropertyIgnoreCase(res, "message", out var message))
                 output.Message = message.GetString();
+
+            return output;
+        }
+
+        private async Task<RegisterApiResponse> RegisterVisitorToApi(RegisterVisitorVm vm)
+        {
+            var req = new RegisterVisitorRequest
+            {
+                Email = vm.Email,
+                Password = vm.Password,
+                FullName = vm.FullName,
+                PhoneNumber = vm.PhoneNumber,
+                WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
+            };
+
+            var res = await _api.PostAsync<RegisterVisitorRequest, JsonElement>("Account/register-visitor", req);
+
+            var output = new RegisterApiResponse
+            {
+                RequiresActivation = true,
+                Email = vm.Email
+            };
+
+            if (TryGetPropertyIgnoreCase(res, "message", out var message))
+                output.Message = message.GetString();
+
+            if (TryGetPropertyIgnoreCase(res, "email", out var email))
+                output.Email = email.GetString();
 
             return output;
         }
@@ -413,6 +594,16 @@ namespace RentHub.Portal.Controllers
             public string? Code { get; set; }
             public string? Message { get; set; }
             public string? Email { get; set; }
+        }
+
+        private IActionResult RedirectToLocal(string? returnUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction("Index", "Home");
         }
     }
 }
