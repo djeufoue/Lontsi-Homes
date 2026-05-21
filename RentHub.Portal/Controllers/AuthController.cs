@@ -216,7 +216,7 @@ namespace RentHub.Portal.Controllers
                     WhatsAppOtp = vm.WhatsAppOtp
                 };
 
-                var res = await _api.PostAsync<VerifyActivationOtpRequest, JsonElement>("Account/verify-activation-otp", req);
+                var res = await _api.PostAnonymousAsync<VerifyActivationOtpRequest, JsonElement>("Account/verify-activation-otp", req);
 
                 if (!TryGetPropertyIgnoreCase(res, "token", out var tokenElement) || string.IsNullOrWhiteSpace(tokenElement.GetString()))
                 {
@@ -269,7 +269,7 @@ namespace RentHub.Portal.Controllers
                     WhatsAppOtp = vm.WhatsAppOtp
                 };
 
-                var res = await _api.PostAsync<VerifyVisitorOtpRequest, JsonElement>("Account/verify-visitor-otp", req);
+                var res = await _api.PostAnonymousAsync<VerifyVisitorOtpRequest, JsonElement>("Account/verify-visitor-otp", req);
 
                 if (!TryGetPropertyIgnoreCase(res, "token", out var tokenElement) || string.IsNullOrWhiteSpace(tokenElement.GetString()))
                 {
@@ -310,7 +310,7 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var req = new ResendActivationOtpRequest { Email = email };
-                await _api.PostAsync("Account/resend-activation-otp", req);
+                await _api.PostAnonymousAsync("Account/resend-activation-otp", req);
                 TempData["AuthInfo"] = "New OTP codes have been sent to your email, payout number, and WhatsApp.";
             }
             catch (Exception ex)
@@ -338,7 +338,7 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var req = new ResendActivationOtpRequest { Email = email };
-                await _api.PostAsync("Account/resend-visitor-otp", req);
+                await _api.PostAnonymousAsync("Account/resend-visitor-otp", req);
                 TempData["AuthInfo"] = "New OTP codes have been sent to your email, phone number, and WhatsApp.";
             }
             catch (Exception ex)
@@ -389,7 +389,7 @@ namespace RentHub.Portal.Controllers
 
         private async Task<string> LoginToApi(string email, string password)
         {
-            var res = await _api.PostAsync<object, JsonElement>("Account/login", new { Email = email, Password = password });
+            var res = await _api.PostAnonymousAsync<object, JsonElement>("Account/login", new { Email = email, Password = password });
 
             if (!TryGetPropertyIgnoreCase(res, "token", out var t) || string.IsNullOrWhiteSpace(t.GetString()))
             {
@@ -415,7 +415,7 @@ namespace RentHub.Portal.Controllers
                 PlanId = vm.PlanId
             };
 
-            var res = await _api.PostAsync<RegisterRequest, JsonElement>("Account/register", req);
+            var res = await _api.PostAnonymousAsync<RegisterRequest, JsonElement>("Account/register", req);
 
             var output = new RegisterApiResponse
             {
@@ -452,7 +452,7 @@ namespace RentHub.Portal.Controllers
                 WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
             };
 
-            var res = await _api.PostAsync<RegisterVisitorRequest, JsonElement>("Account/register-visitor", req);
+            var res = await _api.PostAnonymousAsync<RegisterVisitorRequest, JsonElement>("Account/register-visitor", req);
 
             var output = new RegisterApiResponse
             {
@@ -471,7 +471,7 @@ namespace RentHub.Portal.Controllers
 
         private Task<List<SubscriptionPlanOptionVm>> GetPlansAsync()
         {
-            return _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
+            return _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
         }
 
         private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
