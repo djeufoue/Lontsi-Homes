@@ -141,10 +141,8 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public IActionResult RegisterVisitor(string? returnUrl = null)
         {
-            if (User.Identity?.IsAuthenticated == true)
-                return RedirectToLocal(returnUrl);
-
-            return View(new RegisterVisitorVm { ReturnUrl = returnUrl });
+            TempData["AuthInfo"] = "Visitor messaging is temporarily hidden while we focus on the first release.";
+            return RedirectToAction(nameof(Login), new { returnUrl });
         }
 
         [HttpPost]
@@ -249,20 +247,8 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public IActionResult VerifyVisitorAccount(string? email = null, string? returnUrl = null)
         {
-            if (User.Identity?.IsAuthenticated == true)
-                return RedirectToLocal(returnUrl);
-
-            if (TempData["AuthInfo"] is string info)
-                ViewBag.AuthInfo = info;
-
-            if (TempData["AuthError"] is string error)
-                ViewBag.AuthError = error;
-
-            return View(new VerifyVisitorAccountVm
-            {
-                Email = email ?? string.Empty,
-                ReturnUrl = returnUrl
-            });
+            TempData["AuthInfo"] = "Visitor messaging is temporarily hidden while we focus on the first release.";
+            return RedirectToAction(nameof(Login), new { returnUrl });
         }
 
         [HttpPost]

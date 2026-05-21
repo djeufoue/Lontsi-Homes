@@ -1,4 +1,3 @@
-using Common.CommunicationModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Models;
@@ -25,36 +24,18 @@ namespace RentHub.Portal.Controllers
         {
             var vm = new PublicHomeIndexVm
             {
-                Search = search,
-                City = city,
-                Status = status,
-                Page = page,
-                PageSize = pageSize,
                 IsAuthenticated = User.Identity?.IsAuthenticated == true,
-                IsVisitor = User.IsInRole("Visitor"),
-                IsLandlordOperator = User.IsInRole("Landlord") || User.IsInRole("Manager") || User.IsInRole("Admin"),
-                CanOpenMessages = User.IsInRole("Visitor") || User.IsInRole("Landlord")
+                IsLandlordOperator = User.IsInRole("Landlord") || User.IsInRole("Manager") || User.IsInRole("Admin")
             };
 
             try
             {
-                string E(string? value) => Uri.EscapeDataString(value ?? string.Empty);
-                var apartmentsTask = _api.GetAsync<PublicApartmentCatalogResponseDto>(
-                    $"public/apartments?search={E(search)}&city={E(city)}&status={E(status)}&page={page}&pageSize={pageSize}");
-                var plansTask = _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
-                await Task.WhenAll(apartmentsTask, plansTask);
-
-                var apartments = apartmentsTask.Result;
-                vm.Page = apartments.Page;
-                vm.PageSize = apartments.PageSize;
-                vm.TotalCount = apartments.TotalCount;
-                vm.Apartments = apartments.Items;
-                vm.Plans = plansTask.Result;
+                vm.Plans = await _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unable to load public home data.");
-                TempData["Error"] = "We couldn't load the public apartment showcase right now. Please refresh in a moment.";
+                TempData["Error"] = "We couldn't load the landlord onboarding information right now. Please refresh in a moment.";
             }
 
             return View(vm);
@@ -62,46 +43,10 @@ namespace RentHub.Portal.Controllers
 
         [AllowAnonymous]
         [HttpGet("apartments/{id:int}")]
-        public async Task<IActionResult> Apartment(int id)
+        public IActionResult Apartment(int id)
         {
-            try
-            {
-                var apartment = await _api.GetAsync<PublicApartmentOverviewDto>($"public/apartments/{id}");
-                ConversationThreadDto? conversation = null;
-
-                if (User.Identity?.IsAuthenticated == true && User.IsInRole("Visitor"))
-                {
-                    try
-                    {
-                        conversation = await _api.GetAsync<ConversationThreadDto>($"Conversations/apartment/{id}/mine");
-                    }
-                    catch
-                    {
-                        conversation = null;
-                    }
-                }
-
-                var returnUrl = $"{Request.Path}{Request.QueryString}";
-                var vm = new PublicApartmentPageVm
-                {
-                    Apartment = apartment,
-                    Conversation = conversation,
-                    IsAuthenticated = User.Identity?.IsAuthenticated == true,
-                    IsVisitor = User.IsInRole("Visitor"),
-                    IsLandlord = User.IsInRole("Landlord"),
-                    CanStartConversation = User.IsInRole("Visitor"),
-                    LoginReturnUrl = returnUrl,
-                    RegisterVisitorReturnUrl = returnUrl
-                };
-
-                return View(vm);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Unable to load public apartment page for apartment {ApartmentId}.", id);
-                TempData["Error"] = "We couldn't load this apartment right now.";
-                return RedirectToAction(nameof(Index));
-            }
+            TempData["Error"] = "The public apartment detail page is temporarily hidden while we focus on the first release.";
+            return RedirectToAction(nameof(Index));
         }
 
         [AllowAnonymous]
