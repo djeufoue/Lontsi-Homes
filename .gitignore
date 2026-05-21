@@ -1,2 +1,13 @@
 RentHub.API/appsettings.Development.json
 RentHub.API/appsettings.Local.json
+.vs/
+build-verify/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.cache
+*.pdb
+DocumentLayout.json
+DocumentLayout.backup.json
+HierarchyCache.v1.txt
