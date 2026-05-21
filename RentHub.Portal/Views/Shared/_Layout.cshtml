@@ -20,9 +20,16 @@
     var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
     var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
     var showSidebar = isAuthenticated && !isMarketingPage;
+    var canSeeProfile = isAuthenticated && userPrincipal?.IsInRole("Visitor") != true;
 
     var userName = User?.Identity?.Name;
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
+    var userRoleLabel =
+        userPrincipal?.IsInRole("Admin") == true ? "Administrator workspace" :
+        userPrincipal?.IsInRole("Manager") == true ? "Manager workspace" :
+        userPrincipal?.IsInRole("Landlord") == true ? "Landlord workspace" :
+        userPrincipal?.IsInRole("Visitor") == true ? "Visitor workspace" :
+        "Workspace profile";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -47,55 +54,80 @@
         {
             <aside class="rh-sidebar" id="rhSidebar">
                 <div class="rh-sidebar-brand">
-                    <a asp-controller="Home" asp-action="Index">RentHub</a>
-                    <small>Workspace</small>
+                    <a class="rh-sidebar-brand-link" asp-controller="Home" asp-action="Index">
+                        <span class="rh-sidebar-brand-mark">R</span>
+                        <span class="rh-sidebar-brand-copy">
+                            <strong>RentHub</strong>
+                            <small>Operations console</small>
+                        </span>
+                    </a>
                 </div>
 
-                @if (userPrincipal?.IsInRole("Visitor") != true)
+                @if (canSeeProfile)
                 {
                     <a class="rh-sidebar-user rh-sidebar-user-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
                         <div class="rh-avatar">@userInitial</div>
                         <div>
                             <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
-                            <p class="rh-sidebar-user-role">Workspace profile</p>
+                            <p class="rh-sidebar-user-role">@userRoleLabel</p>
                         </div>
                     </a>
                 }
 
-                <nav class="rh-nav">
-                    <a class="rh-nav-link @(isHome ? "active" : null)" asp-controller="Home" asp-action="Index">
-                        <span class="rh-nav-icon">&#9635;</span>
-                        <span>Public Home</span>
-                    </a>
+                <div class="rh-sidebar-section">
+                    <p class="rh-sidebar-section-label">Workspace</p>
+                    <nav class="rh-nav">
+                        @if (canSeeProperties)
+                        {
+                            <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index">
+                                <span class="rh-nav-icon">&#9638;</span>
+                                <span>Properties</span>
+                            </a>
+                        }
 
-                    @if (canSeeProperties)
-                    {
-                        <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index">
-                            <span class="rh-nav-icon">&#9638;</span>
-                            <span>My Properties</span>
-                        </a>
-                    }
+                        @if (canSeeMessages)
+                        {
+                            <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index">
+                                <span class="rh-nav-icon">&#9993;</span>
+                                <span>Inbox</span>
+                            </a>
+                        }
 
-                    @if (canSeeMessages)
-                    {
-                        <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index">
-                            <span class="rh-nav-icon">&#9993;</span>
-                            <span>Messages</span>
+                        <a class="rh-nav-link @(isHome ? "active" : null)" asp-controller="Home" asp-action="Index">
+                            <span class="rh-nav-icon">&#8599;</span>
+                            <span>Public Site</span>
                         </a>
-                    }
 
-                    @if (userPrincipal?.IsInRole("Admin") == true)
-                    {
-                        <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
-                            <span class="rh-nav-icon">&#9881;</span>
-                            <span>Subscriptions</span>
-                        </a>
-                    }
-                </nav>
+                        @if (userPrincipal?.IsInRole("Admin") == true)
+                        {
+                            <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
+                                <span class="rh-nav-icon">&#9881;</span>
+                                <span>Subscriptions</span>
+                            </a>
+                        }
+                    </nav>
+                </div>
+
+                @if (canSeeProfile)
+                {
+                    <div class="rh-sidebar-section rh-sidebar-section-muted">
+                        <p class="rh-sidebar-section-label">Account</p>
+                        <nav class="rh-nav rh-nav-secondary">
+                            <a class="rh-nav-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
+                                <span class="rh-nav-icon">&#9673;</span>
+                                <span>Profile</span>
+                            </a>
+                        </nav>
+                    </div>
+                }
 
                 <div class="rh-sidebar-footer">
-                    <p>RentHub</p>
-                    <small>Landlord operations, subscriptions, and rent follow-up</small>
+                    <p>Stay on top of rent operations</p>
+                    <small>Track properties, payments, reminders, and tenant follow-up from one workspace.</small>
+                    <form asp-controller="Auth" asp-action="Logout" method="post" class="mt-3">
+                        @Html.AntiForgeryToken()
+                        <button class="btn rh-btn-sidebar-logout w-100" type="submit">Log Out</button>
+                    </form>
                 </div>
             </aside>
         }
