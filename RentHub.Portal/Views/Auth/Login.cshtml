@@ -9,10 +9,10 @@
         <aside class="rh-auth-hero">
             <span class="rh-auth-kicker">RentHub Platform</span>
             <h1>Manage properties with precision and speed.</h1>
-            <p>Landlords manage units and subscriptions. Visitors use verified accounts to contact landlords privately about available apartments.</p>
+            <p>Landlords manage units, subscriptions, rent reminders, and core rental workflows from one place.</p>
             <ul class="rh-auth-points">
-                <li>Private conversations per apartment</li>
-                <li>Verified visitor and landlord accounts</li>
+                <li>Subscription-based landlord workspace</li>
+                <li>Verified landlord onboarding and payout setup</li>
                 <li>Professional property workflows end-to-end</li>
             </ul>
         </aside>
@@ -51,11 +51,6 @@
             <p class="rh-auth-footnote mb-0">
                 Want to list apartments?
                 <a asp-action="Register" asp-route-returnUrl="@Model.ReturnUrl">Create a landlord account</a>
-            </p>
-
-            <p class="rh-auth-footnote mb-0 mt-2">
-                Want to contact a landlord?
-                <a asp-action="RegisterVisitor" asp-route-returnUrl="@Model.ReturnUrl">Create a visitor account</a>
             </p>
         </section>
     </div>
