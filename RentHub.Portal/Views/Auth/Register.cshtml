@@ -21,7 +21,7 @@
             <ul class="rh-auth-points">
                 <li>OTP verification for payout and WhatsApp numbers</li>
                 <li>Subscription-based property limits</li>
-                <li>Public apartment showcase with private visitor chat</li>
+                <li>Rent workflow management with reminders and payments</li>
             </ul>
         </aside>
 
@@ -153,11 +153,6 @@
             <p class="rh-auth-footnote mb-0">
                 Already have an account?
                 <a asp-action="Login" asp-route-returnUrl="@Model.ReturnUrl">Sign in</a>
-            </p>
-
-            <p class="rh-auth-footnote mb-0 mt-2">
-                Just want to message a landlord?
-                <a asp-action="RegisterVisitor" asp-route-returnUrl="@Model.ReturnUrl">Create a visitor account</a>
             </p>
         </section>
     </div>
