@@ -30,7 +30,7 @@ namespace RentHub.Portal.Controllers
 
             try
             {
-                vm.Plans = await _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
+                vm.Plans = await _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
             }
             catch (Exception ex)
             {
