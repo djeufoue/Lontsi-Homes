@@ -8,8 +8,6 @@ namespace RentHub.Portal.Services
 {
     public class RentHubApiClient
     {
-        private const string JwtTokenClaimType = "jwt_token";
-
         private readonly HttpClient _http;
         private readonly PortalAuthSessionService _authSession;
 
@@ -98,9 +96,22 @@ namespace RentHub.Portal.Services
             return false;
         }
 
-        private static Exception BuildApiException(HttpStatusCode statusCode, string raw)
+        private async Task PrepareAuthorizationAsync(bool attachBearer)
         {
-            if (statusCode == HttpStatusCode.Unauthorized)
+            if (attachBearer)
+            {
+                await AttachBearerAsync();
+                return;
+            }
+
+            _http.DefaultRequestHeaders.Authorization = null;
+        }
+
+        private static Exception BuildApiException(HttpStatusCode statusCode, string raw, bool treatUnauthorizedAsSessionExpired)
+        {
+            if (statusCode == HttpStatusCode.Unauthorized &&
+                treatUnauthorizedAsSessionExpired &&
+                string.IsNullOrWhiteSpace(raw))
             {
                 return new Exception("{\"Code\":\"AUTH_SESSION_EXPIRED\",\"Message\":\"Your session expired. Please sign in again.\"}");
             }
@@ -113,30 +124,60 @@ namespace RentHub.Portal.Services
             return new Exception(raw);
         }
 
-        public async Task<T> GetAsync<T>(string url)
+        private async Task<T> GetAsyncCore<T>(string url, bool attachBearer, bool treatUnauthorizedAsSessionExpired)
         {
-            await AttachBearerAsync();
+            await PrepareAuthorizationAsync(attachBearer);
             var res = await _http.GetAsync(url);
             var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired);
             return JsonSerializer.Deserialize<T>(json, JsonOpt)!;
+        }
+
+        private async Task<TOut> PostAsyncCore<TIn, TOut>(string url, TIn body, bool attachBearer, bool treatUnauthorizedAsSessionExpired)
+        {
+            await PrepareAuthorizationAsync(attachBearer);
+            var res = await _http.PostAsync(url, JsonBody(body));
+            var json = await res.Content.ReadAsStringAsync();
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired);
+            return JsonSerializer.Deserialize<TOut>(json, JsonOpt)!;
+        }
+
+        private async Task PostAsyncCore<TIn>(string url, TIn body, bool attachBearer, bool treatUnauthorizedAsSessionExpired)
+        {
+            await PrepareAuthorizationAsync(attachBearer);
+            var res = await _http.PostAsync(url, JsonBody(body));
+            var json = await res.Content.ReadAsStringAsync();
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired);
+        }
+
+        public async Task<T> GetAsync<T>(string url)
+        {
+            return await GetAsyncCore<T>(url, attachBearer: true, treatUnauthorizedAsSessionExpired: true);
+        }
+
+        public async Task<T> GetAnonymousAsync<T>(string url)
+        {
+            return await GetAsyncCore<T>(url, attachBearer: false, treatUnauthorizedAsSessionExpired: false);
         }
 
         public async Task<TOut> PostAsync<TIn, TOut>(string url, TIn body)
         {
-            await AttachBearerAsync();
-            var res = await _http.PostAsync(url, JsonBody(body));
-            var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
-            return JsonSerializer.Deserialize<TOut>(json, JsonOpt)!;
+            return await PostAsyncCore<TIn, TOut>(url, body, attachBearer: true, treatUnauthorizedAsSessionExpired: true);
+        }
+
+        public async Task<TOut> PostAnonymousAsync<TIn, TOut>(string url, TIn body)
+        {
+            return await PostAsyncCore<TIn, TOut>(url, body, attachBearer: false, treatUnauthorizedAsSessionExpired: false);
         }
 
         public async Task PostAsync<TIn>(string url, TIn body)
         {
-            await AttachBearerAsync();
-            var res = await _http.PostAsync(url, JsonBody(body));
-            var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
+            await PostAsyncCore(url, body, attachBearer: true, treatUnauthorizedAsSessionExpired: true);
+        }
+
+        public async Task PostAnonymousAsync<TIn>(string url, TIn body)
+        {
+            await PostAsyncCore(url, body, attachBearer: false, treatUnauthorizedAsSessionExpired: false);
         }
 
         public async Task PutAsync<TIn>(string url, TIn body)
@@ -144,7 +185,7 @@ namespace RentHub.Portal.Services
             await AttachBearerAsync();
             var res = await _http.PutAsync(url, JsonBody(body));
             var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired: true);
         }
 
         public async Task DeleteAsync(string url)
@@ -152,7 +193,7 @@ namespace RentHub.Portal.Services
             await AttachBearerAsync();
             var res = await _http.DeleteAsync(url);
             var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired: true);
         }
 
         public async Task<TOut> PostMultipartAsync<TOut>(string url, MultipartFormDataContent content)
@@ -160,7 +201,7 @@ namespace RentHub.Portal.Services
             await AttachBearerAsync();
             var res = await _http.PostAsync(url, content);
             var json = await res.Content.ReadAsStringAsync();
-            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json);
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired: true);
             return JsonSerializer.Deserialize<TOut>(json, JsonOpt)!;
         }
 

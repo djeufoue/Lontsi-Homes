@@ -39,9 +39,9 @@ namespace RentHub.Portal.Controllers
             try
             {
                 string E(string? value) => Uri.EscapeDataString(value ?? string.Empty);
-                var apartmentsTask = _api.GetAsync<PublicApartmentCatalogResponseDto>(
+                var apartmentsTask = _api.GetAnonymousAsync<PublicApartmentCatalogResponseDto>(
                     $"public/apartments?search={E(search)}&city={E(city)}&status={E(status)}&page={page}&pageSize={pageSize}");
-                var plansTask = _api.GetAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
+                var plansTask = _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
                 await Task.WhenAll(apartmentsTask, plansTask);
 
                 var apartments = apartmentsTask.Result;
@@ -66,7 +66,7 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
-                var apartment = await _api.GetAsync<PublicApartmentOverviewDto>($"public/apartments/{id}");
+                var apartment = await _api.GetAnonymousAsync<PublicApartmentOverviewDto>($"public/apartments/{id}");
                 ConversationThreadDto? conversation = null;
 
                 if (User.Identity?.IsAuthenticated == true && User.IsInRole("Visitor"))
