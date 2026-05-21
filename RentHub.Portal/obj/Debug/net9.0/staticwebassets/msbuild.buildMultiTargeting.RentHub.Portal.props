@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\RentHub.Portal.props" />
-</Project>

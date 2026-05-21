@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\RentHub.API.props" />
-</Project>
