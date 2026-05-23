@@ -1,5 +1,6 @@
 using Common.CommunicationModels;
 using Common.Enums;
+using Common.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
@@ -84,10 +85,12 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                var normalizedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(paymentMethod);
+
                 var request = new StartSubscriptionCheckoutRequest
                 {
-                    PaymentMethod = paymentMethod,
-                    AllowAutomaticCardPayments = allowAutomaticCardPayments
+                    PaymentMethod = normalizedPaymentMethod,
+                    AllowAutomaticCardPayments = normalizedPaymentMethod == PaymentMethodEnum.Card && allowAutomaticCardPayments
                 };
 
                 var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(

@@ -12,11 +12,13 @@ namespace RentHub.Portal.Controllers
     {
         private readonly ILogger<HomeController> _logger;
         private readonly RentHubApiClient _api;
+        private readonly IConfiguration _configuration;
 
-        public HomeController(ILogger<HomeController> logger, RentHubApiClient api)
+        public HomeController(ILogger<HomeController> logger, RentHubApiClient api, IConfiguration configuration)
         {
             _logger = logger;
             _api = api;
+            _configuration = configuration;
         }
 
         [AllowAnonymous]
@@ -52,7 +54,25 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public IActionResult Privacy()
         {
-            return View();
+            return View(BuildPublicSiteInfo());
+        }
+
+        [AllowAnonymous]
+        public IActionResult Terms()
+        {
+            return View(BuildPublicSiteInfo());
+        }
+
+        [AllowAnonymous]
+        public IActionResult RefundPolicy()
+        {
+            return View(BuildPublicSiteInfo());
+        }
+
+        [AllowAnonymous]
+        public IActionResult Contact()
+        {
+            return View(BuildPublicSiteInfo());
         }
 
         [AllowAnonymous]
@@ -60,6 +80,19 @@ namespace RentHub.Portal.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        private PublicSiteInfoVm BuildPublicSiteInfo()
+        {
+            return new PublicSiteInfoVm
+            {
+                SiteName = _configuration["PublicSite:SiteName"] ?? "RentHub",
+                LegalEntityName = _configuration["PublicSite:LegalEntityName"] ?? "RentHub",
+                SupportEmail = _configuration["PublicSite:SupportEmail"] ?? "REMOVED_PRIVATE_VALUE",
+                SupportPhone = _configuration["PublicSite:SupportPhone"] ?? "+237 600 000 000",
+                SupportWhatsApp = _configuration["PublicSite:SupportWhatsApp"] ?? "+237 600 000 000",
+                CompanyAddress = _configuration["PublicSite:CompanyAddress"] ?? "Douala, Cameroon"
+            };
         }
     }
 }

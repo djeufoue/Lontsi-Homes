@@ -469,6 +469,13 @@ body.rh-body {
   color: var(--rh-text);
 }
 
+.rh-footer-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
 .rh-shell.has-sidebar .rh-topbar .rh-btn-subtle {
   background: #ffffff;
   color: var(--rh-text);
@@ -4351,8 +4358,77 @@ body.rh-auth-body {
 
 .rh-topbar.is-public,
 .rh-footer.is-public {
-    background: transparent;
-    border: none;
+  background: transparent;
+  border: none;
+}
+
+.rh-legal-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.rh-legal-shell {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.rh-legal-hero,
+.rh-legal-note {
+  padding: 2rem 2.1rem;
+  border-radius: 30px;
+  border: 1px solid rgba(17, 60, 59, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(15, 121, 108, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(246, 250, 252, 0.96) 100%);
+  box-shadow: 0 24px 60px rgba(12, 50, 59, 0.08);
+}
+
+.rh-legal-hero h1,
+.rh-legal-note h2,
+.rh-contact-grid h2 {
+  margin: 0.45rem 0 0.85rem;
+  color: #17324c;
+}
+
+.rh-legal-hero p,
+.rh-legal-note p,
+.rh-legal-card p {
+  margin: 0;
+  color: #5f7487;
+  line-height: 1.75;
+}
+
+.rh-legal-grid,
+.rh-contact-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.rh-legal-card {
+  padding: 1.35rem 1.4rem;
+  border-radius: 24px;
+  border: 1px solid rgba(17, 60, 59, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 42px rgba(15, 43, 62, 0.07);
+}
+
+.rh-legal-card h2 {
+  margin: 0 0 0.65rem;
+  color: #17324c;
+  font-size: 1.08rem;
+}
+
+.rh-legal-card a,
+.rh-legal-note a {
+  color: #116c5b;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.rh-legal-card a:hover,
+.rh-legal-note a:hover {
+  text-decoration: underline;
 }
 
 .rh-page-public {
@@ -4997,6 +5073,13 @@ body.rh-auth-body {
 }
 
 @media (max-width: 760px) {
+    .rh-footer,
+    .rh-footer-links {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
     .rh-public-search-form {
         grid-template-columns: 1fr;
     }

@@ -181,8 +181,11 @@
 
             <footer class="rh-footer @(isMarketingPage ? "is-public" : null)">
                 <div>&copy; 2026 - RentHub</div>
-                <div>
+                <div class="rh-footer-links">
+                    <a asp-controller="Home" asp-action="Terms">Terms</a>
                     <a asp-controller="Home" asp-action="Privacy">Privacy</a>
+                    <a asp-controller="Home" asp-action="RefundPolicy">Refund Policy</a>
+                    <a asp-controller="Home" asp-action="Contact">Contact</a>
                 </div>
             </footer>
         </div>

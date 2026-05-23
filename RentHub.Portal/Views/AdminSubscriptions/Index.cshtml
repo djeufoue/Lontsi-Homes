@@ -32,6 +32,58 @@
 
 <section class="rh-panel rh-panel-elevated mb-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title mb-0">Transfer Receiving Accounts</h2>
+            <small class="text-muted">Configure where the platform administrator receives incoming MTN Money and Orange Money transfers.</small>
+        </div>
+    </div>
+
+    <div class="rh-admin-plan-grid">
+        @foreach (var account in Model.TransferAccounts)
+        {
+            <article class="rh-admin-plan-card">
+                <div class="rh-admin-plan-head">
+                    <h3>@account.ChannelLabel</h3>
+                    <span class="rh-chip @(account.IsConfigured ? "rh-chip-success" : "rh-chip-warning")">
+                        @(account.IsConfigured ? "Configured" : "Needs setup")
+                    </span>
+                </div>
+
+                <form asp-action="UpdateTransferAccount" method="post" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Channel" value="@account.Channel" />
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Account Name</label>
+                        <input class="form-control rh-input" name="AccountName" value="@account.AccountName" required />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Receiving Number</label>
+                        <input class="form-control rh-input" name="PhoneNumber" value="@account.PhoneNumber" placeholder="e.g. 6XXXXXXXX" required />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Country Code</label>
+                        <input class="form-control rh-input" name="CountryCode" value="@account.CountryCode" placeholder="+237" required />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Notes (Optional)</label>
+                        <textarea class="form-control rh-input" name="Notes" rows="2" placeholder="Internal transfer note or reconciliation detail">@account.Notes</textarea>
+                    </div>
+
+                    <div class="col-12 d-grid mt-2">
+                        <button type="submit" class="btn rh-btn-primary">Save @account.ChannelLabel Account</button>
+                    </div>
+                </form>
+            </article>
+        }
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h2 class="rh-section-title mb-0">Pending Subscription Approvals</h2>
         <small class="text-muted">Approve subscriptions to unlock landlord operations.</small>
     </div>

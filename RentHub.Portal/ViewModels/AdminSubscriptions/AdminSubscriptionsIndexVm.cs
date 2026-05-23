@@ -6,5 +6,6 @@ namespace RentHub.Portal.ViewModels.AdminSubscriptions
     {
         public List<SubscriptionPlanDto> Plans { get; set; } = new();
         public List<PendingSubscriptionDto> PendingSubscriptions { get; set; } = new();
+        public List<SystemTransferAccountDto> TransferAccounts { get; set; } = new();
     }
 }

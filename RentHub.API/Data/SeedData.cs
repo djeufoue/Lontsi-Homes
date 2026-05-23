@@ -25,6 +25,7 @@ namespace RentHub.API.Data
             EnsureUserVerificationColumns(context);
             EnsureSubscriptionCheckoutColumns(context);
             EnsureConversationTables(context);
+            EnsureSystemTransferAccountsTable(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -380,6 +381,61 @@ namespace RentHub.API.Data
                 SET [PaymentStatus] = CASE
                     WHEN [IsApproved] = 1 AND [PaymentStatus] = 0 THEN 1
                     ELSE [PaymentStatus]
+                END
+            ");
+        }
+
+        private static void EnsureSystemTransferAccountsTable(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+                IF OBJECT_ID('SystemTransferAccounts', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE [SystemTransferAccounts]
+                    (
+                        [Id] int IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [Channel] int NOT NULL,
+                        [AccountName] nvarchar(160) NOT NULL
+                            CONSTRAINT [DF_SystemTransferAccounts_AccountName] DEFAULT(''),
+                        [PhoneNumber] nvarchar(40) NOT NULL
+                            CONSTRAINT [DF_SystemTransferAccounts_PhoneNumber] DEFAULT(''),
+                        [CountryCode] nvarchar(8) NOT NULL
+                            CONSTRAINT [DF_SystemTransferAccounts_CountryCode] DEFAULT('+237'),
+                        [Notes] nvarchar(280) NULL,
+                        [IsDeleted] bit NOT NULL
+                            CONSTRAINT [DF_SystemTransferAccounts_IsDeleted] DEFAULT(0),
+                        [CreatedBy] nvarchar(450) NULL,
+                        [CreatedAt] datetimeoffset NOT NULL
+                            CONSTRAINT [DF_SystemTransferAccounts_CreatedAt] DEFAULT(SYSDATETIMEOFFSET()),
+                        [UpdatedBy] nvarchar(450) NULL,
+                        [UpdatedAt] datetimeoffset NULL,
+                        [DeletedBy] nvarchar(450) NULL,
+                        [DeletedAt] datetimeoffset NULL
+                    );
+                END
+
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE [name] = 'IX_SystemTransferAccounts_Channel'
+                      AND [object_id] = OBJECT_ID('[SystemTransferAccounts]')
+                )
+                BEGIN
+                    CREATE UNIQUE INDEX [IX_SystemTransferAccounts_Channel]
+                    ON [SystemTransferAccounts]([Channel]);
+                END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT 1 FROM [SystemTransferAccounts] WHERE [Channel] = 1)
+                BEGIN
+                    INSERT INTO [SystemTransferAccounts] ([Channel], [AccountName], [PhoneNumber], [CountryCode], [Notes], [CreatedAt], [IsDeleted])
+                    VALUES (1, '', '', '+237', NULL, SYSDATETIMEOFFSET(), 0);
+                END
+
+                IF NOT EXISTS (SELECT 1 FROM [SystemTransferAccounts] WHERE [Channel] = 2)
+                BEGIN
+                    INSERT INTO [SystemTransferAccounts] ([Channel], [AccountName], [PhoneNumber], [CountryCode], [Notes], [CreatedAt], [IsDeleted])
+                    VALUES (2, '', '', '+237', NULL, SYSDATETIMEOFFSET(), 0);
                 END
             ");
         }

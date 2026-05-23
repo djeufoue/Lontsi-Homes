@@ -1,4 +1,5 @@
 using Common.CommunicationModels;
+using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
@@ -21,11 +22,13 @@ namespace RentHub.Portal.Controllers
         {
             var plans = await _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
             var pending = await _api.GetAsync<List<PendingSubscriptionDto>>("Subscriptions/pending");
+            var transferAccounts = await _api.GetAsync<List<SystemTransferAccountDto>>("AdminTransferAccounts");
 
             return View(new AdminSubscriptionsIndexVm
             {
                 Plans = plans,
-                PendingSubscriptions = pending
+                PendingSubscriptions = pending,
+                TransferAccounts = transferAccounts
             });
         }
 
@@ -82,6 +85,44 @@ namespace RentHub.Portal.Controllers
 
                 await _api.PutAsync($"Subscriptions/plans/{vm.PlanId}", req);
                 TempData["Success"] = $"Plan '{vm.Name}' updated successfully.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateTransferAccount(UpdateTransferAccountAdminVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Please provide a valid receiving account name, number, and country code.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (vm.Channel != PayoutChannelEnum.MtnMoney && vm.Channel != PayoutChannelEnum.OrangeMoney)
+            {
+                TempData["Error"] = "Only MTN Money and Orange Money are supported in the admin transfer section.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var request = new UpsertSystemTransferAccountRequest
+                {
+                    Channel = vm.Channel,
+                    AccountName = vm.AccountName,
+                    PhoneNumber = vm.PhoneNumber,
+                    CountryCode = vm.CountryCode,
+                    Notes = vm.Notes
+                };
+
+                await _api.PutAsync($"AdminTransferAccounts/{vm.Channel}", request);
+                TempData["Success"] = $"{(vm.Channel == PayoutChannelEnum.MtnMoney ? "MTN Money" : "Orange Money")} receiving account saved successfully.";
             }
             catch (Exception ex)
             {

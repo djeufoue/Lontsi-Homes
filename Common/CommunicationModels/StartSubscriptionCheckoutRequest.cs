@@ -6,7 +6,8 @@ namespace Common.CommunicationModels
     public class StartSubscriptionCheckoutRequest
     {
         [Required]
-        public PaymentMethodEnum PaymentMethod { get; set; }
+        [EnumDataType(typeof(PaymentMethodEnum))]
+        public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Card;
 
         public bool AllowAutomaticCardPayments { get; set; }
     }

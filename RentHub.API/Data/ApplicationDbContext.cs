@@ -24,6 +24,7 @@ namespace RentHub.API.Data
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<Document> Documents => Set<Document>();
+        public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
         public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
@@ -62,6 +63,10 @@ namespace RentHub.API.Data
                 .Property(us => us.PlanPriceSnapshot)
                 .HasPrecision(18, 2);
 
+            builder.Entity<SystemTransferAccount>()
+                .HasIndex(a => a.Channel)
+                .IsUnique();
+
             builder.Entity<ApartmentConversation>()
                 .HasIndex(c => new { c.ApartmentId, c.VisitorId })
                 .IsUnique();
@@ -97,6 +102,7 @@ namespace RentHub.API.Data
             builder.Entity<UserSubscription>().HasQueryFilter(us => !us.IsDeleted);
             builder.Entity<Payment>().HasQueryFilter(p => !p.IsDeleted);
             builder.Entity<Document>().HasQueryFilter(d => !d.IsDeleted);
+            builder.Entity<SystemTransferAccount>().HasQueryFilter(a => !a.IsDeleted);
             builder.Entity<ApartmentOwner>().HasQueryFilter(o => !o.IsDeleted);
             builder.Entity<PropertyManagerAssignment>().HasQueryFilter(m => !m.IsDeleted);
             builder.Entity<ReminderSettings>().HasQueryFilter(rs => !rs.IsDeleted);

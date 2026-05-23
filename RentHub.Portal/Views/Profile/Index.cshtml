@@ -184,7 +184,7 @@
 <section class="rh-panel rh-panel-elevated mt-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h2 class="rh-section-title mb-0">Choose Subscription</h2>
-        <small class="text-muted">Use MTN Money, Orange Money Cameroon, or Visa. Visa can keep the auto-charge preference disabled if you do not want recurring card debits.</small>
+        <small class="text-muted">Visa is the default checkout method. You can still switch to MTN Money or Orange Money Cameroon whenever needed.</small>
     </div>
 
     @if (!overview.AvailablePlans.Any())
@@ -222,9 +222,9 @@
                         <label class="form-label mb-1">Payment method</label>
                         <div class="rh-select-wrap mb-2">
                             <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method @(isCurrent ? "disabled" : null)>
+                                <option value="@PaymentMethodEnum.Card" selected>Visa</option>
                                 <option value="@PaymentMethodEnum.Momo">MTN Money</option>
                                 <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
-                                <option value="@PaymentMethodEnum.Card">Visa</option>
                             </select>
                         </div>
 
@@ -232,7 +232,7 @@
                             <div class="form-check rh-form-switch">
                                 <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="cardConsent_@plan.Id" />
                                 <label class="form-check-label" for="cardConsent_@plan.Id">
-                                    Allow automatic card renewals for this Visa subscription. Leave it unchecked if you prefer to renew manually.
+                                    Allow automatic Visa renewal for this subscription once saved-card billing is enabled on your merchant account. Leave it unchecked if you prefer to renew manually.
                                 </label>
                             </div>
                         </div>

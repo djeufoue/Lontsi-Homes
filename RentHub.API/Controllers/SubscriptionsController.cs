@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Common.CommunicationModels;
 using Common.Enums;
+using Common.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -212,6 +213,8 @@ namespace RentHub.API.Controllers
                     return NotFound("Plan not found.");
                 }
 
+                var normalizedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(request.PaymentMethod);
+
                 var now = DateTimeOffset.UtcNow;
                 var currentApproved = await _context.UserSubscriptions
                     .Where(us =>
@@ -268,9 +271,9 @@ namespace RentHub.API.Controllers
                 pendingSubscription.PlanDurationInDaysSnapshot = plan.DurationInDays;
                 pendingSubscription.PlanMaxPropertiesSnapshot = plan.MaxProperties;
                 pendingSubscription.PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty;
-                pendingSubscription.PaymentMethod = request.PaymentMethod;
+                pendingSubscription.PaymentMethod = normalizedPaymentMethod;
                 pendingSubscription.AllowAutomaticCardPayments =
-                    request.PaymentMethod == PaymentMethodEnum.Card && request.AllowAutomaticCardPayments;
+                    normalizedPaymentMethod == PaymentMethodEnum.Card && request.AllowAutomaticCardPayments;
                 pendingSubscription.PaymentStatus = PaymentStatusEnum.Pending;
                 pendingSubscription.PaymentCompletedAt = null;
                 pendingSubscription.PaymentReference = BuildPaymentReference(pendingSubscription.Id);
@@ -281,7 +284,7 @@ namespace RentHub.API.Controllers
                     user,
                     plan,
                     pendingSubscription,
-                    request.PaymentMethod,
+                    normalizedPaymentMethod,
                     pendingSubscription.AllowAutomaticCardPayments);
 
                 pendingSubscription.PaymentAuthorizationUrl = checkout.AuthorizationUrl;
@@ -296,7 +299,7 @@ namespace RentHub.API.Controllers
                     PlanName = plan.Name,
                     Amount = plan.Price,
                     Currency = "XAF",
-                    PaymentMethod = request.PaymentMethod,
+                    PaymentMethod = normalizedPaymentMethod,
                     AllowAutomaticCardPayments = pendingSubscription.AllowAutomaticCardPayments,
                     PaymentReference = pendingSubscription.PaymentReference,
                     AuthorizationUrl = checkout.AuthorizationUrl,

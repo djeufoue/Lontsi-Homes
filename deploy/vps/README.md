@@ -13,10 +13,10 @@ Blob/file storage stays on Azure Blob Storage.
 
 For a first low-cost production release, a good target is:
 
-- `OVHcloud VPS-1`
-- `4 vCores`
-- `8 GB RAM`
-- `75 GB SSD`
+- `OVHcloud VPS-2`
+- `6 vCores`
+- `12 GB RAM`
+- `100 GB SSD NVMe`
 - daily backup included
 
 As of 2026-03-23, OVHcloud advertises VPS-1 starting at `$4.20/month` on its US site:
@@ -29,7 +29,7 @@ Another strong option is Hetzner `CX33` / `CPX32`, but SQL Server requires `x64`
 
 Choose these settings:
 
-- OS: `Ubuntu 22.04 LTS x64`
+- OS: `Ubuntu 24.04 LTS x64`
 - Region: closest stable EU location
 - Public IPv4: included
 - SSH key auth: preferred over password-only access
