@@ -3132,6 +3132,15 @@ body.rh-auth-body {
   box-shadow: 0 30px 60px rgba(12, 40, 68, 0.24);
 }
 
+.rh-image-lightbox-stage {
+  position: relative;
+}
+
+.rh-lightbox-nav {
+  background: rgba(14, 29, 48, 0.7);
+  box-shadow: 0 16px 32px rgba(12, 40, 68, 0.22);
+}
+
 .rh-image-lightbox-preview {
   display: block;
   width: 100%;

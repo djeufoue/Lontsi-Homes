@@ -13,10 +13,11 @@
     var occupiedUnits = allUnits.Count(unit => activeStatuses.Contains((unit.Status ?? string.Empty).Trim().ToLowerInvariant()));
     var availableUnits = Math.Max(0, Model.TotalUnits - occupiedUnits);
     var averageRent = allUnits.Any() ? allUnits.Average(unit => unit.Price) : 0m;
-    var propertyImage = Model.Documents
+    var propertyImages = Model.Documents
         .Where(doc => doc.DocumentType == DocumentTypeEnum.PropertyImage)
         .OrderByDescending(doc => doc.UploadedAt)
-        .FirstOrDefault();
+        .ToList();
+    var propertyImage = propertyImages.FirstOrDefault();
     var propertyImageUrl = propertyImage != null ? Url.Action("DocumentContent", "Properties", new { id = propertyImage.Id }) : null;
     var propertyDocuments = Model.Documents
         .Where(doc => doc.DocumentType != DocumentTypeEnum.PropertyImage)
@@ -648,7 +649,22 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body pt-0">
-                    <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-image-lightbox-preview" />
+                    <div class="rh-image-lightbox-stage">
+                        @if (propertyImages.Count > 1)
+                        {
+                            <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-property-lightbox-nav="prev" aria-label="Previous property image">&#8592;</button>
+                            <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-property-lightbox-nav="next" aria-label="Next property image">&#8594;</button>
+                        }
+                        <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-image-lightbox-preview" id="propertyImageLightboxPreview" />
+                    </div>
+                    <div class="d-none" data-property-lightbox-items>
+                        @foreach (var image in propertyImages)
+                        {
+                            <span data-property-lightbox-image
+                                  data-image-url="@Url.Action("DocumentContent", "Properties", new { id = image.Id })"
+                                  data-image-name="@image.FileName"></span>
+                        }
+                    </div>
                 </div>
             </div>
         </div>

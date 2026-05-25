@@ -26,6 +26,13 @@
     return bootstrap.Modal.getOrCreateInstance(element);
   };
 
+  document.addEventListener("hide.bs.modal", (event) => {
+    const activeElement = document.activeElement;
+    if (activeElement && event.target.contains(activeElement)) {
+      activeElement.blur();
+    }
+  });
+
   const ensureFeedbackModal = () => {
     let modalEl = document.getElementById("rhFeedbackModal");
     if (modalEl) {
@@ -233,6 +240,38 @@
       };
       img.src = objectUrl;
     });
+  };
+
+  const initPropertyImageLightbox = () => {
+    const modal = document.getElementById("propertyImageLightbox");
+    if (!modal || modal.dataset.bound === "true") {
+      return;
+    }
+
+    const preview = modal.querySelector("#propertyImageLightboxPreview");
+    const images = Array.from(modal.querySelectorAll("[data-property-lightbox-image]"))
+      .map((item) => ({
+        url: item.dataset.imageUrl || "",
+        name: item.dataset.imageName || "Property image"
+      }))
+      .filter((item) => item.url);
+
+    if (!preview || !images.length) {
+      return;
+    }
+
+    let activeIndex = Math.max(0, images.findIndex((item) => item.url === preview.getAttribute("src")));
+    const updateImage = (nextIndex) => {
+      activeIndex = (nextIndex + images.length) % images.length;
+      const image = images[activeIndex];
+      preview.src = image.url;
+      preview.alt = image.name;
+    };
+
+    modal.querySelector("[data-property-lightbox-nav='prev']")?.addEventListener("click", () => updateImage(activeIndex - 1));
+    modal.querySelector("[data-property-lightbox-nav='next']")?.addEventListener("click", () => updateImage(activeIndex + 1));
+    updateImage(activeIndex);
+    modal.dataset.bound = "true";
   };
 
   const initPropertySettingsEditor = (root) => {
@@ -553,6 +592,7 @@
 
     bindAutoSearchForms(root);
     initPropertyImageUpload(root);
+    initPropertyImageLightbox();
     initPropertySettingsEditor(root);
     initLivePropertyForms(root);
     ensureWorkspaceHub(root).catch(() => {
@@ -579,6 +619,8 @@
     const deleteDocumentId = manageModal?.querySelector("input[name='documentId']");
     const imageNameTarget = manageModal?.querySelector("[data-current-image-name]");
     const lightboxPreview = document.getElementById("apartmentImageLightboxPreview");
+    const lightboxPrev = document.querySelector("[data-lightbox-nav='prev']");
+    const lightboxNext = document.querySelector("[data-lightbox-nav='next']");
     let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("is-active")));
 
     const updateManageModal = () => {
@@ -617,6 +659,14 @@
 
     gallery.querySelector("[data-gallery-nav='prev']")?.addEventListener("click", () => updateSlide(activeIndex - 1));
     gallery.querySelector("[data-gallery-nav='next']")?.addEventListener("click", () => updateSlide(activeIndex + 1));
+    if (lightboxPrev) {
+      lightboxPrev.onclick = () => updateSlide(activeIndex - 1);
+    }
+
+    if (lightboxNext) {
+      lightboxNext.onclick = () => updateSlide(activeIndex + 1);
+    }
+
     manageOpen?.addEventListener("click", updateManageModal);
     gallery.querySelectorAll("[data-image-lightbox-trigger='true']").forEach((trigger) => {
       if (trigger.dataset.bound === "true") {
@@ -625,12 +675,9 @@
 
       trigger.dataset.bound = "true";
       trigger.addEventListener("click", () => {
-        const imageUrl = trigger.dataset.imageUrl || slides[activeIndex]?.dataset.imageUrl || "";
-        const imageName = trigger.dataset.imageName || slides[activeIndex]?.dataset.imageName || "Apartment image preview";
-        if (lightboxPreview) {
-          lightboxPreview.src = imageUrl;
-          lightboxPreview.alt = imageName;
-        }
+        const triggerSlide = trigger.closest("[data-gallery-slide]");
+        const triggerIndex = triggerSlide ? slides.indexOf(triggerSlide) : activeIndex;
+        updateSlide(triggerIndex >= 0 ? triggerIndex : activeIndex);
       });
     });
     updateSlide(activeIndex);

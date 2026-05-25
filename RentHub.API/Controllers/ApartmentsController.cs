@@ -117,6 +117,7 @@ namespace RentHub.API.Controllers
             {
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
+                var isAdmin = User.IsInRole("Admin");
 
                 var apt = await _context.Apartments
                     .Include(a => a.Property)
@@ -126,6 +127,7 @@ namespace RentHub.API.Controllers
                 if (apt.Property == null) return NotFound("Property not found.");
 
                 bool hasAccess =
+                    isAdmin ||
                     apt.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
                         m.PropertyId == apt.PropertyId && m.ManagerId == userId && !m.IsDeleted) ||
@@ -138,6 +140,7 @@ namespace RentHub.API.Controllers
                 if (!hasAccess) return Forbid();
 
                 bool canWrite =
+                    isAdmin ||
                     apt.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
                         m.PropertyId == apt.PropertyId && m.ManagerId == userId && !m.IsDeleted && m.Permission == PermissionLevelEnum.ReadWrite) ||
@@ -173,7 +176,7 @@ namespace RentHub.API.Controllers
                             EndDate = tenancy.EndDate,
                             MonthlyRent = tenancy.MonthlyRent,
                             MaxMembers = tenancy.MaxMembers,
-                            IsOwner = apt.Property!.LandlordId == userId
+                            IsOwner = isAdmin || apt.Property!.LandlordId == userId
                         });
                     })
                     .ToList();

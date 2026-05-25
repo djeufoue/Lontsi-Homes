@@ -759,10 +759,17 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-0">
-                <img src="@(currentApartmentImage?.BlobUrl ?? string.Empty)"
-                     alt="Apartment image preview"
-                     class="rh-image-lightbox-preview"
-                     id="apartmentImageLightboxPreview" />
+                <div class="rh-image-lightbox-stage">
+                    @if (apartmentImages.Count > 1)
+                    {
+                        <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-lightbox-nav="prev" aria-label="Previous image">&#8592;</button>
+                        <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-lightbox-nav="next" aria-label="Next image">&#8594;</button>
+                    }
+                    <img src="@(currentApartmentImage?.BlobUrl ?? string.Empty)"
+                         alt="Apartment image preview"
+                         class="rh-image-lightbox-preview"
+                         id="apartmentImageLightboxPreview" />
+                </div>
             </div>
         </div>
     </div>
