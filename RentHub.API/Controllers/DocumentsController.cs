@@ -232,50 +232,31 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-                var hasAccess = document.UserId == userId;
-                if (document.PropertyId.HasValue)
+                var isAdmin = User.IsInRole("Admin");
+                var hasAccess = isAdmin || document.UserId == userId;
+                if (!hasAccess && document.PropertyId.HasValue)
                 {
-                    var propertyId = document.PropertyId.Value;
-                    var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
-                    if (property != null)
-                    {
-                        if (property.LandlordId == userId) hasAccess = true;
-                        if (!hasAccess)
-                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
-                        if (!hasAccess)
-                            hasAccess = await _context.ApartmentOwners.Include(o => o.Apartment).AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
-                    }
+                    hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, document.PropertyId.Value, userId, isAdmin);
                 }
                 if (!hasAccess && document.ApartmentId.HasValue)
                 {
                     var apartmentId = document.ApartmentId.Value;
-                    var apartment = await _context.Apartments.Include(a => a.Property).FirstOrDefaultAsync(a => a.Id == apartmentId);
+                    var apartment = await _context.Apartments.FirstOrDefaultAsync(a => a.Id == apartmentId);
                     if (apartment != null)
                     {
-                        if (apartment.Property?.LandlordId == userId) hasAccess = true;
-                        if (!hasAccess)
-                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
-                        if (!hasAccess)
-                            hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId);
-                        if (!hasAccess)
-                            hasAccess = await _context.Tenancies.AnyAsync(t =>
-                                t.ApartmentId == apartmentId &&
-                                t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
+                        hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, apartment.PropertyId, userId, isAdmin);
                     }
                 }
                 if (!hasAccess && document.TenancyId.HasValue)
                 {
                     var tenancyId = document.TenancyId.Value;
-                    var tenancy = await _context.Tenancies.Include(t => t.Apartment!.Property).FirstOrDefaultAsync(t => t.Id == tenancyId);
+                    var tenancy = await _context.Tenancies
+                        .Include(t => t.Apartment)
+                        .FirstOrDefaultAsync(t => t.Id == tenancyId);
 
-                    if (tenancy != null)
+                    if (tenancy?.Apartment != null)
                     {
-                        if (tenancy.Apartment!.Property!.LandlordId == userId) hasAccess = true;
-                        if (!hasAccess)
-                            hasAccess = await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId);
-                        if (!hasAccess)
-                            hasAccess = await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId);
-                        if (!hasAccess && await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId)) hasAccess = true;
+                        hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, tenancy.Apartment.PropertyId, userId, isAdmin);
                     }
                 }
                 if (!hasAccess) return Forbid();
@@ -298,9 +279,11 @@ namespace RentHub.API.Controllers
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
-                var hasAccess = property.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId) ||
-                    await _context.ApartmentOwners.Include(o => o.Apartment).AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId);
+                var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(
+                    _context,
+                    propertyId,
+                    userId,
+                    User.IsInRole("Admin"));
                 if (!hasAccess) return Forbid();
 
                 var documents = await _context.Documents
