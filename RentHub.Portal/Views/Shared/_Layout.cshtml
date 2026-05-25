@@ -36,7 +36,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - RentHub</title>
+    <title>@ViewData["Title"] - Lontsi Homes</title>
 
     <script type="importmap"></script>
 
@@ -57,7 +57,7 @@
                     <a class="rh-sidebar-brand-link" asp-controller="Home" asp-action="Index">
                         <span class="rh-sidebar-brand-mark">R</span>
                         <span class="rh-sidebar-brand-copy">
-                            <strong>RentHub</strong>
+                            <strong>Lontsi Homes</strong>
                             <small>Operations console</small>
                         </span>
                     </a>
@@ -142,7 +142,7 @@
                         </button>
                     }
                     <div class="rh-topbar-context">
-                        <p class="rh-topbar-title">@(isMarketingPage ? "RentHub" : (ViewData["Title"] ?? "RentHub"))</p>
+                        <p class="rh-topbar-title">@(isMarketingPage ? "Lontsi Homes" : (ViewData["Title"] ?? "Lontsi Homes"))</p>
                         <small class="rh-topbar-caption">@(isMarketingPage ? "Landlord operations, tenant management, and rent collection" : "Operational workspace")</small>
                     </div>
                 </div>
@@ -180,7 +180,7 @@
             </main>
 
             <footer class="rh-footer @(isMarketingPage ? "is-public" : null)">
-                <div>&copy; 2026 - RentHub</div>
+                <div>&copy; 2026 - Lontsi Homes</div>
                 <div class="rh-footer-links">
                     <a asp-controller="Home" asp-action="Terms">Terms</a>
                     <a asp-controller="Home" asp-action="Privacy">Privacy</a>

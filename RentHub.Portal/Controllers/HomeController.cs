@@ -86,12 +86,13 @@ namespace RentHub.Portal.Controllers
         {
             return new PublicSiteInfoVm
             {
-                SiteName = _configuration["PublicSite:SiteName"] ?? "RentHub",
-                LegalEntityName = _configuration["PublicSite:LegalEntityName"] ?? "RentHub",
+                SiteName = _configuration["PublicSite:SiteName"] ?? "Lontsi Homes",
+                LegalEntityName = _configuration["PublicSite:LegalEntityName"] ?? "Lontsi Homes",
                 SupportEmail = _configuration["PublicSite:SupportEmail"] ?? "REMOVED_PRIVATE_VALUE",
-                SupportPhone = _configuration["PublicSite:SupportPhone"] ?? "+237 600 000 000",
-                SupportWhatsApp = _configuration["PublicSite:SupportWhatsApp"] ?? "+237 600 000 000",
-                CompanyAddress = _configuration["PublicSite:CompanyAddress"] ?? "Douala, Cameroon"
+                RefundEmail = _configuration["PublicSite:RefundEmail"] ?? "REMOVED_PRIVATE_VALUE",
+                SupportPhone = _configuration["PublicSite:SupportPhone"] ?? "REMOVED_PRIVATE_VALUE",
+                SupportWhatsApp = _configuration["PublicSite:SupportWhatsApp"] ?? "REMOVED_PRIVATE_VALUE",
+                CompanyAddress = _configuration["PublicSite:CompanyAddress"] ?? "London, Ontario, Canada"
             };
         }
     }
