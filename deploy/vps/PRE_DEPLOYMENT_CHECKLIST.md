@@ -1,4 +1,4 @@
-# RentHub Pre-Deployment Checklist
+# Lontsi Homes Pre-Deployment Checklist
 
 Use this checklist before we start the live VPS deployment and before you submit the live website URL to Notch Pay.
 
@@ -24,23 +24,24 @@ Section:
 
 ```json
 "PublicSite": {
-  "SiteName": "RentHub",
-  "LegalEntityName": "RentHub",
+  "SiteName": "Lontsi Homes",
+  "LegalEntityName": "Lontsi Homes",
   "SupportEmail": "REMOVED_PRIVATE_VALUE",
-  "SupportPhone": "+237 600 000 000",
-  "SupportWhatsApp": "+237 600 000 000",
-  "CompanyAddress": "Douala, Cameroon"
+  "RefundEmail": "REMOVED_PRIVATE_VALUE",
+  "SupportPhone": "REMOVED_PRIVATE_VALUE",
+  "SupportWhatsApp": "REMOVED_PRIVATE_VALUE",
+  "CompanyAddress": "London, Ontario, Canada"
 }
 ```
 
-Replace them with your real support and business details.
+Keep these values aligned with the public website, Google Workspace aliases, and payment provider verification details.
 
 ## 3. Domain plan
 
 Prepare the real domains you want to use:
 
-- main site: `renthub...`
-- API: `api.renthub...`
+- main site: `lontsihomes.com`
+- API: `api.lontsihomes.com`
 
 You will point both to the VPS public IP during deployment.
 
