@@ -1,9 +1,12 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Common.CommunicationModels;
 using Common.Enums;
 using Common.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Helpers;
@@ -231,15 +234,7 @@ namespace RentHub.API.Controllers
                     return BadRequest("This subscription plan is already active on your account.");
                 }
 
-                var pendingSubscription = await _context.UserSubscriptions
-                    .Where(us =>
-                        us.UserId == userId &&
-                        us.SubscriptionPlanId == planId &&
-                        !us.IsDeleted &&
-                        !us.IsApproved &&
-                        us.PaymentStatus != PaymentStatusEnum.Success)
-                    .OrderByDescending(us => us.CreatedAt)
-                    .FirstOrDefaultAsync();
+                var pendingSubscription = await LoadOpenSubscriptionAsync(userId, planId);
 
                 if (pendingSubscription == null)
                 {
@@ -261,7 +256,43 @@ namespace RentHub.API.Controllers
                     };
 
                     _context.UserSubscriptions.Add(pendingSubscription);
-                    await _context.SaveChangesAsync();
+                    try
+                    {
+                        await _context.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                    {
+                        _context.Entry(pendingSubscription).State = EntityState.Detached;
+                        pendingSubscription = await LoadOpenSubscriptionAsync(userId, planId);
+                        if (pendingSubscription == null)
+                        {
+                            throw;
+                        }
+                    }
+                }
+                else if (pendingSubscription.PaymentStatus == PaymentStatusEnum.Pending &&
+                         pendingSubscription.PaymentMethod == normalizedPaymentMethod &&
+                         pendingSubscription.AllowAutomaticCardPayments ==
+                         (normalizedPaymentMethod == PaymentMethodEnum.Card && request.AllowAutomaticCardPayments) &&
+                         !string.IsNullOrWhiteSpace(pendingSubscription.PaymentAuthorizationUrl))
+                {
+                    return Ok(BuildCheckoutSessionDto(
+                        pendingSubscription,
+                        plan,
+                        normalizedPaymentMethod,
+                        pendingSubscription.PaymentAuthorizationUrl,
+                        "pending"));
+                }
+                else if (pendingSubscription.PaymentStatus == PaymentStatusEnum.Pending &&
+                         pendingSubscription.PaymentAttemptCount > 0 &&
+                         string.IsNullOrWhiteSpace(pendingSubscription.PaymentAuthorizationUrl) &&
+                         (pendingSubscription.UpdatedAt ?? pendingSubscription.CreatedAt) > now.AddMinutes(-2))
+                {
+                    return Conflict(new
+                    {
+                        Code = "SUBSCRIPTION_CHECKOUT_IN_PROGRESS",
+                        Message = "A checkout is already being prepared. Please try again in a few seconds."
+                    });
                 }
 
                 pendingSubscription.StartDate = now;
@@ -276,9 +307,16 @@ namespace RentHub.API.Controllers
                     normalizedPaymentMethod == PaymentMethodEnum.Card && request.AllowAutomaticCardPayments;
                 pendingSubscription.PaymentStatus = PaymentStatusEnum.Pending;
                 pendingSubscription.PaymentCompletedAt = null;
-                pendingSubscription.PaymentReference = BuildPaymentReference(pendingSubscription.Id);
+                pendingSubscription.PaymentAttemptCount += 1;
+                pendingSubscription.PaymentReference = BuildPaymentReference(
+                    pendingSubscription.Id,
+                    pendingSubscription.PaymentAttemptCount);
+                pendingSubscription.PaymentAuthorizationUrl = null;
+                pendingSubscription.PaymentProviderTransactionId = null;
                 pendingSubscription.UpdatedBy = userId;
                 pendingSubscription.UpdatedAt = now;
+                _context.UserSubscriptions.Update(pendingSubscription);
+                await _context.SaveChangesAsync();
 
                 var checkout = await _notchPayService.InitializeSubscriptionCheckoutAsync(
                     user,
@@ -290,21 +328,40 @@ namespace RentHub.API.Controllers
                 pendingSubscription.PaymentAuthorizationUrl = checkout.AuthorizationUrl;
                 pendingSubscription.PaymentProviderTransactionId = checkout.ProviderPaymentId;
                 _context.UserSubscriptions.Update(pendingSubscription);
-                await _context.SaveChangesAsync();
-
-                return Ok(new SubscriptionCheckoutSessionDto
+                try
                 {
-                    SubscriptionId = pendingSubscription.Id,
-                    PlanId = plan.Id,
-                    PlanName = plan.Name,
-                    Amount = plan.Price,
-                    Currency = "XAF",
-                    PaymentMethod = normalizedPaymentMethod,
-                    AllowAutomaticCardPayments = pendingSubscription.AllowAutomaticCardPayments,
-                    PaymentReference = pendingSubscription.PaymentReference,
-                    AuthorizationUrl = checkout.AuthorizationUrl,
-                    Status = checkout.Status
-                });
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    var existingSubscription = await _context.UserSubscriptions
+                        .AsNoTracking()
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(us =>
+                            !us.IsDeleted &&
+                            (us.PaymentReference == pendingSubscription.PaymentReference ||
+                             (!string.IsNullOrWhiteSpace(checkout.ProviderPaymentId) &&
+                              us.PaymentProviderTransactionId == checkout.ProviderPaymentId)));
+
+                    if (existingSubscription != null)
+                    {
+                        return Ok(BuildCheckoutSessionDto(
+                            existingSubscription,
+                            plan,
+                            normalizedPaymentMethod,
+                            existingSubscription.PaymentAuthorizationUrl ?? string.Empty,
+                            "duplicate"));
+                    }
+
+                    throw;
+                }
+
+                return Ok(BuildCheckoutSessionDto(
+                    pendingSubscription,
+                    plan,
+                    normalizedPaymentMethod,
+                    checkout.AuthorizationUrl,
+                    checkout.Status));
             }
             catch (Exception ex)
             {
@@ -395,11 +452,46 @@ namespace RentHub.API.Controllers
                 using var document = JsonDocument.Parse(rawPayload);
                 var root = document.RootElement;
                 var eventType = ReadString(root, "type");
+                var eventId = ReadString(root, "id")
+                    ?? ReadString(root, "event_id")
+                    ?? ReadString(root, "eventId");
                 var reference = ReadString(root, "reference") ?? ReadString(root, "payment_reference");
                 var providerTransactionId = ReadString(root, "trxref") ?? ReadString(root, "transaction_id");
+                var payloadHash = HashPayload(rawPayload);
+                var eventKey = !string.IsNullOrWhiteSpace(eventId)
+                    ? eventId.Trim()
+                    : !string.IsNullOrWhiteSpace(reference)
+                        ? HashKey($"{eventType}|{reference}|{providerTransactionId}")
+                        : payloadHash;
+
+                var webhookEvent = new PaymentWebhookEvent
+                {
+                    Provider = "NotchPay",
+                    EventKey = eventKey,
+                    EventType = eventType,
+                    PaymentReference = reference,
+                    ProviderTransactionId = providerTransactionId,
+                    PayloadHash = payloadHash,
+                    ReceivedAt = DateTimeOffset.UtcNow,
+                    ProcessingStatus = "Received"
+                };
+
+                _context.PaymentWebhookEvents.Add(webhookEvent);
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    return Ok(new { Message = "Webhook duplicate ignored." });
+                }
 
                 if (string.IsNullOrWhiteSpace(reference))
                 {
+                    webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                    webhookEvent.ProcessingStatus = "Ignored";
+                    webhookEvent.ProcessingMessage = "Missing payment reference.";
+                    await _context.SaveChangesAsync();
                     return Ok(new { Message = "Webhook ignored." });
                 }
 
@@ -408,21 +500,35 @@ namespace RentHub.API.Controllers
 
                 if (subscription == null)
                 {
+                    webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                    webhookEvent.ProcessingStatus = "Ignored";
+                    webhookEvent.ProcessingMessage = "No matching subscription.";
+                    await _context.SaveChangesAsync();
                     return Ok(new { Message = "Webhook ignored." });
                 }
 
+                var processed = false;
                 switch (eventType?.Trim().ToLowerInvariant())
                 {
                     case "payment.complete":
                         await ApplyPaymentStatusAsync(subscription, "complete", providerTransactionId, "notchpay-webhook");
+                        processed = true;
                         break;
                     case "payment.failed":
                     case "payment.canceled":
                     case "payment.cancelled":
                     case "payment.expired":
                         await ApplyPaymentStatusAsync(subscription, "failed", providerTransactionId, "notchpay-webhook");
+                        processed = true;
                         break;
                 }
+
+                webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                webhookEvent.ProcessingStatus = processed ? "Processed" : "Ignored";
+                webhookEvent.ProcessingMessage = processed
+                    ? "Subscription payment status updated."
+                    : $"Unsupported event type: {eventType}";
+                await _context.SaveChangesAsync();
 
                 return Ok(new { Message = "Webhook received." });
             }
@@ -480,6 +586,11 @@ namespace RentHub.API.Controllers
             string? providerTransactionId,
             string? actor)
         {
+            if (subscription.PaymentStatus == PaymentStatusEnum.Success && subscription.IsApproved)
+            {
+                return;
+            }
+
             var normalizedStatus = (providerStatus ?? string.Empty).Trim().ToLowerInvariant();
             if (normalizedStatus == "complete" || normalizedStatus == "success")
             {
@@ -537,9 +648,69 @@ namespace RentHub.API.Controllers
             await _context.SaveChangesAsync();
         }
 
-        private static string BuildPaymentReference(int subscriptionId)
+        private async Task<UserSubscription?> LoadOpenSubscriptionAsync(string userId, int planId)
         {
-            return $"rhsub_{subscriptionId}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            return await _context.UserSubscriptions
+                .Where(us =>
+                    us.UserId == userId &&
+                    us.SubscriptionPlanId == planId &&
+                    !us.IsDeleted &&
+                    !us.IsApproved &&
+                    us.PaymentStatus != PaymentStatusEnum.Success)
+                .OrderByDescending(us => us.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        private static SubscriptionCheckoutSessionDto BuildCheckoutSessionDto(
+            UserSubscription subscription,
+            SubscriptionPlan plan,
+            PaymentMethodEnum paymentMethod,
+            string authorizationUrl,
+            string status)
+        {
+            return new SubscriptionCheckoutSessionDto
+            {
+                SubscriptionId = subscription.Id,
+                PlanId = plan.Id,
+                PlanName = !string.IsNullOrWhiteSpace(subscription.PlanNameSnapshot)
+                    ? subscription.PlanNameSnapshot
+                    : plan.Name,
+                Amount = subscription.PlanPriceSnapshot > 0 ? subscription.PlanPriceSnapshot : plan.Price,
+                Currency = "XAF",
+                PaymentMethod = paymentMethod,
+                AllowAutomaticCardPayments = subscription.AllowAutomaticCardPayments,
+                PaymentReference = subscription.PaymentReference,
+                AuthorizationUrl = authorizationUrl,
+                Status = status
+            };
+        }
+
+        private static string BuildPaymentReference(int subscriptionId, int attemptCount)
+        {
+            return $"rhsub_{subscriptionId}_{attemptCount}";
+        }
+
+        private static string HashPayload(string value)
+        {
+            return HashKey(value);
+        }
+
+        private static string HashKey(string value)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+            return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        {
+            if (ex.GetBaseException() is SqlException sqlException)
+            {
+                return sqlException.Number is 2601 or 2627;
+            }
+
+            var message = ex.GetBaseException().Message;
+            return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string? ReadString(JsonElement element, string propertyName)

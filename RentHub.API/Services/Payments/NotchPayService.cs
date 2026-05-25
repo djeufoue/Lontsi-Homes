@@ -84,7 +84,7 @@ namespace RentHub.API.Services.Payments
                 ["currency"] = "XAF",
                 ["reference"] = subscription.PaymentReference,
                 ["callback"] = $"{portalBaseUrl}/Profile/SubscriptionCallback?reference={Uri.EscapeDataString(subscription.PaymentReference)}",
-                ["description"] = $"RentHub subscription - {plan.Name}",
+                ["description"] = $"Lontsi Homes subscription - {plan.Name}",
                 ["locked_currency"] = "XAF",
                 ["locked_country"] = "CM",
                 ["email"] = user.Email,

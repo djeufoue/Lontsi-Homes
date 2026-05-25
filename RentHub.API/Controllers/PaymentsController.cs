@@ -6,8 +6,10 @@ using Common.CommunicationModels;
 using RentHub.API.Models.Entities;
 using Common.Enums;
 using RentHub.API.Services.Payments;
-using System.Security.Claims;
-
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.Data.SqlClient;
 using RentHub.API.Helpers;
 
 namespace RentHub.API.Controllers
@@ -83,6 +85,32 @@ namespace RentHub.API.Controllers
                 }
                 // Extract current user ID (the caller)
                 var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    return Unauthorized();
+                }
+
+                if (!string.Equals(currentUserId, request.TenantId, StringComparison.Ordinal))
+                {
+                    return Forbid();
+                }
+
+                var requestKey = BuildPaymentRequestKey(request, currentUserId, tenancy?.Id, finalAmount);
+                var existingPayment = await _context.Payments
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.RequestKey == requestKey && !p.IsDeleted);
+
+                if (existingPayment != null)
+                {
+                    return Ok(new
+                    {
+                        existingPayment.Id,
+                        Status = existingPayment.Status.ToString(),
+                        existingPayment.TransactionId,
+                        Duplicate = true
+                    });
+                }
+
                 // Create payment record with audit info
                 var payment = new Payment
                 {
@@ -91,6 +119,7 @@ namespace RentHub.API.Controllers
                     Amount = finalAmount,
                     Currency = "XAF",
                     Method = request.Method,
+                    RequestKey = requestKey,
                     Status = PaymentStatusEnum.Pending,
                     CreatedBy = currentUserId,
                     CreatedAt = DateTime.UtcNow,
@@ -102,7 +131,30 @@ namespace RentHub.API.Controllers
                     payment.TenancyId = tenancy.Id;
                 }
                 _context.Payments.Add(payment);
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    existingPayment = await _context.Payments
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(p => p.RequestKey == requestKey && !p.IsDeleted);
+
+                    if (existingPayment != null)
+                    {
+                        return Ok(new
+                        {
+                            existingPayment.Id,
+                            Status = existingPayment.Status.ToString(),
+                            existingPayment.TransactionId,
+                            Duplicate = true
+                        });
+                    }
+
+                    throw;
+                }
+
                 // Set request amount for processing to finalAmount to ensure payment services use this value
                 request.Amount = finalAmount;
                 // Determine which service to use
@@ -127,16 +179,45 @@ namespace RentHub.API.Controllers
                 {
                     payment.Status = statusEnum;
                 }
+
+                if (!string.IsNullOrWhiteSpace(result.TransactionId))
+                {
+                    payment.TransactionId = result.TransactionId;
+                }
+
                 // Mark update fields
                 payment.UpdatedBy = currentUserId;
                 payment.UpdatedAt = DateTime.UtcNow;
                 _context.Payments.Update(payment);
-                await _context.SaveChangesAsync();
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && !string.IsNullOrWhiteSpace(result.TransactionId))
+                {
+                    existingPayment = await _context.Payments
+                        .IgnoreQueryFilters()
+                        .FirstOrDefaultAsync(p => p.TransactionId == result.TransactionId && !p.IsDeleted);
+
+                    if (existingPayment != null)
+                    {
+                        return Ok(new
+                        {
+                            existingPayment.Id,
+                            Status = existingPayment.Status.ToString(),
+                            existingPayment.TransactionId,
+                            Duplicate = true
+                        });
+                    }
+
+                    throw;
+                }
+
                 if (!result.Success)
                 {
-                    return BadRequest(new { payment.Id, result.Status, result.ProviderResponse });
+                    return BadRequest(new { payment.Id, result.Status, result.ProviderResponse, Duplicate = false });
                 }
-                return Ok(new { payment.Id, result.Status, result.TransactionId });
+                return Ok(new { payment.Id, result.Status, payment.TransactionId, Duplicate = false });
             }
             catch (Exception ex)
             {
@@ -199,6 +280,51 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private static string BuildPaymentRequestKey(
+            PaymentRequest request,
+            string currentUserId,
+            int? tenancyId,
+            decimal finalAmount)
+        {
+            if (!string.IsNullOrWhiteSpace(request.IdempotencyKey))
+            {
+                return HashKey($"client|{currentUserId}|{request.IdempotencyKey.Trim()}");
+            }
+
+            var fiveMinuteBucket = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 300;
+            var rawKey = string.Join(
+                "|",
+                "server",
+                currentUserId,
+                request.TenantId,
+                request.LandlordId,
+                tenancyId?.ToString(CultureInfo.InvariantCulture) ?? "none",
+                request.Method.ToString(),
+                finalAmount.ToString("0.00", CultureInfo.InvariantCulture),
+                request.NumberOfPeriods.ToString(CultureInfo.InvariantCulture),
+                fiveMinuteBucket.ToString(CultureInfo.InvariantCulture));
+
+            return HashKey(rawKey);
+        }
+
+        private static string HashKey(string value)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+            return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+
+        private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+        {
+            if (ex.GetBaseException() is SqlException sqlException)
+            {
+                return sqlException.Number is 2601 or 2627;
+            }
+
+            var message = ex.GetBaseException().Message;
+            return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

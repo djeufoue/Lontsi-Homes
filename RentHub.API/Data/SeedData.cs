@@ -374,6 +374,13 @@ namespace RentHub.API.Data
                     ALTER TABLE [UserSubscriptions]
                     ADD [PaymentCompletedAt] datetimeoffset NULL;
                 END
+
+                IF COL_LENGTH('UserSubscriptions', 'PaymentAttemptCount') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [PaymentAttemptCount] int NOT NULL
+                        CONSTRAINT [DF_UserSubscriptions_PaymentAttemptCount] DEFAULT(0);
+                END
             ");
 
             context.Database.ExecuteSqlRaw(@"

@@ -39,5 +39,10 @@ namespace Common.CommunicationModels
         /// Number of rent periods (months) the tenant wants to pay at once.  Defaults to 1.
         /// </summary>
         public int NumberOfPeriods { get; set; } = 1;
+
+        /// <summary>
+        /// Optional client-generated key to make retries of the same payment safe.
+        /// </summary>
+        public string? IdempotencyKey { get; set; }
     }
 }

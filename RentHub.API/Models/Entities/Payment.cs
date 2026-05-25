@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Common.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace RentHub.API.Models.Entities
 {
@@ -8,6 +9,9 @@ namespace RentHub.API.Models.Entities
     /// Stores information about a payment from a tenant to a landlord.  Payments
     /// can be rent, deposits or subscription fees.
     /// </summary>
+    [Index(nameof(RequestKey), IsUnique = true)]
+    [Index(nameof(TransactionId), IsUnique = true)]
+    [Index(nameof(TenancyId), nameof(Status), nameof(PaymentDate))]
     public class Payment
     {
         [Key]
@@ -26,6 +30,7 @@ namespace RentHub.API.Models.Entities
         public decimal Amount { get; set; }
         public string Currency { get; set; } = "XAF";
         public PaymentMethodEnum Method { get; set; }
+        public string RequestKey { get; set; } = string.Empty;
         public string TransactionId { get; set; } = Guid.NewGuid().ToString();
         public PaymentStatusEnum Status { get; set; } = PaymentStatusEnum.Pending;
         public DateTimeOffset PaymentDate { get; set; } = DateTimeOffset.UtcNow;

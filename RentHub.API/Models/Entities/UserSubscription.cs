@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Common.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace RentHub.API.Models.Entities
 {
@@ -7,6 +8,8 @@ namespace RentHub.API.Models.Entities
     /// Links a user to a subscription plan with start and end dates. When EndDate
     /// expires the user loses features until they renew.
     /// </summary>
+    [Index(nameof(PaymentReference), IsUnique = true)]
+    [Index(nameof(PaymentProviderTransactionId), IsUnique = true)]
     public class UserSubscription
     {
         [Key]
@@ -32,6 +35,7 @@ namespace RentHub.API.Models.Entities
         public string? PaymentAuthorizationUrl { get; set; }
         public bool AllowAutomaticCardPayments { get; set; }
         public DateTimeOffset? PaymentCompletedAt { get; set; }
+        public int PaymentAttemptCount { get; set; }
 
         /// <summary>
         /// Indicates whether the subscription has been approved by an administrator. Landlords

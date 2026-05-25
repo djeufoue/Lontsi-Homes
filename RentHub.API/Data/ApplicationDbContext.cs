@@ -23,6 +23,7 @@ namespace RentHub.API.Data
         public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<Payment> Payments => Set<Payment>();
+        public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
@@ -59,9 +60,81 @@ namespace RentHub.API.Data
                 .Property(t => t.MonthlyRent)
                 .HasPrecision(18, 2);
 
-            builder.Entity<UserSubscription>()
-                .Property(us => us.PlanPriceSnapshot)
-                .HasPrecision(18, 2);
+            builder.Entity<UserSubscription>(entity =>
+            {
+                entity.Property(us => us.PlanPriceSnapshot)
+                    .HasPrecision(18, 2);
+
+                entity.Property(us => us.PaymentReference)
+                    .HasMaxLength(128);
+
+                entity.Property(us => us.PaymentProviderTransactionId)
+                    .HasMaxLength(128);
+
+                entity.Property(us => us.PaymentAuthorizationUrl)
+                    .HasMaxLength(2048);
+
+                entity.HasIndex(us => us.PaymentReference)
+                    .IsUnique()
+                    .HasFilter("[PaymentReference] IS NOT NULL AND [PaymentReference] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(us => us.PaymentProviderTransactionId)
+                    .IsUnique()
+                    .HasFilter("[PaymentProviderTransactionId] IS NOT NULL AND [PaymentProviderTransactionId] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(us => new { us.UserId, us.SubscriptionPlanId })
+                    .HasDatabaseName("IX_UserSubscriptions_UserId_SubscriptionPlanId_OpenPayment")
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0 AND [IsApproved] = 0 AND [PaymentStatus] <> 1");
+            });
+
+            builder.Entity<Payment>(entity =>
+            {
+                entity.Property(p => p.RequestKey)
+                    .HasMaxLength(160);
+
+                entity.Property(p => p.TransactionId)
+                    .HasMaxLength(128);
+
+                entity.HasIndex(p => p.RequestKey)
+                    .IsUnique()
+                    .HasFilter("[RequestKey] IS NOT NULL AND [RequestKey] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(p => p.TransactionId)
+                    .IsUnique()
+                    .HasFilter("[TransactionId] IS NOT NULL AND [TransactionId] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(p => new { p.TenancyId, p.Status, p.PaymentDate });
+            });
+
+            builder.Entity<PaymentWebhookEvent>(entity =>
+            {
+                entity.Property(e => e.Provider)
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.EventKey)
+                    .HasMaxLength(160);
+
+                entity.Property(e => e.EventType)
+                    .HasMaxLength(100);
+
+                entity.Property(e => e.PaymentReference)
+                    .HasMaxLength(128);
+
+                entity.Property(e => e.ProviderTransactionId)
+                    .HasMaxLength(128);
+
+                entity.Property(e => e.PayloadHash)
+                    .HasMaxLength(64);
+
+                entity.Property(e => e.ProcessingStatus)
+                    .HasMaxLength(30);
+
+                entity.HasIndex(e => new { e.Provider, e.EventKey })
+                    .IsUnique();
+
+                entity.HasIndex(e => e.PaymentReference);
+            });
 
             builder.Entity<SystemTransferAccount>()
                 .HasIndex(a => a.Channel)
