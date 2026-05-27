@@ -15,7 +15,7 @@ namespace RentHub.API.Helpers
             var now = DateTimeOffset.UtcNow;
             var activeSubscription = await context.UserSubscriptions
                 .Include(us => us.SubscriptionPlan)
-                .Where(us => us.UserId == landlordId && us.EndDate > now)
+                .Where(us => us.UserId == landlordId && us.IsApproved && us.EndDate > now)
                 .OrderByDescending(us => us.EndDate)
                 .FirstOrDefaultAsync();
 

@@ -137,6 +137,7 @@ builder.Services.AddAuthentication(options =>
 // Domain services
 builder.Services.AddScoped<IPaymentService, OrangeMoneyService>();
 builder.Services.AddScoped<INotchPayService, NotchPayService>();
+builder.Services.AddScoped<ICamPayService, CamPayService>();
 builder.Services.AddScoped<MomoService>();
 builder.Services.AddScoped<CardPaymentService>();
 builder.Services.AddScoped<IStorageService, AzureStorageService>();

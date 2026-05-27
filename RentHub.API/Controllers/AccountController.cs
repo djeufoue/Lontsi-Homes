@@ -658,9 +658,21 @@ namespace RentHub.API.Controllers
                 }
 
                 var activeSubscription = await _context.UserSubscriptions
-                    .Where(us => us.UserId == userId && !us.IsDeleted && us.EndDate > now)
+                    .Include(us => us.SubscriptionPlan)
+                    .Where(us => us.UserId == userId && !us.IsDeleted && us.IsApproved && us.EndDate > now)
                     .OrderByDescending(us => us.EndDate)
                     .ThenByDescending(us => us.StartDate)
+                    .FirstOrDefaultAsync();
+
+                var pendingSubscription = await _context.UserSubscriptions
+                    .Include(us => us.SubscriptionPlan)
+                    .Where(us =>
+                        us.UserId == userId &&
+                        !us.IsDeleted &&
+                        !us.IsApproved &&
+                        us.PaymentStatus != PaymentStatusEnum.Success &&
+                        us.EndDate > now)
+                    .OrderByDescending(us => us.UpdatedAt ?? us.CreatedAt)
                     .FirstOrDefaultAsync();
 
                 var plans = await _context.SubscriptionPlans
@@ -707,11 +719,22 @@ namespace RentHub.API.Controllers
                     HasActiveSubscription = activeSubscription != null,
                     SubscriptionApproved = activeSubscription?.IsApproved ?? false,
                     CurrentPlanId = activeSubscription?.SubscriptionPlanId,
-                    CurrentPlanName = activeSubscription?.PlanNameSnapshot ?? string.Empty,
+                    CurrentPlanName = !string.IsNullOrWhiteSpace(activeSubscription?.PlanNameSnapshot)
+                        ? activeSubscription.PlanNameSnapshot
+                        : activeSubscription?.SubscriptionPlan?.Name ?? string.Empty,
                     CurrentPlanPrice = activeSubscription?.PlanPriceSnapshot,
                     CurrentPlanDurationInDays = activeSubscription?.PlanDurationInDaysSnapshot,
                     SubscriptionStartDate = activeSubscription?.StartDate,
                     SubscriptionEndDate = activeSubscription?.EndDate,
+                    PendingSubscriptionId = pendingSubscription?.Id,
+                    PendingPlanId = pendingSubscription?.SubscriptionPlanId,
+                    PendingPlanName = !string.IsNullOrWhiteSpace(pendingSubscription?.PlanNameSnapshot)
+                        ? pendingSubscription.PlanNameSnapshot
+                        : pendingSubscription?.SubscriptionPlan?.Name ?? string.Empty,
+                    PendingPlanPrice = pendingSubscription?.PlanPriceSnapshot,
+                    PendingPaymentStatus = pendingSubscription?.PaymentStatus,
+                    PendingPaymentMethod = pendingSubscription?.PaymentMethod,
+                    PendingPaymentReference = pendingSubscription?.PaymentReference ?? string.Empty,
                     Properties = properties,
                     AvailablePlans = plans
                 };

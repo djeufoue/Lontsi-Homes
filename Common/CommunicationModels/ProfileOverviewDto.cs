@@ -32,6 +32,14 @@ namespace Common.CommunicationModels
         public DateTimeOffset? SubscriptionStartDate { get; set; }
         public DateTimeOffset? SubscriptionEndDate { get; set; }
 
+        public int? PendingSubscriptionId { get; set; }
+        public int? PendingPlanId { get; set; }
+        public string PendingPlanName { get; set; } = string.Empty;
+        public decimal? PendingPlanPrice { get; set; }
+        public PaymentStatusEnum? PendingPaymentStatus { get; set; }
+        public PaymentMethodEnum? PendingPaymentMethod { get; set; }
+        public string PendingPaymentReference { get; set; } = string.Empty;
+
         public List<ProfilePropertyDto> Properties { get; set; } = new();
         public List<SubscriptionPlanDto> AvailablePlans { get; set; } = new();
     }

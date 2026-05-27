@@ -70,6 +70,10 @@ services:
       NotchPay__BaseUrl: ${NOTCHPAY_BASE_URL}
       NotchPay__ApiKey: ${NOTCHPAY_API_KEY}
       NotchPay__WebhookSecret: ${NOTCHPAY_WEBHOOK_SECRET}
+      CamPay__BaseUrl: ${CAMPAY_BASE_URL}
+      CamPay__AppUsername: ${CAMPAY_APP_USERNAME}
+      CamPay__AppPassword: ${CAMPAY_APP_PASSWORD}
+      CamPay__WebhookKey: ${CAMPAY_WEBHOOK_KEY}
       AdminSeed__Email: ${ADMIN_SEED_EMAIL}
       AdminSeed__Password: ${ADMIN_SEED_PASSWORD}
       AdminSeed__FullName: ${ADMIN_SEED_FULL_NAME}

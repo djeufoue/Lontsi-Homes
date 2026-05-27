@@ -13,6 +13,11 @@ namespace Common.CommunicationModels
         public bool AllowAutomaticCardPayments { get; set; }
         public string PaymentReference { get; set; } = string.Empty;
         public string AuthorizationUrl { get; set; } = string.Empty;
+        public string Provider { get; set; } = string.Empty;
+        public string ProviderReference { get; set; } = string.Empty;
+        public string Operator { get; set; } = string.Empty;
+        public string UssdCode { get; set; } = string.Empty;
+        public string PaymentInstructions { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
     }
 }

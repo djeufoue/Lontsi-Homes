@@ -7,8 +7,10 @@ namespace Common.CommunicationModels
     {
         [Required]
         [EnumDataType(typeof(PaymentMethodEnum))]
-        public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Card;
+        public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Momo;
 
         public bool AllowAutomaticCardPayments { get; set; }
+
+        public string? MobileMoneyPhoneNumber { get; set; }
     }
 }

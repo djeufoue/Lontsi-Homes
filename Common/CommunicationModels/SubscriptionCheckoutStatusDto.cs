@@ -6,6 +6,9 @@ namespace Common.CommunicationModels
         public int PlanId { get; set; }
         public string PlanName { get; set; } = string.Empty;
         public string PaymentReference { get; set; } = string.Empty;
+        public string ProviderReference { get; set; } = string.Empty;
+        public string Provider { get; set; } = string.Empty;
+        public string Operator { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
         public bool SubscriptionApproved { get; set; }
         public bool PaymentCompleted { get; set; }
