@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using RentHub.Portal.Hubs;
+using RentHub.Portal.Middleware;
 using RentHub.Portal.Services;
 using System.IO;
 
@@ -66,6 +67,7 @@ app.UseRouting();
 app.UseSession();
 
 app.UseAuthentication();
+app.UseMiddleware<RequestUserLoggingMiddleware>();
 app.UseAuthorization();
 
 app.MapControllerRoute(

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Models.Settings;
+using RentHub.API.Middleware;
 using RentHub.API.Services.Payments;
 using RentHub.API.Services.Storage;
 using RentHub.API.Services.Sms;
@@ -173,6 +174,7 @@ app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseAuthentication();
+app.UseMiddleware<RequestUserLoggingMiddleware>();
 app.UseAuthorization();
 
 // Swagger UI (you can keep this always-on while developing)
