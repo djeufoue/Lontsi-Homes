@@ -228,7 +228,7 @@ else if (Model.RequiresSubscriptionCheckout)
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="subscriptionRequiredModalLabel">Choose a subscription before adding properties</h5>
-                        <small class="text-muted">Visa is the default checkout method. You can still switch to MTN Money or Orange Money Cameroon through Notch Pay.</small>
+                        <small class="text-muted">Pay your landlord subscription with MTN Mobile Money or Orange Money Cameroon.</small>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -262,22 +262,17 @@ else if (Model.RequiresSubscriptionCheckout)
                                     <label class="form-label mb-1">Payment method</label>
                                     <div class="rh-select-wrap mb-2">
                                         <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method>
-                                            <option value="@PaymentMethodEnum.Card" selected>Visa</option>
-                                            <option value="@PaymentMethodEnum.Momo">MTN Money</option>
+                                            <option value="@PaymentMethodEnum.Momo" selected>MTN Mobile Money</option>
                                             <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
                                         </select>
                                     </div>
 
-                                    <div class="rh-form-switch-row mb-3" data-card-consent hidden>
-                                        <div class="form-check rh-form-switch">
-                                            <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="propertyCardConsent_@plan.Id" />
-                                            <label class="form-check-label" for="propertyCardConsent_@plan.Id">
-                                                Allow automatic Visa renewal for this subscription once saved-card billing is enabled on your merchant account. Leave unchecked if you prefer to renew manually.
-                                            </label>
-                                        </div>
+                                    <div class="mb-3">
+                                        <label class="form-label mb-1">Mobile Money number</label>
+                                        <input class="form-control rh-input" name="mobileMoneyPhoneNumber" placeholder="2376XXXXXXXX" required />
                                     </div>
 
-                                    <button type="submit" class="btn rh-btn-primary w-100">Continue to payment</button>
+                                    <button type="submit" class="btn rh-btn-primary w-100">Pay with Mobile Money</button>
                                 </form>
                             </article>
                         }
@@ -316,22 +311,6 @@ else if (Model.RequiresSubscriptionCheckout)
 
             const timer = window.setInterval(loadPartial, refreshMs);
             window.addEventListener("beforeunload", () => window.clearInterval(timer), { once: true });
-        })();
-
-        (() => {
-            const forms = document.querySelectorAll("[data-subscription-form]");
-            forms.forEach(form => {
-                const methodSelect = form.querySelector("[data-payment-method]");
-                const cardConsent = form.querySelector("[data-card-consent]");
-                if (!methodSelect || !cardConsent) return;
-
-                const sync = () => {
-                    cardConsent.hidden = methodSelect.value !== "Card";
-                };
-
-                methodSelect.addEventListener("change", sync);
-                sync();
-            });
         })();
     </script>
 }

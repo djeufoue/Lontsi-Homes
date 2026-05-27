@@ -1,0 +1,68 @@
+@model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
+@using Common.Enums
+@{
+    var overview = Model.Overview;
+    var now = Model.NowUtc;
+    var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
+    var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
+    var hasFailedSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus is PaymentStatusEnum.Failed or PaymentStatusEnum.Error or PaymentStatusEnum.Unknown;
+    var refreshUrl = hasPendingSubscriptionPayment && !string.IsNullOrWhiteSpace(overview.PendingPaymentReference)
+        ? Url.Action("SubscriptionDetails", "Profile", new { reference = overview.PendingPaymentReference })
+        : string.Empty;
+}
+
+<div id="subscription-details-panel"
+     data-subscription-details
+     data-pending-payment="@(hasPendingSubscriptionPayment ? "true" : "false")"
+     data-refresh-url="@refreshUrl">
+    <h2 class="rh-section-title mb-2">Subscription Details</h2>
+    @if (hasCurrentPlan)
+    {
+        <div class="rh-profile-plan-banner">
+            <div>
+                <p class="mb-1">Current Plan</p>
+                <h3 class="mb-0">@overview.CurrentPlanName</h3>
+            </div>
+            <div class="text-end">
+                <p class="mb-1">Price</p>
+                <h3 class="mb-0">@((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</h3>
+            </div>
+        </div>
+        <div class="mt-2 text-muted small">
+            Started: @overview.SubscriptionStartDate?.LocalDateTime.ToString("yyyy-MM-dd") | Ends: @overview.SubscriptionEndDate?.LocalDateTime.ToString("yyyy-MM-dd")
+        </div>
+        <div class="mt-1 text-muted small">
+            @if (overview.SubscriptionApproved)
+            {
+                <span>Plan is approved and active.</span>
+            }
+            else
+            {
+                <span>Plan exists but restricted actions stay blocked until the payment is confirmed.</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="rh-empty">No active subscription. Choose a plan below to subscribe.</div>
+    }
+
+    @if (hasPendingSubscriptionPayment)
+    {
+        <div class="alert alert-warning mt-3 mb-0" role="status" aria-live="polite">
+            <div class="d-flex align-items-center justify-content-between gap-3">
+                <span>Mobile Money payment pending for @overview.PendingPlanName. Confirm the request on your phone.</span>
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            </div>
+            <div class="small mt-2">We are checking automatically. This section will update when the payment is confirmed.</div>
+        </div>
+    }
+    else if (hasFailedSubscriptionPayment)
+    {
+        <div class="alert alert-danger mt-3 mb-0" role="status" aria-live="polite">
+            Mobile Money payment for @overview.PendingPlanName was not completed. You can try the payment again below.
+        </div>
+    }
+</div>

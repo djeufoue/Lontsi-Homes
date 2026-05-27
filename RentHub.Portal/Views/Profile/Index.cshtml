@@ -19,6 +19,11 @@
     var currentPlanEndsInDays = hasCurrentPlan
         ? Math.Max(0, (int)Math.Ceiling((overview.SubscriptionEndDate!.Value - now).TotalDays))
         : 0;
+    var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
+    var defaultMobileMoneyPhoneNumber = !string.IsNullOrWhiteSpace(overview.PhoneNumber)
+        ? overview.PhoneNumber
+        : overview.PayoutPhoneNumber ?? string.Empty;
 }
 
 <section class="rh-page-header rh-page-header-elevated">
@@ -120,37 +125,7 @@
 
         <hr />
 
-        <h2 class="rh-section-title mb-2">Subscription Details</h2>
-        @if (hasCurrentPlan)
-        {
-            <div class="rh-profile-plan-banner">
-                <div>
-                    <p class="mb-1">Current Plan</p>
-                    <h3 class="mb-0">@overview.CurrentPlanName</h3>
-                </div>
-                <div class="text-end">
-                    <p class="mb-1">Price</p>
-                    <h3 class="mb-0">@((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</h3>
-                </div>
-            </div>
-            <div class="mt-2 text-muted small">
-                Started: @overview.SubscriptionStartDate?.LocalDateTime.ToString("yyyy-MM-dd") | Ends: @overview.SubscriptionEndDate?.LocalDateTime.ToString("yyyy-MM-dd")
-            </div>
-            <div class="mt-1 text-muted small">
-                @if (overview.SubscriptionApproved)
-                {
-                    <span>Plan is approved and active.</span>
-                }
-                else
-                {
-                    <span>Plan exists but restricted actions stay blocked until the payment is confirmed.</span>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="rh-empty">No active subscription. Choose a plan below to subscribe.</div>
-        }
+        @await Html.PartialAsync("_SubscriptionDetails", Model)
     </article>
 
     <article class="rh-panel rh-panel-elevated">
@@ -181,10 +156,85 @@
     </article>
 </section>
 
+@section Scripts {
+    <script>
+        (() => {
+            const pollIntervalMs = 5000;
+            const maxAttempts = 36;
+            let attempts = 0;
+            let timerId = null;
+
+            const getPanel = () => document.querySelector("[data-subscription-details]");
+
+            const shouldPoll = (panel) =>
+                panel?.dataset.pendingPayment === "true" &&
+                Boolean(panel.dataset.refreshUrl) &&
+                attempts < maxAttempts;
+
+            const schedule = () => {
+                window.clearTimeout(timerId);
+                timerId = window.setTimeout(refreshSubscriptionDetails, pollIntervalMs);
+            };
+
+            const refreshSubscriptionDetails = async () => {
+                const panel = getPanel();
+                if (!shouldPoll(panel)) {
+                    return;
+                }
+
+                attempts += 1;
+                panel.setAttribute("aria-busy", "true");
+
+                try {
+                    const response = await fetch(panel.dataset.refreshUrl, {
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error("Unable to refresh subscription details.");
+                    }
+
+                    const template = document.createElement("template");
+                    template.innerHTML = (await response.text()).trim();
+                    const updatedPanel = template.content.firstElementChild;
+
+                    if (!updatedPanel) {
+                        schedule();
+                        return;
+                    }
+
+                    panel.replaceWith(updatedPanel);
+
+                    if (shouldPoll(updatedPanel)) {
+                        schedule();
+                    }
+                } catch {
+                    schedule();
+                } finally {
+                    getPanel()?.removeAttribute("aria-busy");
+                }
+            };
+
+            const startPolling = () => {
+                if (shouldPoll(getPanel())) {
+                    schedule();
+                }
+            };
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", startPolling, { once: true });
+            } else {
+                startPolling();
+            }
+        })();
+    </script>
+}
+
 <section class="rh-panel rh-panel-elevated mt-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h2 class="rh-section-title mb-0">Choose Subscription</h2>
-        <small class="text-muted">Visa is the default checkout method. You can still switch to MTN Money or Orange Money Cameroon whenever needed.</small>
+        <small class="text-muted">Use MTN Mobile Money or Orange Money Cameroon to pay your landlord subscription.</small>
     </div>
 
     @if (!overview.AvailablePlans.Any())
@@ -197,6 +247,7 @@
             @foreach (var plan in overview.AvailablePlans)
             {
                 var isCurrent = overview.CurrentPlanId.HasValue && overview.CurrentPlanId.Value == plan.Id && hasCurrentPlan;
+                var isPendingPlan = hasPendingSubscriptionPayment && overview.PendingPlanId == plan.Id;
                 <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty)">
                     <div class="rh-admin-plan-head">
                         <h3>@plan.Name</h3>
@@ -221,29 +272,28 @@
 
                         <label class="form-label mb-1">Payment method</label>
                         <div class="rh-select-wrap mb-2">
-                            <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method @(isCurrent ? "disabled" : null)>
-                                <option value="@PaymentMethodEnum.Card" selected>Visa</option>
-                                <option value="@PaymentMethodEnum.Momo">MTN Money</option>
+                            <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method @(isCurrent || isPendingPlan ? "disabled" : null)>
+                                <option value="@PaymentMethodEnum.Momo" selected>MTN Mobile Money</option>
                                 <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
                             </select>
                         </div>
 
-                        <div class="rh-form-switch-row mb-3" data-card-consent hidden>
-                            <div class="form-check rh-form-switch">
-                                <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="cardConsent_@plan.Id" />
-                                <label class="form-check-label" for="cardConsent_@plan.Id">
-                                    Allow automatic Visa renewal for this subscription once saved-card billing is enabled on your merchant account. Leave it unchecked if you prefer to renew manually.
-                                </label>
-                            </div>
+                        <div class="mb-3">
+                            <label class="form-label mb-1">Mobile Money number</label>
+                            <input class="form-control rh-input" name="mobileMoneyPhoneNumber" value="@defaultMobileMoneyPhoneNumber" placeholder="2376XXXXXXXX" @(isCurrent || isPendingPlan ? "disabled" : null) />
                         </div>
 
                         @if (isCurrent)
                         {
                             <button type="button" class="btn rh-btn-subtle w-100" disabled>Current Plan</button>
                         }
+                        else if (isPendingPlan)
+                        {
+                            <button type="button" class="btn rh-btn-subtle w-100" disabled>Payment Pending</button>
+                        }
                         else
                         {
-                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Pay and subscribe")</button>
+                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Pay with Mobile Money")</button>
                         }
                     </form>
                 </article>
@@ -251,24 +301,3 @@
         </div>
     }
 </section>
-
-@section Scripts {
-    <script>
-        (() => {
-            const forms = document.querySelectorAll("[data-subscription-form]");
-            forms.forEach(form => {
-                const methodSelect = form.querySelector("[data-payment-method]");
-                const cardConsent = form.querySelector("[data-card-consent]");
-                if (!methodSelect || !cardConsent) return;
-
-                const sync = () => {
-                    const isCard = methodSelect.value === "Card";
-                    cardConsent.hidden = !isCard;
-                };
-
-                methodSelect.addEventListener("change", sync);
-                sync();
-            });
-        })();
-    </script>
-}

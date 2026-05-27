@@ -75,7 +75,11 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartCheckout(int planId, PaymentMethodEnum paymentMethod, bool allowAutomaticCardPayments)
+        public async Task<IActionResult> StartCheckout(
+            int planId,
+            PaymentMethodEnum paymentMethod,
+            bool allowAutomaticCardPayments,
+            string? mobileMoneyPhoneNumber)
         {
             if (planId <= 0)
             {
@@ -90,20 +94,23 @@ namespace RentHub.Portal.Controllers
                 var request = new StartSubscriptionCheckoutRequest
                 {
                     PaymentMethod = normalizedPaymentMethod,
-                    AllowAutomaticCardPayments = normalizedPaymentMethod == PaymentMethodEnum.Card && allowAutomaticCardPayments
+                    AllowAutomaticCardPayments = normalizedPaymentMethod == PaymentMethodEnum.Card && allowAutomaticCardPayments,
+                    MobileMoneyPhoneNumber = mobileMoneyPhoneNumber
                 };
 
                 var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(
                     $"Subscriptions/checkout/{planId}",
                     request);
 
-                if (string.IsNullOrWhiteSpace(session.AuthorizationUrl))
+                if (!string.IsNullOrWhiteSpace(session.AuthorizationUrl))
                 {
-                    TempData["Error"] = "Unable to open the payment page right now. Please try again.";
-                    return RedirectToAction(nameof(Index));
+                    return Redirect(session.AuthorizationUrl);
                 }
 
-                return Redirect(session.AuthorizationUrl);
+                TempData["Success"] = string.IsNullOrWhiteSpace(session.PaymentInstructions)
+                    ? "Payment request sent. Confirm it on your phone to activate your subscription."
+                    : session.PaymentInstructions;
+                return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
@@ -143,6 +150,39 @@ namespace RentHub.Portal.Controllers
             }
 
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> SubscriptionDetails(string? reference = null)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(reference))
+                {
+                    try
+                    {
+                        await _api.GetAsync<SubscriptionCheckoutStatusDto>(
+                            $"Subscriptions/checkout-status/{Uri.EscapeDataString(reference)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Unable to refresh subscription payment status for reference {Reference}", reference);
+                    }
+                }
+
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                return PartialView("_SubscriptionDetails", new ProfileIndexVm
+                {
+                    Overview = overview,
+                    NowUtc = DateTimeOffset.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh subscription details");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, "Unable to refresh subscription details right now.");
+            }
         }
 
         private static string? ReadMessage(JsonElement element)
