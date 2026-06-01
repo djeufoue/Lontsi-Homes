@@ -6,6 +6,15 @@
     ViewData["Title"] = "Properties";
     var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
     var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
+    var registeredPaymentMethodLabel = Model.RegisteredPaymentChannel switch
+    {
+        PayoutChannelEnum.MtnMoney => "MTN Mobile Money",
+        PayoutChannelEnum.OrangeMoney => "Orange Money",
+        _ => "Not configured"
+    };
+    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(Model.RegisteredPaymentNumber) &&
+        Model.RegisteredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
+        Model.RegisteredPaymentVerified;
 }
 
 <div class="rh-properties-page">
@@ -259,20 +268,13 @@ else if (Model.RequiresSubscriptionCheckout)
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="planId" value="@plan.Id" />
 
-                                    <label class="form-label mb-1">Payment method</label>
-                                    <div class="rh-select-wrap mb-2">
-                                        <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method>
-                                            <option value="@PaymentMethodEnum.Momo" selected>MTN Mobile Money</option>
-                                            <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
-                                        </select>
-                                    </div>
+                                    <ul class="rh-profile-plan-meta mb-3">
+                                        <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
+                                        <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
+                                        <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? Model.RegisteredPaymentNumber : "Not provided")</strong></li>
+                                    </ul>
 
-                                    <div class="mb-3">
-                                        <label class="form-label mb-1">Mobile Money number</label>
-                                        <input class="form-control rh-input" name="mobileMoneyPhoneNumber" placeholder="2376XXXXXXXX" required />
-                                    </div>
-
-                                    <button type="submit" class="btn rh-btn-primary w-100">Pay with Mobile Money</button>
+                                    <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!hasRegisteredMobileMoneyPayment)">@(hasRegisteredMobileMoneyPayment ? "Proceed to payment" : "Payment account required")</button>
                                 </form>
                             </article>
                         }

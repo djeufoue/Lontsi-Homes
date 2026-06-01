@@ -10,7 +10,5 @@ namespace Common.CommunicationModels
         public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Momo;
 
         public bool AllowAutomaticCardPayments { get; set; }
-
-        public string? MobileMoneyPhoneNumber { get; set; }
     }
 }

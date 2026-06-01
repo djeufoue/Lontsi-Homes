@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Common.Enums;
+using Common.Helpers;
 using RentHub.API.Models.Entities;
 
 namespace RentHub.API.Services.Payments
@@ -209,28 +210,9 @@ namespace RentHub.API.Services.Payments
 
         private static string? NormalizeCameroonPhoneNumber(string? value)
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            var digits = new string(value.Where(char.IsDigit).ToArray());
-            if (digits.StartsWith("00", StringComparison.Ordinal))
-            {
-                digits = digits[2..];
-            }
-
-            if (digits.Length == 9 && digits.StartsWith("6", StringComparison.Ordinal))
-            {
-                return $"237{digits}";
-            }
-
-            if (digits.Length == 12 && digits.StartsWith("2376", StringComparison.Ordinal))
-            {
-                return digits;
-            }
-
-            return null;
+            return CameroonMobileMoneyNumberHelper.TryNormalizeInternationalNumber(value, out var normalized)
+                ? normalized
+                : null;
         }
 
         private static string ResolveExpectedOperator(PaymentMethodEnum paymentMethod)

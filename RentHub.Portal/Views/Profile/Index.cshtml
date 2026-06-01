@@ -21,9 +21,20 @@
         : 0;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
         overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
-    var defaultMobileMoneyPhoneNumber = !string.IsNullOrWhiteSpace(overview.PhoneNumber)
-        ? overview.PhoneNumber
-        : overview.PayoutPhoneNumber ?? string.Empty;
+    var registeredMobileMoneyNumber = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber)
+        ? overview.SubscriptionPaymentPhoneNumber
+        : !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber)
+            ? overview.PayoutPhoneNumber
+            : overview.PhoneNumber ?? string.Empty;
+    var registeredPaymentMethodLabel = (overview.SubscriptionPaymentChannel ?? overview.PayoutChannel) switch
+    {
+        PayoutChannelEnum.MtnMoney => "MTN Mobile Money",
+        PayoutChannelEnum.OrangeMoney => "Orange Money",
+        _ => "Not configured"
+    };
+    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
+        (overview.SubscriptionPaymentChannel ?? overview.PayoutChannel) is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
+        overview.IsSubscriptionPaymentPhoneVerified;
 }
 
 <section class="rh-page-header rh-page-header-elevated">
@@ -96,6 +107,18 @@
             <div class="rh-profile-info-item">
                 <p>Phone</p>
                 <h3>@(!string.IsNullOrWhiteSpace(overview.PhoneNumber) ? overview.PhoneNumber : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Subscription Payment Number</p>
+                <h3>@(!string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) ? overview.SubscriptionPaymentPhoneNumber : "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Subscription Payment Network</p>
+                <h3>@(overview.SubscriptionPaymentChannel?.ToString() ?? "Not provided")</h3>
+            </div>
+            <div class="rh-profile-info-item">
+                <p>Subscription Payment Verification</p>
+                <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
             </div>
             <div class="rh-profile-info-item">
                 <p>Payout Number</p>
@@ -270,18 +293,11 @@
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="planId" value="@plan.Id" />
 
-                        <label class="form-label mb-1">Payment method</label>
-                        <div class="rh-select-wrap mb-2">
-                            <select class="form-select rh-input rh-select" name="paymentMethod" data-payment-method @(isCurrent || isPendingPlan ? "disabled" : null)>
-                                <option value="@PaymentMethodEnum.Momo" selected>MTN Mobile Money</option>
-                                <option value="@PaymentMethodEnum.OrangeMoney">Orange Money</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label mb-1">Mobile Money number</label>
-                            <input class="form-control rh-input" name="mobileMoneyPhoneNumber" value="@defaultMobileMoneyPhoneNumber" placeholder="2376XXXXXXXX" @(isCurrent || isPendingPlan ? "disabled" : null) />
-                        </div>
+                        <ul class="rh-profile-plan-meta mb-3">
+                            <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
+                            <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
+                            <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Not provided")</strong></li>
+                        </ul>
 
                         @if (isCurrent)
                         {
@@ -293,7 +309,7 @@
                         }
                         else
                         {
-                            <button type="submit" class="btn rh-btn-primary w-100">@(hasCurrentPlan ? "Switch to this plan" : "Pay with Mobile Money")</button>
+                            <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!hasRegisteredMobileMoneyPayment)">@(hasRegisteredMobileMoneyPayment ? (hasCurrentPlan ? "Switch to this plan" : "Proceed to payment") : "Payment account required")</button>
                         }
                     </form>
                 </article>

@@ -75,11 +75,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartCheckout(
-            int planId,
-            PaymentMethodEnum paymentMethod,
-            bool allowAutomaticCardPayments,
-            string? mobileMoneyPhoneNumber)
+        public async Task<IActionResult> StartCheckout(int planId)
         {
             if (planId <= 0)
             {
@@ -89,18 +85,9 @@ namespace RentHub.Portal.Controllers
 
             try
             {
-                var normalizedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(paymentMethod);
-
-                var request = new StartSubscriptionCheckoutRequest
-                {
-                    PaymentMethod = normalizedPaymentMethod,
-                    AllowAutomaticCardPayments = normalizedPaymentMethod == PaymentMethodEnum.Card && allowAutomaticCardPayments,
-                    MobileMoneyPhoneNumber = mobileMoneyPhoneNumber
-                };
-
                 var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(
                     $"Subscriptions/checkout/{planId}",
-                    request);
+                    new StartSubscriptionCheckoutRequest());
 
                 if (!string.IsNullOrWhiteSpace(session.AuthorizationUrl))
                 {

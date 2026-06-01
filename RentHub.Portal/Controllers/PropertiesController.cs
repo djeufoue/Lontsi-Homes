@@ -837,12 +837,19 @@ namespace RentHub.Portal.Controllers
             var endpoint = $"properties/dashboard?search={E(search)}&city={E(city)}&access={E(access)}&page={page}&pageSize={pageSize}";
             var dashboardTask = _api.GetAsync<PropertyListResponseDto>(endpoint);
             var plansTask = _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
-            await Task.WhenAll(dashboardTask, plansTask);
+            var profileTask = _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+            await Task.WhenAll(dashboardTask, plansTask, profileTask);
 
             var response = dashboardTask.Result;
             var plans = plansTask.Result;
+            var profile = profileTask.Result;
             var isLandlord = string.Equals(response.UserRole, "Landlord", StringComparison.OrdinalIgnoreCase);
             var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty;
+            var registeredPaymentNumber = !string.IsNullOrWhiteSpace(profile.SubscriptionPaymentPhoneNumber)
+                ? profile.SubscriptionPaymentPhoneNumber
+                : !string.IsNullOrWhiteSpace(profile.PayoutPhoneNumber)
+                    ? profile.PayoutPhoneNumber
+                    : profile.PhoneNumber ?? string.Empty;
 
             return new PropertyIndexVm
             {
@@ -856,6 +863,9 @@ namespace RentHub.Portal.Controllers
                 CanCreateProperty = response.CanCreateProperty,
                 ShowCreateEntryPoint = response.CanCreateProperty || isLandlord,
                 RequiresSubscriptionCheckout = requiresSubscriptionCheckout,
+                RegisteredPaymentNumber = registeredPaymentNumber,
+                RegisteredPaymentChannel = profile.SubscriptionPaymentChannel ?? profile.PayoutChannel,
+                RegisteredPaymentVerified = profile.IsSubscriptionPaymentPhoneVerified,
                 CreationScopes = response.CreationScopes,
                 AvailablePlans = plans,
                 Items = response.Items

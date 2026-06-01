@@ -219,27 +219,46 @@ namespace RentHub.API.Controllers
                     return NotFound("Plan not found.");
                 }
 
-                var normalizedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(request.PaymentMethod);
-                if (normalizedPaymentMethod == PaymentMethodEnum.Card)
+                var registeredPaymentChannel = user.SubscriptionPaymentChannel ?? user.PayoutChannel;
+                var normalizedPaymentMethod = ResolveRegisteredPaymentMethod(user);
+                if (!normalizedPaymentMethod.HasValue)
                 {
                     return BadRequest(new
                     {
-                        Code = "CARD_PAYMENTS_NOT_CONFIGURED",
-                        Message = "Card payments are not configured yet. Please choose MTN Mobile Money or Orange Money."
+                        Code = "MOBILE_MONEY_CHANNEL_REQUIRED",
+                        Message = "Your account must have a registered MTN Mobile Money or Orange Money payment channel before subscribing."
                     });
                 }
 
-                var mobileMoneyPhoneNumber = ResolveMobileMoneyPhoneNumber(request.MobileMoneyPhoneNumber, user);
-                if (!IsLikelyCameroonMobileMoneyNumber(mobileMoneyPhoneNumber))
+                if (!user.IsSubscriptionPaymentPhoneVerified)
+                {
+                    return BadRequest(new
+                    {
+                        Code = "MOBILE_MONEY_PHONE_NOT_VERIFIED",
+                        Message = "Verify your registered subscription payment number before subscribing."
+                    });
+                }
+
+                var mobileMoneyPhoneNumber = ResolveRegisteredMobileMoneyPhoneNumber(user);
+                if (!CameroonMobileMoneyNumberHelper.TryNormalizeNationalNumber(mobileMoneyPhoneNumber, out var validatedMobileMoneyPhoneNumber))
                 {
                     return BadRequest(new
                     {
                         Code = "MOBILE_MONEY_PHONE_REQUIRED",
-                        Message = "Please provide a valid Cameroon Mobile Money phone number."
+                        Message = $"Your registered Mobile Money number must be a valid Cameroon Mobile Money number before subscribing. {CameroonMobileMoneyNumberHelper.SupportedPrefixesDescription}"
                     });
                 }
 
-                var validatedMobileMoneyPhoneNumber = mobileMoneyPhoneNumber!;
+                if (!CameroonMobileMoneyNumberHelper.MatchesOperator(validatedMobileMoneyPhoneNumber, registeredPaymentChannel))
+                {
+                    var detectedChannel = CameroonMobileMoneyNumberHelper.ResolveOperator(validatedMobileMoneyPhoneNumber);
+                    return BadRequest(new
+                    {
+                        Code = "MOBILE_MONEY_OPERATOR_MISMATCH",
+                        Message = $"Your registered number looks like {CameroonMobileMoneyNumberHelper.ChannelLabel(detectedChannel)}, but your account is configured for {CameroonMobileMoneyNumberHelper.ChannelLabel(registeredPaymentChannel)}. Update your mobile payment information before subscribing."
+                    });
+                }
+
                 var now = DateTimeOffset.UtcNow;
                 var currentApproved = await _context.UserSubscriptions
                     .Where(us =>
@@ -293,13 +312,13 @@ namespace RentHub.API.Controllers
                     }
                 }
                 else if (pendingSubscription.PaymentStatus == PaymentStatusEnum.Pending &&
-                         pendingSubscription.PaymentMethod == normalizedPaymentMethod &&
+                         pendingSubscription.PaymentMethod == normalizedPaymentMethod.Value &&
                          !string.IsNullOrWhiteSpace(pendingSubscription.PaymentProviderTransactionId))
                 {
                     return Ok(BuildCheckoutSessionDto(
                         pendingSubscription,
                         plan,
-                        normalizedPaymentMethod,
+                        normalizedPaymentMethod.Value,
                         pendingSubscription.PaymentAuthorizationUrl ?? string.Empty,
                         "pending",
                         provider: "CamPay",
@@ -325,7 +344,7 @@ namespace RentHub.API.Controllers
                 pendingSubscription.PlanDurationInDaysSnapshot = plan.DurationInDays;
                 pendingSubscription.PlanMaxPropertiesSnapshot = plan.MaxProperties;
                 pendingSubscription.PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty;
-                pendingSubscription.PaymentMethod = normalizedPaymentMethod;
+                pendingSubscription.PaymentMethod = normalizedPaymentMethod.Value;
                 pendingSubscription.AllowAutomaticCardPayments = false;
                 pendingSubscription.PaymentStatus = PaymentStatusEnum.Pending;
                 pendingSubscription.PaymentCompletedAt = null;
@@ -344,7 +363,7 @@ namespace RentHub.API.Controllers
                     user,
                     plan,
                     pendingSubscription,
-                    normalizedPaymentMethod,
+                    normalizedPaymentMethod.Value,
                     validatedMobileMoneyPhoneNumber);
 
                 pendingSubscription.PaymentAuthorizationUrl = null;
@@ -370,7 +389,7 @@ namespace RentHub.API.Controllers
                         return Ok(BuildCheckoutSessionDto(
                             existingSubscription,
                             plan,
-                            normalizedPaymentMethod,
+                            normalizedPaymentMethod.Value,
                             existingSubscription.PaymentAuthorizationUrl ?? string.Empty,
                             "duplicate",
                             provider: "CamPay",
@@ -391,7 +410,7 @@ namespace RentHub.API.Controllers
                     user.Id,
                     pendingSubscription.Id,
                     plan.Id,
-                    normalizedPaymentMethod,
+                    normalizedPaymentMethod.Value,
                     pendingSubscription.PaymentReference,
                     checkout.ProviderReference,
                     checkout.Status);
@@ -399,7 +418,7 @@ namespace RentHub.API.Controllers
                 return Ok(BuildCheckoutSessionDto(
                     pendingSubscription,
                     plan,
-                    normalizedPaymentMethod,
+                    normalizedPaymentMethod.Value,
                     string.Empty,
                     checkout.Status,
                     provider: "CamPay",
@@ -973,36 +992,30 @@ namespace RentHub.API.Controllers
             return $"Payment request sent through {operatorName}. Confirm it on your phone to activate your subscription.";
         }
 
-        private static string? ResolveMobileMoneyPhoneNumber(string? requestedPhoneNumber, ApplicationUser user)
+        private static PaymentMethodEnum? ResolveRegisteredPaymentMethod(ApplicationUser user)
         {
-            if (!string.IsNullOrWhiteSpace(requestedPhoneNumber))
+            var channel = user.SubscriptionPaymentChannel ?? user.PayoutChannel;
+            return channel switch
             {
-                return requestedPhoneNumber;
-            }
-
-            if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
-            {
-                return user.PhoneNumber;
-            }
-
-            return user.PayoutPhoneNumber;
+                PayoutChannelEnum.MtnMoney => PaymentMethodEnum.Momo,
+                PayoutChannelEnum.OrangeMoney => PaymentMethodEnum.OrangeMoney,
+                _ => null
+            };
         }
 
-        private static bool IsLikelyCameroonMobileMoneyNumber(string? phoneNumber)
+        private static string? ResolveRegisteredMobileMoneyPhoneNumber(ApplicationUser user)
         {
-            if (string.IsNullOrWhiteSpace(phoneNumber))
+            if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
             {
-                return false;
+                return user.SubscriptionPaymentPhoneNumber;
             }
 
-            var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
-            if (digits.StartsWith("00", StringComparison.Ordinal))
+            if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
             {
-                digits = digits[2..];
+                return user.PayoutPhoneNumber;
             }
 
-            return (digits.Length == 9 && digits.StartsWith("6", StringComparison.Ordinal)) ||
-                   (digits.Length == 12 && digits.StartsWith("2376", StringComparison.Ordinal));
+            return user.PhoneNumber;
         }
 
         private static string BuildPaymentReference(int subscriptionId, int attemptCount)

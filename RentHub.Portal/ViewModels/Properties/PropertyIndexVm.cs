@@ -1,5 +1,6 @@
 using System;
 using Common.CommunicationModels;
+using Common.Enums;
 
 namespace RentHub.Portal.ViewModels.Properties
 {
@@ -17,6 +18,9 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool CanCreateProperty { get; set; }
         public bool ShowCreateEntryPoint { get; set; }
         public bool RequiresSubscriptionCheckout { get; set; }
+        public string RegisteredPaymentNumber { get; set; } = string.Empty;
+        public PayoutChannelEnum? RegisteredPaymentChannel { get; set; }
+        public bool RegisteredPaymentVerified { get; set; }
 
         public List<PropertyCreationScopeDto> CreationScopes { get; set; } = new();
         public List<SubscriptionPlanDto> AvailablePlans { get; set; } = new();
