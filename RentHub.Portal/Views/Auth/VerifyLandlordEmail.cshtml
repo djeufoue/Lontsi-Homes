@@ -1,0 +1,80 @@
+@model RentHub.Portal.ViewModels.Auth.VerifyLandlordEmailVm
+@{
+    ViewData["Title"] = "Verify Email";
+    Layout = "_AuthLayout";
+}
+
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell">
+        <aside class="rh-auth-hero">
+            <span class="rh-auth-kicker">Step 2 of 5</span>
+            <h1>Confirm your email.</h1>
+            <p>Enter the OTP sent to your email address. Once confirmed, the system will remember this step and move you to phone verification.</p>
+            <ul class="rh-auth-points">
+                <li>OTP expires after 10 minutes</li>
+                <li>Your registration can be resumed from login</li>
+                <li>Payment setup remains locked until email is confirmed</li>
+            </ul>
+        </aside>
+
+        <section class="rh-auth-card">
+            <div class="rh-auth-stepper" aria-label="Registration progress">
+                <span class="done">1</span>
+                <span class="active">2</span>
+                <span>3</span>
+                <span>4</span>
+                <span>5</span>
+            </div>
+
+            <div class="rh-auth-card-header">
+                <h2>Email OTP</h2>
+                <p>Use the code sent to your email to continue.</p>
+            </div>
+
+            @if (ViewBag.AuthInfo is string authInfo)
+            {
+                <div class="alert alert-info py-2">@authInfo</div>
+            }
+
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
+            <form asp-action="VerifyLandlordEmail" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label rh-auth-label"></label>
+                    <input asp-for="Email" class="form-control rh-auth-input" autocomplete="email" placeholder="name@company.com" />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="EmailOtp" class="form-label rh-auth-label"></label>
+                    <input asp-for="EmailOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="6-digit code" />
+                    <span asp-validation-for="EmailOtp" class="text-danger small"></span>
+                </div>
+
+                <button type="submit" class="btn rh-btn-primary w-100">Verify email</button>
+            </form>
+
+            <form asp-action="ResendActivationOtp" method="post" class="mt-3">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="email" value="@Model.Email" />
+                <button type="submit" class="btn rh-btn-subtle w-100">Resend email OTP</button>
+            </form>
+
+            <p class="rh-auth-footnote mb-0 mt-3">
+                Need to restart?
+                <a asp-action="Register" asp-route-returnUrl="@Model.ReturnUrl">Create a new account</a>
+            </p>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

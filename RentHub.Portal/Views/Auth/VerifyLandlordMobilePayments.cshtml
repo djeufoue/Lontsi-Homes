@@ -1,0 +1,115 @@
+@model RentHub.Portal.ViewModels.Auth.VerifyLandlordMobilePaymentsVm
+@{
+    ViewData["Title"] = "Verify Mobile Payments";
+    Layout = "_AuthLayout";
+    var status = Model.Status;
+    var needsSubscriptionOtp = status == null || !status.IsSubscriptionPaymentPhoneVerified;
+    var needsPayoutOtp = status == null || !status.IsPayoutPhoneVerified;
+    var needsWhatsAppOtp = status == null || !status.IsWhatsAppPhoneVerified;
+}
+
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell">
+        <aside class="rh-auth-hero">
+            <span class="rh-auth-kicker">Step 5 of 5</span>
+            <h1>Verify payment numbers.</h1>
+            <p>Only the numbers that still need confirmation require an OTP. If the same number was already validated, the system reuses that validation.</p>
+            <ul class="rh-auth-points">
+                <li>No duplicate OTP for the same verified number</li>
+                <li>Subscription payments use your selected subscription number</li>
+                <li>Rent payout number is stored for future tenant payment flows</li>
+            </ul>
+        </aside>
+
+        <section class="rh-auth-card">
+            <div class="rh-auth-stepper" aria-label="Registration progress">
+                <span class="done">1</span>
+                <span class="done">2</span>
+                <span class="done">3</span>
+                <span class="done">4</span>
+                <span class="active">5</span>
+            </div>
+
+            <div class="rh-auth-card-header">
+                <h2>OTP confirmation</h2>
+                <p>Enter the OTP codes received for pending numbers.</p>
+            </div>
+
+            @if (ViewBag.AuthInfo is string authInfo)
+            {
+                <div class="alert alert-info py-2">@authInfo</div>
+            }
+
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
+            <form asp-action="VerifyLandlordMobilePayments" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <input asp-for="Email" type="hidden" />
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                @if (status != null)
+                {
+                    <div class="rh-verification-list mb-3">
+                        <div>
+                            <span>Subscription payment</span>
+                            <strong>@(string.IsNullOrWhiteSpace(status.SubscriptionPaymentPhoneNumber) ? "Configured number" : status.SubscriptionPaymentPhoneNumber)</strong>
+                            <small>@(status.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending OTP")</small>
+                        </div>
+                        <div>
+                            <span>Rent payout</span>
+                            <strong>@(string.IsNullOrWhiteSpace(status.PayoutPhoneNumber) ? "Configured number" : status.PayoutPhoneNumber)</strong>
+                            <small>@(status.IsPayoutPhoneVerified ? "Verified" : "Pending OTP")</small>
+                        </div>
+                        <div>
+                            <span>WhatsApp alerts</span>
+                            <strong>@(string.IsNullOrWhiteSpace(status.WhatsAppPhoneNumber) ? "Optional number" : status.WhatsAppPhoneNumber)</strong>
+                            <small>@(status.IsWhatsAppPhoneVerified ? "Verified" : "Pending if configured")</small>
+                        </div>
+                    </div>
+                }
+
+                @if (needsSubscriptionOtp)
+                {
+                    <div class="mb-3">
+                        <label asp-for="SubscriptionPaymentOtp" class="form-label rh-auth-label"></label>
+                        <input asp-for="SubscriptionPaymentOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to subscription number" />
+                        <span asp-validation-for="SubscriptionPaymentOtp" class="text-danger small"></span>
+                    </div>
+                }
+
+                @if (needsPayoutOtp)
+                {
+                    <div class="mb-3">
+                        <label asp-for="PayoutOtp" class="form-label rh-auth-label"></label>
+                        <input asp-for="PayoutOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to rent payout number" />
+                        <span asp-validation-for="PayoutOtp" class="text-danger small"></span>
+                    </div>
+                }
+
+                @if (needsWhatsAppOtp)
+                {
+                    <div class="mb-3">
+                        <label asp-for="WhatsAppOtp" class="form-label rh-auth-label"></label>
+                        <input asp-for="WhatsAppOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from WhatsApp" />
+                        <span asp-validation-for="WhatsAppOtp" class="text-danger small"></span>
+                    </div>
+                }
+
+                <button type="submit" class="btn rh-btn-primary w-100">Complete registration</button>
+            </form>
+
+            <p class="rh-auth-footnote mb-0 mt-3">
+                Need to change a number?
+                <a asp-action="LandlordMobilePayments" asp-route-email="@Model.Email" asp-route-returnUrl="@Model.ReturnUrl">Go back</a>
+            </p>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

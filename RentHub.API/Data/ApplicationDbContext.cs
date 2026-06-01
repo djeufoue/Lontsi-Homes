@@ -24,6 +24,7 @@ namespace RentHub.API.Data
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
+        public DbSet<OtpSendLog> OtpSendLogs => Set<OtpSendLog>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
@@ -134,6 +135,29 @@ namespace RentHub.API.Data
                     .IsUnique();
 
                 entity.HasIndex(e => e.PaymentReference);
+            });
+
+            builder.Entity<OtpSendLog>(entity =>
+            {
+                entity.Property(e => e.UserId)
+                    .HasMaxLength(450);
+
+                entity.Property(e => e.Purpose)
+                    .HasMaxLength(64);
+
+                entity.Property(e => e.Channel)
+                    .HasMaxLength(20);
+
+                entity.Property(e => e.Recipient)
+                    .HasMaxLength(64);
+
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => new { e.UserId, e.Purpose, e.SentAt });
+                entity.HasIndex(e => new { e.UserId, e.Purpose, e.Recipient, e.SentAt });
             });
 
             builder.Entity<SystemTransferAccount>()

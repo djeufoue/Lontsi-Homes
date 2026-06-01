@@ -26,6 +26,7 @@ namespace RentHub.API.Data
             EnsureSubscriptionCheckoutColumns(context);
             EnsureConversationTables(context);
             EnsureSystemTransferAccountsTable(context);
+            EnsureOtpSendLogsTable(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -74,6 +75,47 @@ namespace RentHub.API.Data
             SeedDefaultAdministrator(scope.ServiceProvider, configuration);
 
             // Additional seeding (roles, admin user) can be added here.
+        }
+
+        private static void EnsureOtpSendLogsTable(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID(N'[OtpSendLogs]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [OtpSendLogs]
+    (
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_OtpSendLogs] PRIMARY KEY,
+        [UserId] nvarchar(450) NOT NULL,
+        [Purpose] nvarchar(64) NOT NULL,
+        [Channel] nvarchar(20) NOT NULL,
+        [Recipient] nvarchar(64) NOT NULL,
+        [SentAt] datetimeoffset NOT NULL
+            CONSTRAINT [DF_OtpSendLogs_SentAt] DEFAULT(SYSDATETIMEOFFSET()),
+        CONSTRAINT [FK_OtpSendLogs_AspNetUsers_UserId]
+            FOREIGN KEY ([UserId]) REFERENCES [AspNetUsers]([Id]) ON DELETE CASCADE
+    );
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_OtpSendLogs_UserId_Purpose_SentAt'
+      AND [object_id] = OBJECT_ID(N'[OtpSendLogs]')
+)
+BEGIN
+    CREATE INDEX [IX_OtpSendLogs_UserId_Purpose_SentAt]
+    ON [OtpSendLogs]([UserId], [Purpose], [SentAt]);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_OtpSendLogs_UserId_Purpose_Recipient_SentAt'
+      AND [object_id] = OBJECT_ID(N'[OtpSendLogs]')
+)
+BEGIN
+    CREATE INDEX [IX_OtpSendLogs_UserId_Purpose_Recipient_SentAt]
+    ON [OtpSendLogs]([UserId], [Purpose], [Recipient], [SentAt]);
+END
+");
         }
 
         private static void SeedDefaultAdministrator(IServiceProvider serviceProvider, IConfiguration configuration)
@@ -281,6 +323,45 @@ namespace RentHub.API.Data
         private static void EnsureUserVerificationColumns(ApplicationDbContext context)
         {
             context.Database.ExecuteSqlRaw(@"
+                IF COL_LENGTH('AspNetUsers', 'UsePrimaryPhoneForSubscriptionPayments') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [UsePrimaryPhoneForSubscriptionPayments] bit NOT NULL
+                        CONSTRAINT [DF_AspNetUsers_UsePrimaryPhoneForSubscriptionPayments] DEFAULT(0);
+                END
+
+                IF COL_LENGTH('AspNetUsers', 'SubscriptionPaymentPhoneNumber') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [SubscriptionPaymentPhoneNumber] nvarchar(max) NULL;
+                END
+
+                IF COL_LENGTH('AspNetUsers', 'SubscriptionPaymentChannel') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [SubscriptionPaymentChannel] int NULL;
+                END
+
+                IF COL_LENGTH('AspNetUsers', 'IsSubscriptionPaymentPhoneVerified') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [IsSubscriptionPaymentPhoneVerified] bit NOT NULL
+                        CONSTRAINT [DF_AspNetUsers_IsSubscriptionPaymentPhoneVerified] DEFAULT(0);
+                END
+
+                IF COL_LENGTH('AspNetUsers', 'SubscriptionPaymentPhoneVerifiedAt') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [SubscriptionPaymentPhoneVerifiedAt] datetimeoffset NULL;
+                END
+
+                IF COL_LENGTH('AspNetUsers', 'UsePrimaryPhoneForRentPayouts') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [UsePrimaryPhoneForRentPayouts] bit NOT NULL
+                        CONSTRAINT [DF_AspNetUsers_UsePrimaryPhoneForRentPayouts] DEFAULT(0);
+                END
+
                 IF COL_LENGTH('AspNetUsers', 'PayoutPhoneNumber') IS NULL
                 BEGIN
                     ALTER TABLE [AspNetUsers]
@@ -324,6 +405,24 @@ namespace RentHub.API.Data
                     ALTER TABLE [AspNetUsers]
                     ADD [WhatsAppPhoneVerifiedAt] datetimeoffset NULL;
                 END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                UPDATE [AspNetUsers]
+                SET
+                    [SubscriptionPaymentPhoneNumber] = [PayoutPhoneNumber],
+                    [SubscriptionPaymentChannel] = [PayoutChannel],
+                    [IsSubscriptionPaymentPhoneVerified] = [IsPayoutPhoneVerified],
+                    [SubscriptionPaymentPhoneVerifiedAt] = [PayoutPhoneVerifiedAt]
+                WHERE [SubscriptionPaymentPhoneNumber] IS NULL
+                  AND [PayoutPhoneNumber] IS NOT NULL;
+
+                UPDATE [AspNetUsers]
+                SET
+                    [PhoneNumber] = [PayoutPhoneNumber],
+                    [PhoneNumberConfirmed] = [IsPayoutPhoneVerified]
+                WHERE [PhoneNumber] IS NULL
+                  AND [PayoutPhoneNumber] IS NOT NULL;
             ");
         }
 

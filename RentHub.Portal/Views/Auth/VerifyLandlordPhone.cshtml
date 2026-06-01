@@ -1,0 +1,162 @@
+@model RentHub.Portal.ViewModels.Auth.VerifyLandlordPhoneVm
+@{
+    ViewData["Title"] = "Verify Phone";
+    Layout = "_AuthLayout";
+    var phoneOtpLimit = Model.Status?.PhoneOtpRequestLimit;
+    var phoneOtpCooldownSeconds = phoneOtpLimit?.RetryAfterSeconds ?? 0;
+    var phoneOtpDailyLimitReached = phoneOtpLimit?.DailyLimitReached == true;
+    var phoneOtpButtonDisabled = phoneOtpCooldownSeconds > 0 || phoneOtpDailyLimitReached;
+    var phoneOtpButtonText = phoneOtpDailyLimitReached
+        ? "Daily OTP limit reached"
+        : phoneOtpCooldownSeconds > 0
+            ? $"Send again in {phoneOtpCooldownSeconds}s"
+            : "Save phone and send OTP";
+}
+
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell rh-auth-shell-register">
+        <aside class="rh-auth-hero">
+            <span class="rh-auth-kicker">Step 3 of 5</span>
+            <h1>Confirm your main phone.</h1>
+            <p>This number identifies you in support logs and can also be reused for subscription payments and rent payouts in the next step.</p>
+            <ul class="rh-auth-points">
+                <li>Save your phone number first</li>
+                <li>Then enter the SMS OTP</li>
+                <li>A validated number is reused automatically when selected later</li>
+            </ul>
+        </aside>
+
+        <section class="rh-auth-card">
+            <div class="rh-auth-stepper" aria-label="Registration progress">
+                <span class="done">1</span>
+                <span class="done">2</span>
+                <span class="active">3</span>
+                <span>4</span>
+                <span>5</span>
+            </div>
+
+            <div class="rh-auth-card-header">
+                <h2>Phone verification</h2>
+                <p>Confirm the phone number that belongs to you.</p>
+            </div>
+
+            @if (ViewBag.AuthInfo is string authInfo)
+            {
+                <div class="alert alert-info py-2">@authInfo</div>
+            }
+
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
+            <form asp-action="SaveLandlordPhone" method="post" class="rh-auth-form mb-3">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="Email" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
+                        <input asp-for="CountryCode" class="form-control rh-auth-input" inputmode="numeric" placeholder="+237" />
+                        <span asp-validation-for="CountryCode" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-8">
+                        <label asp-for="PhoneNumber" class="form-label rh-auth-label"></label>
+                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel-national" inputmode="numeric" maxlength="9" pattern="6[0-9]{8}" placeholder="REMOVED_PRIVATE_VALUE" />
+                        <div class="form-text">Enter the local number only. Do not include +237.</div>
+                        <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <button type="submit"
+                        class="btn rh-btn-subtle w-100 mt-3"
+                        data-phone-otp-send-button
+                        data-default-label="Save phone and send OTP"
+                        data-countdown-seconds="@phoneOtpCooldownSeconds"
+                        data-daily-limit-reached="@phoneOtpDailyLimitReached.ToString().ToLowerInvariant()"
+                        disabled="@phoneOtpButtonDisabled">@phoneOtpButtonText</button>
+                @if (phoneOtpDailyLimitReached)
+                {
+                    <div class="text-danger small mt-2">
+                        You have reached today's OTP request limit for this step.
+                    </div>
+                }
+                else if (phoneOtpLimit != null)
+                {
+                    <div class="text-muted small mt-2">
+                        @phoneOtpLimit.DailyRequestsRemaining OTP request(s) remaining today for this step.
+                    </div>
+                }
+            </form>
+
+            <form asp-action="VerifyLandlordPhone" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="Email" type="hidden" />
+                <input asp-for="CountryCode" type="hidden" />
+                <input asp-for="PhoneNumber" type="hidden" />
+
+                <div class="mb-3">
+                    <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
+                    <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from SMS" />
+                    <span asp-validation-for="PhoneOtp" class="text-danger small"></span>
+                </div>
+
+                <button type="submit" class="btn rh-btn-primary w-100">Verify phone</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const button = document.querySelector("[data-phone-otp-send-button]");
+            if (!button) {
+                return;
+            }
+
+            const defaultLabel = button.dataset.defaultLabel || "Save phone and send OTP";
+            const dailyLimitReached = button.dataset.dailyLimitReached === "true";
+            let remainingSeconds = Number.parseInt(button.dataset.countdownSeconds || "0", 10);
+
+            const render = () => {
+                if (dailyLimitReached) {
+                    button.disabled = true;
+                    button.textContent = "Daily OTP limit reached";
+                    return false;
+                }
+
+                if (remainingSeconds > 0) {
+                    button.disabled = true;
+                    button.textContent = `Send again in ${remainingSeconds}s`;
+                    remainingSeconds -= 1;
+                    return true;
+                }
+
+                button.disabled = false;
+                button.textContent = defaultLabel;
+                return false;
+            };
+
+            const interval = window.setInterval(() => {
+                if (!render()) {
+                    window.clearInterval(interval);
+                }
+            }, 1000);
+
+            render();
+
+            const form = button.closest("form");
+            form?.addEventListener("submit", () => {
+                if (!button.disabled) {
+                    button.disabled = true;
+                    button.textContent = "Sending OTP...";
+                }
+            });
+        })();
+    </script>
+}

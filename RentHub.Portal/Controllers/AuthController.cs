@@ -57,14 +57,23 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "Login failed in Portal for {Email}", vm.Email);
 
                 var apiError = ParseApiError(ex.Message);
+                if (string.Equals(apiError.Code, "LANDLORD_ONBOARDING_INCOMPLETE", StringComparison.OrdinalIgnoreCase))
+                {
+                    TempData["AuthInfo"] = SafeUserMessage(
+                        apiError.Message,
+                        "Your landlord registration is not complete yet. Continue from the saved step.");
+
+                    return RedirectToOnboardingStep(apiError.NextStep, apiError.Email ?? vm.Email, vm.ReturnUrl);
+                }
+
                 if (string.Equals(apiError.Code, "EMAIL_NOT_CONFIRMED", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(apiError.Code, "ACCOUNT_VERIFICATION_PENDING", StringComparison.OrdinalIgnoreCase))
                 {
                     TempData["AuthInfo"] = SafeUserMessage(
                         apiError.Message,
-                        "Your account is not activated yet. Enter the OTP codes sent to your email, payout number, and WhatsApp.");
+                        "Your account is not activated yet. Continue your landlord registration.");
 
-                    return RedirectToAction(nameof(VerifyAccount), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
+                    return RedirectToAction(nameof(VerifyLandlordEmail), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
                 }
 
                 if (string.Equals(apiError.Code, "VISITOR_ACCOUNT_VERIFICATION_PENDING", StringComparison.OrdinalIgnoreCase))
@@ -116,7 +125,7 @@ namespace RentHub.Portal.Controllers
                         ? "Account created. Check your email for OTP and activate your account."
                         : result.Message;
 
-                    return RedirectToAction(nameof(VerifyAccount), new { email = result.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
+                    return RedirectToOnboardingStep(result.NextStep, result.Email ?? vm.Email, vm.ReturnUrl);
                 }
 
                 await _authSession.PersistTokenAsync(result.Token);
@@ -133,6 +142,318 @@ namespace RentHub.Portal.Controllers
                     SafeUserMessage(apiError.Message, "Unable to create your account right now. Please try again in a few minutes."));
 
                 ViewBag.Plans = await GetPlansAsync();
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyLandlordEmail(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status?.IsComplete == true)
+                return RedirectToAction(nameof(Login), new { returnUrl });
+
+            return View(new VerifyLandlordEmailVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyLandlordEmail(VerifyLandlordEmailVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new VerifyEmailOtpRequest
+                {
+                    Email = vm.Email,
+                    EmailOtp = vm.EmailOtp
+                };
+
+                var res = await _api.PostAnonymousAsync<VerifyEmailOtpRequest, JsonElement>("Account/landlord-registration/verify-email", req);
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Email verified.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VerifyLandlordEmail failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Email OTP verification failed. Please try again."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyLandlordPhone(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null && status.NextStep == LandlordOnboardingSteps.Email)
+                return RedirectToAction(nameof(VerifyLandlordEmail), new { email = status.Email, returnUrl });
+
+            return View(new VerifyLandlordPhoneVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                CountryCode = string.IsNullOrWhiteSpace(status?.CountryCode) ? "+237" : status.CountryCode,
+                PhoneNumber = ToLocalCameroonPhoneNumber(status?.PhoneNumber),
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveLandlordPhone(VerifyLandlordPhoneVm vm)
+        {
+            ModelState.Remove(nameof(vm.PhoneOtp));
+
+            if (string.IsNullOrWhiteSpace(vm.Email))
+                ModelState.AddModelError(nameof(vm.Email), "Email is required.");
+
+            if (string.IsNullOrWhiteSpace(vm.PhoneNumber))
+                ModelState.AddModelError(nameof(vm.PhoneNumber), "Phone number is required.");
+
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(nameof(VerifyLandlordPhone), vm);
+            }
+
+            try
+            {
+                var req = new UpsertLandlordPhoneRequest
+                {
+                    Email = vm.Email,
+                    CountryCode = vm.CountryCode?.Trim(),
+                    PhoneNumber = vm.PhoneNumber.Trim()
+                };
+
+                var res = await _api.PostAnonymousAsync<UpsertLandlordPhoneRequest, JsonElement>("Account/landlord-registration/phone", req);
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Phone OTP sent.";
+                return RedirectToAction(nameof(VerifyLandlordPhone), new { email = vm.Email, returnUrl = vm.ReturnUrl });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SaveLandlordPhone failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to save your phone number right now."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(nameof(VerifyLandlordPhone), vm);
+            }
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyLandlordPhone(VerifyLandlordPhoneVm vm)
+        {
+            ModelState.Remove(nameof(vm.CountryCode));
+            ModelState.Remove(nameof(vm.PhoneNumber));
+
+            if (string.IsNullOrWhiteSpace(vm.PhoneOtp))
+                ModelState.AddModelError(nameof(vm.PhoneOtp), "Phone OTP is required.");
+
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new VerifyPhoneOtpRequest
+                {
+                    Email = vm.Email,
+                    PhoneOtp = vm.PhoneOtp?.Trim() ?? string.Empty
+                };
+
+                var res = await _api.PostAnonymousAsync<VerifyPhoneOtpRequest, JsonElement>("Account/landlord-registration/verify-phone", req);
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Phone verified.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VerifyLandlordPhone failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Phone OTP verification failed. Please try again."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> LandlordMobilePayments(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null && status.NextStep is LandlordOnboardingSteps.Email or LandlordOnboardingSteps.Phone)
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+
+            return View(new LandlordMobilePaymentsVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                UsePrimaryPhoneForSubscriptionPayments = status?.UsePrimaryPhoneForSubscriptionPayments ?? true,
+                SubscriptionPaymentPhoneNumber = status?.SubscriptionPaymentPhoneNumber,
+                SubscriptionPaymentChannel = status?.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
+                UsePrimaryPhoneForRentPayouts = status?.UsePrimaryPhoneForRentPayouts ?? true,
+                PayoutPhoneNumber = status?.PayoutPhoneNumber,
+                PayoutChannel = status?.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
+                WhatsAppPhoneNumber = status?.WhatsAppPhoneNumber,
+                PrimaryPhoneNumber = status?.PhoneNumber,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LandlordMobilePayments(LandlordMobilePaymentsVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.PrimaryPhoneNumber = vm.Status?.PhoneNumber;
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new UpsertLandlordMobilePaymentsRequest
+                {
+                    Email = vm.Email,
+                    UsePrimaryPhoneForSubscriptionPayments = vm.UsePrimaryPhoneForSubscriptionPayments,
+                    SubscriptionPaymentPhoneNumber = vm.SubscriptionPaymentPhoneNumber,
+                    SubscriptionPaymentChannel = vm.SubscriptionPaymentChannel,
+                    UsePrimaryPhoneForRentPayouts = vm.UsePrimaryPhoneForRentPayouts,
+                    PayoutPhoneNumber = vm.PayoutPhoneNumber,
+                    PayoutChannel = vm.PayoutChannel,
+                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
+                };
+
+                var res = await _api.PostAnonymousAsync<UpsertLandlordMobilePaymentsRequest, JsonElement>("Account/landlord-registration/mobile-payments", req);
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Mobile payment details saved.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LandlordMobilePayments failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to save mobile payment details right now."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.PrimaryPhoneNumber = vm.Status?.PhoneNumber;
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyLandlordMobilePayments(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null && status.NextStep != LandlordOnboardingSteps.MobilePaymentVerification)
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+
+            return View(new VerifyLandlordMobilePaymentsVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyLandlordMobilePayments(VerifyLandlordMobilePaymentsVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new VerifyMobilePaymentPhonesRequest
+                {
+                    Email = vm.Email,
+                    SubscriptionPaymentOtp = vm.SubscriptionPaymentOtp,
+                    PayoutOtp = vm.PayoutOtp,
+                    WhatsAppOtp = vm.WhatsAppOtp
+                };
+
+                var res = await _api.PostAnonymousAsync<VerifyMobilePaymentPhonesRequest, JsonElement>("Account/landlord-registration/verify-mobile-payments", req);
+
+                if (TryGetPropertyIgnoreCase(res, "token", out var tokenElement) && !string.IsNullOrWhiteSpace(tokenElement.GetString()))
+                {
+                    await _authSession.PersistTokenAsync(tokenElement.GetString()!);
+                    TempData["Success"] = ReadString(res, "message") ?? "Registration complete.";
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Verification updated.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "VerifyLandlordMobilePayments failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Mobile payment OTP verification failed. Please try again."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
                 return View(vm);
             }
         }
@@ -311,7 +632,7 @@ namespace RentHub.Portal.Controllers
             {
                 var req = new ResendActivationOtpRequest { Email = email };
                 await _api.PostAnonymousAsync("Account/resend-activation-otp", req);
-                TempData["AuthInfo"] = "New OTP codes have been sent to your email, payout number, and WhatsApp.";
+                TempData["AuthInfo"] = "A new email OTP has been sent. If mobile numbers are already configured, their pending OTPs may also be refreshed.";
             }
             catch (Exception ex)
             {
@@ -321,7 +642,7 @@ namespace RentHub.Portal.Controllers
                 TempData["AuthError"] = SafeUserMessage(apiError.Message, "Unable to resend OTP right now. Please try again.");
             }
 
-            return RedirectToAction(nameof(VerifyAccount), new { email });
+            return RedirectToAction(nameof(VerifyLandlordEmail), new { email });
         }
 
         [HttpPost]
@@ -401,21 +722,17 @@ namespace RentHub.Portal.Controllers
 
         private async Task<RegisterApiResponse> RegisterToApi(RegisterVm vm)
         {
-            var req = new RegisterRequest
+            var req = new StartLandlordRegistrationRequest
             {
                 Email = vm.Email,
                 Password = vm.Password,
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
                 CountryCode = vm.CountryCode,
-                PhoneNumber = vm.PhoneNumber,
-                PayoutPhoneNumber = vm.PayoutPhoneNumber,
-                PayoutChannel = vm.PayoutChannel,
-                WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber,
                 PlanId = vm.PlanId
             };
 
-            var res = await _api.PostAnonymousAsync<RegisterRequest, JsonElement>("Account/register", req);
+            var res = await _api.PostAnonymousAsync<StartLandlordRegistrationRequest, JsonElement>("Account/landlord-registration/start", req);
 
             var output = new RegisterApiResponse
             {
@@ -437,6 +754,9 @@ namespace RentHub.Portal.Controllers
 
             if (TryGetPropertyIgnoreCase(res, "message", out var message))
                 output.Message = message.GetString();
+
+            if (TryGetPropertyIgnoreCase(res, "nextStep", out var nextStep))
+                output.NextStep = nextStep.GetString();
 
             return output;
         }
@@ -474,6 +794,45 @@ namespace RentHub.Portal.Controllers
             return _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
         }
 
+        private async Task<LandlordOnboardingStatusDto?> TryGetOnboardingStatusAsync(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return null;
+            }
+
+            try
+            {
+                return await _api.GetAnonymousAsync<LandlordOnboardingStatusDto>(
+                    $"Account/landlord-registration/status?email={Uri.EscapeDataString(email.Trim())}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Unable to load onboarding status for {Email}", email);
+                return null;
+            }
+        }
+
+        private IActionResult RedirectToOnboardingStep(string? nextStep, string email, string? returnUrl)
+        {
+            var route = new { email, returnUrl };
+            return (nextStep ?? LandlordOnboardingSteps.Email) switch
+            {
+                LandlordOnboardingSteps.Phone => RedirectToAction(nameof(VerifyLandlordPhone), route),
+                LandlordOnboardingSteps.MobilePayments => RedirectToAction(nameof(LandlordMobilePayments), route),
+                LandlordOnboardingSteps.MobilePaymentVerification => RedirectToAction(nameof(VerifyLandlordMobilePayments), route),
+                LandlordOnboardingSteps.Complete => RedirectToAction(nameof(Login), new { returnUrl }),
+                _ => RedirectToAction(nameof(VerifyLandlordEmail), route)
+            };
+        }
+
+        private static string? ReadString(JsonElement element, string propertyName)
+        {
+            return TryGetPropertyIgnoreCase(element, propertyName, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+
         private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
         {
             if (element.ValueKind == JsonValueKind.Object)
@@ -500,6 +859,22 @@ namespace RentHub.Portal.Controllers
             }
 
             return LooksTechnicalMessage(apiMessage) ? fallback : apiMessage;
+        }
+
+        private static string ToLocalCameroonPhoneNumber(string? phoneNumber)
+        {
+            var digits = new string((phoneNumber ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (digits.StartsWith("00237", StringComparison.Ordinal) && digits.Length == 14)
+            {
+                return digits[5..];
+            }
+
+            if (digits.StartsWith("237", StringComparison.Ordinal) && digits.Length == 12)
+            {
+                return digits[3..];
+            }
+
+            return digits;
         }
 
         private static bool LooksTechnicalMessage(string message)
@@ -558,7 +933,8 @@ namespace RentHub.Portal.Controllers
                 {
                     Code = ReadString("Code") ?? ReadString("code"),
                     Message = ReadString("Message") ?? ReadString("message"),
-                    Email = ReadString("Email") ?? ReadString("email")
+                    Email = ReadString("Email") ?? ReadString("email"),
+                    NextStep = ReadString("NextStep") ?? ReadString("nextStep")
                 };
             }
             catch
@@ -573,6 +949,7 @@ namespace RentHub.Portal.Controllers
             public string? Token { get; set; }
             public string? Email { get; set; }
             public string? Message { get; set; }
+            public string? NextStep { get; set; }
         }
 
         private sealed class ApiErrorPayload
@@ -580,6 +957,7 @@ namespace RentHub.Portal.Controllers
             public string? Code { get; set; }
             public string? Message { get; set; }
             public string? Email { get; set; }
+            public string? NextStep { get; set; }
         }
 
         private IActionResult RedirectToLocal(string? returnUrl)

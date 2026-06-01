@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Sms;
@@ -13,23 +15,30 @@ namespace RentHub.API.Services.Users
         private const string ActivationOtpExpiryTokenName = "ActivationOtpExpiryUnix";
         private const string PhoneOtpTokenName = "PhoneOtpCode";
         private const string PhoneOtpExpiryTokenName = "PhoneOtpExpiryUnix";
+        private const string SubscriptionPaymentOtpTokenName = "SubscriptionPaymentOtpCode";
+        private const string SubscriptionPaymentOtpExpiryTokenName = "SubscriptionPaymentOtpExpiryUnix";
         private const string PayoutOtpTokenName = "PayoutOtpCode";
         private const string PayoutOtpExpiryTokenName = "PayoutOtpExpiryUnix";
         private const string WhatsAppOtpTokenName = "WhatsAppOtpCode";
         private const string WhatsAppOtpExpiryTokenName = "WhatsAppOtpExpiryUnix";
+        private const int TwilioOtpDailyRequestLimit = 2;
+        private static readonly TimeSpan TwilioOtpCooldown = TimeSpan.FromSeconds(60);
 
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly ISmsService _smsService;
         private readonly IConfiguration _configuration;
 
         public UserOnboardingService(
             UserManager<ApplicationUser> userManager,
+            ApplicationDbContext context,
             IEmailService emailService,
             ISmsService smsService,
             IConfiguration configuration)
         {
             _userManager = userManager;
+            _context = context;
             _emailService = emailService;
             _smsService = smsService;
             _configuration = configuration;
@@ -138,8 +147,136 @@ namespace RentHub.API.Services.Users
             await SendLandlordActivationOtpInternalAsync(user, temporaryPassword, welcomeRoleLabel);
         }
 
+        public async Task SendLandlordEmailOtpAsync(ApplicationUser user)
+        {
+            var otp = GenerateOtpCode();
+            var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
+
+            await StoreOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, otp, expiry);
+
+            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
+            var verifyUrl = BuildVerifyUrl(user.Email ?? string.Empty, isVisitor: false);
+            var lines = new List<string>
+            {
+                $"Hello {greetingName},",
+                string.Empty,
+                $"Your Lontsi Homes email OTP is: {otp}",
+                "Use it to confirm your email and continue landlord registration.",
+                string.Empty
+            };
+
+            if (!string.IsNullOrWhiteSpace(verifyUrl))
+            {
+                lines.Add("Verification page:");
+                lines.Add(verifyUrl);
+                lines.Add(string.Empty);
+            }
+
+            lines.Add("This OTP expires in 10 minutes.");
+            lines.Add(string.Empty);
+            lines.Add("If you did not request this account, please ignore this message.");
+
+            await _emailService.SendEmailAsync(
+                user.Email ?? string.Empty,
+                "Lontsi Homes Email Verification OTP",
+                string.Join(Environment.NewLine, lines));
+        }
+
+        public async Task SendLandlordPhoneOtpAsync(ApplicationUser user)
+        {
+            if (string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                return;
+            }
+
+            var phoneOtp = GenerateOtpCode();
+            var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
+
+            var recipient = BuildInternationalPhoneNumber(user.CountryCode, user.PhoneNumber);
+            await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.LandlordPhone, recipient);
+            await RecordTwilioOtpSendAsync(user, OtpSendPurposes.LandlordPhone, "SMS", recipient);
+
+            await StoreOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, phoneOtp, expiry);
+
+            await _smsService.SendSmsAsync(
+                recipient,
+                $"Lontsi Homes phone verification OTP: {phoneOtp}. This code expires in 10 minutes.");
+        }
+
+        public async Task SendLandlordMobilePaymentOtpsAsync(
+            ApplicationUser user,
+            bool sendSubscriptionPaymentOtp,
+            bool sendPayoutOtp,
+            bool sendWhatsAppOtp)
+        {
+            var plannedSends = new List<PlannedOtpSend>();
+            if (sendSubscriptionPaymentOtp && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+            {
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.SubscriptionPaymentPhone,
+                    "SMS",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.SubscriptionPaymentPhoneNumber),
+                    SubscriptionPaymentOtpTokenName,
+                    SubscriptionPaymentOtpExpiryTokenName,
+                    "Lontsi Homes subscription payment OTP"));
+            }
+
+            if (sendPayoutOtp && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+            {
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.RentPayoutPhone,
+                    "SMS",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.PayoutPhoneNumber),
+                    PayoutOtpTokenName,
+                    PayoutOtpExpiryTokenName,
+                    "Lontsi Homes rent payout OTP"));
+            }
+
+            if (sendWhatsAppOtp && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+            {
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.WhatsAppPhone,
+                    "WhatsApp",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.WhatsAppPhoneNumber),
+                    WhatsAppOtpTokenName,
+                    WhatsAppOtpExpiryTokenName,
+                    "Lontsi Homes WhatsApp verification OTP"));
+            }
+
+            foreach (var plannedSend in plannedSends)
+            {
+                await AssertTwilioOtpSendAllowedAsync(user, plannedSend.Purpose, plannedSend.Recipient);
+            }
+
+            await RecordTwilioOtpSendsAsync(user, plannedSends);
+
+            var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
+
+            foreach (var plannedSend in plannedSends)
+            {
+                var otp = GenerateOtpCode();
+                await StoreOtpAsync(user, plannedSend.ValueTokenName, plannedSend.ExpiryTokenName, otp, expiry);
+                var message = $"{plannedSend.MessagePrefix}: {otp}. This code expires in 10 minutes.";
+                if (plannedSend.Channel == "WhatsApp")
+                {
+                    await _smsService.SendWhatsAppAsync(plannedSend.Recipient, message);
+                }
+                else
+                {
+                    await _smsService.SendSmsAsync(plannedSend.Recipient, message);
+                }
+            }
+        }
+
         public async Task SendVisitorActivationOtpAsync(ApplicationUser user)
         {
+            var phoneRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.PhoneNumber);
+            var whatsAppRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.WhatsAppPhoneNumber);
+            await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorPhone, phoneRecipient);
+            await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorWhatsApp, whatsAppRecipient);
+            await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorPhone, "SMS", phoneRecipient);
+            await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorWhatsApp, "WhatsApp", whatsAppRecipient);
+
             var otp = GenerateOtpCode();
             var phoneOtp = GenerateOtpCode();
             var whatsAppOtp = GenerateOtpCode();
@@ -179,11 +316,11 @@ namespace RentHub.API.Services.Users
                 string.Join(Environment.NewLine, lines));
 
             await _smsService.SendSmsAsync(
-                user.PhoneNumber ?? string.Empty,
+                phoneRecipient,
                 $"RentHub visitor phone OTP: {phoneOtp}. This code expires in 10 minutes.");
 
             await _smsService.SendWhatsAppAsync(
-                user.WhatsAppPhoneNumber ?? string.Empty,
+                whatsAppRecipient,
                 $"RentHub visitor WhatsApp OTP: {whatsAppOtp}. This code expires in 10 minutes.");
         }
 
@@ -195,20 +332,69 @@ namespace RentHub.API.Services.Users
             var otp = GenerateOtpCode();
             var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
 
-            await StoreOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, otp, expiry);
-
             string? payoutOtp = null;
+            var plannedSends = new List<PlannedOtpSend>();
             if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
             {
-                payoutOtp = GenerateOtpCode();
-                await StoreOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName, payoutOtp, expiry);
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.RentPayoutPhone,
+                    "SMS",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.PayoutPhoneNumber),
+                    PayoutOtpTokenName,
+                    PayoutOtpExpiryTokenName,
+                    "RentHub payout verification OTP"));
+            }
+
+            string? subscriptionPaymentOtp = null;
+            if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+            {
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.SubscriptionPaymentPhone,
+                    "SMS",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.SubscriptionPaymentPhoneNumber),
+                    SubscriptionPaymentOtpTokenName,
+                    SubscriptionPaymentOtpExpiryTokenName,
+                    "RentHub subscription payment verification OTP"));
             }
 
             string? whatsAppOtp = null;
             if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
             {
-                whatsAppOtp = GenerateOtpCode();
-                await StoreOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, whatsAppOtp, expiry);
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.WhatsAppPhone,
+                    "WhatsApp",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.WhatsAppPhoneNumber),
+                    WhatsAppOtpTokenName,
+                    WhatsAppOtpExpiryTokenName,
+                    "RentHub WhatsApp verification OTP"));
+            }
+
+            foreach (var plannedSend in plannedSends)
+            {
+                await AssertTwilioOtpSendAllowedAsync(user, plannedSend.Purpose, plannedSend.Recipient);
+            }
+
+            await RecordTwilioOtpSendsAsync(user, plannedSends);
+
+            await StoreOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, otp, expiry);
+
+            foreach (var plannedSend in plannedSends)
+            {
+                var twilioOtp = GenerateOtpCode();
+                await StoreOtpAsync(user, plannedSend.ValueTokenName, plannedSend.ExpiryTokenName, twilioOtp, expiry);
+
+                if (plannedSend.Purpose == OtpSendPurposes.RentPayoutPhone)
+                {
+                    payoutOtp = twilioOtp;
+                }
+                else if (plannedSend.Purpose == OtpSendPurposes.SubscriptionPaymentPhone)
+                {
+                    subscriptionPaymentOtp = twilioOtp;
+                }
+                else if (plannedSend.Purpose == OtpSendPurposes.WhatsAppPhone)
+                {
+                    whatsAppOtp = twilioOtp;
+                }
             }
 
             var subject = string.IsNullOrWhiteSpace(temporaryPassword)
@@ -240,12 +426,16 @@ namespace RentHub.API.Services.Users
                 {
                     lines.Add($"4. Enter the payout-number OTP sent to {user.PayoutPhoneNumber}.");
                 }
+                if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+                {
+                    lines.Add($"5. Enter the subscription-payment OTP sent to {user.SubscriptionPaymentPhoneNumber}.");
+                }
                 if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                 {
-                    lines.Add($"5. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
+                    lines.Add($"6. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
                 }
-                lines.Add($"6. Sign in with this temporary password: {temporaryPassword}");
-                lines.Add("7. After activation, change your password as soon as possible.");
+                lines.Add($"7. Sign in with this temporary password: {temporaryPassword}");
+                lines.Add("8. After activation, change your password as soon as possible.");
                 lines.Add(string.Empty);
             }
             else
@@ -265,19 +455,167 @@ namespace RentHub.API.Services.Users
 
             await _emailService.SendEmailAsync(user.Email ?? string.Empty, subject, string.Join(Environment.NewLine, lines));
 
+            if (!string.IsNullOrWhiteSpace(subscriptionPaymentOtp) && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+            {
+                var plannedSend = plannedSends.First(send => send.Purpose == OtpSendPurposes.SubscriptionPaymentPhone);
+                await _smsService.SendSmsAsync(plannedSend.Recipient, $"{plannedSend.MessagePrefix}: {subscriptionPaymentOtp}. This code expires in 10 minutes.");
+            }
+
             if (!string.IsNullOrWhiteSpace(payoutOtp) && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
             {
-                await _smsService.SendSmsAsync(
-                    user.PayoutPhoneNumber,
-                    $"RentHub payout verification OTP: {payoutOtp}. This code expires in 10 minutes.");
+                var plannedSend = plannedSends.First(send => send.Purpose == OtpSendPurposes.RentPayoutPhone);
+                await _smsService.SendSmsAsync(plannedSend.Recipient, $"{plannedSend.MessagePrefix}: {payoutOtp}. This code expires in 10 minutes.");
             }
 
             if (!string.IsNullOrWhiteSpace(whatsAppOtp) && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
             {
-                await _smsService.SendWhatsAppAsync(
-                    user.WhatsAppPhoneNumber,
-                    $"RentHub WhatsApp verification OTP: {whatsAppOtp}. This code expires in 10 minutes.");
+                var plannedSend = plannedSends.First(send => send.Purpose == OtpSendPurposes.WhatsAppPhone);
+                await _smsService.SendWhatsAppAsync(plannedSend.Recipient, $"{plannedSend.MessagePrefix}: {whatsAppOtp}. This code expires in 10 minutes.");
             }
+        }
+
+        public async Task<OtpSendThrottleStatus> GetTwilioOtpThrottleStatusAsync(ApplicationUser user, string purpose)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var todayStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+            var tomorrowStart = todayStart.AddDays(1);
+
+            var query = _context.OtpSendLogs
+                .AsNoTracking()
+                .Where(log => log.UserId == user.Id && log.Purpose == purpose);
+
+            var todayCount = await query.CountAsync(log => log.SentAt >= todayStart && log.SentAt < tomorrowStart);
+            var lastSentAt = await query
+                .OrderByDescending(log => log.SentAt)
+                .Select(log => (DateTimeOffset?)log.SentAt)
+                .FirstOrDefaultAsync();
+
+            var nextAllowedAt = lastSentAt?.Add(TwilioOtpCooldown);
+            var retryAfterSeconds = nextAllowedAt.HasValue && nextAllowedAt.Value > now
+                ? Math.Max(0, (int)Math.Ceiling((nextAllowedAt.Value - now).TotalSeconds))
+                : 0;
+
+            return new OtpSendThrottleStatus
+            {
+                DailyRequestLimit = TwilioOtpDailyRequestLimit,
+                DailyRequestsRemaining = Math.Max(0, TwilioOtpDailyRequestLimit - todayCount),
+                RetryAfterSeconds = retryAfterSeconds,
+                NextAllowedAt = retryAfterSeconds > 0 ? nextAllowedAt : null,
+                DailyLimitResetsAt = tomorrowStart
+            };
+        }
+
+        private async Task AssertTwilioOtpSendAllowedAsync(
+            ApplicationUser user,
+            string purpose,
+            string recipient)
+        {
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                return;
+            }
+
+            var status = await GetTwilioOtpThrottleStatusAsync(user, purpose);
+            if (status.RetryAfterSeconds > 0)
+            {
+                throw new OtpSendThrottledException(
+                    $"Please wait {status.RetryAfterSeconds} seconds before requesting another OTP for this step.",
+                    status);
+            }
+
+            if (status.DailyLimitReached)
+            {
+                throw new OtpSendThrottledException(
+                    "Daily OTP request limit reached for this step. Please try again tomorrow.",
+                    status);
+            }
+        }
+
+        private async Task RecordTwilioOtpSendAsync(
+            ApplicationUser user,
+            string purpose,
+            string channel,
+            string recipient)
+        {
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                return;
+            }
+
+            _context.OtpSendLogs.Add(new OtpSendLog
+            {
+                UserId = user.Id,
+                Purpose = purpose,
+                Channel = channel,
+                Recipient = recipient,
+                SentAt = DateTimeOffset.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task RecordTwilioOtpSendsAsync(ApplicationUser user, IReadOnlyCollection<PlannedOtpSend> plannedSends)
+        {
+            if (plannedSends.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var plannedSend in plannedSends)
+            {
+                if (string.IsNullOrWhiteSpace(plannedSend.Recipient))
+                {
+                    continue;
+                }
+
+                _context.OtpSendLogs.Add(new OtpSendLog
+                {
+                    UserId = user.Id,
+                    Purpose = plannedSend.Purpose,
+                    Channel = plannedSend.Channel,
+                    Recipient = plannedSend.Recipient,
+                    SentAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private sealed record PlannedOtpSend(
+            string Purpose,
+            string Channel,
+            string Recipient,
+            string ValueTokenName,
+            string ExpiryTokenName,
+            string MessagePrefix);
+
+        private static string BuildInternationalPhoneNumber(string? countryCode, string? phoneNumber)
+        {
+            var rawPhoneNumber = (phoneNumber ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(rawPhoneNumber))
+            {
+                return string.Empty;
+            }
+
+            if (rawPhoneNumber.StartsWith("+", StringComparison.Ordinal))
+            {
+                return rawPhoneNumber;
+            }
+
+            var digits = new string(rawPhoneNumber.Where(char.IsDigit).ToArray());
+            if (digits.StartsWith("00", StringComparison.Ordinal))
+            {
+                return $"+{digits[2..]}";
+            }
+
+            var countryDigits = new string((countryCode ?? "+237").Where(char.IsDigit).ToArray());
+            if (string.IsNullOrWhiteSpace(countryDigits))
+            {
+                countryDigits = "237";
+            }
+
+            return digits.StartsWith(countryDigits, StringComparison.Ordinal)
+                ? $"+{digits}"
+                : $"+{countryDigits}{digits}";
         }
 
         private string? BuildVerifyUrl(string email, bool isVisitor)
@@ -288,7 +626,7 @@ namespace RentHub.API.Services.Users
                 return null;
             }
 
-            var path = isVisitor ? "/Auth/VerifyVisitorAccount" : "/Auth/VerifyAccount";
+            var path = isVisitor ? "/Auth/VerifyVisitorAccount" : "/Auth/VerifyLandlordEmail";
             return $"{portalBaseUrl}{path}?email={Uri.EscapeDataString(email)}";
         }
 

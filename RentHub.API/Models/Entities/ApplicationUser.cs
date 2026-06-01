@@ -11,6 +11,12 @@ namespace RentHub.API.Models.Entities
     {
         public string? FullName { get; set; }
         public string? CountryCode { get; set; }
+        public bool UsePrimaryPhoneForSubscriptionPayments { get; set; }
+        public string? SubscriptionPaymentPhoneNumber { get; set; }
+        public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
+        public bool IsSubscriptionPaymentPhoneVerified { get; set; }
+        public DateTimeOffset? SubscriptionPaymentPhoneVerifiedAt { get; set; }
+        public bool UsePrimaryPhoneForRentPayouts { get; set; }
         public string? PayoutPhoneNumber { get; set; }
         public PayoutChannelEnum? PayoutChannel { get; set; }
         public bool IsPayoutPhoneVerified { get; set; }

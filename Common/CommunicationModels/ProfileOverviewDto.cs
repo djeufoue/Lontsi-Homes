@@ -13,6 +13,9 @@ namespace Common.CommunicationModels
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
         public string? PhoneNumber { get; set; }
+        public string? SubscriptionPaymentPhoneNumber { get; set; }
+        public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
+        public bool IsSubscriptionPaymentPhoneVerified { get; set; }
         public string? PayoutPhoneNumber { get; set; }
         public PayoutChannelEnum? PayoutChannel { get; set; }
         public bool IsPayoutPhoneVerified { get; set; }
