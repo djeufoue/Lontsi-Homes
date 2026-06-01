@@ -13,6 +13,7 @@
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
     var isMessages = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
     var isSubscriptionsAdmin = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
+    var isUsersAdmin = string.Equals(currentController, "AdminUsers", StringComparison.OrdinalIgnoreCase);
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
 
     var userPrincipal = User;
@@ -103,6 +104,10 @@
                             <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
                                 <span class="rh-nav-icon">&#9881;</span>
                                 <span>Subscriptions</span>
+                            </a>
+                            <a class="rh-nav-link @(isUsersAdmin ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
+                                <span class="rh-nav-icon">&#9711;</span>
+                                <span>User Validation</span>
                             </a>
                         }
                     </nav>

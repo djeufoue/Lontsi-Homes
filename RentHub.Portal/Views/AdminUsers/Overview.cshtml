@@ -1,0 +1,499 @@
+@model RentHub.Portal.ViewModels.AdminUsers.AdminUserOverviewVm
+@using Common.Enums
+@{
+    var overview = Model.Overview;
+    var user = overview.User;
+    var completedSteps = overview.Steps.Count(step => step.IsComplete);
+    var totalSteps = overview.Steps.Count;
+    var progressPercent = totalSteps == 0 ? 0 : (int)Math.Round(completedSteps * 100m / totalSteps);
+    ViewData["Title"] = "User Overview";
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Workspace</p>
+        <h1 class="rh-heading-title">User Overview</h1>
+        <p class="rh-heading-subtitle">Inspect registration progress, verification status, and active OTP codes for testing.</p>
+    </div>
+    <a asp-action="Index" class="btn rh-btn-subtle">Back to validation monitor</a>
+</section>
+
+<section class="rh-admin-overview-grid mb-3">
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">Identity</p>
+        <h2 class="rh-admin-overview-name">@TextOrFallback(user.FullName, "Unnamed user")</h2>
+        <p class="rh-card-meta">@TextOrFallback(user.Email, "No email")</p>
+        <div class="rh-admin-chip-row mt-3">
+            @foreach (var role in user.Roles)
+            {
+                <span class="rh-chip rh-chip-info">@role</span>
+            }
+            <span class="rh-chip @(user.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
+                @(user.IsOnboardingComplete ? "Complete" : user.NextOnboardingStep)
+            </span>
+        </div>
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">Progress</p>
+        <div class="rh-admin-progress-summary">
+            <strong>@completedSteps / @totalSteps</strong>
+            <span>@progressPercent% complete</span>
+        </div>
+        <div class="rh-admin-progress-bar" aria-label="Registration progress">
+            <span style="width: @progressPercent%"></span>
+        </div>
+        <p class="rh-card-meta mt-2">Current step: <strong>@(user.IsOnboardingComplete ? "complete" : user.NextOnboardingStep)</strong></p>
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">Created</p>
+        <h2 class="rh-admin-overview-name">@FormatDate(user.CreatedAt)</h2>
+        <p class="rh-card-meta">User id: @user.UserId</p>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3" data-otp-section data-otp-refresh-url="@Url.Action("OtpStatus", "AdminUsers", new { userId = user.UserId })">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <p class="rh-kicker mb-1">Registration Timeline</p>
+            <h2 class="rh-section-title">Step completion</h2>
+        </div>
+        <span class="rh-chip rh-chip-primary">@progressPercent%</span>
+    </div>
+
+    <div class="rh-admin-timeline">
+        @foreach (var step in overview.Steps)
+        {
+            <div class="rh-admin-timeline-item @(step.IsComplete ? "is-complete" : string.Empty) @(step.IsCurrent ? "is-current" : string.Empty)">
+                <div class="rh-admin-timeline-node" aria-hidden="true"></div>
+                <div class="rh-admin-timeline-content">
+                    <div class="rh-admin-timeline-header">
+                        <h3>@step.Title</h3>
+                        @StepChip(step)
+                    </div>
+                    <p>@step.Description</p>
+                    @if (!string.IsNullOrWhiteSpace(step.Detail))
+                    {
+                        <small>@step.Detail</small>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <p class="rh-kicker mb-1">Testing OTPs</p>
+            <h2 class="rh-section-title">Current verification codes</h2>
+        </div>
+        <small class="text-muted" data-otp-refresh-state>Visible only to admins</small>
+    </div>
+
+    @if (!overview.OtpCodes.Any())
+    {
+        <div class="rh-empty">No OTP records were found for this user.</div>
+    }
+    else
+    {
+        <div class="rh-otp-grid" data-otp-grid>
+            @foreach (var otp in overview.OtpCodes)
+            {
+                <article class="rh-otp-card @OtpCardClass(otp.Status)"
+                         data-otp-card
+                         data-otp-key="@otp.Key"
+                         data-expires-at="@(otp.ExpiresAt.HasValue ? otp.ExpiresAt.Value.ToUniversalTime().ToString("O") : string.Empty)"
+                         data-status="@otp.Status">
+                    <div class="rh-otp-card-header">
+                        <div>
+                            <h3 data-otp-label>@otp.Label</h3>
+                            <p><span data-otp-channel>@otp.Channel</span> to <span data-otp-destination>@TextOrFallback(otp.Destination, "no destination")</span></p>
+                        </div>
+                        <span class="rh-chip @OtpChipClass(otp.Status)" data-otp-status>
+                            @otp.StatusLabel
+                        </span>
+                    </div>
+                    <div class="rh-otp-code-row">
+                        <code data-otp-code>@OtpDisplayCode(otp)</code>
+                        <button type="button"
+                                class="rh-copy-btn"
+                                title="Copy OTP"
+                                aria-label="Copy @otp.Label"
+                                data-copy-value="@otp.Code"
+                                disabled="@(!CanCopyOtp(otp))">
+                            <span class="rh-copy-icon" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="rh-otp-meta">
+                        <span data-otp-countdown>@OtpMetaText(otp)</span>
+                        <span class="rh-copy-feedback" aria-live="polite"></span>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+<section class="rh-admin-details-grid">
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">Email</p>
+        <h3>@TextOrFallback(user.Email, "No email")</h3>
+        @StatusChip(user.EmailConfirmed)
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">Primary Phone</p>
+        <h3>@TextOrFallback(FormatPhone(user.CountryCode, user.PhoneNumber), "Not provided")</h3>
+        @StatusChip(user.PhoneNumberConfirmed)
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">Subscription Payment</p>
+        <h3>@TextOrFallback(user.SubscriptionPaymentPhoneNumber, "Not provided")</h3>
+        <p>@ChannelLabel(user.SubscriptionPaymentChannel)</p>
+        @StatusChip(user.IsSubscriptionPaymentPhoneVerified)
+        @if (user.SubscriptionPaymentPhoneVerifiedAt.HasValue)
+        {
+            <small>Verified @FormatDate(user.SubscriptionPaymentPhoneVerifiedAt.Value)</small>
+        }
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">Rent Payout</p>
+        <h3>@TextOrFallback(user.PayoutPhoneNumber, "Not provided")</h3>
+        <p>@ChannelLabel(user.PayoutChannel)</p>
+        @StatusChip(user.IsPayoutPhoneVerified)
+        @if (user.PayoutPhoneVerifiedAt.HasValue)
+        {
+            <small>Verified @FormatDate(user.PayoutPhoneVerifiedAt.Value)</small>
+        }
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">WhatsApp</p>
+        <h3>@TextOrFallback(user.WhatsAppPhoneNumber, "Not provided")</h3>
+        @StatusChip(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) || user.IsWhatsAppPhoneVerified)
+        @if (user.WhatsAppPhoneVerifiedAt.HasValue)
+        {
+            <small>Verified @FormatDate(user.WhatsAppPhoneVerifiedAt.Value)</small>
+        }
+    </article>
+</section>
+
+@functions {
+    private static string TextOrFallback(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string? FormatPhone(string? countryCode, string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(countryCode) || phoneNumber.StartsWith("+", StringComparison.Ordinal))
+        {
+            return phoneNumber;
+        }
+
+        return $"{countryCode} {phoneNumber}";
+    }
+
+    private static string FormatDate(DateTimeOffset value)
+    {
+        return value.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+    }
+
+    private static string ChannelLabel(PayoutChannelEnum? channel)
+    {
+        return channel switch
+        {
+            PayoutChannelEnum.MtnMoney => "MTN Money",
+            PayoutChannelEnum.OrangeMoney => "Orange Money",
+            _ => "Not configured"
+        };
+    }
+
+    private static string OtpCardClass(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return OtpCardClass(otp.Status);
+    }
+
+    private static string OtpCardClass(string? status)
+    {
+        return status switch
+        {
+            "active" => "has-code status-active",
+            "used" => "status-used",
+            "expired" => "is-expired status-expired",
+            "not-required" => "status-not-required",
+            _ => "is-empty status-not-generated"
+        };
+    }
+
+    private static string OtpChipClass(string? status)
+    {
+        return status switch
+        {
+            "active" => "rh-chip-success",
+            "used" => "rh-chip-primary",
+            "expired" => "rh-chip-warning",
+            "not-required" => "rh-chip-info",
+            _ => "rh-chip-info"
+        };
+    }
+
+    private static bool CanCopyOtp(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.HasCode && !otp.IsUsed && !otp.IsExpired && otp.Status == "active";
+    }
+
+    private static string OtpDisplayCode(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.Status switch
+        {
+            "used" => "PIN already used",
+            "not-required" => "No PIN required",
+            "not-generated" => "No active OTP",
+            _ => otp.HasCode ? otp.Code ?? string.Empty : "No active OTP"
+        };
+    }
+
+    private static string OtpMetaText(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.Status switch
+        {
+            "active" when otp.ExpiresAt.HasValue => $"Expires in {FormatDuration(otp.RemainingSeconds ?? 0)}",
+            "used" when otp.UsedAt.HasValue => $"Used {FormatDate(otp.UsedAt.Value)}",
+            "used" => "PIN has already been used",
+            "expired" => "Expired without being used",
+            "not-required" => "This verification is not required for this user",
+            _ => otp.ExpiresAt.HasValue ? $"Expires {FormatDate(otp.ExpiresAt.Value)}" : "No OTP has been generated yet"
+        };
+    }
+
+    private static string FormatDuration(int seconds)
+    {
+        if (seconds <= 0)
+        {
+            return "00:00";
+        }
+
+        var minutes = seconds / 60;
+        var remainder = seconds % 60;
+        return $"{minutes:00}:{remainder:00}";
+    }
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent StatusChip(bool ok)
+    {
+        var label = ok ? "Verified" : "Pending";
+        var css = ok ? "rh-chip-success" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent StepChip(Common.CommunicationModels.AdminUserOnboardingStepDto step)
+    {
+        var label = step.IsComplete ? "Complete" : step.IsCurrent ? "Current" : "Pending";
+        var css = step.IsComplete ? "rh-chip-success" : step.IsCurrent ? "rh-chip-primary" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const section = document.querySelector("[data-otp-section]");
+            const refreshUrl = section?.dataset.otpRefreshUrl;
+            const refreshState = section?.querySelector("[data-otp-refresh-state]");
+            const cardClasses = ["has-code", "is-empty", "is-expired", "status-active", "status-used", "status-expired", "status-not-required", "status-not-generated"];
+
+            const statusChipClass = status => {
+                switch (status) {
+                    case "active": return "rh-chip-success";
+                    case "used": return "rh-chip-primary";
+                    case "expired": return "rh-chip-warning";
+                    case "not-required": return "rh-chip-info";
+                    default: return "rh-chip-info";
+                }
+            };
+
+            const cardClass = status => {
+                switch (status) {
+                    case "active": return ["has-code", "status-active"];
+                    case "used": return ["status-used"];
+                    case "expired": return ["is-expired", "status-expired"];
+                    case "not-required": return ["status-not-required"];
+                    default: return ["is-empty", "status-not-generated"];
+                }
+            };
+
+            const formatDuration = seconds => {
+                const safe = Math.max(0, Math.floor(seconds));
+                const minutes = Math.floor(safe / 60).toString().padStart(2, "0");
+                const remainder = (safe % 60).toString().padStart(2, "0");
+                return `${minutes}:${remainder}`;
+            };
+
+            const formatDate = value => {
+                if (!value) return "";
+                return new Intl.DateTimeFormat(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit"
+                }).format(new Date(value));
+            };
+
+            const resolveClientStatus = otp => {
+                if (!otp.isRequired) return "not-required";
+                if (otp.isUsed) return "used";
+                if (otp.expiresAt && new Date(otp.expiresAt).getTime() <= Date.now()) return "expired";
+                if (otp.hasCode) return "active";
+                return "not-generated";
+            };
+
+            const normalizeOtp = raw => ({
+                key: raw.key ?? raw.Key,
+                label: raw.label ?? raw.Label,
+                channel: raw.channel ?? raw.Channel,
+                destination: raw.destination ?? raw.Destination,
+                code: raw.code ?? raw.Code,
+                expiresAt: raw.expiresAt ?? raw.ExpiresAt,
+                usedAt: raw.usedAt ?? raw.UsedAt,
+                hasCode: raw.hasCode ?? raw.HasCode ?? false,
+                isUsed: raw.isUsed ?? raw.IsUsed ?? false,
+                isRequired: raw.isRequired ?? raw.IsRequired ?? true,
+                statusLabel: raw.statusLabel ?? raw.StatusLabel ?? ""
+            });
+
+            const displayCode = otp => {
+                const status = resolveClientStatus(otp);
+                if (status === "used") return "PIN already used";
+                if (status === "not-required") return "No PIN required";
+                if (status === "not-generated") return "No active OTP";
+                return otp.hasCode ? otp.code : "No active OTP";
+            };
+
+            const metaText = otp => {
+                const status = resolveClientStatus(otp);
+                if (status === "active" && otp.expiresAt) {
+                    const remaining = (new Date(otp.expiresAt).getTime() - Date.now()) / 1000;
+                    return `Expires in ${formatDuration(remaining)}`;
+                }
+                if (status === "used") {
+                    return otp.usedAt ? `Used ${formatDate(otp.usedAt)}` : "PIN has already been used";
+                }
+                if (status === "expired") return "Expired without being used";
+                if (status === "not-required") return "This verification is not required for this user";
+                return otp.expiresAt ? `Expires ${formatDate(otp.expiresAt)}` : "No OTP has been generated yet";
+            };
+
+            const applyOtp = otp => {
+                const card = section?.querySelector(`[data-otp-card][data-otp-key="${otp.key}"]`);
+                if (!card) return;
+
+                const status = resolveClientStatus(otp);
+                card.dataset.status = status;
+                card.dataset.expiresAt = otp.expiresAt ?? "";
+                cardClasses.forEach(name => card.classList.remove(name));
+                card.classList.add(...cardClass(status));
+
+                const statusEl = card.querySelector("[data-otp-status]");
+                if (statusEl) {
+                    statusEl.className = `rh-chip ${statusChipClass(status)}`;
+                    statusEl.textContent = status === "expired" && otp.statusLabel !== "Used" ? "Expired" : otp.statusLabel;
+                    if (status === "active") statusEl.textContent = "Active";
+                    if (status === "used") statusEl.textContent = "Used";
+                    if (status === "not-required") statusEl.textContent = "Not required";
+                    if (status === "not-generated") statusEl.textContent = "Not generated";
+                }
+
+                const label = card.querySelector("[data-otp-label]");
+                if (label) label.textContent = otp.label ?? "";
+
+                const channel = card.querySelector("[data-otp-channel]");
+                if (channel) channel.textContent = otp.channel ?? "";
+
+                const destination = card.querySelector("[data-otp-destination]");
+                if (destination) destination.textContent = otp.destination || "no destination";
+
+                const code = card.querySelector("[data-otp-code]");
+                if (code) code.textContent = displayCode(otp);
+
+                const button = card.querySelector("[data-copy-value]");
+                if (button) {
+                    button.dataset.copyValue = otp.code || "";
+                    button.disabled = status !== "active" || !otp.hasCode;
+                }
+
+                const countdown = card.querySelector("[data-otp-countdown]");
+                if (countdown) countdown.textContent = metaText(otp);
+            };
+
+            const getDomOtp = card => ({
+                key: card.dataset.otpKey,
+                label: card.querySelector("[data-otp-label]")?.textContent ?? "",
+                channel: card.querySelector("[data-otp-channel]")?.textContent ?? "",
+                destination: card.querySelector("[data-otp-destination]")?.textContent ?? "",
+                code: card.querySelector("[data-copy-value]")?.dataset.copyValue || "",
+                expiresAt: card.dataset.expiresAt || null,
+                usedAt: null,
+                hasCode: !!card.querySelector("[data-copy-value]")?.dataset.copyValue,
+                isUsed: card.dataset.status === "used",
+                isRequired: card.dataset.status !== "not-required",
+                statusLabel: card.querySelector("[data-otp-status]")?.textContent?.trim() ?? ""
+            });
+
+            const tickCountdowns = () => {
+                section?.querySelectorAll("[data-otp-card]").forEach(card => applyOtp(getDomOtp(card)));
+            };
+
+            const refreshOtpStatus = async () => {
+                if (!refreshUrl) return;
+
+                try {
+                    const response = await fetch(refreshUrl, {
+                        headers: { "Accept": "application/json" },
+                        cache: "no-store"
+                    });
+
+                    if (!response.ok) throw new Error("OTP refresh failed");
+                    const otps = await response.json();
+                    otps.map(normalizeOtp).forEach(applyOtp);
+                    if (refreshState) refreshState.textContent = `OTP status updated ${new Date().toLocaleTimeString()}`;
+                } catch {
+                    if (refreshState) refreshState.textContent = "OTP status refresh failed";
+                }
+            };
+
+            section?.addEventListener("click", async event => {
+                const button = event.target.closest("[data-copy-value]");
+                if (!button || button.disabled) return;
+
+                const value = button.dataset.copyValue;
+                if (!value) return;
+
+                const card = button.closest(".rh-otp-card");
+                const feedback = card?.querySelector(".rh-copy-feedback");
+
+                try {
+                    await navigator.clipboard.writeText(value);
+                    button.classList.add("is-copied");
+                    if (feedback) feedback.textContent = "Copied";
+                    window.setTimeout(() => {
+                        button.classList.remove("is-copied");
+                        if (feedback) feedback.textContent = "";
+                    }, 1600);
+                } catch {
+                    if (feedback) feedback.textContent = "Copy failed";
+                }
+            });
+
+            tickCountdowns();
+            window.setInterval(tickCountdowns, 1000);
+            window.setInterval(refreshOtpStatus, 5000);
+            window.setTimeout(refreshOtpStatus, 800);
+        })();
+    </script>
+}
