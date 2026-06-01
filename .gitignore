@@ -1,4 +1,5 @@
 RentHub.API/appsettings.Development.json
+RentHub.Portal/appsettings.Development.json
 RentHub.API/appsettings.Local.json
 .vs/
 build-verify/
