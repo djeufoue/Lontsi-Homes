@@ -2145,16 +2145,31 @@ namespace RentHub.API.Controllers
                 RejectedFiles = BuildRejectedFiles(profile)
             };
 
-            AddKycMedia(summary, "face-front", "Face - front", profile.FaceFrontOriginalFileName, profile.FaceFrontContentType, mediaBaseUrl);
-            AddKycMedia(summary, "face-right", "Face - looking right", profile.FaceRightOriginalFileName, profile.FaceRightContentType, mediaBaseUrl);
-            AddKycMedia(summary, "face-left", "Face - looking left", profile.FaceLeftOriginalFileName, profile.FaceLeftContentType, mediaBaseUrl);
-            AddKycMedia(summary, "document-front", "Document front", profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType, mediaBaseUrl);
+            AddKycMediaIfPresent(summary, "face-front", "Face - front", profile.FaceFrontPath, profile.FaceFrontOriginalFileName, profile.FaceFrontContentType, mediaBaseUrl);
+            AddKycMediaIfPresent(summary, "face-right", "Face - looking right", profile.FaceRightPath, profile.FaceRightOriginalFileName, profile.FaceRightContentType, mediaBaseUrl);
+            AddKycMediaIfPresent(summary, "face-left", "Face - looking left", profile.FaceLeftPath, profile.FaceLeftOriginalFileName, profile.FaceLeftContentType, mediaBaseUrl);
+            AddKycMediaIfPresent(summary, "document-front", "Document front", profile.DocumentFrontPath, profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType, mediaBaseUrl);
             if (!string.IsNullOrWhiteSpace(profile.DocumentBackPath))
             {
                 AddKycMedia(summary, "document-back", "Document back", profile.DocumentBackOriginalFileName ?? string.Empty, profile.DocumentBackContentType ?? string.Empty, mediaBaseUrl);
             }
 
             return summary;
+        }
+
+        private static void AddKycMediaIfPresent(
+            LandlordKycSummaryDto summary,
+            string key,
+            string label,
+            string? path,
+            string originalFileName,
+            string contentType,
+            string? mediaBaseUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                AddKycMedia(summary, key, label, originalFileName, contentType, mediaBaseUrl);
+            }
         }
 
         private static void AddKycMedia(

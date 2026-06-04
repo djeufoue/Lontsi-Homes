@@ -399,6 +399,7 @@ namespace RentHub.API.Controllers
                 return NotFound("KYC profile was not found.");
             }
 
+            var rejectedKycFileUrls = new List<string>();
             var note = string.IsNullOrWhiteSpace(request?.Note) ? null : request.Note.Trim();
             if (status == LandlordKycStatusEnum.Rejected)
             {
@@ -412,6 +413,8 @@ namespace RentHub.API.Controllers
                 {
                     return BadRequest("Select at least one rejected KYC file or choose reject all.");
                 }
+
+                rejectedKycFileUrls = ClearRejectedKycFileReferences(profile);
             }
             else
             {
@@ -424,6 +427,11 @@ namespace RentHub.API.Controllers
             profile.ReviewNote = note;
             profile.UpdatedAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync();
+
+            if (rejectedKycFileUrls.Count > 0)
+            {
+                await _kycFileStorageService.DeleteFilesAsync(rejectedKycFileUrls);
+            }
 
             await SendKycReviewEmailAsync(user, status, note);
 
@@ -714,6 +722,61 @@ namespace RentHub.API.Controllers
                 .Select(value => value!)
                 .Distinct()
                 .ToList();
+        }
+
+        private static List<string> ClearRejectedKycFileReferences(LandlordKycProfile profile)
+        {
+            var fileUrls = new List<string>();
+
+            if (profile.RejectFaceFront)
+            {
+                AddKycFileUrl(fileUrls, profile.FaceFrontPath);
+                profile.FaceFrontPath = string.Empty;
+                profile.FaceFrontContentType = string.Empty;
+                profile.FaceFrontOriginalFileName = string.Empty;
+            }
+
+            if (profile.RejectFaceRight)
+            {
+                AddKycFileUrl(fileUrls, profile.FaceRightPath);
+                profile.FaceRightPath = string.Empty;
+                profile.FaceRightContentType = string.Empty;
+                profile.FaceRightOriginalFileName = string.Empty;
+            }
+
+            if (profile.RejectFaceLeft)
+            {
+                AddKycFileUrl(fileUrls, profile.FaceLeftPath);
+                profile.FaceLeftPath = string.Empty;
+                profile.FaceLeftContentType = string.Empty;
+                profile.FaceLeftOriginalFileName = string.Empty;
+            }
+
+            if (profile.RejectDocumentFront)
+            {
+                AddKycFileUrl(fileUrls, profile.DocumentFrontPath);
+                profile.DocumentFrontPath = string.Empty;
+                profile.DocumentFrontContentType = string.Empty;
+                profile.DocumentFrontOriginalFileName = string.Empty;
+            }
+
+            if (profile.RejectDocumentBack && RequiresDocumentBack(profile.DocumentType))
+            {
+                AddKycFileUrl(fileUrls, profile.DocumentBackPath);
+                profile.DocumentBackPath = null;
+                profile.DocumentBackContentType = null;
+                profile.DocumentBackOriginalFileName = null;
+            }
+
+            return fileUrls.Distinct().ToList();
+        }
+
+        private static void AddKycFileUrl(List<string> fileUrls, string? fileUrl)
+        {
+            if (!string.IsNullOrWhiteSpace(fileUrl))
+            {
+                fileUrls.Add(fileUrl);
+            }
         }
 
         private void ApplyKycRejectedFiles(LandlordKycProfile profile, KycReviewRequest? request)
@@ -1118,16 +1181,31 @@ namespace RentHub.API.Controllers
                 RejectedFiles = BuildRejectedFiles(profile)
             };
 
-            AddKycMedia(summary, userId, "face-front", "Face - front", profile.FaceFrontOriginalFileName, profile.FaceFrontContentType);
-            AddKycMedia(summary, userId, "face-right", "Face - looking right", profile.FaceRightOriginalFileName, profile.FaceRightContentType);
-            AddKycMedia(summary, userId, "face-left", "Face - looking left", profile.FaceLeftOriginalFileName, profile.FaceLeftContentType);
-            AddKycMedia(summary, userId, "document-front", "Document front", profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType);
+            AddKycMediaIfPresent(summary, userId, "face-front", "Face - front", profile.FaceFrontPath, profile.FaceFrontOriginalFileName, profile.FaceFrontContentType);
+            AddKycMediaIfPresent(summary, userId, "face-right", "Face - looking right", profile.FaceRightPath, profile.FaceRightOriginalFileName, profile.FaceRightContentType);
+            AddKycMediaIfPresent(summary, userId, "face-left", "Face - looking left", profile.FaceLeftPath, profile.FaceLeftOriginalFileName, profile.FaceLeftContentType);
+            AddKycMediaIfPresent(summary, userId, "document-front", "Document front", profile.DocumentFrontPath, profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType);
             if (!string.IsNullOrWhiteSpace(profile.DocumentBackPath))
             {
                 AddKycMedia(summary, userId, "document-back", "Document back", profile.DocumentBackOriginalFileName ?? string.Empty, profile.DocumentBackContentType ?? string.Empty);
             }
 
             return summary;
+        }
+
+        private static void AddKycMediaIfPresent(
+            LandlordKycSummaryDto summary,
+            string userId,
+            string key,
+            string label,
+            string? path,
+            string originalFileName,
+            string contentType)
+        {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                AddKycMedia(summary, userId, key, label, originalFileName, contentType);
+            }
         }
 
         private static void AddKycMedia(
@@ -1153,13 +1231,23 @@ namespace RentHub.API.Controllers
         {
             return key switch
             {
-                "face-front" => (profile.FaceFrontPath, profile.FaceFrontContentType, profile.FaceFrontOriginalFileName),
-                "face-right" => (profile.FaceRightPath, profile.FaceRightContentType, profile.FaceRightOriginalFileName),
-                "face-left" => (profile.FaceLeftPath, profile.FaceLeftContentType, profile.FaceLeftOriginalFileName),
-                "document-front" => (profile.DocumentFrontPath, profile.DocumentFrontContentType, profile.DocumentFrontOriginalFileName),
-                "document-back" when !string.IsNullOrWhiteSpace(profile.DocumentBackPath) => (profile.DocumentBackPath, profile.DocumentBackContentType ?? string.Empty, profile.DocumentBackOriginalFileName ?? string.Empty),
+                "face-front" => ResolveKycFileIfPresent(profile.FaceFrontPath, profile.FaceFrontContentType, profile.FaceFrontOriginalFileName),
+                "face-right" => ResolveKycFileIfPresent(profile.FaceRightPath, profile.FaceRightContentType, profile.FaceRightOriginalFileName),
+                "face-left" => ResolveKycFileIfPresent(profile.FaceLeftPath, profile.FaceLeftContentType, profile.FaceLeftOriginalFileName),
+                "document-front" => ResolveKycFileIfPresent(profile.DocumentFrontPath, profile.DocumentFrontContentType, profile.DocumentFrontOriginalFileName),
+                "document-back" => ResolveKycFileIfPresent(profile.DocumentBackPath, profile.DocumentBackContentType, profile.DocumentBackOriginalFileName),
                 _ => null
             };
+        }
+
+        private static (string Path, string ContentType, string OriginalFileName)? ResolveKycFileIfPresent(
+            string? path,
+            string? contentType,
+            string? originalFileName)
+        {
+            return string.IsNullOrWhiteSpace(path)
+                ? null
+                : (path, contentType ?? string.Empty, originalFileName ?? string.Empty);
         }
 
         private static string ResolveLandlordOnboardingStep(ApplicationUser user, IReadOnlyCollection<string> roles, LandlordKycProfile? kycProfile)
