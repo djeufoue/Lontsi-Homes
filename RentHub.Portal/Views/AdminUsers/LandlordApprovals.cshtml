@@ -1,0 +1,146 @@
+@model RentHub.Portal.ViewModels.AdminUsers.AdminLandlordApprovalsVm
+@using Common.Enums
+@{
+    ViewData["Title"] = "Landlord KYC Approvals";
+    var pendingCount = Model.Landlords.Count(l => l.KycStatus == LandlordKycStatusEnum.Submitted);
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Workspace</p>
+        <h1 class="rh-heading-title">Landlord KYC Approvals</h1>
+        <p class="rh-heading-subtitle">Review landlord identity submissions before subscription payments and property creation are unlocked.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a asp-action="Index" class="btn rh-btn-subtle">User Validation</a>
+        <span class="rh-chip @(pendingCount > 0 ? "rh-chip-warning" : "rh-chip-success")">@pendingCount pending</span>
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-9">
+            <label class="form-label rh-auth-label" for="search">Search</label>
+            <input id="search" name="search" class="form-control rh-input" value="@Model.Search" placeholder="Email, name, or phone number" />
+        </div>
+        <div class="col-md-3 d-grid">
+            <button type="submit" class="btn rh-btn-primary">Apply Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Landlords</h2>
+        <small class="text-muted">Submitted KYC profiles are shown first</small>
+    </div>
+
+    @if (!Model.Landlords.Any())
+    {
+        <div class="rh-empty">No landlord records match this filter.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle rh-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Landlord</th>
+                        <th>KYC</th>
+                        <th>Contract</th>
+                        <th>Submitted</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var landlord in Model.Landlords)
+                    {
+                        var canReview = landlord.KycStatus == LandlordKycStatusEnum.Submitted;
+                        var documentBackRequired = RequiresDocumentBack(landlord.DocumentType);
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@TextOrFallback(landlord.FullName, "Unnamed landlord")</div>
+                                <small class="text-muted">@landlord.Email</small>
+                            </td>
+                            <td>@KycChip(landlord.KycStatus)</td>
+                            <td>
+                                @StatusChip(landlord.PlatformTermsAccepted)
+                                @if (landlord.PlatformTermsAcceptedAt.HasValue)
+                                {
+                                    <small class="d-block text-muted">@landlord.PlatformTermsAcceptedAt.Value.LocalDateTime.ToString("yyyy-MM-dd")</small>
+                                }
+                            </td>
+                            <td>@(landlord.KycSubmittedAt.HasValue ? landlord.KycSubmittedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm") : "Not submitted")</td>
+                            <td class="text-end">
+                                <div class="rh-admin-action-stack">
+                                    <a asp-action="Overview" asp-route-userId="@landlord.UserId" class="btn btn-sm rh-btn-subtle">Overview</a>
+                                    <button type="button"
+                                            class="btn btn-sm rh-btn-primary"
+                                            disabled="@(!canReview)"
+                                            data-kyc-review-trigger
+                                            data-initial-decision="approve"
+                                            data-user-id="@landlord.UserId"
+                                            data-user-label="@TextOrFallback(landlord.FullName, landlord.Email)"
+                                            data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                                            data-search="@Model.Search">
+                                        Approve
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm rh-btn-outline-danger"
+                                            disabled="@(!canReview)"
+                                            data-kyc-review-trigger
+                                            data-initial-decision="reject"
+                                            data-user-id="@landlord.UserId"
+                                            data-user-label="@TextOrFallback(landlord.FullName, landlord.Email)"
+                                            data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                                            data-search="@Model.Search">
+                                        Reject
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@functions {
+    private static string TextOrFallback(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent StatusChip(bool ok)
+    {
+        var label = ok ? "Signed" : "Pending";
+        var css = ok ? "rh-chip-success" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent KycChip(LandlordKycStatusEnum status)
+    {
+        var css = status switch
+        {
+            LandlordKycStatusEnum.Approved => "rh-chip-success",
+            LandlordKycStatusEnum.Rejected => "rh-chip-danger",
+            LandlordKycStatusEnum.Submitted => "rh-chip-warning",
+            _ => "rh-chip-info"
+        };
+
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{status}</span>");
+    }
+
+    private static bool RequiresDocumentBack(KycDocumentTypeEnum? documentType)
+    {
+        return documentType is KycDocumentTypeEnum.NationalId
+            or KycDocumentTypeEnum.DriverLicense
+            or KycDocumentTypeEnum.ResidencePermit
+            or KycDocumentTypeEnum.Other;
+    }
+}
+
+@section Scripts {
+    <partial name="_KycReviewModal" />
+}

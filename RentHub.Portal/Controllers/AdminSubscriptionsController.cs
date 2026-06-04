@@ -22,12 +22,23 @@ namespace RentHub.Portal.Controllers
         {
             var plans = await _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
             var pending = await _api.GetAsync<List<PendingSubscriptionDto>>("Subscriptions/pending");
-            var transferAccounts = await _api.GetAsync<List<SystemTransferAccountDto>>("AdminTransferAccounts");
 
             return View(new AdminSubscriptionsIndexVm
             {
                 Plans = plans,
-                PendingSubscriptions = pending,
+                PendingSubscriptions = pending
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PaymentAccounts()
+        {
+            var transferAccounts = await _api.GetAsync<List<SystemTransferAccountDto>>("AdminTransferAccounts");
+            var plans = await _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
+
+            return View(new AdminSubscriptionsIndexVm
+            {
+                Plans = plans,
                 TransferAccounts = transferAccounts
             });
         }
@@ -56,19 +67,19 @@ namespace RentHub.Portal.Controllers
             if (!ModelState.IsValid)
             {
                 TempData["Error"] = "Please provide valid plan values before saving.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(PaymentAccounts));
             }
 
             if (!vm.UnlimitedProperties && (!vm.MaxProperties.HasValue || vm.MaxProperties.Value < 0))
             {
                 TempData["Error"] = "Max properties must be 0 or greater, or select unlimited.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(PaymentAccounts));
             }
 
             if (!vm.UnlimitedApartmentsPerProperty && (!vm.MaxApartmentsPerProperty.HasValue || vm.MaxApartmentsPerProperty.Value < 0))
             {
                 TempData["Error"] = "Max apartments per property must be 0 or greater, or select unlimited.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(PaymentAccounts));
             }
 
             try
@@ -91,7 +102,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = ExtractMessage(ex.Message);
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(PaymentAccounts));
         }
 
         [HttpPost]
@@ -101,13 +112,13 @@ namespace RentHub.Portal.Controllers
             if (!ModelState.IsValid)
             {
                 TempData["Error"] = "Please provide a valid receiving account name, number, and country code.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(PaymentAccounts));
             }
 
             if (vm.Channel != PayoutChannelEnum.MtnMoney && vm.Channel != PayoutChannelEnum.OrangeMoney)
             {
                 TempData["Error"] = "Only MTN Money and Orange Money are supported in the admin transfer section.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(PaymentAccounts));
             }
 
             try
@@ -129,7 +140,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = ExtractMessage(ex.Message);
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(PaymentAccounts));
         }
 
         private static string ExtractMessage(string raw)

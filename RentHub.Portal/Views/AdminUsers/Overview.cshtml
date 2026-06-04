@@ -53,6 +53,126 @@
     </article>
 </section>
 
+@if (overview.Kyc != null)
+{
+    var documentBackRequired = RequiresDocumentBack(overview.Kyc.DocumentType);
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div>
+                <p class="rh-kicker mb-1">Identity Review</p>
+                <h2 class="rh-section-title">KYC documents and face photos</h2>
+                <p class="rh-card-meta mb-0">Review the submitted identity files before unlocking subscription payments and property creation.</p>
+            </div>
+            <span class="rh-chip @KycChipClass(overview.Kyc.Status)">@overview.Kyc.Status</span>
+        </div>
+
+        <div class="rh-kyc-review-grid">
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">Document Type</p>
+                <h3>@(overview.Kyc.DocumentType?.ToString() ?? "Not provided")</h3>
+                <p>Submitted: @(overview.Kyc.SubmittedAt.HasValue ? FormatDate(overview.Kyc.SubmittedAt.Value) : "Not submitted")</p>
+            </article>
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">Verification Method</p>
+                <h3>Manual Review</h3>
+                <p>Admin reviews the uploaded selfies and identity documents.</p>
+            </article>
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">Review</p>
+                <h3>@(overview.Kyc.ReviewedAt.HasValue ? "Reviewed" : "Waiting")</h3>
+                <p>@(overview.Kyc.ReviewedByName ?? "No reviewer yet")</p>
+                @if (!string.IsNullOrWhiteSpace(overview.Kyc.ReviewNote))
+                {
+                    <small>@overview.Kyc.ReviewNote</small>
+                }
+                @if (overview.Kyc.Status == LandlordKycStatusEnum.Rejected && overview.Kyc.RejectedFiles.Any)
+                {
+                    <small class="d-block mt-2">
+                        Rejected files: @string.Join(", ", RejectedFileLabels(overview.Kyc.RejectedFiles, overview.Kyc.DocumentType))
+                    </small>
+                }
+            </article>
+        </div>
+
+        @if (overview.Kyc.Media.Any())
+        {
+            <div class="rh-kyc-media-grid mt-3">
+                @foreach (var media in overview.Kyc.Media)
+                {
+                    var mediaUrl = Url.Action("KycFile", "AdminUsers", new { userId = user.UserId, key = media.Key });
+                    <article class="rh-kyc-media-card">
+                        <div class="rh-kyc-media-preview">
+                            @if (media.IsImage)
+                            {
+                                <button type="button"
+                                        class="rh-kyc-media-button"
+                                        data-kyc-preview
+                                        data-image-url="@mediaUrl"
+                                        data-image-title="@media.Label">
+                                    <img src="@mediaUrl" alt="@media.Label" />
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="rh-kyc-document-link" href="@mediaUrl" target="_blank" rel="noopener">Open file</a>
+                            }
+                        </div>
+                        <h3>@media.Label</h3>
+                        <p>@TextOrFallback(media.OriginalFileName, "Uploaded file")</p>
+                    </article>
+                }
+            </div>
+        }
+
+        <div class="rh-kyc-review-actions mt-3">
+            <button type="button"
+                    class="btn rh-btn-primary"
+                    disabled="@(overview.Kyc.Status != LandlordKycStatusEnum.Submitted)"
+                    data-kyc-review-trigger
+                    data-initial-decision="approve"
+                    data-user-id="@user.UserId"
+                    data-user-label="@TextOrFallback(user.FullName, user.Email)"
+                    data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                    data-return-to="overview">
+                Approve KYC
+            </button>
+            <button type="button"
+                    class="btn rh-btn-outline-danger"
+                    disabled="@(overview.Kyc.Status != LandlordKycStatusEnum.Submitted)"
+                    data-kyc-review-trigger
+                    data-initial-decision="reject"
+                    data-user-id="@user.UserId"
+                    data-user-label="@TextOrFallback(user.FullName, user.Email)"
+                    data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                    data-return-to="overview">
+                Reject KYC
+            </button>
+        </div>
+    </section>
+
+    <div class="modal fade" id="kycPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" data-kyc-preview-title>KYC image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-0">
+                    <img class="rh-kyc-preview-large" src="" alt="" data-kyc-preview-image />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (user.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase)))
+{
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <p class="rh-kicker mb-1">Identity Review</p>
+        <h2 class="rh-section-title">No KYC profile submitted</h2>
+        <p class="rh-card-meta mb-0">The landlord has not uploaded identity documents yet.</p>
+    </section>
+}
+
 <section class="rh-panel rh-panel-elevated mb-3" data-otp-section data-otp-refresh-url="@Url.Action("OtpStatus", "AdminUsers", new { userId = user.UserId })">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
@@ -297,10 +417,62 @@
         var css = step.IsComplete ? "rh-chip-success" : step.IsCurrent ? "rh-chip-primary" : "rh-chip-warning";
         return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
     }
+
+    private static string KycChipClass(LandlordKycStatusEnum status)
+    {
+        return status switch
+        {
+            LandlordKycStatusEnum.Approved => "rh-chip-success",
+            LandlordKycStatusEnum.Rejected => "rh-chip-danger",
+            LandlordKycStatusEnum.Submitted => "rh-chip-warning",
+            _ => "rh-chip-info"
+        };
+    }
+
+    private static bool RequiresDocumentBack(KycDocumentTypeEnum? documentType)
+    {
+        return documentType is KycDocumentTypeEnum.NationalId
+            or KycDocumentTypeEnum.DriverLicense
+            or KycDocumentTypeEnum.ResidencePermit
+            or KycDocumentTypeEnum.Other;
+    }
+
+    private static IEnumerable<string> RejectedFileLabels(Common.CommunicationModels.LandlordKycRejectedFilesDto rejectedFiles, KycDocumentTypeEnum? documentType)
+    {
+        if (rejectedFiles.FaceFront) yield return "front selfie";
+        if (rejectedFiles.FaceRight) yield return "right selfie";
+        if (rejectedFiles.FaceLeft) yield return "left selfie";
+        if (rejectedFiles.DocumentFront) yield return "document front";
+        if (rejectedFiles.DocumentBack && RequiresDocumentBack(documentType)) yield return "document back";
+    }
 }
 
 @section Scripts {
     <script>
+        (() => {
+            const previewModalEl = document.getElementById("kycPreviewModal");
+            const previewImage = previewModalEl?.querySelector("[data-kyc-preview-image]");
+            const previewTitle = previewModalEl?.querySelector("[data-kyc-preview-title]");
+            const previewModal = previewModalEl ? new bootstrap.Modal(previewModalEl) : null;
+
+            document.querySelectorAll("[data-kyc-preview]").forEach(button => {
+                button.addEventListener("click", () => {
+                    if (!previewModal || !previewImage || !previewTitle) return;
+                    previewImage.src = button.dataset.imageUrl || "";
+                    previewImage.alt = button.dataset.imageTitle || "KYC image";
+                    previewTitle.textContent = button.dataset.imageTitle || "KYC image";
+                    previewModal.show();
+                });
+            });
+
+            previewModalEl?.addEventListener("hidden.bs.modal", () => {
+                if (previewImage) {
+                    previewImage.src = "";
+                }
+            });
+
+        })();
+
         (() => {
             const section = document.querySelector("[data-otp-section]");
             const refreshUrl = section?.dataset.otpRefreshUrl;
@@ -496,4 +668,5 @@
             window.setTimeout(refreshOtpStatus, 800);
         })();
     </script>
+    <partial name="_KycReviewModal" />
 }

@@ -15,6 +15,163 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (() => {
+            const submitSelector = "button[type='submit'], input[type='submit']";
+            const fieldSelector = "input, select, textarea";
+
+            const isElementHidden = element => {
+                if (element.type === "hidden") {
+                    return true;
+                }
+
+                return element.hidden || !element.offsetParent || Boolean(element.closest("[hidden]"));
+            };
+
+            const isFieldRequired = field => {
+                return field.required ||
+                    field.dataset.requiredWhenVisible === "true" ||
+                    field.dataset.valRequired !== undefined;
+            };
+
+            const hasFieldValue = (form, field) => {
+                if (field.type === "checkbox") {
+                    return field.checked;
+                }
+
+                if (field.type === "radio") {
+                    const selector = field.name
+                        ? `input[type='radio'][name='${CSS.escape(field.name)}']`
+                        : "input[type='radio']";
+                    return Array.from(form.querySelectorAll(selector)).some(input => input.checked);
+                }
+
+                if (field.type === "file") {
+                    return field.files && field.files.length > 0;
+                }
+
+                if (field.tagName === "SELECT" && field.multiple) {
+                    return field.selectedOptions.length > 0;
+                }
+
+                return String(field.value ?? "").trim().length > 0;
+            };
+
+            const hasMissingRequiredValue = form => {
+                return Array.from(form.querySelectorAll(fieldSelector)).some(field => {
+                    if (field.disabled || isElementHidden(field) || !isFieldRequired(field)) {
+                        return false;
+                    }
+
+                    return !hasFieldValue(form, field);
+                });
+            };
+
+            const syncForm = form => {
+                if (!form || form.dataset.skipRequiredGuard === "true") {
+                    return;
+                }
+
+                const hasMissing = hasMissingRequiredValue(form);
+                form.querySelectorAll(submitSelector).forEach(button => {
+                    if (button.dataset.skipRequiredGuard === "true" || form.dataset.pendingSubmit === "true") {
+                        return;
+                    }
+
+                    if (hasMissing) {
+                        button.disabled = true;
+                        button.dataset.requiredBlocked = "true";
+                        button.setAttribute("aria-disabled", "true");
+                        return;
+                    }
+
+                    if (button.dataset.requiredBlocked === "true" && button.dataset.externalDisabled !== "true") {
+                        button.disabled = false;
+                        delete button.dataset.requiredBlocked;
+                        button.removeAttribute("aria-disabled");
+                    }
+                });
+            };
+
+            const registerForm = form => {
+                if (form.dataset.requiredGuardRegistered === "true") {
+                    syncForm(form);
+                    return;
+                }
+
+                form.dataset.requiredGuardRegistered = "true";
+                ["input", "change", "keyup", "renthub:external-state-changed"].forEach(eventName => {
+                    form.addEventListener(eventName, () => syncForm(form));
+                });
+                syncForm(form);
+            };
+
+            const isValidForSubmit = form => {
+                if (typeof window.jQuery !== "undefined") {
+                    const $form = window.jQuery(form);
+                    if ($form.data("validator") && !$form.valid()) {
+                        return false;
+                    }
+                }
+
+                return !form.checkValidity || form.checkValidity();
+            };
+
+            const resolveSubmitter = (form, submitter) => {
+                if (submitter && submitter.matches?.(submitSelector)) {
+                    return submitter;
+                }
+
+                return form.querySelector(submitSelector);
+            };
+
+            const showPendingState = (button) => {
+                if (!button || button.dataset.pendingVisual === "true") {
+                    return;
+                }
+
+                button.dataset.pendingVisual = "true";
+                button.dataset.originalHtml = button.innerHTML;
+                const pendingText = button.dataset.pendingText || "Please wait";
+                button.innerHTML = `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>${pendingText}`;
+            };
+
+            window.RentHubAuthForms = {
+                syncForm,
+                syncAll: () => document.querySelectorAll("form").forEach(registerForm)
+            };
+
+            document.addEventListener("submit", event => {
+                const form = event.target instanceof HTMLFormElement ? event.target : event.target.closest("form");
+                if (!form || form.dataset.skipPendingLock === "true") {
+                    return;
+                }
+
+                if (form.dataset.pendingSubmit === "true") {
+                    event.preventDefault();
+                    return;
+                }
+
+                if (!isValidForSubmit(form)) {
+                    return;
+                }
+
+                form.dataset.pendingSubmit = "true";
+                const submitter = resolveSubmitter(form, event.submitter);
+                form.querySelectorAll(submitSelector).forEach(button => {
+                    button.disabled = true;
+                });
+                showPendingState(submitter);
+            });
+
+            const init = () => window.RentHubAuthForms.syncAll();
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", init, { once: true });
+            } else {
+                window.setTimeout(init, 0);
+            }
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

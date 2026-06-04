@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Common.CommunicationModels;
 using Common.Enums;
+using Microsoft.AspNetCore.Http;
 
 namespace RentHub.Portal.ViewModels.Auth
 {
@@ -54,6 +55,7 @@ namespace RentHub.Portal.ViewModels.Auth
         public string? SubscriptionPaymentPhoneNumber { get; set; }
 
         [Display(Name = "Subscription payment operator")]
+        [Required]
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
 
         [Display(Name = "Use my verified phone for rent payouts")]
@@ -64,6 +66,7 @@ namespace RentHub.Portal.ViewModels.Auth
         public string? PayoutPhoneNumber { get; set; }
 
         [Display(Name = "Rent payout operator")]
+        [Required]
         public PayoutChannelEnum? PayoutChannel { get; set; }
 
         [Display(Name = "WhatsApp alerts number")]
@@ -91,6 +94,52 @@ namespace RentHub.Portal.ViewModels.Auth
         [Display(Name = "WhatsApp OTP")]
         [StringLength(6, MinimumLength = 4)]
         public string? WhatsAppOtp { get; set; }
+
+        public string? ReturnUrl { get; set; }
+        public LandlordOnboardingStatusDto? Status { get; set; }
+    }
+
+    public class LandlordKycVm
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Display(Name = "Document type")]
+        [Required]
+        public KycDocumentTypeEnum? DocumentType { get; set; }
+
+        [Display(Name = "Face photo - front")]
+        public IFormFile? FaceFront { get; set; }
+
+        [Display(Name = "Face photo - looking right")]
+        public IFormFile? FaceRight { get; set; }
+
+        [Display(Name = "Face photo - looking left")]
+        public IFormFile? FaceLeft { get; set; }
+
+        [Display(Name = "Document front")]
+        public IFormFile? DocumentFront { get; set; }
+
+        [Display(Name = "Document back")]
+        public IFormFile? DocumentBack { get; set; }
+
+        public string? ReturnUrl { get; set; }
+        public LandlordOnboardingStatusDto? Status { get; set; }
+    }
+
+    public class LandlordContractVm
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Display(Name = "I accept the platform terms and conditions")]
+        [Range(typeof(bool), "true", "true", ErrorMessage = "Accept the platform terms before signing.")]
+        public bool Accepted { get; set; }
+
+        [Required]
+        [Display(Name = "Full legal name")]
+        [StringLength(160, MinimumLength = 2)]
+        public string SignatureName { get; set; } = string.Empty;
 
         public string? ReturnUrl { get; set; }
         public LandlordOnboardingStatusDto? Status { get; set; }

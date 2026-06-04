@@ -1,0 +1,314 @@
+@model RentHub.Portal.ViewModels.AdminSubscriptions.AdminSubscriptionsIndexVm
+@{
+    ViewData["Title"] = "Payment Account Settings";
+    var configuredCount = Model.TransferAccounts.Count(account => account.IsConfigured);
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Payments</p>
+        <h1 class="rh-heading-title">Payment Account Settings</h1>
+        <p class="rh-heading-subtitle">Configure the MTN Money and Orange Money accounts where the platform receives landlord subscription transfers.</p>
+    </div>
+    <div class="rh-toolbar">
+        <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="Index">Subscription Control</a>
+    </div>
+</section>
+
+<section class="rh-property-summary mb-3">
+    <article class="rh-summary-card">
+        <p>Configured Accounts</p>
+        <h3>@configuredCount / @Model.TransferAccounts.Count</h3>
+        <small>Receiving accounts ready for use</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Supported Channels</p>
+        <h3>MTN + Orange</h3>
+        <small>Cameroon Mobile Money transfers</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Plan Settings</p>
+        <h3>@Model.Plans.Count</h3>
+        <small>Subscription plans available for signups</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Edit Rule</p>
+        <h3>Admin Only</h3>
+        <small>Cards stay locked until edit mode is enabled</small>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title mb-0">Transfer Receiving Accounts</h2>
+            <small class="text-muted">Use the pencil on each card to edit, then confirm only when a value has changed.</small>
+        </div>
+    </div>
+
+    <div class="rh-admin-plan-grid">
+        @foreach (var account in Model.TransferAccounts)
+        {
+            <article class="rh-admin-plan-card rh-edit-card" data-edit-card>
+                <div class="rh-admin-plan-head rh-edit-card-head">
+                    <h3>@account.ChannelLabel</h3>
+                    <div class="rh-edit-card-tools">
+                        <span class="rh-chip @(account.IsConfigured ? "rh-chip-success" : "rh-chip-warning")">
+                            @(account.IsConfigured ? "Configured" : "Needs setup")
+                        </span>
+                        <button type="button" class="rh-icon-button rh-edit-toggle" data-edit-toggle title="Edit @account.ChannelLabel account" aria-label="Edit @account.ChannelLabel account">
+                            <span class="rh-edit-pencil" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <form asp-action="UpdateTransferAccount" method="post" class="row g-2" data-edit-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Channel" value="@account.Channel" />
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Account Name</label>
+                        <input class="form-control rh-input" name="AccountName" value="@account.AccountName" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Receiving Number</label>
+                        <input class="form-control rh-input" name="PhoneNumber" value="@account.PhoneNumber" placeholder="e.g. 6XXXXXXXX" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Country Code</label>
+                        <input class="form-control rh-input" name="CountryCode" value="@account.CountryCode" placeholder="+237" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Notes (Optional)</label>
+                        <textarea class="form-control rh-input" name="Notes" rows="2" placeholder="Internal transfer note or reconciliation detail" data-edit-field disabled>@account.Notes</textarea>
+                    </div>
+
+                    <div class="col-12 rh-edit-actions" data-edit-actions hidden>
+                        <button type="submit" class="btn rh-btn-primary" data-confirm-edit>Confirm</button>
+                        <button type="button" class="btn rh-btn-subtle" data-discard-edit>Discard</button>
+                    </div>
+                </form>
+            </article>
+        }
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title mb-0">Plan Settings</h2>
+            <small class="text-muted">Changes apply only to future subscriptions. Existing subscriptions keep their original snapshot.</small>
+        </div>
+    </div>
+
+    <div class="rh-admin-plan-grid">
+        @foreach (var plan in Model.Plans)
+        {
+            <article class="rh-admin-plan-card rh-edit-card" data-edit-card>
+                <div class="rh-admin-plan-head rh-edit-card-head">
+                    <h3>@plan.Name</h3>
+                    <div class="rh-edit-card-tools">
+                        <span class="rh-chip rh-chip-info">@plan.DurationInDays days</span>
+                        <button type="button" class="rh-icon-button rh-edit-toggle" data-edit-toggle title="Edit @plan.Name plan" aria-label="Edit @plan.Name plan">
+                            <span class="rh-edit-pencil" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <form asp-action="UpdatePlan" method="post" class="row g-2" data-edit-form>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="PlanId" value="@plan.Id" />
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Plan Name</label>
+                        <input class="form-control rh-input" name="Name" value="@plan.Name" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Description</label>
+                        <textarea class="form-control rh-input" name="Description" rows="2" data-edit-field disabled>@plan.Description</textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Price (XAF)</label>
+                        <input class="form-control rh-input" type="number" min="0" step="0.01" name="Price" value="@plan.Price" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Duration (days)</label>
+                        <input class="form-control rh-input" type="number" min="1" name="DurationInDays" value="@plan.DurationInDays" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Max Properties</label>
+                        <input class="form-control rh-input" type="number" min="0" name="MaxProperties" value="@(plan.MaxProperties?.ToString() ?? string.Empty)" data-edit-field disabled />
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="UnlimitedProperties" value="true" @(plan.MaxProperties.HasValue ? null : "checked") data-edit-field disabled />
+                            <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Max Apartments / Property</label>
+                        <input class="form-control rh-input" type="number" min="0" name="MaxApartmentsPerProperty" value="@(plan.MaxApartmentsPerProperty?.ToString() ?? string.Empty)" data-edit-field disabled />
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="UnlimitedApartmentsPerProperty" value="true" @(plan.MaxApartmentsPerProperty.HasValue ? null : "checked") data-edit-field disabled />
+                            <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12 rh-edit-actions" data-edit-actions hidden>
+                        <button type="submit" class="btn rh-btn-primary" data-confirm-edit>Confirm</button>
+                        <button type="button" class="btn rh-btn-subtle" data-discard-edit>Discard</button>
+                    </div>
+                </form>
+            </article>
+        }
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const serialize = (field) => {
+                if (field.type === "checkbox" || field.type === "radio") {
+                    return field.checked ? "true" : "false";
+                }
+
+                return field.value ?? "";
+            };
+
+            const setPending = (form) => {
+                const confirm = form.querySelector("[data-confirm-edit]");
+                const discard = form.querySelector("[data-discard-edit]");
+                const toggle = form.closest("[data-edit-card]")?.querySelector("[data-edit-toggle]");
+
+                if (confirm) {
+                    confirm.disabled = true;
+                    confirm.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Saving';
+                }
+
+                if (discard) {
+                    discard.disabled = true;
+                }
+
+                if (toggle) {
+                    toggle.disabled = true;
+                }
+            };
+
+            document.querySelectorAll("[data-edit-card]").forEach(card => {
+                const form = card.querySelector("[data-edit-form]");
+                const toggle = card.querySelector("[data-edit-toggle]");
+                const actions = card.querySelector("[data-edit-actions]");
+                const confirm = card.querySelector("[data-confirm-edit]");
+                const discard = card.querySelector("[data-discard-edit]");
+
+                if (!form || !toggle || !actions || !confirm || !discard) {
+                    return;
+                }
+
+                const editTitle = toggle.getAttribute("title") || "Edit";
+                const fields = Array.from(form.querySelectorAll("[data-edit-field]"));
+                const original = new Map(fields.map(field => [field, serialize(field)]));
+                let editing = false;
+
+                const propsUnlimited = form.querySelector("input[name='UnlimitedProperties']");
+                const propsInput = form.querySelector("input[name='MaxProperties']");
+                const apartmentsUnlimited = form.querySelector("input[name='UnlimitedApartmentsPerProperty']");
+                const apartmentsInput = form.querySelector("input[name='MaxApartmentsPerProperty']");
+
+                const hasChanges = () => fields.some(field => serialize(field) !== original.get(field));
+
+                const syncPlanLimits = () => {
+                    if (propsInput && propsUnlimited) {
+                        propsInput.disabled = !editing || propsUnlimited.checked;
+                        if (editing && propsUnlimited.checked) {
+                            propsInput.value = "";
+                        }
+                    }
+
+                    if (apartmentsInput && apartmentsUnlimited) {
+                        apartmentsInput.disabled = !editing || apartmentsUnlimited.checked;
+                        if (editing && apartmentsUnlimited.checked) {
+                            apartmentsInput.value = "";
+                        }
+                    }
+                };
+
+                const syncActions = () => {
+                    const changed = hasChanges();
+                    actions.hidden = !changed;
+                    confirm.disabled = !changed;
+                };
+
+                const setEditing = (enabled) => {
+                    editing = enabled;
+                    card.classList.toggle("is-editing", editing);
+                    toggle.classList.toggle("is-editing", editing);
+                    toggle.setAttribute("aria-label", editing ? "Cancel editing" : editTitle);
+                    toggle.title = editing ? "Cancel editing" : editTitle;
+
+                    fields.forEach(field => {
+                        field.disabled = !editing;
+                    });
+
+                    syncPlanLimits();
+                    syncActions();
+                };
+
+                const resetFields = () => {
+                    fields.forEach(field => {
+                        const value = original.get(field);
+                        if (field.type === "checkbox" || field.type === "radio") {
+                            field.checked = value === "true";
+                        } else {
+                            field.value = value ?? "";
+                        }
+                    });
+                };
+
+                toggle.addEventListener("click", () => {
+                    if (editing && !hasChanges()) {
+                        setEditing(false);
+                        return;
+                    }
+
+                    setEditing(true);
+                });
+
+                discard.addEventListener("click", () => {
+                    resetFields();
+                    setEditing(false);
+                });
+
+                fields.forEach(field => {
+                    field.addEventListener("input", () => {
+                        syncPlanLimits();
+                        syncActions();
+                    });
+                    field.addEventListener("change", () => {
+                        syncPlanLimits();
+                        syncActions();
+                    });
+                });
+
+                form.addEventListener("submit", (event) => {
+                    if (!hasChanges()) {
+                        event.preventDefault();
+                        setEditing(false);
+                        return;
+                    }
+
+                    syncPlanLimits();
+                    setPending(form);
+                });
+
+                setEditing(false);
+            });
+        })();
+    </script>
+}

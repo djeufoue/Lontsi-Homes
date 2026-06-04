@@ -8,7 +8,7 @@
     <div>
         <p class="rh-kicker">Admin Workspace</p>
         <h1 class="rh-heading-title">Subscription Control Center</h1>
-        <p class="rh-heading-subtitle">Approve landlord subscriptions and update plan pricing/limits for future signups without changing active subscriptions.</p>
+        <p class="rh-heading-subtitle">Approve landlord subscriptions and keep account access aligned with active plan availability.</p>
     </div>
 </section>
 
@@ -28,58 +28,6 @@
         <h3>Required</h3>
         <small>Landlords cannot create properties before approval</small>
     </article>
-</section>
-
-<section class="rh-panel rh-panel-elevated mb-3">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <div>
-            <h2 class="rh-section-title mb-0">Transfer Receiving Accounts</h2>
-            <small class="text-muted">Configure where the platform administrator receives incoming MTN Money and Orange Money transfers.</small>
-        </div>
-    </div>
-
-    <div class="rh-admin-plan-grid">
-        @foreach (var account in Model.TransferAccounts)
-        {
-            <article class="rh-admin-plan-card">
-                <div class="rh-admin-plan-head">
-                    <h3>@account.ChannelLabel</h3>
-                    <span class="rh-chip @(account.IsConfigured ? "rh-chip-success" : "rh-chip-warning")">
-                        @(account.IsConfigured ? "Configured" : "Needs setup")
-                    </span>
-                </div>
-
-                <form asp-action="UpdateTransferAccount" method="post" class="row g-2">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="Channel" value="@account.Channel" />
-
-                    <div class="col-12">
-                        <label class="form-label mb-1">Account Name</label>
-                        <input class="form-control rh-input" name="AccountName" value="@account.AccountName" required />
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Receiving Number</label>
-                        <input class="form-control rh-input" name="PhoneNumber" value="@account.PhoneNumber" placeholder="e.g. 6XXXXXXXX" required />
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Country Code</label>
-                        <input class="form-control rh-input" name="CountryCode" value="@account.CountryCode" placeholder="+237" required />
-                    </div>
-
-                    <div class="col-12">
-                        <label class="form-label mb-1">Notes (Optional)</label>
-                        <textarea class="form-control rh-input" name="Notes" rows="2" placeholder="Internal transfer note or reconciliation detail">@account.Notes</textarea>
-                    </div>
-
-                    <div class="col-12 d-grid mt-2">
-                        <button type="submit" class="btn rh-btn-primary">Save @account.ChannelLabel Account</button>
-                    </div>
-                </form>
-            </article>
-        }
-    </div>
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
@@ -135,99 +83,3 @@
         </div>
     }
 </section>
-
-<section class="rh-panel rh-panel-elevated">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="rh-section-title mb-0">Plan Settings</h2>
-        <small class="text-muted">Changes apply only to future subscriptions. Existing subscriptions keep their original snapshot.</small>
-    </div>
-
-    <div class="rh-admin-plan-grid">
-        @foreach (var plan in Model.Plans)
-        {
-            <article class="rh-admin-plan-card">
-                <div class="rh-admin-plan-head">
-                    <h3>@plan.Name</h3>
-                    <span class="rh-chip rh-chip-info">@plan.DurationInDays days</span>
-                </div>
-
-                <form asp-action="UpdatePlan" method="post" class="row g-2">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="PlanId" value="@plan.Id" />
-
-                    <div class="col-12">
-                        <label class="form-label mb-1">Plan Name</label>
-                        <input class="form-control rh-input" name="Name" value="@plan.Name" required />
-                    </div>
-
-                    <div class="col-12">
-                        <label class="form-label mb-1">Description</label>
-                        <textarea class="form-control rh-input" name="Description" rows="2">@plan.Description</textarea>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Price (XAF)</label>
-                        <input class="form-control rh-input" type="number" min="0" step="0.01" name="Price" value="@plan.Price" required />
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Duration (days)</label>
-                        <input class="form-control rh-input" type="number" min="1" name="DurationInDays" value="@plan.DurationInDays" required />
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Max Properties</label>
-                        <input class="form-control rh-input" type="number" min="0" name="MaxProperties" value="@(plan.MaxProperties?.ToString() ?? string.Empty)" />
-                        <div class="form-check mt-1">
-                            <input class="form-check-input" type="checkbox" name="UnlimitedProperties" value="true" @(plan.MaxProperties.HasValue ? null : "checked") />
-                            <label class="form-check-label">Unlimited</label>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <label class="form-label mb-1">Max Apartments / Property</label>
-                        <input class="form-control rh-input" type="number" min="0" name="MaxApartmentsPerProperty" value="@(plan.MaxApartmentsPerProperty?.ToString() ?? string.Empty)" />
-                        <div class="form-check mt-1">
-                            <input class="form-check-input" type="checkbox" name="UnlimitedApartmentsPerProperty" value="true" @(plan.MaxApartmentsPerProperty.HasValue ? null : "checked") />
-                            <label class="form-check-label">Unlimited</label>
-                        </div>
-                    </div>
-
-                    <div class="col-12 d-grid mt-2">
-                        <button type="submit" class="btn rh-btn-primary">Save Plan Changes</button>
-                    </div>
-                </form>
-            </article>
-        }
-    </div>
-</section>
-
-@section Scripts {
-    <script>
-        (() => {
-            const cards = document.querySelectorAll(".rh-admin-plan-card");
-            cards.forEach(card => {
-                const unlimitedProps = card.querySelector("input[name='UnlimitedProperties']");
-                const propsInput = card.querySelector("input[name='MaxProperties']");
-                const unlimitedApts = card.querySelector("input[name='UnlimitedApartmentsPerProperty']");
-                const aptsInput = card.querySelector("input[name='MaxApartmentsPerProperty']");
-
-                const sync = () => {
-                    if (propsInput && unlimitedProps) {
-                        propsInput.disabled = unlimitedProps.checked;
-                        if (unlimitedProps.checked) propsInput.value = "";
-                    }
-
-                    if (aptsInput && unlimitedApts) {
-                        aptsInput.disabled = unlimitedApts.checked;
-                        if (unlimitedApts.checked) aptsInput.value = "";
-                    }
-                };
-
-                unlimitedProps?.addEventListener("change", sync);
-                unlimitedApts?.addEventListener("change", sync);
-                sync();
-            });
-        })();
-    </script>
-}

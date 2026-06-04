@@ -25,6 +25,7 @@ namespace RentHub.API.Data
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
         public DbSet<OtpSendLog> OtpSendLogs => Set<OtpSendLog>();
+        public DbSet<LandlordKycProfile> LandlordKycProfiles => Set<LandlordKycProfile>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
@@ -158,6 +159,42 @@ namespace RentHub.API.Data
 
                 entity.HasIndex(e => new { e.UserId, e.Purpose, e.SentAt });
                 entity.HasIndex(e => new { e.UserId, e.Purpose, e.Recipient, e.SentAt });
+            });
+
+            builder.Entity<LandlordKycProfile>(entity =>
+            {
+                entity.Property(e => e.UserId)
+                    .HasMaxLength(450);
+
+                entity.Property(e => e.FaceFrontPath)
+                    .HasMaxLength(1024);
+
+                entity.Property(e => e.FaceRightPath)
+                    .HasMaxLength(1024);
+
+                entity.Property(e => e.FaceLeftPath)
+                    .HasMaxLength(1024);
+
+                entity.Property(e => e.DocumentFrontPath)
+                    .HasMaxLength(1024);
+
+                entity.Property(e => e.DocumentBackPath)
+                    .HasMaxLength(1024);
+
+                entity.HasOne(e => e.User)
+                    .WithOne(u => u.KycProfile)
+                    .HasForeignKey<LandlordKycProfile>(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.ReviewedBy)
+                    .WithMany()
+                    .HasForeignKey(e => e.ReviewedById)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(e => e.UserId)
+                    .IsUnique();
+
+                entity.HasIndex(e => new { e.Status, e.SubmittedAt });
             });
 
             builder.Entity<SystemTransferAccount>()

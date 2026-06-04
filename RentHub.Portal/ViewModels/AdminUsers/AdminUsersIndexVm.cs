@@ -13,4 +13,10 @@ namespace RentHub.Portal.ViewModels.AdminUsers
     {
         public AdminUserOverviewDto Overview { get; set; } = new();
     }
+
+    public class AdminLandlordApprovalsVm
+    {
+        public string? Search { get; set; }
+        public List<AdminLandlordApprovalDto> Landlords { get; set; } = new();
+    }
 }

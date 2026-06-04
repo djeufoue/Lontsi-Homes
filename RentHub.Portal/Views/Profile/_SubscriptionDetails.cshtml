@@ -49,6 +49,13 @@
         <div class="rh-empty">No active subscription. Choose a plan below to subscribe.</div>
     }
 
+    @if (!overview.CanStartSubscriptionCheckout && !string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason))
+    {
+        <div class="alert alert-warning mt-3 mb-0">
+            @overview.SubscriptionBlockedReason
+        </div>
+    }
+
     @if (hasPendingSubscriptionPayment)
     {
         <div class="alert alert-warning mt-3 mb-0" role="status" aria-live="polite">

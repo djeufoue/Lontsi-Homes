@@ -11,7 +11,7 @@
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 5 of 5</span>
+            <span class="rh-auth-kicker">Step 5 of 7</span>
             <h1>Verify payment numbers.</h1>
             <p>Only the numbers that still need confirmation require an OTP. If the same number was already validated, the system reuses that validation.</p>
             <ul class="rh-auth-points">
@@ -22,12 +22,14 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper" aria-label="Registration progress">
+            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
                 <span class="done">1</span>
                 <span class="done">2</span>
                 <span class="done">3</span>
                 <span class="done">4</span>
                 <span class="active">5</span>
+                <span>6</span>
+                <span>7</span>
             </div>
 
             <div class="rh-auth-card-header">
@@ -76,7 +78,7 @@
                 {
                     <div class="mb-3">
                         <label asp-for="SubscriptionPaymentOtp" class="form-label rh-auth-label"></label>
-                        <input asp-for="SubscriptionPaymentOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to subscription number" />
+                        <input asp-for="SubscriptionPaymentOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to subscription number" required data-required-when-visible="true" />
                         <span asp-validation-for="SubscriptionPaymentOtp" class="text-danger small"></span>
                     </div>
                 }
@@ -85,7 +87,7 @@
                 {
                     <div class="mb-3">
                         <label asp-for="PayoutOtp" class="form-label rh-auth-label"></label>
-                        <input asp-for="PayoutOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to rent payout number" />
+                        <input asp-for="PayoutOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code sent to rent payout number" required data-required-when-visible="true" />
                         <span asp-validation-for="PayoutOtp" class="text-danger small"></span>
                     </div>
                 }
@@ -94,7 +96,7 @@
                 {
                     <div class="mb-3">
                         <label asp-for="WhatsAppOtp" class="form-label rh-auth-label"></label>
-                        <input asp-for="WhatsAppOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from WhatsApp" />
+                        <input asp-for="WhatsAppOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from WhatsApp" required data-required-when-visible="true" />
                         <span asp-validation-for="WhatsAppOtp" class="text-danger small"></span>
                     </div>
                 }

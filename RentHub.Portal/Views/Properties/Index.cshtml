@@ -99,6 +99,18 @@
         </form>
     </section>
 
+    @if (Model.RequiresComplianceAction)
+    {
+        <section class="rh-compliance-callout">
+            <div>
+                <p class="rh-kicker rh-kicker-ghost mb-1">Compliance required</p>
+                <h2 class="rh-section-title mb-1">Finish identity review before adding properties</h2>
+                <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.ComplianceMessage) ? Model.ComplianceMessage : "Complete identity verification, admin approval, and the platform contract before subscription payments and property creation are unlocked.")</p>
+            </div>
+            <a asp-controller="Profile" asp-action="Index" class="btn rh-btn-primary">Open Profile Checklist</a>
+        </section>
+    }
+
     <section id="propertyGridHost" class="rh-results-host rh-properties-results-host">
         @await Html.PartialAsync("_PropertyGrid", Model)
     </section>

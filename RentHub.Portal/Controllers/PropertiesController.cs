@@ -844,7 +844,8 @@ namespace RentHub.Portal.Controllers
             var plans = plansTask.Result;
             var profile = profileTask.Result;
             var isLandlord = string.Equals(response.UserRole, "Landlord", StringComparison.OrdinalIgnoreCase);
-            var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty;
+            var requiresComplianceAction = isLandlord && !response.CanCreateProperty && !profile.CanStartSubscriptionCheckout;
+            var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty && !requiresComplianceAction;
             var registeredPaymentNumber = !string.IsNullOrWhiteSpace(profile.SubscriptionPaymentPhoneNumber)
                 ? profile.SubscriptionPaymentPhoneNumber
                 : !string.IsNullOrWhiteSpace(profile.PayoutPhoneNumber)
@@ -861,8 +862,11 @@ namespace RentHub.Portal.Controllers
                 TotalCount = response.TotalCount,
                 UserRole = response.UserRole,
                 CanCreateProperty = response.CanCreateProperty,
-                ShowCreateEntryPoint = response.CanCreateProperty || isLandlord,
+                ShowCreateEntryPoint = response.CanCreateProperty || (isLandlord && !requiresComplianceAction),
                 RequiresSubscriptionCheckout = requiresSubscriptionCheckout,
+                RequiresComplianceAction = requiresComplianceAction,
+                ComplianceMessage = profile.SubscriptionBlockedReason,
+                NextOnboardingStep = profile.NextOnboardingStep,
                 RegisteredPaymentNumber = registeredPaymentNumber,
                 RegisteredPaymentChannel = profile.SubscriptionPaymentChannel ?? profile.PayoutChannel,
                 RegisteredPaymentVerified = profile.IsSubscriptionPaymentPhoneVerified,

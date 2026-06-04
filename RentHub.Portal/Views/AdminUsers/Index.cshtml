@@ -10,6 +10,7 @@
         <h1 class="rh-heading-title">User Validation Monitor</h1>
         <p class="rh-heading-subtitle">Search users, inspect onboarding status, and restart validation during testing without touching the database manually.</p>
     </div>
+    <a asp-action="LandlordApprovals" class="btn rh-btn-primary">KYC Approval Queue</a>
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
@@ -43,6 +44,8 @@
                         <th>User</th>
                         <th>Roles</th>
                         <th>Status</th>
+                        <th>KYC</th>
+                        <th>Contract</th>
                         <th>Email</th>
                         <th>Phone</th>
                         <th>Subscription Payment</th>
@@ -69,6 +72,14 @@
                             <td>
                                 <span class="rh-chip @(user.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
                                     @(user.IsOnboardingComplete ? "Complete" : user.NextOnboardingStep)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="rh-chip @KycChipClass(user.KycStatus)">@user.KycStatus</span>
+                            </td>
+                            <td>
+                                <span class="rh-chip @(user.PlatformTermsAccepted ? "rh-chip-success" : "rh-chip-warning")">
+                                    @(user.PlatformTermsAccepted ? "Signed" : "Pending")
                                 </span>
                             </td>
                             <td>@StatusChip(user.EmailConfirmed)</td>
@@ -149,6 +160,17 @@
         var label = ok ? "Verified" : "Pending";
         var css = ok ? "rh-chip-success" : "rh-chip-warning";
         return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private static string KycChipClass(LandlordKycStatusEnum status)
+    {
+        return status switch
+        {
+            LandlordKycStatusEnum.Approved => "rh-chip-success",
+            LandlordKycStatusEnum.Rejected => "rh-chip-danger",
+            LandlordKycStatusEnum.Submitted => "rh-chip-warning",
+            _ => "rh-chip-info"
+        };
     }
 }
 

@@ -38,6 +38,21 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> LandlordApprovals(string? search = null)
+        {
+            var endpoint = string.IsNullOrWhiteSpace(search)
+                ? "AdminUsers/landlord-approvals"
+                : $"AdminUsers/landlord-approvals?search={Uri.EscapeDataString(search.Trim())}";
+
+            var landlords = await _api.GetAsync<List<AdminLandlordApprovalDto>>(endpoint);
+            return View(new AdminLandlordApprovalsVm
+            {
+                Search = search,
+                Landlords = landlords
+            });
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Overview(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -72,6 +87,56 @@ namespace RentHub.Portal.Controllers
 
             var otpCodes = await _api.GetAsync<List<AdminUserOtpDto>>($"AdminUsers/{Uri.EscapeDataString(userId)}/otp-status");
             return Json(otpCodes);
+        }
+
+        [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> KycFile(string userId, string key)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(key))
+            {
+                return BadRequest("KYC file reference is required.");
+            }
+
+            var file = await _api.GetFileAsync(
+                $"AdminUsers/{Uri.EscapeDataString(userId)}/kyc-file/{Uri.EscapeDataString(key)}");
+
+            return File(file.Bytes, file.ContentType, file.FileName);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveKyc(string userId, string? note = null, string? returnTo = null, string? search = null)
+        {
+            return await ReviewKyc(userId, approve: true, note, returnTo, search);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectKyc(
+            string userId,
+            string? note = null,
+            string? returnTo = null,
+            string? search = null,
+            bool rejectAllFiles = false,
+            bool rejectFaceFront = false,
+            bool rejectFaceRight = false,
+            bool rejectFaceLeft = false,
+            bool rejectDocumentFront = false,
+            bool rejectDocumentBack = false)
+        {
+            return await ReviewKyc(
+                userId,
+                approve: false,
+                note,
+                returnTo,
+                search,
+                rejectAllFiles,
+                rejectFaceFront,
+                rejectFaceRight,
+                rejectFaceLeft,
+                rejectDocumentFront,
+                rejectDocumentBack);
         }
 
         [HttpPost]
@@ -112,6 +177,56 @@ namespace RentHub.Portal.Controllers
             }
 
             return RedirectToAction(nameof(Index), new { search });
+        }
+
+        private async Task<IActionResult> ReviewKyc(
+            string userId,
+            bool approve,
+            string? note,
+            string? returnTo,
+            string? search,
+            bool rejectAllFiles = false,
+            bool rejectFaceFront = false,
+            bool rejectFaceRight = false,
+            bool rejectFaceLeft = false,
+            bool rejectDocumentFront = false,
+            bool rejectDocumentBack = false)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                TempData["Error"] = "User id is required.";
+                return RedirectToAction(nameof(LandlordApprovals), new { search });
+            }
+
+            try
+            {
+                var endpoint = approve ? "approve" : "reject";
+                await _api.PostAsync($"AdminUsers/{Uri.EscapeDataString(userId)}/kyc/{endpoint}", new KycReviewRequest
+                {
+                    Note = note,
+                    RejectAllFiles = rejectAllFiles,
+                    RejectFaceFront = rejectFaceFront,
+                    RejectFaceRight = rejectFaceRight,
+                    RejectFaceLeft = rejectFaceLeft,
+                    RejectDocumentFront = rejectDocumentFront,
+                    RejectDocumentBack = rejectDocumentBack
+                });
+
+                TempData["Success"] = approve
+                    ? "Landlord identity verification approved."
+                    : "Landlord identity verification rejected.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            if (string.Equals(returnTo, "overview", StringComparison.OrdinalIgnoreCase))
+            {
+                return RedirectToAction(nameof(Overview), new { userId });
+            }
+
+            return RedirectToAction(nameof(LandlordApprovals), new { search });
         }
 
         private static string ExtractMessage(string raw)

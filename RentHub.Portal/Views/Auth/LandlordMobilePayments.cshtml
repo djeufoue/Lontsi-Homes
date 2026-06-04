@@ -9,7 +9,7 @@
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 4 of 5</span>
+            <span class="rh-auth-kicker">Step 4 of 7</span>
             <h1>Choose Mobile Money numbers.</h1>
             <p>Subscription payments and future tenant rent payouts can use the same verified phone or separate MTN/Orange numbers.</p>
             <ul class="rh-auth-points">
@@ -20,12 +20,14 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper" aria-label="Registration progress">
+            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
                 <span class="done">1</span>
                 <span class="done">2</span>
                 <span class="done">3</span>
                 <span class="active">4</span>
                 <span>5</span>
+                <span>6</span>
+                <span>7</span>
             </div>
 
             <div class="rh-auth-card-header">
@@ -62,12 +64,12 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6 js-conditional" id="subscriptionNumberFields">
                             <label asp-for="SubscriptionPaymentPhoneNumber" class="form-label rh-auth-label"></label>
-                            <input asp-for="SubscriptionPaymentPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" />
+                            <input asp-for="SubscriptionPaymentPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" required data-required-when-visible="true" />
                             <span asp-validation-for="SubscriptionPaymentPhoneNumber" class="text-danger small"></span>
                         </div>
                         <div class="col-md-6">
                             <label asp-for="SubscriptionPaymentChannel" class="form-label rh-auth-label"></label>
-                            <select asp-for="SubscriptionPaymentChannel" class="form-select rh-auth-input rh-auth-select">
+                            <select asp-for="SubscriptionPaymentChannel" class="form-select rh-auth-input rh-auth-select" required data-required-when-visible="true">
                                 <option value="">Choose operator</option>
                                 <option value="@PayoutChannelEnum.MtnMoney">MTN Money</option>
                                 <option value="@PayoutChannelEnum.OrangeMoney">Orange Money</option>
@@ -86,12 +88,12 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6 js-conditional" id="payoutNumberFields">
                             <label asp-for="PayoutPhoneNumber" class="form-label rh-auth-label"></label>
-                            <input asp-for="PayoutPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" />
+                            <input asp-for="PayoutPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" required data-required-when-visible="true" />
                             <span asp-validation-for="PayoutPhoneNumber" class="text-danger small"></span>
                         </div>
                         <div class="col-md-6">
                             <label asp-for="PayoutChannel" class="form-label rh-auth-label"></label>
-                            <select asp-for="PayoutChannel" class="form-select rh-auth-input rh-auth-select">
+                            <select asp-for="PayoutChannel" class="form-select rh-auth-input rh-auth-select" required data-required-when-visible="true">
                                 <option value="">Choose operator</option>
                                 <option value="@PayoutChannelEnum.MtnMoney">MTN Money</option>
                                 <option value="@PayoutChannelEnum.OrangeMoney">Orange Money</option>
@@ -124,6 +126,7 @@
                 target.querySelectorAll("input, select, textarea").forEach(input => {
                     input.disabled = checkbox.checked;
                 });
+                checkbox.closest("form")?.dispatchEvent(new Event("renthub:external-state-changed", { bubbles: true }));
             };
 
             document.querySelectorAll("[data-toggle-target]").forEach(checkbox => {

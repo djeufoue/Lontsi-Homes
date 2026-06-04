@@ -22,6 +22,21 @@ namespace Common.CommunicationModels
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
         public List<string> Roles { get; set; } = new();
+        public KycDocumentTypeEnum? KycDocumentType { get; set; }
+        public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
+        public bool IsKycSubmitted { get; set; }
+        public bool IsKycApproved { get; set; }
+        public DateTimeOffset? KycSubmittedAt { get; set; }
+        public DateTimeOffset? KycReviewedAt { get; set; }
+        public string? KycReviewNote { get; set; }
+        public LandlordKycRejectedFilesDto KycRejectedFiles { get; set; } = new();
+        public bool PlatformTermsAccepted { get; set; }
+        public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
+        public string? PlatformTermsSignatureName { get; set; }
+        public string? PlatformTermsVersion { get; set; }
+        public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Complete;
+        public bool CanStartSubscriptionCheckout { get; set; }
+        public string SubscriptionBlockedReason { get; set; } = string.Empty;
 
         public int PropertyCount { get; set; }
         public int ApartmentCount { get; set; }

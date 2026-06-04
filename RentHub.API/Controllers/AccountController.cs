@@ -10,6 +10,7 @@ using RentHub.API.Models.Entities;
 using RentHub.API.Services.Auth;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Users;
+using RentHub.API.Services.Kyc;
 using System.Security.Claims;
 using System.Linq;
 
@@ -32,6 +33,7 @@ namespace RentHub.API.Controllers
         private const string PayoutOtpExpiryTokenName = "PayoutOtpExpiryUnix";
         private const string WhatsAppOtpTokenName = "WhatsAppOtpCode";
         private const string WhatsAppOtpExpiryTokenName = "WhatsAppOtpExpiryUnix";
+        private const string PlatformTermsVersion = "2026-06-kyc-v1";
 
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
@@ -39,6 +41,7 @@ namespace RentHub.API.Controllers
         private readonly TokenService _tokenService;
         private readonly IEmailService _emailService;
         private readonly IUserOnboardingService _userOnboardingService;
+        private readonly IKycFileStorageService _kycFileStorageService;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -48,6 +51,7 @@ namespace RentHub.API.Controllers
             TokenService tokenService,
             IEmailService emailService,
             IUserOnboardingService userOnboardingService,
+            IKycFileStorageService kycFileStorageService,
             ILogger<AccountController> logger)
         {
             _userManager = userManager;
@@ -56,6 +60,7 @@ namespace RentHub.API.Controllers
             _tokenService = tokenService;
             _emailService = emailService;
             _userOnboardingService = userOnboardingService;
+            _kycFileStorageService = kycFileStorageService;
             _logger = logger;
         }
 
@@ -884,6 +889,262 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("landlord-registration/kyc")]
+        [Consumes("multipart/form-data")]
+        [RequestSizeLimit(40 * 1024 * 1024)]
+        public async Task<IActionResult> SubmitLandlordKyc([FromForm] SubmitLandlordKycRequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.Email))
+                {
+                    return BadRequest("Email is required.");
+                }
+
+                var user = await FindLandlordForOnboardingAsync(request.Email);
+                if (user == null)
+                {
+                    return BadRequest("Invalid landlord account.");
+                }
+
+                var currentStatus = await BuildLandlordOnboardingStatusAsync(user);
+                if (currentStatus.NextStep is LandlordOnboardingSteps.Email
+                    or LandlordOnboardingSteps.Phone
+                    or LandlordOnboardingSteps.MobilePayments
+                    or LandlordOnboardingSteps.MobilePaymentVerification)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "LANDLORD_ONBOARDING_INCOMPLETE",
+                        Email = user.Email,
+                        NextStep = currentStatus.NextStep,
+                        Status = currentStatus,
+                        Message = "Complete the previous registration steps before identity verification."
+                    });
+                }
+
+                if (request.DocumentType is not KycDocumentTypeEnum.NationalId
+                    and not KycDocumentTypeEnum.Passport
+                    and not KycDocumentTypeEnum.DriverLicense
+                    and not KycDocumentTypeEnum.ResidencePermit
+                    and not KycDocumentTypeEnum.Other)
+                {
+                    return BadRequest("Choose a valid identity document type.");
+                }
+
+                var profile = await _context.LandlordKycProfiles.FirstOrDefaultAsync(p => p.UserId == user.Id);
+                var isPartialResubmission =
+                    profile?.Status == LandlordKycStatusEnum.Rejected &&
+                    profile.DocumentType == request.DocumentType &&
+                    HasRejectedKycFileFlags(profile);
+
+                var documentBackRequired = RequiresDocumentBack(request.DocumentType);
+                var requireFaceFront = !isPartialResubmission || profile!.RejectFaceFront;
+                var requireFaceRight = !isPartialResubmission || profile!.RejectFaceRight;
+                var requireFaceLeft = !isPartialResubmission || profile!.RejectFaceLeft;
+                var requireDocumentFront = !isPartialResubmission || profile!.RejectDocumentFront;
+                var requireDocumentBack = documentBackRequired &&
+                    (!isPartialResubmission || profile!.RejectDocumentBack || string.IsNullOrWhiteSpace(profile.DocumentBackPath));
+
+                var missingFiles = new List<string>();
+                if (requireFaceFront && request.FaceFront == null) missingFiles.Add("front-facing photo");
+                if (requireFaceRight && request.FaceRight == null) missingFiles.Add("photo looking right");
+                if (requireFaceLeft && request.FaceLeft == null) missingFiles.Add("photo looking left");
+                if (requireDocumentFront && request.DocumentFront == null) missingFiles.Add("front of the ID document");
+                if (requireDocumentBack && request.DocumentBack == null) missingFiles.Add("back of the ID document");
+
+                if (missingFiles.Any())
+                {
+                    return BadRequest($"Upload the required KYC file(s): {string.Join(", ", missingFiles)}.");
+                }
+
+                if ((request.FaceFront != null && !IsSupportedImage(request.FaceFront))
+                    || (request.FaceRight != null && !IsSupportedImage(request.FaceRight))
+                    || (request.FaceLeft != null && !IsSupportedImage(request.FaceLeft))
+                    || (request.DocumentFront != null && !IsSupportedImage(request.DocumentFront)))
+                {
+                    return BadRequest("Face photos and the front ID document must be JPG, PNG, or WEBP images.");
+                }
+
+                if (request.DocumentBack != null && (!documentBackRequired || (!IsSupportedImage(request.DocumentBack) && !IsSupportedPdf(request.DocumentBack))))
+                {
+                    return BadRequest(documentBackRequired
+                        ? "The back document must be an image or PDF file."
+                        : "The selected document type does not require a back document.");
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var previousFilesToDelete = new List<string>();
+
+                if (profile == null)
+                {
+                    profile = new LandlordKycProfile
+                    {
+                        UserId = user.Id,
+                        CreatedAt = now
+                    };
+                    _context.LandlordKycProfiles.Add(profile);
+                }
+
+                profile.DocumentType = request.DocumentType;
+                profile.Status = LandlordKycStatusEnum.Submitted;
+
+                if (request.FaceFront != null)
+                {
+                    previousFilesToDelete.Add(profile.FaceFrontPath);
+                    var stored = await _kycFileStorageService.SaveAsync(user.Id, "face-front", request.FaceFront);
+                    profile.FaceFrontPath = stored.RelativePath;
+                    profile.FaceFrontContentType = stored.ContentType;
+                    profile.FaceFrontOriginalFileName = stored.OriginalFileName;
+                }
+
+                if (request.FaceRight != null)
+                {
+                    previousFilesToDelete.Add(profile.FaceRightPath);
+                    var stored = await _kycFileStorageService.SaveAsync(user.Id, "face-right", request.FaceRight);
+                    profile.FaceRightPath = stored.RelativePath;
+                    profile.FaceRightContentType = stored.ContentType;
+                    profile.FaceRightOriginalFileName = stored.OriginalFileName;
+                }
+
+                if (request.FaceLeft != null)
+                {
+                    previousFilesToDelete.Add(profile.FaceLeftPath);
+                    var stored = await _kycFileStorageService.SaveAsync(user.Id, "face-left", request.FaceLeft);
+                    profile.FaceLeftPath = stored.RelativePath;
+                    profile.FaceLeftContentType = stored.ContentType;
+                    profile.FaceLeftOriginalFileName = stored.OriginalFileName;
+                }
+
+                if (request.DocumentFront != null)
+                {
+                    previousFilesToDelete.Add(profile.DocumentFrontPath);
+                    var stored = await _kycFileStorageService.SaveAsync(user.Id, "document-front", request.DocumentFront);
+                    profile.DocumentFrontPath = stored.RelativePath;
+                    profile.DocumentFrontContentType = stored.ContentType;
+                    profile.DocumentFrontOriginalFileName = stored.OriginalFileName;
+                }
+
+                if (request.DocumentBack != null)
+                {
+                    previousFilesToDelete.Add(profile.DocumentBackPath ?? string.Empty);
+                    var stored = await _kycFileStorageService.SaveAsync(user.Id, "document-back", request.DocumentBack);
+                    profile.DocumentBackPath = stored.RelativePath;
+                    profile.DocumentBackContentType = stored.ContentType;
+                    profile.DocumentBackOriginalFileName = stored.OriginalFileName;
+                }
+                else if (!documentBackRequired)
+                {
+                    previousFilesToDelete.Add(profile.DocumentBackPath ?? string.Empty);
+                    profile.DocumentBackPath = null;
+                    profile.DocumentBackContentType = null;
+                    profile.DocumentBackOriginalFileName = null;
+                }
+
+                profile.SubmittedAt = now;
+                profile.ReviewedAt = null;
+                profile.ReviewedById = null;
+                profile.ReviewNote = null;
+                ClearKycRejectionFlags(profile);
+                profile.UpdatedAt = now;
+
+                await _context.SaveChangesAsync();
+                await _kycFileStorageService.DeleteFilesAsync(previousFilesToDelete);
+
+                var status = await BuildLandlordOnboardingStatusAsync(user);
+                return Ok(new
+                {
+                    Email = user.Email,
+                    NextStep = status.NextStep,
+                    Status = status,
+                    Kyc = BuildKycSummary(profile),
+                    Message = "Identity verification submitted. Review the platform contract to finish registration."
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "SubmitLandlordKyc", "Unable to submit identity verification right now. Please try again.");
+            }
+        }
+
+        [HttpPost("landlord-registration/contract")]
+        public async Task<IActionResult> SignLandlordContract([FromBody] SubmitLandlordContractRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                if (!request.Accepted)
+                {
+                    return BadRequest("Accept the platform terms before signing.");
+                }
+
+                var user = await FindLandlordForOnboardingAsync(request.Email);
+                if (user == null)
+                {
+                    return BadRequest("Invalid landlord account.");
+                }
+
+                var currentStatus = await BuildLandlordOnboardingStatusAsync(user);
+                if (currentStatus.NextStep != LandlordOnboardingSteps.Contract &&
+                    currentStatus.NextStep != LandlordOnboardingSteps.Complete)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "LANDLORD_ONBOARDING_INCOMPLETE",
+                        Email = user.Email,
+                        NextStep = currentStatus.NextStep,
+                        Status = currentStatus,
+                        Message = "Complete identity verification before signing the platform contract."
+                    });
+                }
+
+                user.PlatformTermsAccepted = true;
+                user.PlatformTermsAcceptedAt = DateTimeOffset.UtcNow;
+                user.PlatformTermsSignatureName = request.SignatureName.Trim();
+                user.PlatformTermsVersion = PlatformTermsVersion;
+
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    return BadRequest(updateResult.Errors);
+                }
+
+                var status = await BuildLandlordOnboardingStatusAsync(user);
+                if (status.IsComplete)
+                {
+                    var token = await _tokenService.GenerateTokenAsync(user);
+                    return Ok(new
+                    {
+                        Email = user.Email,
+                        NextStep = status.NextStep,
+                        Status = status,
+                        Token = token,
+                        Message = "Registration complete. Welcome to Lontsi Homes."
+                    });
+                }
+
+                return Ok(new
+                {
+                    Email = user.Email,
+                    NextStep = status.NextStep,
+                    Status = status,
+                    Message = "Contract signed. Continue the remaining registration steps."
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "SignLandlordContract", "Unable to save your platform contract signature right now. Please try again.");
+            }
+        }
+
         [HttpPost("register-visitor")]
         public async Task<IActionResult> RegisterVisitor([FromBody] RegisterVisitorRequest request)
         {
@@ -1218,7 +1479,7 @@ namespace RentHub.API.Controllers
                     return Unauthorized("Invalid email or password.");
                 }
 
-                var roles = await _userManager.GetRolesAsync(user);
+                var roles = (await _userManager.GetRolesAsync(user)).ToList();
                 var isAdmin = roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                 var isVisitor = roles.Any(r => string.Equals(r, "Visitor", StringComparison.OrdinalIgnoreCase));
                 var isLandlord = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase));
@@ -1340,7 +1601,7 @@ namespace RentHub.API.Controllers
                     return Unauthorized();
                 }
 
-                var roles = await _userManager.GetRolesAsync(user);
+                var roles = (await _userManager.GetRolesAsync(user)).ToList();
                 var isAdmin = roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                 var now = DateTimeOffset.UtcNow;
 
@@ -1437,6 +1698,10 @@ namespace RentHub.API.Controllers
                     .OrderByDescending(us => us.UpdatedAt ?? us.CreatedAt)
                     .FirstOrDefaultAsync();
 
+                var landlordStatus = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase))
+                    ? await BuildLandlordOnboardingStatusAsync(user, roles)
+                    : null;
+
                 var plans = await _context.SubscriptionPlans
                     .OrderBy(p => p.Price)
                     .Select(p => new SubscriptionPlanDto
@@ -1479,6 +1744,21 @@ namespace RentHub.API.Controllers
                     WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
                     IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
                     Roles = roles.ToList(),
+                    KycDocumentType = landlordStatus?.KycDocumentType,
+                    KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
+                    IsKycSubmitted = landlordStatus?.IsKycSubmitted ?? false,
+                    IsKycApproved = landlordStatus?.IsKycApproved ?? false,
+                    KycSubmittedAt = landlordStatus?.KycSubmittedAt,
+                    KycReviewedAt = landlordStatus?.KycReviewedAt,
+                    KycReviewNote = landlordStatus?.KycReviewNote,
+                    KycRejectedFiles = landlordStatus?.KycRejectedFiles ?? new LandlordKycRejectedFilesDto(),
+                    PlatformTermsAccepted = user.PlatformTermsAccepted,
+                    PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
+                    PlatformTermsSignatureName = user.PlatformTermsSignatureName,
+                    PlatformTermsVersion = user.PlatformTermsVersion,
+                    NextOnboardingStep = landlordStatus?.NextStep ?? LandlordOnboardingSteps.Complete,
+                    CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user),
+                    SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user),
                     PropertyCount = properties.Count,
                     ApartmentCount = properties.Sum(p => p.ApartmentCount),
                     HasActiveSubscription = activeSubscription != null,
@@ -1632,6 +1912,9 @@ namespace RentHub.API.Controllers
         {
             var roles = knownRoles?.ToList() ?? (await _userManager.GetRolesAsync(user)).ToList();
             var (firstName, lastName) = SplitFullName(user.FullName);
+            var kycProfile = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase))
+                ? await _context.LandlordKycProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == user.Id)
+                : null;
 
             var status = new LandlordOnboardingStatusDto
             {
@@ -1654,6 +1937,18 @@ namespace RentHub.API.Controllers
                 IsPayoutPhoneVerified = user.IsPayoutPhoneVerified,
                 WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
                 IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
+                KycDocumentType = kycProfile?.DocumentType,
+                KycStatus = kycProfile?.Status ?? LandlordKycStatusEnum.NotStarted,
+                IsKycSubmitted = kycProfile?.Status is LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved,
+                IsKycApproved = kycProfile?.Status == LandlordKycStatusEnum.Approved,
+                KycSubmittedAt = kycProfile?.SubmittedAt,
+                KycReviewedAt = kycProfile?.ReviewedAt,
+                KycReviewNote = kycProfile?.ReviewNote,
+                KycRejectedFiles = BuildRejectedFiles(kycProfile),
+                PlatformTermsAccepted = user.PlatformTermsAccepted,
+                PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
+                PlatformTermsSignatureName = user.PlatformTermsSignatureName,
+                PlatformTermsVersion = user.PlatformTermsVersion,
                 CreatedAt = user.CreatedAt,
                 Roles = roles
             };
@@ -1723,6 +2018,16 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.MobilePaymentVerification;
             }
 
+            if (!status.IsKycSubmitted)
+            {
+                return LandlordOnboardingSteps.Kyc;
+            }
+
+            if (!status.PlatformTermsAccepted)
+            {
+                return LandlordOnboardingSteps.Contract;
+            }
+
             return LandlordOnboardingSteps.Complete;
         }
 
@@ -1740,6 +2045,18 @@ namespace RentHub.API.Controllers
                 PayoutChannel = status.PayoutChannel,
                 IsPayoutPhoneVerified = status.IsPayoutPhoneVerified,
                 IsWhatsAppPhoneVerified = status.IsWhatsAppPhoneVerified,
+                KycDocumentType = status.KycDocumentType,
+                KycStatus = status.KycStatus,
+                IsKycSubmitted = status.IsKycSubmitted,
+                IsKycApproved = status.IsKycApproved,
+                KycSubmittedAt = status.KycSubmittedAt,
+                KycReviewedAt = status.KycReviewedAt,
+                KycReviewNote = status.KycReviewNote,
+                KycRejectedFiles = status.KycRejectedFiles,
+                PlatformTermsAccepted = status.PlatformTermsAccepted,
+                PlatformTermsAcceptedAt = status.PlatformTermsAcceptedAt,
+                PlatformTermsSignatureName = status.PlatformTermsSignatureName,
+                PlatformTermsVersion = status.PlatformTermsVersion,
                 PhoneOtpRequestLimit = status.PhoneOtpRequestLimit,
                 SubscriptionPaymentOtpRequestLimit = status.SubscriptionPaymentOtpRequestLimit,
                 PayoutOtpRequestLimit = status.PayoutOtpRequestLimit,
@@ -1748,6 +2065,185 @@ namespace RentHub.API.Controllers
                 IsComplete = status.IsComplete,
                 CreatedAt = status.CreatedAt
             };
+        }
+
+        private static bool CanStartSubscriptionCheckout(
+            IReadOnlyCollection<string> roles,
+            LandlordOnboardingStatusDto? landlordStatus,
+            ApplicationUser user)
+        {
+            if (!roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            return landlordStatus?.IsKycApproved == true &&
+                   user.PlatformTermsAccepted &&
+                   user.IsSubscriptionPaymentPhoneVerified;
+        }
+
+        private static string ResolveSubscriptionBlockedReason(
+            IReadOnlyCollection<string> roles,
+            LandlordOnboardingStatusDto? landlordStatus,
+            ApplicationUser user)
+        {
+            if (!roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase)))
+            {
+                return string.Empty;
+            }
+
+            if (landlordStatus == null)
+            {
+                return "Complete landlord registration before subscribing.";
+            }
+
+            if (!landlordStatus.IsKycSubmitted)
+            {
+                return "Submit identity verification before paying for a subscription.";
+            }
+
+            if (landlordStatus.KycStatus == LandlordKycStatusEnum.Rejected)
+            {
+                return string.IsNullOrWhiteSpace(landlordStatus.KycReviewNote)
+                    ? "Identity verification was rejected. Submit corrected documents before subscribing."
+                    : landlordStatus.KycReviewNote;
+            }
+
+            if (!landlordStatus.IsKycApproved)
+            {
+                return "Identity verification is waiting for admin approval before payments are unlocked.";
+            }
+
+            if (!user.PlatformTermsAccepted)
+            {
+                return "Sign the platform contract before paying for a subscription.";
+            }
+
+            if (!user.IsSubscriptionPaymentPhoneVerified)
+            {
+                return "Verify your subscription payment number before subscribing.";
+            }
+
+            return string.Empty;
+        }
+
+        private static LandlordKycSummaryDto BuildKycSummary(LandlordKycProfile? profile, string? mediaBaseUrl = null)
+        {
+            if (profile == null)
+            {
+                return new LandlordKycSummaryDto();
+            }
+
+            var summary = new LandlordKycSummaryDto
+            {
+                HasProfile = true,
+                DocumentType = profile.DocumentType,
+                Status = profile.Status,
+                SubmittedAt = profile.SubmittedAt,
+                ReviewedAt = profile.ReviewedAt,
+                ReviewNote = profile.ReviewNote,
+                RejectedFiles = BuildRejectedFiles(profile)
+            };
+
+            AddKycMedia(summary, "face-front", "Face - front", profile.FaceFrontOriginalFileName, profile.FaceFrontContentType, mediaBaseUrl);
+            AddKycMedia(summary, "face-right", "Face - looking right", profile.FaceRightOriginalFileName, profile.FaceRightContentType, mediaBaseUrl);
+            AddKycMedia(summary, "face-left", "Face - looking left", profile.FaceLeftOriginalFileName, profile.FaceLeftContentType, mediaBaseUrl);
+            AddKycMedia(summary, "document-front", "Document front", profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType, mediaBaseUrl);
+            if (!string.IsNullOrWhiteSpace(profile.DocumentBackPath))
+            {
+                AddKycMedia(summary, "document-back", "Document back", profile.DocumentBackOriginalFileName ?? string.Empty, profile.DocumentBackContentType ?? string.Empty, mediaBaseUrl);
+            }
+
+            return summary;
+        }
+
+        private static void AddKycMedia(
+            LandlordKycSummaryDto summary,
+            string key,
+            string label,
+            string originalFileName,
+            string contentType,
+            string? mediaBaseUrl)
+        {
+            summary.Media.Add(new LandlordKycMediaDto
+            {
+                Key = key,
+                Label = label,
+                OriginalFileName = originalFileName,
+                ContentType = contentType,
+                IsImage = IsImageContentType(contentType),
+                Url = string.IsNullOrWhiteSpace(mediaBaseUrl) ? null : $"{mediaBaseUrl}/{key}"
+            });
+        }
+
+        private static bool RequiresDocumentBack(KycDocumentTypeEnum documentType)
+        {
+            return documentType is KycDocumentTypeEnum.NationalId
+                or KycDocumentTypeEnum.DriverLicense
+                or KycDocumentTypeEnum.ResidencePermit
+                or KycDocumentTypeEnum.Other;
+        }
+
+        private static LandlordKycRejectedFilesDto BuildRejectedFiles(LandlordKycProfile? profile)
+        {
+            if (profile == null)
+            {
+                return new LandlordKycRejectedFilesDto();
+            }
+
+            return new LandlordKycRejectedFilesDto
+            {
+                FaceFront = profile.RejectFaceFront,
+                FaceRight = profile.RejectFaceRight,
+                FaceLeft = profile.RejectFaceLeft,
+                DocumentFront = profile.RejectDocumentFront,
+                DocumentBack = profile.RejectDocumentBack && RequiresDocumentBack(profile.DocumentType)
+            };
+        }
+
+        private static bool HasRejectedKycFileFlags(LandlordKycProfile profile)
+        {
+            return profile.RejectFaceFront
+                || profile.RejectFaceRight
+                || profile.RejectFaceLeft
+                || profile.RejectDocumentFront
+                || (profile.RejectDocumentBack && RequiresDocumentBack(profile.DocumentType));
+        }
+
+        private static void ClearKycRejectionFlags(LandlordKycProfile profile)
+        {
+            profile.RejectFaceFront = false;
+            profile.RejectFaceRight = false;
+            profile.RejectFaceLeft = false;
+            profile.RejectDocumentFront = false;
+            profile.RejectDocumentBack = false;
+        }
+
+        private static bool IsSupportedImage(IFormFile file)
+        {
+            if (file.Length <= 0)
+            {
+                return false;
+            }
+
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty).ToLowerInvariant();
+            return contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
+                   extension is ".jpg" or ".jpeg" or ".png" or ".webp";
+        }
+
+        private static bool IsSupportedPdf(IFormFile file)
+        {
+            var contentType = file.ContentType ?? string.Empty;
+            var extension = Path.GetExtension(file.FileName ?? string.Empty).ToLowerInvariant();
+            return string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase) ||
+                   extension == ".pdf";
+        }
+
+        private static bool IsImageContentType(string? contentType)
+        {
+            return !string.IsNullOrWhiteSpace(contentType) &&
+                   contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
         }
 
         private static (string FirstName, string LastName) SplitFullName(string? fullName)

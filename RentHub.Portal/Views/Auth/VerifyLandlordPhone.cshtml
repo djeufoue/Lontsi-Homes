@@ -16,7 +16,7 @@
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 3 of 5</span>
+            <span class="rh-auth-kicker">Step 3 of 7</span>
             <h1>Confirm your main phone.</h1>
             <p>This number identifies you in support logs and can also be reused for subscription payments and rent payouts in the next step.</p>
             <ul class="rh-auth-points">
@@ -27,12 +27,14 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper" aria-label="Registration progress">
+            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
                 <span class="done">1</span>
                 <span class="done">2</span>
                 <span class="active">3</span>
                 <span>4</span>
                 <span>5</span>
+                <span>6</span>
+                <span>7</span>
             </div>
 
             <div class="rh-auth-card-header">
@@ -100,7 +102,7 @@
 
                 <div class="mb-3">
                     <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
-                    <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from SMS" />
+                    <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from SMS" required data-required-when-visible="true" />
                     <span asp-validation-for="PhoneOtp" class="text-danger small"></span>
                 </div>
 
@@ -125,20 +127,24 @@
 
             const render = () => {
                 if (dailyLimitReached) {
+                    button.dataset.externalDisabled = "true";
                     button.disabled = true;
                     button.textContent = "Daily OTP limit reached";
                     return false;
                 }
 
                 if (remainingSeconds > 0) {
+                    button.dataset.externalDisabled = "true";
                     button.disabled = true;
                     button.textContent = `Send again in ${remainingSeconds}s`;
                     remainingSeconds -= 1;
                     return true;
                 }
 
+                delete button.dataset.externalDisabled;
                 button.disabled = false;
                 button.textContent = defaultLabel;
+                button.closest("form")?.dispatchEvent(new Event("renthub:external-state-changed", { bubbles: true }));
                 return false;
             };
 

@@ -1,0 +1,266 @@
+@model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
+@using Common.Enums
+@{
+    ViewData["Title"] = "Payment Center";
+
+    var overview = Model.Overview;
+    var now = Model.NowUtc;
+    var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
+    var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
+    var registeredMobileMoneyNumber = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber)
+        ? overview.SubscriptionPaymentPhoneNumber
+        : !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber)
+            ? overview.PayoutPhoneNumber
+            : overview.PhoneNumber ?? string.Empty;
+    var registeredPaymentChannel = overview.SubscriptionPaymentChannel ?? overview.PayoutChannel;
+    var registeredPaymentMethodLabel = registeredPaymentChannel switch
+    {
+        PayoutChannelEnum.MtnMoney => "MTN Mobile Money",
+        PayoutChannelEnum.OrangeMoney => "Orange Money",
+        _ => "Not configured"
+    };
+    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
+        registeredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
+        overview.IsSubscriptionPaymentPhoneVerified;
+    var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
+    var canPaySubscription = overview.CanStartSubscriptionCheckout && hasRegisteredMobileMoneyPayment;
+    var mobilePaymentAction = Url.Action("LandlordMobilePayments", "Auth", new
+    {
+        email = overview.Email,
+        returnUrl = Url.Action("Payments", "Profile")
+    });
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Payment Center</p>
+        <h1 class="rh-heading-title">Payments and Subscriptions</h1>
+        <p class="rh-heading-subtitle">Review your registered Mobile Money accounts, subscription status, and available landlord plans.</p>
+    </div>
+    <div class="rh-toolbar">
+        <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Index">Back to Profile</a>
+        @if (isLandlord)
+        {
+            <a class="btn rh-btn-primary" href="@mobilePaymentAction">Update Mobile Money</a>
+        }
+    </div>
+</section>
+
+@if (!isLandlord)
+{
+    <section class="rh-panel rh-panel-elevated">
+        <h2 class="rh-section-title mb-2">Landlord payment workspace</h2>
+        <p class="text-muted mb-0">This page is used for landlord subscription payment setup. Admin payment settings are managed in Subscription Control.</p>
+    </section>
+}
+else
+{
+    <section class="rh-profile-metrics mb-3">
+        <article class="rh-summary-card">
+            <p>Subscription Status</p>
+            <h3>@(hasCurrentPlan ? "Active" : hasPendingSubscriptionPayment ? "Pending" : "Inactive")</h3>
+            <small>@(hasCurrentPlan ? $"Current plan: {overview.CurrentPlanName}" : "Choose a plan when your account is ready")</small>
+        </article>
+        <article class="rh-summary-card">
+            <p>Payment Method</p>
+            <h3>@registeredPaymentMethodLabel</h3>
+            <small>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Verified Mobile Money account required")</small>
+        </article>
+        <article class="rh-summary-card">
+            <p>Payout Account</p>
+            <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+            <small>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not configured")</small>
+        </article>
+        <article class="rh-summary-card">
+            <p>Subscription Access</p>
+            <h3>@(overview.CanStartSubscriptionCheckout ? "Unlocked" : "Blocked")</h3>
+            <small>@(string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason) ? "Ready for checkout" : overview.SubscriptionBlockedReason)</small>
+        </article>
+    </section>
+
+    <section class="rh-profile-grid mb-3">
+        <article class="rh-panel rh-panel-elevated">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h2 class="rh-section-title mb-0">Mobile Money Accounts</h2>
+                <a class="btn btn-sm rh-btn-subtle" href="@mobilePaymentAction">Edit setup</a>
+            </div>
+
+            <div class="rh-profile-info-grid">
+                <div class="rh-profile-info-item">
+                    <p>Subscription Payment Number</p>
+                    <h3>@(!string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) ? overview.SubscriptionPaymentPhoneNumber : "Not provided")</h3>
+                </div>
+                <div class="rh-profile-info-item">
+                    <p>Subscription Payment Network</p>
+                    <h3>@(overview.SubscriptionPaymentChannel?.ToString() ?? "Not provided")</h3>
+                </div>
+                <div class="rh-profile-info-item">
+                    <p>Subscription Payment Verification</p>
+                    <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
+                </div>
+                <div class="rh-profile-info-item">
+                    <p>Rent Payout Number</p>
+                    <h3>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not provided")</h3>
+                </div>
+                <div class="rh-profile-info-item">
+                    <p>Rent Payout Network</p>
+                    <h3>@(overview.PayoutChannel?.ToString() ?? "Not provided")</h3>
+                </div>
+                <div class="rh-profile-info-item">
+                    <p>Rent Payout Verification</p>
+                    <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+                </div>
+            </div>
+        </article>
+
+        <article class="rh-panel rh-panel-elevated">
+            @await Html.PartialAsync("_SubscriptionDetails", Model)
+        </article>
+    </section>
+
+    <section class="rh-panel rh-panel-elevated">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <h2 class="rh-section-title mb-0">Choose Subscription</h2>
+            <small class="text-muted">Use MTN Mobile Money or Orange Money Cameroon to pay your landlord subscription.</small>
+        </div>
+
+        @if (!overview.AvailablePlans.Any())
+        {
+            <div class="rh-empty">No plans available right now.</div>
+        }
+        else
+        {
+            <div class="rh-profile-plan-grid">
+                @foreach (var plan in overview.AvailablePlans)
+                {
+                    var isCurrent = overview.CurrentPlanId.HasValue && overview.CurrentPlanId.Value == plan.Id && hasCurrentPlan;
+                    var isPendingPlan = hasPendingSubscriptionPayment && overview.PendingPlanId == plan.Id;
+                    <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty)">
+                        <div class="rh-admin-plan-head">
+                            <h3>@plan.Name</h3>
+                            <span class="rh-chip @(isCurrent ? "rh-chip-primary" : "rh-chip-info")">@plan.DurationInDays days</span>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(plan.Description))
+                        {
+                            <p class="text-muted mb-2">@plan.Description</p>
+                        }
+
+                        <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
+
+                        <ul class="rh-profile-plan-meta">
+                            <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
+                            <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
+                        </ul>
+
+                        <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="planId" value="@plan.Id" />
+
+                            <ul class="rh-profile-plan-meta mb-3">
+                                <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
+                                <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
+                                <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Not provided")</strong></li>
+                            </ul>
+
+                            @if (isCurrent)
+                            {
+                                <button type="button" class="btn rh-btn-subtle w-100" disabled>Current Plan</button>
+                            }
+                            else if (isPendingPlan)
+                            {
+                                <button type="button" class="btn rh-btn-subtle w-100" disabled>Payment Pending</button>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!canPaySubscription)">
+                                    @(canPaySubscription ? (hasCurrentPlan ? "Switch to this plan" : "Proceed to payment") : (!overview.CanStartSubscriptionCheckout ? "Verification required" : "Payment account required"))
+                                </button>
+                                @if (!overview.CanStartSubscriptionCheckout && !string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason))
+                                {
+                                    <div class="text-muted small mt-2">@overview.SubscriptionBlockedReason</div>
+                                }
+                            }
+                        </form>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const pollIntervalMs = 5000;
+            const maxAttempts = 36;
+            let attempts = 0;
+            let timerId = null;
+
+            const getPanel = () => document.querySelector("[data-subscription-details]");
+
+            const shouldPoll = (panel) =>
+                panel?.dataset.pendingPayment === "true" &&
+                Boolean(panel.dataset.refreshUrl) &&
+                attempts < maxAttempts;
+
+            const schedule = () => {
+                window.clearTimeout(timerId);
+                timerId = window.setTimeout(refreshSubscriptionDetails, pollIntervalMs);
+            };
+
+            const refreshSubscriptionDetails = async () => {
+                const panel = getPanel();
+                if (!shouldPoll(panel)) {
+                    return;
+                }
+
+                attempts += 1;
+                panel.setAttribute("aria-busy", "true");
+
+                try {
+                    const response = await fetch(panel.dataset.refreshUrl, {
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error("Unable to refresh subscription details.");
+                    }
+
+                    const template = document.createElement("template");
+                    template.innerHTML = (await response.text()).trim();
+                    const updatedPanel = template.content.firstElementChild;
+
+                    if (!updatedPanel) {
+                        schedule();
+                        return;
+                    }
+
+                    panel.replaceWith(updatedPanel);
+
+                    if (shouldPoll(updatedPanel)) {
+                        schedule();
+                    }
+                } catch {
+                    schedule();
+                } finally {
+                    getPanel()?.removeAttribute("aria-busy");
+                }
+            };
+
+            const startPolling = () => {
+                if (shouldPoll(getPanel())) {
+                    schedule();
+                }
+            };
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", startPolling, { once: true });
+            } else {
+                startPolling();
+            }
+        })();
+    </script>
+}

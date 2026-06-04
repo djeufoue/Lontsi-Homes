@@ -27,6 +27,8 @@ namespace RentHub.API.Data
             EnsureConversationTables(context);
             EnsureSystemTransferAccountsTable(context);
             EnsureOtpSendLogsTable(context);
+            EnsurePlatformTermsColumns(context);
+            EnsureLandlordKycTable(context);
 
             // Seed subscription plans
             if (!context.SubscriptionPlans.Any())
@@ -114,6 +116,163 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_OtpSendLogs_UserId_Purpose_Recipient_SentAt]
     ON [OtpSendLogs]([UserId], [Purpose], [Recipient], [SentAt]);
+END
+");
+        }
+
+        private static void EnsurePlatformTermsColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('AspNetUsers', 'PlatformTermsAccepted') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [PlatformTermsAccepted] bit NOT NULL
+        CONSTRAINT [DF_AspNetUsers_PlatformTermsAccepted] DEFAULT(0);
+END
+
+IF COL_LENGTH('AspNetUsers', 'PlatformTermsAcceptedAt') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [PlatformTermsAcceptedAt] datetimeoffset NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'PlatformTermsSignatureName') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [PlatformTermsSignatureName] nvarchar(160) NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'PlatformTermsVersion') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [PlatformTermsVersion] nvarchar(40) NULL;
+END
+");
+        }
+
+        private static void EnsureLandlordKycTable(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF OBJECT_ID(N'[LandlordKycProfiles]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [LandlordKycProfiles]
+    (
+        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_LandlordKycProfiles] PRIMARY KEY,
+        [UserId] nvarchar(450) NOT NULL,
+        [DocumentType] int NOT NULL,
+        [Status] int NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_Status] DEFAULT(1),
+        [FaceFrontPath] nvarchar(1024) NOT NULL,
+        [FaceFrontContentType] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceFrontContentType] DEFAULT(''),
+        [FaceFrontOriginalFileName] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceFrontOriginalFileName] DEFAULT(''),
+        [FaceRightPath] nvarchar(1024) NOT NULL,
+        [FaceRightContentType] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceRightContentType] DEFAULT(''),
+        [FaceRightOriginalFileName] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceRightOriginalFileName] DEFAULT(''),
+        [FaceLeftPath] nvarchar(1024) NOT NULL,
+        [FaceLeftContentType] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceLeftContentType] DEFAULT(''),
+        [FaceLeftOriginalFileName] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_FaceLeftOriginalFileName] DEFAULT(''),
+        [DocumentFrontPath] nvarchar(1024) NOT NULL,
+        [DocumentFrontContentType] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_DocumentFrontContentType] DEFAULT(''),
+        [DocumentFrontOriginalFileName] nvarchar(max) NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_DocumentFrontOriginalFileName] DEFAULT(''),
+        [DocumentBackPath] nvarchar(1024) NULL,
+        [DocumentBackContentType] nvarchar(max) NULL,
+        [DocumentBackOriginalFileName] nvarchar(max) NULL,
+        [RejectFaceFront] bit NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_RejectFaceFront] DEFAULT(0),
+        [RejectFaceRight] bit NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_RejectFaceRight] DEFAULT(0),
+        [RejectFaceLeft] bit NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_RejectFaceLeft] DEFAULT(0),
+        [RejectDocumentFront] bit NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_RejectDocumentFront] DEFAULT(0),
+        [RejectDocumentBack] bit NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_RejectDocumentBack] DEFAULT(0),
+        [SubmittedAt] datetimeoffset NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_SubmittedAt] DEFAULT(SYSDATETIMEOFFSET()),
+        [ReviewedById] nvarchar(450) NULL,
+        [ReviewedAt] datetimeoffset NULL,
+        [ReviewNote] nvarchar(max) NULL,
+        [CreatedAt] datetimeoffset NOT NULL
+            CONSTRAINT [DF_LandlordKycProfiles_CreatedAt] DEFAULT(SYSDATETIMEOFFSET()),
+        [UpdatedAt] datetimeoffset NULL,
+        CONSTRAINT [FK_LandlordKycProfiles_AspNetUsers_UserId]
+            FOREIGN KEY ([UserId]) REFERENCES [AspNetUsers]([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_LandlordKycProfiles_AspNetUsers_ReviewedById]
+            FOREIGN KEY ([ReviewedById]) REFERENCES [AspNetUsers]([Id])
+    );
+END
+
+IF COL_LENGTH(N'[LandlordKycProfiles]', N'RejectFaceFront') IS NULL
+BEGIN
+    ALTER TABLE [LandlordKycProfiles]
+    ADD [RejectFaceFront] bit NOT NULL
+        CONSTRAINT [DF_LandlordKycProfiles_RejectFaceFront] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH(N'[LandlordKycProfiles]', N'RejectFaceRight') IS NULL
+BEGIN
+    ALTER TABLE [LandlordKycProfiles]
+    ADD [RejectFaceRight] bit NOT NULL
+        CONSTRAINT [DF_LandlordKycProfiles_RejectFaceRight] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH(N'[LandlordKycProfiles]', N'RejectFaceLeft') IS NULL
+BEGIN
+    ALTER TABLE [LandlordKycProfiles]
+    ADD [RejectFaceLeft] bit NOT NULL
+        CONSTRAINT [DF_LandlordKycProfiles_RejectFaceLeft] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH(N'[LandlordKycProfiles]', N'RejectDocumentFront') IS NULL
+BEGIN
+    ALTER TABLE [LandlordKycProfiles]
+    ADD [RejectDocumentFront] bit NOT NULL
+        CONSTRAINT [DF_LandlordKycProfiles_RejectDocumentFront] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH(N'[LandlordKycProfiles]', N'RejectDocumentBack') IS NULL
+BEGIN
+    ALTER TABLE [LandlordKycProfiles]
+    ADD [RejectDocumentBack] bit NOT NULL
+        CONSTRAINT [DF_LandlordKycProfiles_RejectDocumentBack] DEFAULT(0) WITH VALUES;
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_LandlordKycProfiles_UserId'
+      AND [object_id] = OBJECT_ID(N'[LandlordKycProfiles]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_LandlordKycProfiles_UserId]
+    ON [LandlordKycProfiles]([UserId]);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_LandlordKycProfiles_Status_SubmittedAt'
+      AND [object_id] = OBJECT_ID(N'[LandlordKycProfiles]')
+)
+BEGIN
+    CREATE INDEX [IX_LandlordKycProfiles_Status_SubmittedAt]
+    ON [LandlordKycProfiles]([Status], [SubmittedAt]);
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_LandlordKycProfiles_ReviewedById'
+      AND [object_id] = OBJECT_ID(N'[LandlordKycProfiles]')
+)
+BEGIN
+    CREATE INDEX [IX_LandlordKycProfiles_ReviewedById]
+    ON [LandlordKycProfiles]([ReviewedById]);
 END
 ");
         }

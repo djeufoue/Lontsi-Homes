@@ -12,6 +12,8 @@ namespace Common.CommunicationModels
         public const string Phone = "phone";
         public const string MobilePayments = "mobile-payments";
         public const string MobilePaymentVerification = "mobile-payment-verification";
+        public const string Kyc = "kyc";
+        public const string Contract = "contract";
         public const string Complete = "complete";
     }
 
@@ -147,6 +149,18 @@ namespace Common.CommunicationModels
         public bool IsPayoutPhoneVerified { get; set; }
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
+        public KycDocumentTypeEnum? KycDocumentType { get; set; }
+        public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
+        public bool IsKycSubmitted { get; set; }
+        public bool IsKycApproved { get; set; }
+        public DateTimeOffset? KycSubmittedAt { get; set; }
+        public DateTimeOffset? KycReviewedAt { get; set; }
+        public string? KycReviewNote { get; set; }
+        public LandlordKycRejectedFilesDto KycRejectedFiles { get; set; } = new();
+        public bool PlatformTermsAccepted { get; set; }
+        public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
+        public string? PlatformTermsSignatureName { get; set; }
+        public string? PlatformTermsVersion { get; set; }
         public OtpRequestLimitDto? PhoneOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }

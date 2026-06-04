@@ -6,6 +6,8 @@ using System.Text.Json;
 
 namespace RentHub.Portal.Services
 {
+    public record ApiFileResult(byte[] Bytes, string ContentType, string FileName);
+
     public class RentHubApiClient
     {
         private readonly HttpClient _http;
@@ -203,6 +205,34 @@ namespace RentHub.Portal.Services
             var json = await res.Content.ReadAsStringAsync();
             if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired: true);
             return JsonSerializer.Deserialize<TOut>(json, JsonOpt)!;
+        }
+
+        public async Task<TOut> PostAnonymousMultipartAsync<TOut>(string url, MultipartFormDataContent content)
+        {
+            await PrepareAuthorizationAsync(attachBearer: false);
+            var res = await _http.PostAsync(url, content);
+            var json = await res.Content.ReadAsStringAsync();
+            if (!res.IsSuccessStatusCode) throw BuildApiException(res.StatusCode, json, treatUnauthorizedAsSessionExpired: false);
+            return JsonSerializer.Deserialize<TOut>(json, JsonOpt)!;
+        }
+
+        public async Task<ApiFileResult> GetFileAsync(string url)
+        {
+            await AttachBearerAsync();
+            var res = await _http.GetAsync(url);
+            if (!res.IsSuccessStatusCode)
+            {
+                var raw = await res.Content.ReadAsStringAsync();
+                throw BuildApiException(res.StatusCode, raw, treatUnauthorizedAsSessionExpired: true);
+            }
+
+            var bytes = await res.Content.ReadAsByteArrayAsync();
+            var contentType = res.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            var fileName = res.Content.Headers.ContentDisposition?.FileNameStar ??
+                           res.Content.Headers.ContentDisposition?.FileName?.Trim('"') ??
+                           "kyc-file";
+
+            return new ApiFileResult(bytes, contentType, fileName);
         }
 
         public async Task<string?> RefreshTokenAsync()

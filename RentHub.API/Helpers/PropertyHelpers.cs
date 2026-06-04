@@ -13,6 +13,14 @@ namespace RentHub.API.Helpers
             string landlordName)
         {
             var now = DateTimeOffset.UtcNow;
+            var landlord = await context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == landlordId);
+
+            var kycProfile = await context.LandlordKycProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.UserId == landlordId);
+
             var activeSubscription = await context.UserSubscriptions
                 .Include(us => us.SubscriptionPlan)
                 .Where(us => us.UserId == landlordId && us.IsApproved && us.EndDate > now)
@@ -31,9 +39,37 @@ namespace RentHub.API.Helpers
                 CurrentProperties = currentCount,
                 MaxProperties = maxProps,
                 SubscriptionApproved = activeSubscription?.IsApproved == true,
+                KycApproved = kycProfile?.Status == LandlordKycStatusEnum.Approved,
+                PlatformTermsAccepted = landlord?.PlatformTermsAccepted == true,
                 CanCreate = false,
                 StatusMessage = "No active subscription found."
             };
+
+            if (kycProfile == null)
+            {
+                scope.StatusMessage = "Identity verification must be submitted before properties can be created.";
+                return scope;
+            }
+
+            if (kycProfile.Status == LandlordKycStatusEnum.Rejected)
+            {
+                scope.StatusMessage = string.IsNullOrWhiteSpace(kycProfile.ReviewNote)
+                    ? "Identity verification was rejected. Submit corrected documents."
+                    : kycProfile.ReviewNote;
+                return scope;
+            }
+
+            if (kycProfile.Status != LandlordKycStatusEnum.Approved)
+            {
+                scope.StatusMessage = "Identity verification is waiting for admin approval.";
+                return scope;
+            }
+
+            if (landlord?.PlatformTermsAccepted != true)
+            {
+                scope.StatusMessage = "Platform contract must be signed before properties can be created.";
+                return scope;
+            }
 
             if (activeSubscription == null)
                 return scope;

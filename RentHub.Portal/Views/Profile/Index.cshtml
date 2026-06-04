@@ -19,22 +19,11 @@
     var currentPlanEndsInDays = hasCurrentPlan
         ? Math.Max(0, (int)Math.Ceiling((overview.SubscriptionEndDate!.Value - now).TotalDays))
         : 0;
-    var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
-        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
-    var registeredMobileMoneyNumber = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber)
-        ? overview.SubscriptionPaymentPhoneNumber
-        : !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber)
-            ? overview.PayoutPhoneNumber
-            : overview.PhoneNumber ?? string.Empty;
-    var registeredPaymentMethodLabel = (overview.SubscriptionPaymentChannel ?? overview.PayoutChannel) switch
-    {
-        PayoutChannelEnum.MtnMoney => "MTN Mobile Money",
-        PayoutChannelEnum.OrangeMoney => "Orange Money",
-        _ => "Not configured"
-    };
-    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
-        (overview.SubscriptionPaymentChannel ?? overview.PayoutChannel) is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
-        overview.IsSubscriptionPaymentPhoneVerified;
+    var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
+    var isAdmin = overview.Roles.Any(role => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+    var kycAction = Url.Action("LandlordKyc", "Auth", new { email = overview.Email });
+    var contractAction = Url.Action("LandlordContract", "Auth", new { email = overview.Email });
+    var contractSignedAtText = overview.PlatformTermsAcceptedAt?.LocalDateTime.ToString("yyyy-MM-dd");
 }
 
 <section class="rh-page-header rh-page-header-elevated">
@@ -55,6 +44,16 @@
                 <span class="rh-chip rh-chip-warning">No role assigned</span>
             }
         </div>
+    </div>
+    <div class="rh-toolbar">
+        @if (isLandlord)
+        {
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">Payment Center</a>
+        }
+        @if (isAdmin)
+        {
+            <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">Payment Accounts</a>
+        }
     </div>
 </section>
 
@@ -95,6 +94,71 @@
     </article>
 </section>
 
+@if (isLandlord)
+{
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <p class="rh-kicker mb-1">Landlord readiness</p>
+                <h2 class="rh-section-title mb-1">Verification checklist</h2>
+                <p class="rh-card-meta mb-0">Complete these items before subscription payments and property creation are unlocked.</p>
+            </div>
+            @if (!overview.CanStartSubscriptionCheckout && !string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason))
+            {
+                <span class="rh-chip rh-chip-warning">@overview.SubscriptionBlockedReason</span>
+            }
+            else
+            {
+                <span class="rh-chip rh-chip-success">Ready for subscription</span>
+            }
+        </div>
+
+        <div class="rh-readiness-grid mt-3">
+            <article class="rh-readiness-item @(overview.IsKycSubmitted ? "is-complete" : "is-current")">
+                <div class="rh-readiness-marker"></div>
+                <div>
+                    <h3>Identity files submitted</h3>
+                    <p>Three face photos and government ID document files.</p>
+                    <small>Status: @overview.KycStatus</small>
+                    @if (!overview.IsKycSubmitted || overview.KycStatus == LandlordKycStatusEnum.Rejected)
+                    {
+                        <a class="btn btn-sm rh-btn-primary mt-2" href="@kycAction">Submit KYC</a>
+                    }
+                </div>
+            </article>
+
+            <article class="rh-readiness-item @(overview.IsKycApproved ? "is-complete" : (overview.IsKycSubmitted ? "is-current" : string.Empty))">
+                <div class="rh-readiness-marker"></div>
+                <div>
+                    <h3>Admin identity approval</h3>
+                    <p>Only the system admin can approve submitted KYC files.</p>
+                    <small>Manual review status: @overview.KycStatus</small>
+                    @if (!string.IsNullOrWhiteSpace(overview.KycReviewNote))
+                    {
+                        <small class="d-block">Review note: @overview.KycReviewNote</small>
+                    }
+                </div>
+            </article>
+
+            <article class="rh-readiness-item @(overview.PlatformTermsAccepted ? "is-complete" : (overview.IsKycSubmitted ? "is-current" : string.Empty))">
+                <div class="rh-readiness-marker"></div>
+                <div>
+                    <h3>Platform contract signed</h3>
+                    <p>Accept the landlord terms with your full legal name.</p>
+                    @if (overview.PlatformTermsAccepted)
+                    {
+                        <small>Signed by @overview.PlatformTermsSignatureName on @contractSignedAtText</small>
+                    }
+                    else if (overview.IsKycSubmitted)
+                    {
+                        <a class="btn btn-sm rh-btn-primary mt-2" href="@contractAction">Sign contract</a>
+                    }
+                </div>
+            </article>
+        </div>
+    </section>
+}
+
 <section class="rh-profile-grid">
     <article class="rh-panel rh-panel-elevated">
         <h2 class="rh-section-title mb-3">Account Information</h2>
@@ -109,30 +173,6 @@
                 <h3>@(!string.IsNullOrWhiteSpace(overview.PhoneNumber) ? overview.PhoneNumber : "Not provided")</h3>
             </div>
             <div class="rh-profile-info-item">
-                <p>Subscription Payment Number</p>
-                <h3>@(!string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) ? overview.SubscriptionPaymentPhoneNumber : "Not provided")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Subscription Payment Network</p>
-                <h3>@(overview.SubscriptionPaymentChannel?.ToString() ?? "Not provided")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Subscription Payment Verification</p>
-                <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Payout Number</p>
-                <h3>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not provided")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Payout Network</p>
-                <h3>@(overview.PayoutChannel?.ToString() ?? "Not provided")</h3>
-            </div>
-            <div class="rh-profile-info-item">
-                <p>Payout Verification</p>
-                <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
-            </div>
-            <div class="rh-profile-info-item">
                 <p>WhatsApp Number</p>
                 <h3>@(!string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? overview.WhatsAppPhoneNumber : "Not provided")</h3>
             </div>
@@ -140,16 +180,26 @@
                 <p>WhatsApp Verification</p>
                 <h3>@(overview.IsWhatsAppPhoneVerified ? "Verified" : "Pending")</h3>
             </div>
-            <div class="rh-profile-info-item">
-                <p>Single Active Plan Rule</p>
-                <h3>Enforced</h3>
-            </div>
         </div>
-
-        <hr />
-
-        @await Html.PartialAsync("_SubscriptionDetails", Model)
     </article>
+
+    @if (isLandlord || isAdmin)
+    {
+        <article class="rh-panel rh-panel-elevated">
+            <h2 class="rh-section-title mb-3">Payments and Subscriptions</h2>
+            <p class="text-muted">Payment numbers, payout routing, subscription status, and plan actions now live in their own workspace.</p>
+            <div class="d-flex flex-wrap gap-2">
+                @if (isLandlord)
+                {
+                    <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">Open Payment Center</a>
+                }
+                @if (isAdmin)
+                {
+                    <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">Manage Payment Accounts</a>
+                }
+            </div>
+        </article>
+    }
 
     <article class="rh-panel rh-panel-elevated">
         <h2 class="rh-section-title mb-3">Properties You Can Access</h2>
@@ -177,143 +227,4 @@
             </div>
         }
     </article>
-</section>
-
-@section Scripts {
-    <script>
-        (() => {
-            const pollIntervalMs = 5000;
-            const maxAttempts = 36;
-            let attempts = 0;
-            let timerId = null;
-
-            const getPanel = () => document.querySelector("[data-subscription-details]");
-
-            const shouldPoll = (panel) =>
-                panel?.dataset.pendingPayment === "true" &&
-                Boolean(panel.dataset.refreshUrl) &&
-                attempts < maxAttempts;
-
-            const schedule = () => {
-                window.clearTimeout(timerId);
-                timerId = window.setTimeout(refreshSubscriptionDetails, pollIntervalMs);
-            };
-
-            const refreshSubscriptionDetails = async () => {
-                const panel = getPanel();
-                if (!shouldPoll(panel)) {
-                    return;
-                }
-
-                attempts += 1;
-                panel.setAttribute("aria-busy", "true");
-
-                try {
-                    const response = await fetch(panel.dataset.refreshUrl, {
-                        credentials: "same-origin",
-                        headers: { "X-Requested-With": "XMLHttpRequest" }
-                    });
-
-                    if (!response.ok) {
-                        throw new Error("Unable to refresh subscription details.");
-                    }
-
-                    const template = document.createElement("template");
-                    template.innerHTML = (await response.text()).trim();
-                    const updatedPanel = template.content.firstElementChild;
-
-                    if (!updatedPanel) {
-                        schedule();
-                        return;
-                    }
-
-                    panel.replaceWith(updatedPanel);
-
-                    if (shouldPoll(updatedPanel)) {
-                        schedule();
-                    }
-                } catch {
-                    schedule();
-                } finally {
-                    getPanel()?.removeAttribute("aria-busy");
-                }
-            };
-
-            const startPolling = () => {
-                if (shouldPoll(getPanel())) {
-                    schedule();
-                }
-            };
-
-            if (document.readyState === "loading") {
-                document.addEventListener("DOMContentLoaded", startPolling, { once: true });
-            } else {
-                startPolling();
-            }
-        })();
-    </script>
-}
-
-<section class="rh-panel rh-panel-elevated mt-3">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="rh-section-title mb-0">Choose Subscription</h2>
-        <small class="text-muted">Use MTN Mobile Money or Orange Money Cameroon to pay your landlord subscription.</small>
-    </div>
-
-    @if (!overview.AvailablePlans.Any())
-    {
-        <div class="rh-empty">No plans available right now.</div>
-    }
-    else
-    {
-        <div class="rh-profile-plan-grid">
-            @foreach (var plan in overview.AvailablePlans)
-            {
-                var isCurrent = overview.CurrentPlanId.HasValue && overview.CurrentPlanId.Value == plan.Id && hasCurrentPlan;
-                var isPendingPlan = hasPendingSubscriptionPayment && overview.PendingPlanId == plan.Id;
-                <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty)">
-                    <div class="rh-admin-plan-head">
-                        <h3>@plan.Name</h3>
-                        <span class="rh-chip @(isCurrent ? "rh-chip-primary" : "rh-chip-info")">@plan.DurationInDays days</span>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(plan.Description))
-                    {
-                        <p class="text-muted mb-2">@plan.Description</p>
-                    }
-
-                    <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
-
-                    <ul class="rh-profile-plan-meta">
-                        <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
-                        <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
-                    </ul>
-
-                    <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="planId" value="@plan.Id" />
-
-                        <ul class="rh-profile-plan-meta mb-3">
-                            <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
-                            <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
-                            <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Not provided")</strong></li>
-                        </ul>
-
-                        @if (isCurrent)
-                        {
-                            <button type="button" class="btn rh-btn-subtle w-100" disabled>Current Plan</button>
-                        }
-                        else if (isPendingPlan)
-                        {
-                            <button type="button" class="btn rh-btn-subtle w-100" disabled>Payment Pending</button>
-                        }
-                        else
-                        {
-                            <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!hasRegisteredMobileMoneyPayment)">@(hasRegisteredMobileMoneyPayment ? (hasCurrentPlan ? "Switch to this plan" : "Proceed to payment") : "Payment account required")</button>
-                        }
-                    </form>
-                </article>
-            }
-        </div>
-    }
 </section>

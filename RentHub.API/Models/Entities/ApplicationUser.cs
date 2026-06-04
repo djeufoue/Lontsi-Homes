@@ -24,9 +24,14 @@ namespace RentHub.API.Models.Entities
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
         public DateTimeOffset? WhatsAppPhoneVerifiedAt { get; set; }
+        public bool PlatformTermsAccepted { get; set; }
+        public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
+        public string? PlatformTermsSignatureName { get; set; }
+        public string? PlatformTermsVersion { get; set; }
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation properties
         public ICollection<Property> OwnedProperties { get; set; } = new List<Property>();
+        public LandlordKycProfile? KycProfile { get; set; }
     }
 }

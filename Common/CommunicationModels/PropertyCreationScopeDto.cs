@@ -9,6 +9,8 @@ namespace Common.CommunicationModels
         public int? MaxProperties { get; set; }
 
         public bool SubscriptionApproved { get; set; }
+        public bool KycApproved { get; set; }
+        public bool PlatformTermsAccepted { get; set; }
         public bool CanCreate { get; set; }
 
         public string StatusMessage { get; set; } = string.Empty;

@@ -18,6 +18,9 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool CanCreateProperty { get; set; }
         public bool ShowCreateEntryPoint { get; set; }
         public bool RequiresSubscriptionCheckout { get; set; }
+        public bool RequiresComplianceAction { get; set; }
+        public string ComplianceMessage { get; set; } = string.Empty;
+        public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Complete;
         public string RegisteredPaymentNumber { get; set; } = string.Empty;
         public PayoutChannelEnum? RegisteredPaymentChannel { get; set; }
         public bool RegisteredPaymentVerified { get; set; }

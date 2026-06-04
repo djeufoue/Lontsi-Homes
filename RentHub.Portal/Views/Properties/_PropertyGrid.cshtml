@@ -6,8 +6,7 @@
     <div class="rh-smart-table-header">
         <div class="rh-smart-table-heading">
             <p class="rh-kicker rh-kicker-ghost mb-1">Property register</p>
-            <div class="rh-smart-table-heading-row">
-                <h2 class="rh-section-title mb-0">Portfolio smart table</h2>
+            <div class="rh-smart-table-heading-row">               
                 @if (Model.ShowCreateEntryPoint)
                 {
                     <button class="btn rh-btn-primary rh-smart-table-add-btn" type="button" data-bs-toggle="modal" data-bs-target="@(Model.CanCreateProperty ? "#createPropertyModal" : "#subscriptionRequiredModal")">

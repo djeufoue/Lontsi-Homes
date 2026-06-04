@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
+using RentHub.API.Services.Email;
+using RentHub.API.Services.Kyc;
 using RentHub.API.Services.Storage;
 
 namespace RentHub.API.Controllers
@@ -29,6 +31,8 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
+        private readonly IKycFileStorageService _kycFileStorageService;
+        private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AdminUsersController> _logger;
 
@@ -36,12 +40,16 @@ namespace RentHub.API.Controllers
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             IStorageService storageService,
+            IKycFileStorageService kycFileStorageService,
+            IEmailService emailService,
             IConfiguration configuration,
             ILogger<AdminUsersController> logger)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
+            _kycFileStorageService = kycFileStorageService;
+            _emailService = emailService;
             _configuration = configuration;
             _logger = logger;
         }
@@ -69,10 +77,73 @@ namespace RentHub.API.Controllers
             foreach (var user in users)
             {
                 var roles = (await _userManager.GetRolesAsync(user)).ToList();
-                results.Add(BuildStatusDto(user, roles));
+                var kyc = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase))
+                    ? await _context.LandlordKycProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == user.Id)
+                    : null;
+                results.Add(BuildStatusDto(user, roles, kyc));
             }
 
             return Ok(results);
+        }
+
+        [HttpGet("landlord-approvals")]
+        public async Task<IActionResult> GetLandlordApprovals([FromQuery] string? search = null)
+        {
+            var landlordRoleId = await _context.Roles
+                .Where(r => r.NormalizedName == "LANDLORD")
+                .Select(r => r.Id)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(landlordRoleId))
+            {
+                return Ok(new List<AdminLandlordApprovalDto>());
+            }
+
+            var landlordUserIds = _context.UserRoles
+                .Where(ur => ur.RoleId == landlordRoleId)
+                .Select(ur => ur.UserId);
+
+            var query =
+                from user in _context.Users.AsNoTracking()
+                join kyc in _context.LandlordKycProfiles.AsNoTracking()
+                    on user.Id equals kyc.UserId into kycJoin
+                from kyc in kycJoin.DefaultIfEmpty()
+                where landlordUserIds.Contains(user.Id)
+                select new { user, kyc };
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(item =>
+                    (item.user.Email ?? string.Empty).Contains(term) ||
+                    (item.user.FullName ?? string.Empty).Contains(term) ||
+                    (item.user.PhoneNumber ?? string.Empty).Contains(term));
+            }
+
+            var rows = await query
+                .OrderBy(item => item.kyc == null
+                    ? 1
+                    : item.kyc.Status == LandlordKycStatusEnum.Submitted
+                        ? 0
+                        : item.kyc.Status == LandlordKycStatusEnum.Rejected
+                            ? 2
+                            : 3)
+                .ThenBy(item => item.kyc == null ? item.user.CreatedAt : item.kyc.SubmittedAt)
+                .Take(100)
+                .ToListAsync();
+
+            return Ok(rows.Select(item => new AdminLandlordApprovalDto
+            {
+                UserId = item.user.Id,
+                Email = item.user.Email ?? string.Empty,
+                FullName = item.user.FullName ?? string.Empty,
+                CreatedAt = item.user.CreatedAt,
+                DocumentType = item.kyc?.DocumentType,
+                KycStatus = item.kyc?.Status ?? LandlordKycStatusEnum.NotStarted,
+                KycSubmittedAt = item.kyc?.SubmittedAt,
+                PlatformTermsAccepted = item.user.PlatformTermsAccepted,
+                PlatformTermsAcceptedAt = item.user.PlatformTermsAcceptedAt
+            }));
         }
 
         [HttpGet("management-permissions")]
@@ -94,14 +165,58 @@ namespace RentHub.API.Controllers
             }
 
             var roles = (await _userManager.GetRolesAsync(user)).ToList();
-            var status = BuildStatusDto(user, roles);
+            var kyc = await _context.LandlordKycProfiles
+                .AsNoTracking()
+                .Include(p => p.ReviewedBy)
+                .FirstOrDefaultAsync(p => p.UserId == user.Id);
+            var status = BuildStatusDto(user, roles, kyc);
 
             return Ok(new AdminUserOverviewDto
             {
                 User = status,
+                Kyc = BuildKycSummary(kyc, user.Id),
                 OtpCodes = await BuildOtpDtosAsync(user),
                 Steps = BuildStepDtos(status)
             });
+        }
+
+        [HttpGet("{userId}/kyc-file/{key}")]
+        public async Task<IActionResult> GetKycFile(string userId, string key)
+        {
+            var profile = await _context.LandlordKycProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.UserId == userId);
+
+            if (profile == null)
+            {
+                return NotFound("KYC profile was not found.");
+            }
+
+            var media = ResolveKycFile(profile, key);
+            if (media == null)
+            {
+                return NotFound("KYC file was not found.");
+            }
+
+            var readUrl = await _kycFileStorageService.GetReadUrlAsync(media.Value.Path, TimeSpan.FromMinutes(20));
+            if (string.IsNullOrWhiteSpace(readUrl))
+            {
+                return NotFound("KYC file content was not found.");
+            }
+
+            return Redirect(readUrl);
+        }
+
+        [HttpPost("{userId}/kyc/approve")]
+        public async Task<IActionResult> ApproveKyc(string userId, [FromBody] KycReviewRequest request)
+        {
+            return await ReviewKycAsync(userId, LandlordKycStatusEnum.Approved, request);
+        }
+
+        [HttpPost("{userId}/kyc/reject")]
+        public async Task<IActionResult> RejectKyc(string userId, [FromBody] KycReviewRequest request)
+        {
+            return await ReviewKycAsync(userId, LandlordKycStatusEnum.Rejected, request);
         }
 
         [HttpGet("{userId}/otp-status")]
@@ -155,6 +270,10 @@ namespace RentHub.API.Controllers
                 user.WhatsAppPhoneNumber = null;
                 user.IsWhatsAppPhoneVerified = false;
                 user.WhatsAppPhoneVerifiedAt = null;
+                user.PlatformTermsAccepted = false;
+                user.PlatformTermsAcceptedAt = null;
+                user.PlatformTermsSignatureName = null;
+                user.PlatformTermsVersion = null;
 
                 await _userManager.UpdateSecurityStampAsync(user);
 
@@ -169,6 +288,14 @@ namespace RentHub.API.Controllers
                     await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, code);
                     await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, expiry);
                 }
+
+                var kycFileUrls = await GetKycFileUrlsForUserAsync(userId);
+
+                await _context.LandlordKycProfiles
+                    .Where(p => p.UserId == userId)
+                    .ExecuteDeleteAsync();
+
+                await _kycFileStorageService.DeleteFilesAsync(kycFileUrls);
 
                 return Ok(new { Message = "Validation state restarted. Email and name were kept." });
             }
@@ -214,6 +341,7 @@ namespace RentHub.API.Controllers
             }
 
             var deletedUserLabel = user.Email ?? user.UserName ?? user.Id;
+            var kycFileUrls = await GetKycFileUrlsForUserAsync(userId);
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
@@ -229,6 +357,7 @@ namespace RentHub.API.Controllers
 
                 await transaction.CommitAsync();
                 await DeleteDocumentFilesAsync(documentBlobUrls, userId);
+                await _kycFileStorageService.DeleteFilesAsync(kycFileUrls);
 
                 _logger.LogWarning(
                     "Master admin {AdminUserId} deleted user {DeletedUserLabel} ({DeletedUserId}) and related records.",
@@ -250,9 +379,60 @@ namespace RentHub.API.Controllers
             }
         }
 
-        private static AdminUserVerificationStatusDto BuildStatusDto(ApplicationUser user, List<string> roles)
+        private async Task<IActionResult> ReviewKycAsync(string userId, LandlordKycStatusEnum status, KycReviewRequest? request)
         {
-            var nextStep = ResolveLandlordOnboardingStep(user, roles);
+            var currentUserId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return Forbid();
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound("User was not found.");
+            }
+
+            var profile = await _context.LandlordKycProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+            if (profile == null)
+            {
+                return NotFound("KYC profile was not found.");
+            }
+
+            var note = string.IsNullOrWhiteSpace(request?.Note) ? null : request.Note.Trim();
+            if (status == LandlordKycStatusEnum.Rejected)
+            {
+                if (string.IsNullOrWhiteSpace(note))
+                {
+                    return BadRequest("Provide a rejection reason so the landlord knows what to correct.");
+                }
+
+                ApplyKycRejectedFiles(profile, request);
+                if (!HasRejectedKycFileFlags(profile))
+                {
+                    return BadRequest("Select at least one rejected KYC file or choose reject all.");
+                }
+            }
+            else
+            {
+                ClearKycRejectionFlags(profile);
+            }
+
+            profile.Status = status;
+            profile.ReviewedById = currentUserId;
+            profile.ReviewedAt = DateTimeOffset.UtcNow;
+            profile.ReviewNote = note;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await SendKycReviewEmailAsync(user, status, note);
+
+            return Ok(new { Message = status == LandlordKycStatusEnum.Approved ? "KYC approved." : "KYC rejected." });
+        }
+
+        private static AdminUserVerificationStatusDto BuildStatusDto(ApplicationUser user, List<string> roles, LandlordKycProfile? kycProfile)
+        {
+            var nextStep = ResolveLandlordOnboardingStep(user, roles, kycProfile);
             return new AdminUserVerificationStatusDto
             {
                 UserId = user.Id,
@@ -273,6 +453,17 @@ namespace RentHub.API.Controllers
                 WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
                 IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
                 WhatsAppPhoneVerifiedAt = user.WhatsAppPhoneVerifiedAt,
+                KycDocumentType = kycProfile?.DocumentType,
+                KycStatus = kycProfile?.Status ?? LandlordKycStatusEnum.NotStarted,
+                IsKycSubmitted = kycProfile?.Status is LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved,
+                IsKycApproved = kycProfile?.Status == LandlordKycStatusEnum.Approved,
+                KycSubmittedAt = kycProfile?.SubmittedAt,
+                KycReviewedAt = kycProfile?.ReviewedAt,
+                KycReviewNote = kycProfile?.ReviewNote,
+                KycRejectedFiles = BuildRejectedFiles(kycProfile),
+                PlatformTermsAccepted = user.PlatformTermsAccepted,
+                PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
+                PlatformTermsSignatureName = user.PlatformTermsSignatureName,
                 CreatedAt = user.CreatedAt,
                 Roles = roles,
                 NextOnboardingStep = nextStep,
@@ -459,6 +650,10 @@ namespace RentHub.API.Controllers
                 .Where(us => us.UserId == userId)
                 .ExecuteDeleteAsync();
 
+            await _context.LandlordKycProfiles
+                .Where(p => p.UserId == userId)
+                .ExecuteDeleteAsync();
+
             await _context.Apartments
                 .IgnoreQueryFilters()
                 .Where(a => ownedApartmentIds.Contains(a.Id))
@@ -489,6 +684,156 @@ namespace RentHub.API.Controllers
                         blobUrl);
                 }
             }
+        }
+
+        private async Task<List<string>> GetKycFileUrlsForUserAsync(string userId)
+        {
+            var profile = await _context.LandlordKycProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.UserId == userId);
+
+            return CollectKycFileUrls(profile);
+        }
+
+        private static List<string> CollectKycFileUrls(LandlordKycProfile? profile)
+        {
+            if (profile == null)
+            {
+                return new List<string>();
+            }
+
+            return new[]
+                {
+                    profile.FaceFrontPath,
+                    profile.FaceRightPath,
+                    profile.FaceLeftPath,
+                    profile.DocumentFrontPath,
+                    profile.DocumentBackPath
+                }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!)
+                .Distinct()
+                .ToList();
+        }
+
+        private void ApplyKycRejectedFiles(LandlordKycProfile profile, KycReviewRequest? request)
+        {
+            var rejectAll = request?.RejectAllFiles == true;
+            var documentBackAllowed = RequiresDocumentBack(profile.DocumentType) && !string.IsNullOrWhiteSpace(profile.DocumentBackPath);
+
+            profile.RejectFaceFront = rejectAll || request?.RejectFaceFront == true;
+            profile.RejectFaceRight = rejectAll || request?.RejectFaceRight == true;
+            profile.RejectFaceLeft = rejectAll || request?.RejectFaceLeft == true;
+            profile.RejectDocumentFront = rejectAll || request?.RejectDocumentFront == true;
+            profile.RejectDocumentBack = documentBackAllowed && (rejectAll || request?.RejectDocumentBack == true);
+        }
+
+        private static void ClearKycRejectionFlags(LandlordKycProfile profile)
+        {
+            profile.RejectFaceFront = false;
+            profile.RejectFaceRight = false;
+            profile.RejectFaceLeft = false;
+            profile.RejectDocumentFront = false;
+            profile.RejectDocumentBack = false;
+        }
+
+        private static bool HasRejectedKycFileFlags(LandlordKycProfile profile)
+        {
+            return profile.RejectFaceFront
+                || profile.RejectFaceRight
+                || profile.RejectFaceLeft
+                || profile.RejectDocumentFront
+                || (profile.RejectDocumentBack && RequiresDocumentBack(profile.DocumentType));
+        }
+
+        private static LandlordKycRejectedFilesDto BuildRejectedFiles(LandlordKycProfile? profile)
+        {
+            if (profile == null)
+            {
+                return new LandlordKycRejectedFilesDto();
+            }
+
+            return new LandlordKycRejectedFilesDto
+            {
+                FaceFront = profile.RejectFaceFront,
+                FaceRight = profile.RejectFaceRight,
+                FaceLeft = profile.RejectFaceLeft,
+                DocumentFront = profile.RejectDocumentFront,
+                DocumentBack = profile.RejectDocumentBack && RequiresDocumentBack(profile.DocumentType)
+            };
+        }
+
+        private static bool RequiresDocumentBack(KycDocumentTypeEnum documentType)
+        {
+            return documentType is KycDocumentTypeEnum.NationalId
+                or KycDocumentTypeEnum.DriverLicense
+                or KycDocumentTypeEnum.ResidencePermit
+                or KycDocumentTypeEnum.Other;
+        }
+
+        private async Task SendKycReviewEmailAsync(ApplicationUser user, LandlordKycStatusEnum status, string? note)
+        {
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                return;
+            }
+
+            var subject = status == LandlordKycStatusEnum.Approved
+                ? "Your Lontsi Homes identity verification was approved"
+                : "Your Lontsi Homes identity verification needs correction";
+
+            var link = status == LandlordKycStatusEnum.Approved
+                ? BuildPortalUrl("/Properties")
+                : BuildPortalUrl($"/Auth/LandlordKyc?email={Uri.EscapeDataString(user.Email)}");
+
+            var lines = status == LandlordKycStatusEnum.Approved
+                ? new[]
+                {
+                    $"Hello {ResolveDisplayName(user)},",
+                    string.Empty,
+                    "Your identity verification has been approved.",
+                    "You can now continue to the properties workspace:",
+                    link,
+                    string.Empty,
+                    "Lontsi Homes"
+                }
+                : new[]
+                {
+                    $"Hello {ResolveDisplayName(user)},",
+                    string.Empty,
+                    "Your identity verification was rejected and needs correction.",
+                    $"Reason: {note}",
+                    string.Empty,
+                    "Use this link to upload the corrected KYC file(s):",
+                    link,
+                    string.Empty,
+                    "Lontsi Homes"
+                };
+
+            await _emailService.SendEmailAsync(user.Email, subject, string.Join(Environment.NewLine, lines));
+        }
+
+        private string BuildPortalUrl(string pathAndQuery)
+        {
+            var configuredBaseUrl =
+                _configuration["Portal:BaseUrl"] ??
+                _configuration["Portal:Domain"] ??
+                _configuration["PORTAL_DOMAIN"] ??
+                "https://lontsihomes.com";
+
+            var baseUrl = configuredBaseUrl.Trim().TrimEnd('/');
+            if (!baseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                baseUrl = $"https://{baseUrl}";
+            }
+
+            return $"{baseUrl}/{pathAndQuery.TrimStart('/')}";
+        }
+
+        private static string ResolveDisplayName(ApplicationUser user)
+        {
+            return string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName.Trim();
         }
 
         private async Task<List<AdminUserOtpDto>> BuildOtpDtosAsync(ApplicationUser user)
@@ -574,6 +919,9 @@ namespace RentHub.API.Controllers
                 CreateStep(LandlordOnboardingSteps.Phone, "Primary phone verified", "The landlord confirms the SMS OTP for the primary phone.", !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Phone, status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP."),
                 CreateStep(LandlordOnboardingSteps.MobilePayments, "Mobile money configured", "Subscription and rent payout numbers are selected with MTN or Orange Money.", hasSubscriptionPaymentDetails && hasPayoutDetails, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePayments, MobileMoneyDetails(status)),
                 CreateStep(LandlordOnboardingSteps.MobilePaymentVerification, "Payment numbers verified", "Every distinct mobile transaction number is validated by OTP.", mobilePaymentVerificationComplete, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePaymentVerification, MobileVerificationDetails(status)),
+                CreateStep(LandlordOnboardingSteps.Kyc, "Identity documents submitted", "The landlord uploads three face photos and ID document images for admin review.", status.IsKycSubmitted, status.NextOnboardingStep == LandlordOnboardingSteps.Kyc, KycDetails(status)),
+                CreateStep("kyc-approval", "Identity review approved", "An admin approves the submitted identity information before payments are unlocked.", status.IsKycApproved, false, status.IsKycApproved ? "KYC approved." : $"KYC status: {status.KycStatus}."),
+                CreateStep(LandlordOnboardingSteps.Contract, "Platform contract signed", "The landlord accepts the platform terms and signs with their full name.", status.PlatformTermsAccepted, status.NextOnboardingStep == LandlordOnboardingSteps.Contract, status.PlatformTermsAccepted ? $"Signed by {status.PlatformTermsSignatureName}" : "Waiting for signature."),
                 CreateStep(LandlordOnboardingSteps.Complete, "Registration ready", "The landlord can continue into the authenticated workspace.", status.IsOnboardingComplete, status.NextOnboardingStep == LandlordOnboardingSteps.Complete, status.IsOnboardingComplete ? "All required steps are complete." : "Some verification work remains.")
             };
         }
@@ -731,6 +1079,16 @@ namespace RentHub.API.Controllers
             return $"Subscription: {(status.IsSubscriptionPaymentPhoneVerified ? "verified" : "pending")}. Payout: {(status.IsPayoutPhoneVerified ? "verified" : "pending")}. {whatsApp}.";
         }
 
+        private static string KycDetails(AdminUserVerificationStatusDto status)
+        {
+            if (!status.IsKycSubmitted)
+            {
+                return "Waiting for KYC upload.";
+            }
+
+            return $"KYC status: {status.KycStatus}. Manual admin review required.";
+        }
+
         private static string ChannelLabel(PayoutChannelEnum? channel)
         {
             return channel switch
@@ -741,7 +1099,70 @@ namespace RentHub.API.Controllers
             };
         }
 
-        private static string ResolveLandlordOnboardingStep(ApplicationUser user, IReadOnlyCollection<string> roles)
+        private static LandlordKycSummaryDto? BuildKycSummary(LandlordKycProfile? profile, string userId)
+        {
+            if (profile == null)
+            {
+                return null;
+            }
+
+            var summary = new LandlordKycSummaryDto
+            {
+                HasProfile = true,
+                DocumentType = profile.DocumentType,
+                Status = profile.Status,
+                SubmittedAt = profile.SubmittedAt,
+                ReviewedAt = profile.ReviewedAt,
+                ReviewedByName = profile.ReviewedBy?.FullName ?? profile.ReviewedBy?.Email,
+                ReviewNote = profile.ReviewNote,
+                RejectedFiles = BuildRejectedFiles(profile)
+            };
+
+            AddKycMedia(summary, userId, "face-front", "Face - front", profile.FaceFrontOriginalFileName, profile.FaceFrontContentType);
+            AddKycMedia(summary, userId, "face-right", "Face - looking right", profile.FaceRightOriginalFileName, profile.FaceRightContentType);
+            AddKycMedia(summary, userId, "face-left", "Face - looking left", profile.FaceLeftOriginalFileName, profile.FaceLeftContentType);
+            AddKycMedia(summary, userId, "document-front", "Document front", profile.DocumentFrontOriginalFileName, profile.DocumentFrontContentType);
+            if (!string.IsNullOrWhiteSpace(profile.DocumentBackPath))
+            {
+                AddKycMedia(summary, userId, "document-back", "Document back", profile.DocumentBackOriginalFileName ?? string.Empty, profile.DocumentBackContentType ?? string.Empty);
+            }
+
+            return summary;
+        }
+
+        private static void AddKycMedia(
+            LandlordKycSummaryDto summary,
+            string userId,
+            string key,
+            string label,
+            string originalFileName,
+            string contentType)
+        {
+            summary.Media.Add(new LandlordKycMediaDto
+            {
+                Key = key,
+                Label = label,
+                OriginalFileName = originalFileName,
+                ContentType = contentType,
+                IsImage = !string.IsNullOrWhiteSpace(contentType) && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase),
+                Url = $"AdminUsers/{Uri.EscapeDataString(userId)}/kyc-file/{Uri.EscapeDataString(key)}"
+            });
+        }
+
+        private static (string Path, string ContentType, string OriginalFileName)? ResolveKycFile(LandlordKycProfile profile, string key)
+        {
+            return key switch
+            {
+                "face-front" => (profile.FaceFrontPath, profile.FaceFrontContentType, profile.FaceFrontOriginalFileName),
+                "face-right" => (profile.FaceRightPath, profile.FaceRightContentType, profile.FaceRightOriginalFileName),
+                "face-left" => (profile.FaceLeftPath, profile.FaceLeftContentType, profile.FaceLeftOriginalFileName),
+                "document-front" => (profile.DocumentFrontPath, profile.DocumentFrontContentType, profile.DocumentFrontOriginalFileName),
+                "document-back" when !string.IsNullOrWhiteSpace(profile.DocumentBackPath) => (profile.DocumentBackPath, profile.DocumentBackContentType ?? string.Empty, profile.DocumentBackOriginalFileName ?? string.Empty),
+                _ => null
+            };
+        }
+
+        private static string ResolveLandlordOnboardingStep(ApplicationUser user, IReadOnlyCollection<string> roles, LandlordKycProfile? kycProfile)
         {
             if (roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
             {
@@ -780,6 +1201,16 @@ namespace RentHub.API.Controllers
             if (!user.IsSubscriptionPaymentPhoneVerified || !user.IsPayoutPhoneVerified || !whatsAppReady)
             {
                 return LandlordOnboardingSteps.MobilePaymentVerification;
+            }
+
+            if (kycProfile?.Status is not (LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved))
+            {
+                return LandlordOnboardingSteps.Kyc;
+            }
+
+            if (!user.PlatformTermsAccepted)
+            {
+                return LandlordOnboardingSteps.Contract;
             }
 
             return LandlordOnboardingSteps.Complete;

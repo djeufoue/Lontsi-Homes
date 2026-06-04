@@ -460,6 +460,182 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
+        public async Task<IActionResult> LandlordKyc(string? email = null, string? returnUrl = null)
+        {
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null &&
+                status.NextStep is LandlordOnboardingSteps.Email
+                    or LandlordOnboardingSteps.Phone
+                    or LandlordOnboardingSteps.MobilePayments
+                    or LandlordOnboardingSteps.MobilePaymentVerification)
+            {
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+            }
+
+            if (status != null && status.IsKycApproved && status.PlatformTermsAccepted)
+            {
+                return User.Identity?.IsAuthenticated == true
+                    ? RedirectToLocal(returnUrl)
+                    : RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            return View(new LandlordKycVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                DocumentType = status?.KycDocumentType ?? KycDocumentTypeEnum.NationalId,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LandlordKyc(LandlordKycVm vm)
+        {
+            vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+            var isPartialResubmission =
+                vm.Status?.KycStatus == LandlordKycStatusEnum.Rejected &&
+                vm.Status.KycDocumentType == vm.DocumentType &&
+                vm.Status.KycRejectedFiles.Any;
+
+            var requireFaceFront = !isPartialResubmission || vm.Status!.KycRejectedFiles.FaceFront;
+            var requireFaceRight = !isPartialResubmission || vm.Status!.KycRejectedFiles.FaceRight;
+            var requireFaceLeft = !isPartialResubmission || vm.Status!.KycRejectedFiles.FaceLeft;
+            var requireDocumentFront = !isPartialResubmission || vm.Status!.KycRejectedFiles.DocumentFront;
+            var requireDocumentBack = DocumentBackRequired(vm.DocumentType) &&
+                (!isPartialResubmission || vm.Status!.KycRejectedFiles.DocumentBack);
+
+            if (requireFaceFront && vm.FaceFront == null)
+                ModelState.AddModelError(nameof(vm.FaceFront), "Upload a front-facing photo.");
+            if (requireFaceRight && vm.FaceRight == null)
+                ModelState.AddModelError(nameof(vm.FaceRight), "Upload a photo looking right.");
+            if (requireFaceLeft && vm.FaceLeft == null)
+                ModelState.AddModelError(nameof(vm.FaceLeft), "Upload a photo looking left.");
+            if (requireDocumentFront && vm.DocumentFront == null)
+                ModelState.AddModelError(nameof(vm.DocumentFront), "Upload the front of your ID document.");
+            if (requireDocumentBack && vm.DocumentBack == null)
+                ModelState.AddModelError(nameof(vm.DocumentBack), "Upload the back of this document type.");
+
+            if (!ModelState.IsValid)
+            {
+                return View(vm);
+            }
+
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                content.Add(new StringContent(vm.Email), "email");
+                content.Add(new StringContent(((int)vm.DocumentType!.Value).ToString()), "documentType");
+                AddFileIfPresent(content, vm.FaceFront, "faceFront");
+                AddFileIfPresent(content, vm.FaceRight, "faceRight");
+                AddFileIfPresent(content, vm.FaceLeft, "faceLeft");
+                AddFileIfPresent(content, vm.DocumentFront, "documentFront");
+                if (vm.DocumentBack != null)
+                {
+                    AddFile(content, vm.DocumentBack, "documentBack");
+                }
+
+                var res = await _api.PostAnonymousMultipartAsync<JsonElement>("Account/landlord-registration/kyc", content);
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Identity verification submitted.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LandlordKyc failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to submit identity verification right now."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> LandlordContract(string? email = null, string? returnUrl = null)
+        {
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null && status.NextStep != LandlordOnboardingSteps.Contract && status.NextStep != LandlordOnboardingSteps.Complete)
+            {
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+            }
+
+            if (status?.PlatformTermsAccepted == true)
+            {
+                return User.Identity?.IsAuthenticated == true
+                    ? RedirectToLocal(returnUrl)
+                    : RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            return View(new LandlordContractVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                SignatureName = status?.FullName ?? string.Empty,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LandlordContract(LandlordContractVm vm)
+        {
+            if (!vm.Accepted)
+                ModelState.AddModelError(nameof(vm.Accepted), "Accept the platform terms before signing.");
+
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new SubmitLandlordContractRequest
+                {
+                    Email = vm.Email,
+                    Accepted = vm.Accepted,
+                    SignatureName = vm.SignatureName
+                };
+
+                var res = await _api.PostAnonymousAsync<SubmitLandlordContractRequest, JsonElement>("Account/landlord-registration/contract", req);
+                if (TryGetPropertyIgnoreCase(res, "token", out var tokenElement) && !string.IsNullOrWhiteSpace(tokenElement.GetString()))
+                {
+                    await _authSession.PersistTokenAsync(tokenElement.GetString()!);
+                    TempData["Success"] = ReadString(res, "message") ?? "Welcome to Lontsi Homes.";
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Contract signed.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LandlordContract failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to save your contract signature right now."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
         public IActionResult RegisterVisitor(string? returnUrl = null)
         {
             TempData["AuthInfo"] = "Visitor messaging is temporarily hidden while we focus on the first release.";
@@ -821,9 +997,38 @@ namespace RentHub.Portal.Controllers
                 LandlordOnboardingSteps.Phone => RedirectToAction(nameof(VerifyLandlordPhone), route),
                 LandlordOnboardingSteps.MobilePayments => RedirectToAction(nameof(LandlordMobilePayments), route),
                 LandlordOnboardingSteps.MobilePaymentVerification => RedirectToAction(nameof(VerifyLandlordMobilePayments), route),
+                LandlordOnboardingSteps.Kyc => RedirectToAction(nameof(LandlordKyc), route),
+                LandlordOnboardingSteps.Contract => RedirectToAction(nameof(LandlordContract), route),
                 LandlordOnboardingSteps.Complete => RedirectToAction(nameof(Login), new { returnUrl }),
                 _ => RedirectToAction(nameof(VerifyLandlordEmail), route)
             };
+        }
+
+        private static void AddFile(MultipartFormDataContent content, IFormFile file, string name)
+        {
+            var streamContent = new StreamContent(file.OpenReadStream());
+            if (!string.IsNullOrWhiteSpace(file.ContentType))
+            {
+                streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            }
+
+            content.Add(streamContent, name, file.FileName);
+        }
+
+        private static void AddFileIfPresent(MultipartFormDataContent content, IFormFile? file, string name)
+        {
+            if (file != null)
+            {
+                AddFile(content, file, name);
+            }
+        }
+
+        private static bool DocumentBackRequired(KycDocumentTypeEnum? documentType)
+        {
+            return documentType is KycDocumentTypeEnum.NationalId
+                or KycDocumentTypeEnum.DriverLicense
+                or KycDocumentTypeEnum.ResidencePermit
+                or KycDocumentTypeEnum.Other;
         }
 
         private static string? ReadString(JsonElement element, string propertyName)

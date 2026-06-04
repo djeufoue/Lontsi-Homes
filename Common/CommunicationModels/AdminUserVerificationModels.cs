@@ -24,6 +24,17 @@ namespace Common.CommunicationModels
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
         public DateTimeOffset? WhatsAppPhoneVerifiedAt { get; set; }
+        public KycDocumentTypeEnum? KycDocumentType { get; set; }
+        public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
+        public bool IsKycSubmitted { get; set; }
+        public bool IsKycApproved { get; set; }
+        public DateTimeOffset? KycSubmittedAt { get; set; }
+        public DateTimeOffset? KycReviewedAt { get; set; }
+        public string? KycReviewNote { get; set; }
+        public LandlordKycRejectedFilesDto KycRejectedFiles { get; set; } = new();
+        public bool PlatformTermsAccepted { get; set; }
+        public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
+        public string? PlatformTermsSignatureName { get; set; }
         public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsOnboardingComplete { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
@@ -33,6 +44,7 @@ namespace Common.CommunicationModels
     public class AdminUserOverviewDto
     {
         public AdminUserVerificationStatusDto User { get; set; } = new();
+        public LandlordKycSummaryDto? Kyc { get; set; }
         public List<AdminUserOtpDto> OtpCodes { get; set; } = new();
         public List<AdminUserOnboardingStepDto> Steps { get; set; } = new();
     }

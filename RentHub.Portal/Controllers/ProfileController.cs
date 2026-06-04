@@ -26,18 +26,28 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
-                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-                return View(new ProfileIndexVm
-                {
-                    Overview = overview,
-                    NowUtc = DateTimeOffset.UtcNow
-                });
+                return View(await BuildProfileIndexVmAsync());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to load profile overview in Portal");
                 TempData["Error"] = "Unable to load your profile right now. Please try again.";
                 return RedirectToAction("Index", "Home");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Payments()
+        {
+            try
+            {
+                return View(await BuildProfileIndexVmAsync());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load payment center in Portal");
+                TempData["Error"] = "Unable to load your payment center right now. Please try again.";
+                return RedirectToAction(nameof(Index));
             }
         }
 
@@ -48,7 +58,7 @@ namespace RentHub.Portal.Controllers
             if (planId <= 0)
             {
                 TempData["Error"] = "Please choose a valid subscription plan.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Payments));
             }
 
             try
@@ -70,7 +80,7 @@ namespace RentHub.Portal.Controllers
                     "Unable to update your subscription right now. Please try again.");
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Payments));
         }
 
         [HttpPost]
@@ -97,7 +107,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Success"] = string.IsNullOrWhiteSpace(session.PaymentInstructions)
                     ? "Payment request sent. Confirm it on your phone to activate your subscription."
                     : session.PaymentInstructions;
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Payments));
             }
             catch (Exception ex)
             {
@@ -108,7 +118,7 @@ namespace RentHub.Portal.Controllers
                     apiMessage,
                     "Unable to initialize the subscription payment right now. Please try again.");
 
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Payments));
             }
         }
 
@@ -118,7 +128,7 @@ namespace RentHub.Portal.Controllers
             if (string.IsNullOrWhiteSpace(reference))
             {
                 TempData["Error"] = "Subscription payment reference is missing.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Payments));
             }
 
             try
@@ -136,7 +146,7 @@ namespace RentHub.Portal.Controllers
                     "Unable to verify the subscription payment right now. Please refresh your profile in a moment.");
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Payments));
         }
 
         [HttpGet]
@@ -181,6 +191,16 @@ namespace RentHub.Portal.Controllers
             }
 
             return null;
+        }
+
+        private async Task<ProfileIndexVm> BuildProfileIndexVmAsync()
+        {
+            var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+            return new ProfileIndexVm
+            {
+                Overview = overview,
+                NowUtc = DateTimeOffset.UtcNow
+            };
         }
 
         private static string? ParseApiMessage(string raw)

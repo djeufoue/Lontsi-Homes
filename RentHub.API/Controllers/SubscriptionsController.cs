@@ -213,6 +213,35 @@ namespace RentHub.API.Controllers
                     return Unauthorized();
                 }
 
+                if (User.IsInRole("Landlord"))
+                {
+                    var kycProfile = await _context.LandlordKycProfiles
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.UserId == userId);
+
+                    if (kycProfile?.Status != LandlordKycStatusEnum.Approved)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            Code = "KYC_APPROVAL_REQUIRED",
+                            Message = kycProfile == null
+                                ? "Submit identity verification before paying for a subscription."
+                                : kycProfile.Status == LandlordKycStatusEnum.Rejected
+                                    ? "Identity verification was rejected. Submit corrected documents before subscribing."
+                                    : "Identity verification is waiting for admin approval before payments are unlocked."
+                        });
+                    }
+
+                    if (!user.PlatformTermsAccepted)
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            Code = "PLATFORM_TERMS_REQUIRED",
+                            Message = "Sign the platform contract before paying for a subscription."
+                        });
+                    }
+                }
+
                 var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == planId && !p.IsDeleted);
                 if (plan == null)
                 {

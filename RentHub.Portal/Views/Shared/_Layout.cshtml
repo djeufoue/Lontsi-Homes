@@ -12,9 +12,14 @@
     var isMarketingPage = isHome;
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
     var isMessages = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
-    var isSubscriptionsAdmin = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
+    var isAdminSubscriptionsController = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
+    var isSubscriptionsAdmin = isAdminSubscriptionsController && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
+    var isAdminPaymentAccounts = isAdminSubscriptionsController && string.Equals(currentAction, "PaymentAccounts", StringComparison.OrdinalIgnoreCase);
     var isUsersAdmin = string.Equals(currentController, "AdminUsers", StringComparison.OrdinalIgnoreCase);
+    var isKycApprovals = isUsersAdmin && string.Equals(currentAction, "LandlordApprovals", StringComparison.OrdinalIgnoreCase);
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
+    var isProfileHome = isProfile && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
+    var isProfilePayments = isProfile && string.Equals(currentAction, "Payments", StringComparison.OrdinalIgnoreCase);
 
     var userPrincipal = User;
     var isAuthenticated = userPrincipal?.Identity?.IsAuthenticated == true;
@@ -22,6 +27,7 @@
     var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
     var showSidebar = isAuthenticated && !isMarketingPage;
     var canSeeProfile = isAuthenticated && userPrincipal?.IsInRole("Visitor") != true;
+    var canSeePaymentCenter = canSeeProfile && userPrincipal?.IsInRole("Landlord") == true;
 
     var userName = User?.Identity?.Name;
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
@@ -105,9 +111,17 @@
                                 <span class="rh-nav-icon">&#9881;</span>
                                 <span>Subscriptions</span>
                             </a>
-                            <a class="rh-nav-link @(isUsersAdmin ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
+                            <a class="rh-nav-link @(isAdminPaymentAccounts ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">
+                                <span class="rh-nav-icon">&#9635;</span>
+                                <span>Payment Accounts</span>
+                            </a>
+                            <a class="rh-nav-link @(isUsersAdmin && !isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
                                 <span class="rh-nav-icon">&#9711;</span>
                                 <span>User Validation</span>
+                            </a>
+                            <a class="rh-nav-link @(isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="LandlordApprovals">
+                                <span class="rh-nav-icon">&#9678;</span>
+                                <span>KYC Approvals</span>
                             </a>
                         }
                     </nav>
@@ -118,10 +132,17 @@
                     <div class="rh-sidebar-section rh-sidebar-section-muted">
                         <p class="rh-sidebar-section-label">Account</p>
                         <nav class="rh-nav rh-nav-secondary">
-                            <a class="rh-nav-link @(isProfile ? "active" : null)" asp-controller="Profile" asp-action="Index">
+                            <a class="rh-nav-link @(isProfileHome ? "active" : null)" asp-controller="Profile" asp-action="Index">
                                 <span class="rh-nav-icon">&#9673;</span>
                                 <span>Profile</span>
                             </a>
+                            @if (canSeePaymentCenter)
+                            {
+                                <a class="rh-nav-link @(isProfilePayments ? "active" : null)" asp-controller="Profile" asp-action="Payments">
+                                    <span class="rh-nav-icon">&#9635;</span>
+                                    <span>Payments</span>
+                                </a>
+                            }
                         </nav>
                     </div>
                 }
