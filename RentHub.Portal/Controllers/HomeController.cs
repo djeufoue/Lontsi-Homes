@@ -5,11 +5,20 @@ using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Auth;
 using RentHub.Portal.ViewModels.Home;
 using System.Diagnostics;
+using System.Net.Http;
+using System.Net.Sockets;
 
 namespace RentHub.Portal.Controllers
 {
     public class HomeController : Controller
     {
+        private static readonly TimeSpan[] PublicPlansStartupRetryDelays =
+        {
+            TimeSpan.FromMilliseconds(400),
+            TimeSpan.FromMilliseconds(900),
+            TimeSpan.FromMilliseconds(1500)
+        };
+
         private readonly ILogger<HomeController> _logger;
         private readonly RentHubApiClient _api;
         private readonly IConfiguration _configuration;
@@ -32,7 +41,15 @@ namespace RentHub.Portal.Controllers
 
             try
             {
-                vm.Plans = await _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
+                vm.Plans = await LoadPublicSubscriptionPlansAsync();
+            }
+            catch (HttpRequestException ex) when (IsApiStillStarting(ex))
+            {
+                _logger.LogWarning(ex, "Public subscription plans are unavailable while the API is starting.");
+            }
+            catch (TaskCanceledException ex)
+            {
+                _logger.LogWarning(ex, "Timed out while loading public subscription plans.");
             }
             catch (Exception ex)
             {
@@ -41,6 +58,31 @@ namespace RentHub.Portal.Controllers
             }
 
             return View(vm);
+        }
+
+        private async Task<List<SubscriptionPlanOptionVm>> LoadPublicSubscriptionPlansAsync()
+        {
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    return await _api.GetAnonymousAsync<List<SubscriptionPlanOptionVm>>("Subscriptions/plans");
+                }
+                catch (HttpRequestException ex) when (IsApiStillStarting(ex) && attempt < PublicPlansStartupRetryDelays.Length)
+                {
+                    await Task.Delay(PublicPlansStartupRetryDelays[attempt]);
+                }
+                catch (TaskCanceledException) when (attempt < PublicPlansStartupRetryDelays.Length)
+                {
+                    await Task.Delay(PublicPlansStartupRetryDelays[attempt]);
+                }
+            }
+        }
+
+        private static bool IsApiStillStarting(HttpRequestException ex)
+        {
+            return ex.GetBaseException() is SocketException socketException &&
+                   socketException.SocketErrorCode == SocketError.ConnectionRefused;
         }
 
         [AllowAnonymous]
