@@ -1822,6 +1822,154 @@ body.rh-auth-body {
   word-break: break-word;
 }
 
+.rh-mobile-pending-banner {
+  border-color: #f2d58a;
+  background: #fff7dc;
+  color: #765707;
+  font-weight: 700;
+}
+
+.rh-payment-phone-section.is-pending {
+  border-color: #f3c2c8;
+  background: #fff8f8;
+}
+
+.rh-payment-pending-note {
+  margin-top: 0.6rem;
+  color: #b42336;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rh-mini-label {
+  color: var(--rh-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.rh-otp-form {
+  margin-top: 0.65rem;
+}
+
+.rh-otp-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.rh-otp-input-row .btn,
+.rh-otp-resend-form .btn {
+  white-space: nowrap;
+}
+
+.rh-otp-resend-form {
+  margin-top: 0.55rem;
+}
+
+.modal-backdrop.rh-mobile-money-backdrop.show {
+  opacity: 0.82;
+}
+
+.rh-mobile-money-modal .modal-content {
+  border: 1px solid rgba(14, 45, 70, 0.12);
+  border-radius: 0.9rem;
+  box-shadow: 0 24px 80px rgba(3, 18, 34, 0.38);
+}
+
+.rh-mobile-money-modal .modal-header,
+.rh-mobile-money-modal .modal-footer {
+  border-color: var(--rh-border);
+}
+
+.rh-mobile-money-modal .modal-title {
+  color: var(--rh-ink);
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.rh-modal-warning {
+  margin: 0 0 0.9rem;
+  color: #b42336;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.rh-mobile-money-choice {
+  border: 1px solid var(--rh-border);
+  border-radius: 0.85rem;
+  background: #f8fbff;
+  padding: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.rh-mobile-money-single {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.rh-current-phone-card {
+  border: 1px solid #cfe1dd;
+  border-radius: 0.8rem;
+  background: #f5fbf9;
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.rh-current-phone-card span {
+  color: var(--rh-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rh-current-phone-card strong {
+  color: var(--rh-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.rh-current-phone-card small {
+  color: var(--rh-muted);
+}
+
+.rh-phone-input-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.rh-country-code-block {
+  border: 1px solid #c8d8e4;
+  border-right: 0;
+  border-radius: 0.55rem 0 0 0.55rem;
+  background: #edf5f3;
+  color: var(--rh-ink);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  font-weight: 800;
+}
+
+.rh-phone-input-group .form-control {
+  border-radius: 0 0.55rem 0.55rem 0;
+}
+
+.rh-otp-send-panel,
+.rh-otp-panel {
+  border: 1px solid #f2d1d6;
+  border-radius: 0.8rem;
+  background: #fff8f8;
+  color: #9f1f32;
+  padding: 0.75rem 0.85rem;
+}
+
 .rh-profile-plan-banner {
   border: 1px solid #b8d8cf;
   background: linear-gradient(130deg, #f4fcf9 0%, #eef6ff 100%);
@@ -1881,8 +2029,9 @@ body.rh-auth-body {
 
 .rh-profile-plan-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 0.85rem;
+  align-items: stretch;
 }
 
 .rh-profile-plan-card {
@@ -1891,6 +2040,10 @@ body.rh-auth-body {
   background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
   box-shadow: var(--rh-shadow-soft);
   padding: 0.88rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
 }
 
 .rh-profile-plan-card.is-current {
@@ -1910,6 +2063,92 @@ body.rh-auth-body {
   color: var(--rh-muted);
   display: grid;
   gap: 0.25rem;
+}
+
+.rh-subscription-form {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto !important;
+}
+
+.rh-card-checkout-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.4rem;
+}
+
+.rh-card-checkout-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(320px, 1.25fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.rh-card-checkout-summary,
+.rh-card-checkout-panel {
+  border: 1px solid var(--rh-border);
+  border-radius: 0.95rem;
+  background: #fff;
+  box-shadow: var(--rh-shadow-soft);
+}
+
+.rh-card-checkout-summary {
+  padding: 1.1rem;
+}
+
+.rh-card-checkout-summary h1 {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  font-weight: 800;
+}
+
+.rh-card-checkout-summary p {
+  color: var(--rh-muted);
+}
+
+.rh-card-checkout-plan {
+  border: 1px solid #d8e4ef;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+  background: #f8fbff;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.rh-card-checkout-plan span {
+  color: var(--rh-muted);
+  font-weight: 700;
+}
+
+.rh-card-checkout-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.rh-card-checkout-panel-head {
+  padding: 1rem;
+  border-bottom: 1px solid var(--rh-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.rh-card-checkout-panel-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.rh-card-checkout-panel .alert {
+  margin: 1rem;
+}
+
+.rh-stripe-checkout-frame {
+  min-height: 560px;
+  padding: 1rem;
 }
 
 .rh-readiness-grid {
@@ -2184,6 +2423,7 @@ body.rh-auth-body {
   }
 
   .rh-readiness-grid,
+  .rh-card-checkout-shell,
   .rh-kyc-review-grid {
     grid-template-columns: 1fr;
   }
@@ -2260,6 +2500,21 @@ body.rh-auth-body {
 
   .rh-page {
     padding: 0.8rem;
+  }
+
+  .rh-card-checkout-page {
+    padding: 0.8rem;
+  }
+
+  .rh-card-checkout-panel-head,
+  .rh-card-checkout-plan {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rh-stripe-checkout-frame {
+    min-height: 620px;
+    padding: 0.75rem;
   }
 
   .rh-topbar-right {

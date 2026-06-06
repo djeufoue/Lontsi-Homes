@@ -1,11 +1,26 @@
 @model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
 @using Common.Enums
+@using System.Globalization
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     var overview = Model.Overview;
     var now = Model.NowUtc;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 600m;
+    }
+    string NormalizeCountryCode(string? countryCode)
+    {
+        var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+        return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
+    }
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
     var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
-        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending &&
+        overview.PendingPaymentMethod != PaymentMethodEnum.Card;
     var hasFailedSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
         overview.PendingPaymentStatus is PaymentStatusEnum.Failed or PaymentStatusEnum.Error or PaymentStatusEnum.Unknown;
     var refreshUrl = hasPendingSubscriptionPayment && !string.IsNullOrWhiteSpace(overview.PendingPaymentReference)
@@ -27,7 +42,11 @@
             </div>
             <div class="text-end">
                 <p class="mb-1">Price</p>
-                <h3 class="mb-0">@((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</h3>
+                <h3 class="mb-0">@FormatUsd(overview.CurrentPlanPrice ?? 0m)</h3>
+                @if (isCameroonLandlord)
+                {
+                    <small class="text-muted">Approx. @((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</small>
+                }
             </div>
         </div>
         <div class="mt-2 text-muted small">
@@ -60,7 +79,7 @@
     {
         <div class="alert alert-warning mt-3 mb-0" role="status" aria-live="polite">
             <div class="d-flex align-items-center justify-content-between gap-3">
-                <span>Mobile Money payment pending for @overview.PendingPlanName. Confirm the request on your phone.</span>
+                <span>@(overview.PendingPaymentMethod == PaymentMethodEnum.Card ? "Card checkout" : "Payment") pending for @overview.PendingPlanName.</span>
                 <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
             </div>
             <div class="small mt-2">We are checking automatically. This section will update when the payment is confirmed.</div>
@@ -69,7 +88,7 @@
     else if (hasFailedSubscriptionPayment)
     {
         <div class="alert alert-danger mt-3 mb-0" role="status" aria-live="polite">
-            Mobile Money payment for @overview.PendingPlanName was not completed. You can try the payment again below.
+            Payment for @overview.PendingPlanName was not completed. You can try again below.
         </div>
     }
 </div>

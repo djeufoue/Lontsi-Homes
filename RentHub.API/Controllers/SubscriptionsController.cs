@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -22,17 +23,23 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly INotchPayService _notchPayService;
         private readonly ICamPayService _camPayService;
+        private readonly IStripeCheckoutService _stripeCheckoutService;
+        private readonly IConfiguration _configuration;
         private readonly ILogger<SubscriptionsController> _logger;
 
         public SubscriptionsController(
             ApplicationDbContext context,
             INotchPayService notchPayService,
             ICamPayService camPayService,
+            IStripeCheckoutService stripeCheckoutService,
+            IConfiguration configuration,
             ILogger<SubscriptionsController> logger)
         {
             _context = context;
             _notchPayService = notchPayService;
             _camPayService = camPayService;
+            _stripeCheckoutService = stripeCheckoutService;
+            _configuration = configuration;
             _logger = logger;
         }
 
@@ -196,6 +203,8 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                request ??= new StartSubscriptionCheckoutRequest();
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -248,45 +257,19 @@ namespace RentHub.API.Controllers
                     return NotFound("Plan not found.");
                 }
 
-                var registeredPaymentChannel = user.SubscriptionPaymentChannel ?? user.PayoutChannel;
-                var normalizedPaymentMethod = ResolveRegisteredPaymentMethod(user);
-                if (!normalizedPaymentMethod.HasValue)
+                var requestedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(request.PaymentMethod);
+                if (requestedPaymentMethod is PaymentMethodEnum.Momo or PaymentMethodEnum.OrangeMoney)
                 {
                     return BadRequest(new
                     {
-                        Code = "MOBILE_MONEY_CHANNEL_REQUIRED",
-                        Message = "Your account must have a registered MTN Mobile Money or Orange Money payment channel before subscribing."
+                        Code = "MOBILE_MONEY_TEMPORARILY_UNAVAILABLE",
+                        Message = "MTN Mobile Money and Orange Money payments are not available yet. Please use card payment for this release."
                     });
                 }
 
-                if (!user.IsSubscriptionPaymentPhoneVerified)
-                {
-                    return BadRequest(new
-                    {
-                        Code = "MOBILE_MONEY_PHONE_NOT_VERIFIED",
-                        Message = "Verify your registered subscription payment number before subscribing."
-                    });
-                }
-
-                var mobileMoneyPhoneNumber = ResolveRegisteredMobileMoneyPhoneNumber(user);
-                if (!CameroonMobileMoneyNumberHelper.TryNormalizeNationalNumber(mobileMoneyPhoneNumber, out var validatedMobileMoneyPhoneNumber))
-                {
-                    return BadRequest(new
-                    {
-                        Code = "MOBILE_MONEY_PHONE_REQUIRED",
-                        Message = $"Your registered Mobile Money number must be a valid Cameroon Mobile Money number before subscribing. {CameroonMobileMoneyNumberHelper.SupportedPrefixesDescription}"
-                    });
-                }
-
-                if (!CameroonMobileMoneyNumberHelper.MatchesOperator(validatedMobileMoneyPhoneNumber, registeredPaymentChannel))
-                {
-                    var detectedChannel = CameroonMobileMoneyNumberHelper.ResolveOperator(validatedMobileMoneyPhoneNumber);
-                    return BadRequest(new
-                    {
-                        Code = "MOBILE_MONEY_OPERATOR_MISMATCH",
-                        Message = $"Your registered number looks like {CameroonMobileMoneyNumberHelper.ChannelLabel(detectedChannel)}, but your account is configured for {CameroonMobileMoneyNumberHelper.ChannelLabel(registeredPaymentChannel)}. Update your mobile payment information before subscribing."
-                    });
-                }
+                var checkoutCurrency = ResolveStripeCurrency();
+                var checkoutAmountMinorUnits = ConvertXafToStripeMinorUnits(plan.Price);
+                var checkoutAmount = checkoutAmountMinorUnits / 100m;
 
                 var now = DateTimeOffset.UtcNow;
                 var currentApproved = await _context.UserSubscriptions
@@ -341,18 +324,25 @@ namespace RentHub.API.Controllers
                     }
                 }
                 else if (pendingSubscription.PaymentStatus == PaymentStatusEnum.Pending &&
-                         pendingSubscription.PaymentMethod == normalizedPaymentMethod.Value &&
-                         !string.IsNullOrWhiteSpace(pendingSubscription.PaymentProviderTransactionId))
+                         pendingSubscription.PaymentMethod == requestedPaymentMethod &&
+                         !string.IsNullOrWhiteSpace(pendingSubscription.PaymentProviderTransactionId) &&
+                         IsStripeCheckoutClientSecret(pendingSubscription.PaymentAuthorizationUrl))
                 {
+                    var existingCheckoutUrl = BuildCardCheckoutUrl(pendingSubscription.PaymentReference);
                     return Ok(BuildCheckoutSessionDto(
                         pendingSubscription,
                         plan,
-                        normalizedPaymentMethod.Value,
-                        pendingSubscription.PaymentAuthorizationUrl ?? string.Empty,
+                        requestedPaymentMethod,
+                        existingCheckoutUrl,
                         "pending",
-                        provider: "CamPay",
+                        provider: "Stripe",
                         providerReference: pendingSubscription.PaymentProviderTransactionId,
-                        paymentInstructions: "A Mobile Money payment request is already pending. Confirm it on your phone, then refresh your profile."));
+                        paymentInstructions: "Continue with the secure card form to complete this subscription.",
+                        amount: checkoutAmount,
+                        currency: checkoutCurrency,
+                        clientSecret: pendingSubscription.PaymentAuthorizationUrl ?? string.Empty,
+                        publishableKey: ResolveStripePublishableKey(),
+                        returnUrl: BuildSubscriptionCallbackUrl(pendingSubscription.PaymentReference, pendingSubscription.PaymentProviderTransactionId)));
                 }
                 else if (pendingSubscription.PaymentStatus == PaymentStatusEnum.Pending &&
                          pendingSubscription.PaymentAttemptCount > 0 &&
@@ -373,8 +363,8 @@ namespace RentHub.API.Controllers
                 pendingSubscription.PlanDurationInDaysSnapshot = plan.DurationInDays;
                 pendingSubscription.PlanMaxPropertiesSnapshot = plan.MaxProperties;
                 pendingSubscription.PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty;
-                pendingSubscription.PaymentMethod = normalizedPaymentMethod.Value;
-                pendingSubscription.AllowAutomaticCardPayments = false;
+                pendingSubscription.PaymentMethod = requestedPaymentMethod;
+                pendingSubscription.AllowAutomaticCardPayments = request.AllowAutomaticCardPayments;
                 pendingSubscription.PaymentStatus = PaymentStatusEnum.Pending;
                 pendingSubscription.PaymentCompletedAt = null;
                 pendingSubscription.PaymentAttemptCount += 1;
@@ -388,15 +378,15 @@ namespace RentHub.API.Controllers
                 _context.UserSubscriptions.Update(pendingSubscription);
                 await _context.SaveChangesAsync();
 
-                var checkout = await _camPayService.InitializeSubscriptionCheckoutAsync(
+                var checkout = await _stripeCheckoutService.CreateSubscriptionCheckoutAsync(
                     user,
                     plan,
                     pendingSubscription,
-                    normalizedPaymentMethod.Value,
-                    validatedMobileMoneyPhoneNumber);
+                    checkoutAmountMinorUnits,
+                    checkoutCurrency);
 
-                pendingSubscription.PaymentAuthorizationUrl = null;
-                pendingSubscription.PaymentProviderTransactionId = checkout.ProviderReference;
+                pendingSubscription.PaymentAuthorizationUrl = checkout.ClientSecret;
+                pendingSubscription.PaymentProviderTransactionId = checkout.SessionId;
                 _context.UserSubscriptions.Update(pendingSubscription);
                 try
                 {
@@ -410,51 +400,62 @@ namespace RentHub.API.Controllers
                         .FirstOrDefaultAsync(us =>
                             !us.IsDeleted &&
                             (us.PaymentReference == pendingSubscription.PaymentReference ||
-                             (!string.IsNullOrWhiteSpace(checkout.ProviderReference) &&
-                              us.PaymentProviderTransactionId == checkout.ProviderReference)));
+                             (!string.IsNullOrWhiteSpace(checkout.SessionId) &&
+                              us.PaymentProviderTransactionId == checkout.SessionId)));
 
                     if (existingSubscription != null)
                     {
                         return Ok(BuildCheckoutSessionDto(
                             existingSubscription,
                             plan,
-                            normalizedPaymentMethod.Value,
-                            existingSubscription.PaymentAuthorizationUrl ?? string.Empty,
+                            requestedPaymentMethod,
+                            BuildCardCheckoutUrl(existingSubscription.PaymentReference),
                             "duplicate",
-                            provider: "CamPay",
-                            providerReference: existingSubscription.PaymentProviderTransactionId ?? string.Empty));
+                            provider: "Stripe",
+                            providerReference: existingSubscription.PaymentProviderTransactionId ?? string.Empty,
+                            amount: checkoutAmount,
+                            currency: checkoutCurrency,
+                            clientSecret: existingSubscription.PaymentAuthorizationUrl ?? string.Empty,
+                            publishableKey: ResolveStripePublishableKey(),
+                            returnUrl: BuildSubscriptionCallbackUrl(
+                                existingSubscription.PaymentReference,
+                                existingSubscription.PaymentProviderTransactionId)));
                     }
 
                     throw;
                 }
 
-                if (IsSuccessfulProviderStatus(checkout.Status))
+                var providerStatus = ResolveStripeProviderStatus(checkout.PaymentStatus, checkout.Status);
+                if (IsSuccessfulProviderStatus(providerStatus))
                 {
-                    await ApplyPaymentStatusAsync(pendingSubscription, checkout.Status, checkout.ProviderReference, userId);
+                    await ApplyPaymentStatusAsync(pendingSubscription, providerStatus, checkout.SessionId, userId);
                 }
 
                 _logger.LogInformation(
-                    "Subscription payment request created for {UserEmail} ({UserId}). SubscriptionId={SubscriptionId}, PlanId={PlanId}, PaymentMethod={PaymentMethod}, PaymentReference={PaymentReference}, Provider=CamPay, ProviderReference={ProviderReference}, ProviderStatus={ProviderStatus}",
+                    "Subscription payment request created for {UserEmail} ({UserId}). SubscriptionId={SubscriptionId}, PlanId={PlanId}, PaymentMethod={PaymentMethod}, PaymentReference={PaymentReference}, Provider=Stripe, ProviderReference={ProviderReference}, ProviderStatus={ProviderStatus}",
                     user.Email ?? string.Empty,
                     user.Id,
                     pendingSubscription.Id,
                     plan.Id,
-                    normalizedPaymentMethod.Value,
+                    requestedPaymentMethod,
                     pendingSubscription.PaymentReference,
-                    checkout.ProviderReference,
-                    checkout.Status);
+                    checkout.SessionId,
+                    providerStatus);
 
                 return Ok(BuildCheckoutSessionDto(
                     pendingSubscription,
                     plan,
-                    normalizedPaymentMethod.Value,
-                    string.Empty,
-                    checkout.Status,
-                    provider: "CamPay",
-                    providerReference: checkout.ProviderReference,
-                    operatorName: checkout.Operator,
-                    ussdCode: checkout.UssdCode,
-                    paymentInstructions: BuildCamPayInstructions(checkout)));
+                    requestedPaymentMethod,
+                    BuildCardCheckoutUrl(pendingSubscription.PaymentReference),
+                    providerStatus,
+                    provider: "Stripe",
+                    providerReference: checkout.SessionId,
+                    paymentInstructions: "Enter your card details on the secure checkout page to complete the payment.",
+                    amount: checkoutAmount,
+                    currency: checkoutCurrency,
+                    clientSecret: checkout.ClientSecret,
+                    publishableKey: ResolveStripePublishableKey(),
+                    returnUrl: checkout.ReturnUrl));
             }
             catch (Exception ex)
             {
@@ -492,7 +493,22 @@ namespace RentHub.API.Controllers
 
                 if (subscription.PaymentStatus != PaymentStatusEnum.Success)
                 {
-                    if (IsCamPayPayment(subscription))
+                    if (IsStripePayment(subscription))
+                    {
+                        var remoteStatus = await _stripeCheckoutService.RetrieveSessionAsync(
+                            subscription.PaymentProviderTransactionId ?? string.Empty);
+                        if (remoteStatus != null &&
+                            (string.IsNullOrWhiteSpace(remoteStatus.PaymentReference) ||
+                             string.Equals(remoteStatus.PaymentReference, subscription.PaymentReference, StringComparison.Ordinal)))
+                        {
+                            await ApplyPaymentStatusAsync(
+                                subscription,
+                                ResolveStripeProviderStatus(remoteStatus.PaymentStatus, remoteStatus.Status),
+                                remoteStatus.SessionId,
+                                userId);
+                        }
+                    }
+                    else if (IsCamPayPayment(subscription))
                     {
                         var remoteStatus = await _camPayService.RetrievePaymentAsync(
                             subscription.PaymentProviderTransactionId ?? reference);
@@ -513,6 +529,19 @@ namespace RentHub.API.Controllers
                     }
                 }
 
+                var isStripe = IsStripePayment(subscription);
+                var paymentCompleted = subscription.PaymentStatus == PaymentStatusEnum.Success;
+                var providerName = isStripe
+                    ? "Stripe"
+                    : IsCamPayPayment(subscription) ? "CamPay" : "NotchPay";
+                var statusMessage = paymentCompleted
+                    ? "Subscription activated successfully."
+                    : subscription.PaymentStatus is PaymentStatusEnum.Failed or PaymentStatusEnum.Error
+                        ? "The card payment was not completed. Please check the card details or try another card."
+                        : isStripe
+                            ? "No card payment was completed. You can choose the plan and try again."
+                            : "Payment is still pending or needs another attempt.";
+
                 return Ok(new SubscriptionCheckoutStatusDto
                 {
                     SubscriptionId = subscription.Id,
@@ -520,13 +549,11 @@ namespace RentHub.API.Controllers
                     PlanName = subscription.PlanNameSnapshot,
                     PaymentReference = subscription.PaymentReference,
                     ProviderReference = subscription.PaymentProviderTransactionId ?? string.Empty,
-                    Provider = IsCamPayPayment(subscription) ? "CamPay" : "NotchPay",
+                    Provider = providerName,
                     PaymentStatus = subscription.PaymentStatus.ToString(),
                     SubscriptionApproved = subscription.IsApproved,
-                    PaymentCompleted = subscription.PaymentStatus == PaymentStatusEnum.Success,
-                    Message = subscription.PaymentStatus == PaymentStatusEnum.Success
-                        ? "Subscription activated successfully."
-                        : "Payment is still pending or needs another attempt."
+                    PaymentCompleted = paymentCompleted,
+                    Message = statusMessage
                 });
             }
             catch (Exception ex)
@@ -537,6 +564,208 @@ namespace RentHub.API.Controllers
                     Code = "SUBSCRIPTION_STATUS_FAILED",
                     Message = "Unable to verify the subscription payment right now. Please try again."
                 });
+            }
+        }
+
+        [HttpGet("checkout-session/{reference}")]
+        [Authorize]
+        public async Task<IActionResult> GetCheckoutSession(string reference)
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var subscription = await _context.UserSubscriptions
+                    .Include(us => us.SubscriptionPlan)
+                    .FirstOrDefaultAsync(us =>
+                        us.PaymentReference == reference &&
+                        us.UserId == userId &&
+                        !us.IsDeleted);
+
+                if (subscription == null || !IsStripePayment(subscription))
+                {
+                    return NotFound("Card checkout was not found.");
+                }
+
+                if (subscription.PaymentStatus == PaymentStatusEnum.Success)
+                {
+                    return BadRequest(new
+                    {
+                        Code = "SUBSCRIPTION_ALREADY_PAID",
+                        Message = "This subscription payment has already been completed."
+                    });
+                }
+
+                if (!IsStripeCheckoutClientSecret(subscription.PaymentAuthorizationUrl) ||
+                    string.IsNullOrWhiteSpace(subscription.PaymentProviderTransactionId))
+                {
+                    return BadRequest(new
+                    {
+                        Code = "CARD_CHECKOUT_NOT_READY",
+                        Message = "Card checkout is not ready yet. Please choose the plan again."
+                    });
+                }
+
+                var plan = subscription.SubscriptionPlan;
+                if (plan == null)
+                {
+                    return NotFound("Subscription plan was not found.");
+                }
+
+                var checkoutAmountMinorUnits = ConvertXafToStripeMinorUnits(
+                    subscription.PlanPriceSnapshot > 0 ? subscription.PlanPriceSnapshot : plan.Price);
+                var checkoutAmount = checkoutAmountMinorUnits / 100m;
+                var checkoutCurrency = ResolveStripeCurrency();
+
+                return Ok(BuildCheckoutSessionDto(
+                    subscription,
+                    plan,
+                    PaymentMethodEnum.Card,
+                    BuildCardCheckoutUrl(subscription.PaymentReference),
+                    subscription.PaymentStatus.ToString(),
+                    provider: "Stripe",
+                    providerReference: subscription.PaymentProviderTransactionId,
+                    paymentInstructions: "Enter your card details to complete the subscription payment.",
+                    amount: checkoutAmount,
+                    currency: checkoutCurrency,
+                    clientSecret: subscription.PaymentAuthorizationUrl ?? string.Empty,
+                    publishableKey: ResolveStripePublishableKey(),
+                    returnUrl: BuildSubscriptionCallbackUrl(
+                        subscription.PaymentReference,
+                        subscription.PaymentProviderTransactionId)));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load card checkout session for reference {Reference}", reference);
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    Code = "CARD_CHECKOUT_FETCH_FAILED",
+                    Message = "Unable to load the card checkout right now. Please try again."
+                });
+            }
+        }
+
+        [HttpPost("stripe/webhook")]
+        [AllowAnonymous]
+        public async Task<IActionResult> HandleStripeWebhook()
+        {
+            string rawPayload;
+            using (var reader = new StreamReader(Request.Body))
+            {
+                rawPayload = await reader.ReadToEndAsync();
+            }
+
+            var signature = Request.Headers["Stripe-Signature"].FirstOrDefault();
+            if (!_stripeCheckoutService.VerifyWebhookSignature(rawPayload, signature))
+            {
+                return Unauthorized();
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rawPayload);
+                var root = document.RootElement;
+                var eventType = ReadDirectString(root, "type");
+                var eventId = ReadDirectString(root, "id");
+                var sessionElement = ResolveStripeEventObject(root);
+                var session = StripeCheckoutService.ReadSession(sessionElement);
+                var paymentReference = session?.PaymentReference ?? string.Empty;
+                var providerTransactionId = session?.SessionId ?? string.Empty;
+                var eventKey = !string.IsNullOrWhiteSpace(eventId)
+                    ? eventId.Trim()
+                    : !string.IsNullOrWhiteSpace(providerTransactionId)
+                        ? providerTransactionId
+                        : HashPayload(rawPayload);
+
+                var webhookEvent = new PaymentWebhookEvent
+                {
+                    Provider = "Stripe",
+                    EventKey = eventKey,
+                    EventType = eventType,
+                    PaymentReference = paymentReference,
+                    ProviderTransactionId = providerTransactionId,
+                    PayloadHash = HashPayload(rawPayload),
+                    ReceivedAt = DateTimeOffset.UtcNow,
+                    ProcessingStatus = "Received"
+                };
+
+                _context.PaymentWebhookEvents.Add(webhookEvent);
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+                {
+                    return Ok(new { Message = "Webhook duplicate ignored." });
+                }
+
+                if (string.IsNullOrWhiteSpace(eventType) ||
+                    !eventType.StartsWith("checkout.session.", StringComparison.OrdinalIgnoreCase))
+                {
+                    webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                    webhookEvent.ProcessingStatus = "Ignored";
+                    webhookEvent.ProcessingMessage = $"Stripe event type is not handled by subscription checkout: {eventType}";
+                    await _context.SaveChangesAsync();
+                    return Ok(new { Message = "Webhook ignored." });
+                }
+
+                if (string.IsNullOrWhiteSpace(paymentReference) && string.IsNullOrWhiteSpace(providerTransactionId))
+                {
+                    webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                    webhookEvent.ProcessingStatus = "Ignored";
+                    webhookEvent.ProcessingMessage = "Missing Stripe checkout session reference.";
+                    await _context.SaveChangesAsync();
+                    return Ok(new { Message = "Webhook ignored." });
+                }
+
+                var subscription = await _context.UserSubscriptions
+                    .FirstOrDefaultAsync(us =>
+                        !us.IsDeleted &&
+                        ((!string.IsNullOrWhiteSpace(paymentReference) && us.PaymentReference == paymentReference) ||
+                         (!string.IsNullOrWhiteSpace(providerTransactionId) && us.PaymentProviderTransactionId == providerTransactionId)));
+
+                if (subscription == null)
+                {
+                    webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                    webhookEvent.ProcessingStatus = "Ignored";
+                    webhookEvent.ProcessingMessage = "No matching subscription.";
+                    await _context.SaveChangesAsync();
+                    return Ok(new { Message = "Webhook ignored." });
+                }
+
+                var providerStatus = eventType?.Trim().ToLowerInvariant() switch
+                {
+                    "checkout.session.completed" => ResolveStripeProviderStatus(session?.PaymentStatus, session?.Status),
+                    "checkout.session.expired" => "expired",
+                    "checkout.session.async_payment_succeeded" => "paid",
+                    "checkout.session.async_payment_failed" => "failed",
+                    _ => ResolveStripeProviderStatus(session?.PaymentStatus, session?.Status)
+                };
+
+                var processed = false;
+                if (IsTerminalProviderStatus(providerStatus))
+                {
+                    await ApplyPaymentStatusAsync(subscription, providerStatus, providerTransactionId, "stripe-webhook");
+                    processed = true;
+                }
+
+                webhookEvent.ProcessedAt = DateTimeOffset.UtcNow;
+                webhookEvent.ProcessingStatus = processed ? "Processed" : "Ignored";
+                webhookEvent.ProcessingMessage = processed
+                    ? "Subscription payment status updated."
+                    : $"Stripe status not terminal: {providerStatus}";
+                await _context.SaveChangesAsync();
+
+                return Ok(new { Message = "Webhook received." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process Stripe webhook.");
+                return Ok(new { Message = "Webhook received." });
             }
         }
 
@@ -803,7 +1032,11 @@ namespace RentHub.API.Controllers
             {
                 var pending = await _context.UserSubscriptions
                     .Include(us => us.User)
-                    .Where(us => !us.IsDeleted && !us.IsApproved && us.EndDate > DateTimeOffset.UtcNow)
+                    .Where(us =>
+                        !us.IsDeleted &&
+                        !us.IsApproved &&
+                        us.EndDate > DateTimeOffset.UtcNow &&
+                        us.PaymentMethod != PaymentMethodEnum.Card)
                     .OrderByDescending(us => us.StartDate)
                     .Select(us => new PendingSubscriptionDto
                     {
@@ -961,7 +1194,12 @@ namespace RentHub.API.Controllers
             string providerReference = "",
             string operatorName = "",
             string ussdCode = "",
-            string paymentInstructions = "")
+            string paymentInstructions = "",
+            decimal? amount = null,
+            string currency = "XAF",
+            string clientSecret = "",
+            string publishableKey = "",
+            string returnUrl = "")
         {
             return new SubscriptionCheckoutSessionDto
             {
@@ -970,12 +1208,15 @@ namespace RentHub.API.Controllers
                 PlanName = !string.IsNullOrWhiteSpace(subscription.PlanNameSnapshot)
                     ? subscription.PlanNameSnapshot
                     : plan.Name,
-                Amount = subscription.PlanPriceSnapshot > 0 ? subscription.PlanPriceSnapshot : plan.Price,
-                Currency = "XAF",
+                Amount = amount ?? (subscription.PlanPriceSnapshot > 0 ? subscription.PlanPriceSnapshot : plan.Price),
+                Currency = string.IsNullOrWhiteSpace(currency) ? "XAF" : currency,
                 PaymentMethod = paymentMethod,
                 AllowAutomaticCardPayments = subscription.AllowAutomaticCardPayments,
                 PaymentReference = subscription.PaymentReference,
                 AuthorizationUrl = authorizationUrl,
+                ClientSecret = clientSecret,
+                PublishableKey = publishableKey,
+                ReturnUrl = returnUrl,
                 Provider = provider,
                 ProviderReference = providerReference,
                 Operator = operatorName,
@@ -983,6 +1224,18 @@ namespace RentHub.API.Controllers
                 PaymentInstructions = paymentInstructions,
                 Status = status
             };
+        }
+
+        private static bool IsStripePayment(UserSubscription subscription)
+        {
+            return subscription.PaymentMethod == PaymentMethodEnum.Card;
+        }
+
+        private static bool IsStripeCheckoutClientSecret(string? value)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            return normalized.StartsWith("cs_", StringComparison.OrdinalIgnoreCase) &&
+                   normalized.Contains("_secret_", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsCamPayPayment(UserSubscription subscription)
@@ -993,7 +1246,7 @@ namespace RentHub.API.Controllers
         private static bool IsSuccessfulProviderStatus(string providerStatus)
         {
             var normalizedStatus = (providerStatus ?? string.Empty).Trim().ToLowerInvariant();
-            return normalizedStatus is "complete" or "success" or "successful";
+            return normalizedStatus is "complete" or "success" or "successful" or "succeeded" or "paid";
         }
 
         private static bool IsFailedProviderStatus(string providerStatus)
@@ -1005,6 +1258,82 @@ namespace RentHub.API.Controllers
         private static bool IsTerminalProviderStatus(string providerStatus)
         {
             return IsSuccessfulProviderStatus(providerStatus) || IsFailedProviderStatus(providerStatus);
+        }
+
+        private static string ResolveStripeProviderStatus(string? paymentStatus, string? sessionStatus)
+        {
+            var normalizedPaymentStatus = (paymentStatus ?? string.Empty).Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(normalizedPaymentStatus) &&
+                normalizedPaymentStatus != "unpaid")
+            {
+                return normalizedPaymentStatus;
+            }
+
+            return (sessionStatus ?? normalizedPaymentStatus ?? "open").Trim().ToLowerInvariant();
+        }
+
+        private string BuildCardCheckoutUrl(string paymentReference)
+        {
+            var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(portalBaseUrl))
+            {
+                throw new InvalidOperationException("Portal base URL is missing.");
+            }
+
+            return $"{portalBaseUrl}/Profile/CardCheckout?reference={Uri.EscapeDataString(paymentReference)}";
+        }
+
+        private string BuildSubscriptionCallbackUrl(string paymentReference, string? providerReference)
+        {
+            var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(portalBaseUrl))
+            {
+                throw new InvalidOperationException("Portal base URL is missing.");
+            }
+
+            var url = $"{portalBaseUrl}/Profile/SubscriptionCallback?reference={Uri.EscapeDataString(paymentReference)}";
+            return string.IsNullOrWhiteSpace(providerReference)
+                ? url
+                : $"{url}&session_id={Uri.EscapeDataString(providerReference)}";
+        }
+
+        private string ResolveStripePublishableKey()
+        {
+            return _configuration["Stripe:PublishableKey"]?.Trim() ?? string.Empty;
+        }
+
+        private string ResolveStripeCurrency()
+        {
+            var configured = (_configuration["Stripe:Currency"] ?? "usd").Trim();
+            return string.IsNullOrWhiteSpace(configured)
+                ? "USD"
+                : configured.ToUpperInvariant();
+        }
+
+        private long ConvertXafToStripeMinorUnits(decimal xafAmount)
+        {
+            var usdToXafRate = _configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+            if (usdToXafRate <= 0)
+            {
+                usdToXafRate = 600m;
+            }
+
+            var usdAmount = xafAmount / usdToXafRate;
+            var cents = decimal.Round(usdAmount * 100m, 0, MidpointRounding.AwayFromZero);
+            return Math.Max(50, decimal.ToInt64(cents));
+        }
+
+        private static JsonElement ResolveStripeEventObject(JsonElement root)
+        {
+            if (root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("data", out var dataElement) &&
+                dataElement.ValueKind == JsonValueKind.Object &&
+                dataElement.TryGetProperty("object", out var objectElement))
+            {
+                return objectElement;
+            }
+
+            return root;
         }
 
         private static string BuildCamPayInstructions(CamPayCollectResult checkout)
@@ -1153,6 +1482,29 @@ namespace RentHub.API.Controllers
                     {
                         return nested;
                     }
+                }
+            }
+
+            return null;
+        }
+
+        private static string? ReadDirectString(JsonElement element, string propertyName)
+        {
+            if (element.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return property.Value.ValueKind switch
+                    {
+                        JsonValueKind.String => property.Value.GetString(),
+                        JsonValueKind.Number => property.Value.ToString(),
+                        _ => null
+                    };
                 }
             }
 

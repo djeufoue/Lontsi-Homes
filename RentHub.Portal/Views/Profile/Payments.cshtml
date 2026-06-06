@@ -1,13 +1,27 @@
 @model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
 @using Common.Enums
+@using System.Globalization
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Payment Center";
 
     var overview = Model.Overview;
     var now = Model.NowUtc;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 600m;
+    }
+    string NormalizeCountryCode(string? countryCode)
+    {
+        var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+        return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
+    }
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
     var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
-        overview.PendingPaymentStatus == PaymentStatusEnum.Pending;
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending &&
+        overview.PendingPaymentMethod != PaymentMethodEnum.Card;
     var registeredMobileMoneyNumber = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber)
         ? overview.SubscriptionPaymentPhoneNumber
         : !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber)
@@ -24,28 +38,55 @@
         registeredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
         overview.IsSubscriptionPaymentPhoneVerified;
     var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
-    var canPaySubscription = overview.CanStartSubscriptionCheckout && hasRegisteredMobileMoneyPayment;
-    var mobilePaymentAction = Url.Action("LandlordMobilePayments", "Auth", new
-    {
-        email = overview.Email,
-        returnUrl = Url.Action("Payments", "Profile")
-    });
+    var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
+    var canPaySubscription = overview.CanStartSubscriptionCheckout;
+    var mobileMoneyUnavailableMessage = "MTN Mobile Money and Orange Money payments are not available yet. Please use card payment for this release.";
+    var mobileMoneySetupUrl = Url.Action("MobileMoneySetup", "Profile");
+    var startMobileMoneyUpdateUrl = Url.Action("StartMobileMoneyUpdate", "Profile");
+    var cancelMobileMoneyUpdateUrl = Url.Action("CancelMobileMoneyUpdate", "Profile");
+    var verifyMobileMoneyOtpUrl = Url.Action("VerifyMobileMoneyOtp", "Profile");
+    var resendMobileMoneyOtpUrl = Url.Action("ResendMobileMoneyOtp", "Profile");
+    var subscriptionPending = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) &&
+        !overview.IsSubscriptionPaymentPhoneVerified;
+    var payoutPending = !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) &&
+        !overview.IsPayoutPhoneVerified;
+    var whatsAppPending = !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) &&
+        !overview.IsWhatsAppPhoneVerified;
+    var hasPendingMobilePaymentVerification = subscriptionPending || payoutPending || whatsAppPending;
+    var payoutSharesSubscriptionPendingNumber = payoutPending &&
+        subscriptionPending &&
+        string.Equals(
+            (overview.PayoutPhoneNumber ?? string.Empty).Trim(),
+            (overview.SubscriptionPaymentPhoneNumber ?? string.Empty).Trim(),
+            StringComparison.OrdinalIgnoreCase);
+    var subscriptionRetryAfter = Math.Max(0, overview.SubscriptionPaymentOtpRequestLimit?.RetryAfterSeconds ?? 0);
+    var payoutRetryAfter = Math.Max(0, overview.PayoutOtpRequestLimit?.RetryAfterSeconds ?? 0);
+    var whatsAppRetryAfter = Math.Max(0, overview.WhatsAppOtpRequestLimit?.RetryAfterSeconds ?? 0);
+    var subscriptionDailyLimitReached = overview.SubscriptionPaymentOtpRequestLimit?.DailyLimitReached ?? false;
+    var payoutDailyLimitReached = overview.PayoutOtpRequestLimit?.DailyLimitReached ?? false;
+    var whatsAppDailyLimitReached = overview.WhatsAppOtpRequestLimit?.DailyLimitReached ?? false;
+    var boolText = (Func<bool, string>)(value => value.ToString().ToLowerInvariant());
+    var primaryPhone = string.IsNullOrWhiteSpace(overview.PhoneNumber) ? "your verified phone" : overview.PhoneNumber;
+    var subscriptionChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney;
+    var payoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney;
 }
 
 <section class="rh-page-header rh-page-header-elevated">
     <div>
         <p class="rh-kicker">Payment Center</p>
         <h1 class="rh-heading-title">Payments and Subscriptions</h1>
-        <p class="rh-heading-subtitle">Review your registered Mobile Money accounts, subscription status, and available landlord plans.</p>
+        <p class="rh-heading-subtitle">Review your subscription status, payment options, and available landlord plans.</p>
     </div>
     <div class="rh-toolbar">
         <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Index">Back to Profile</a>
-        @if (isLandlord)
+        @if (isLandlord && isCameroonLandlord)
         {
-            <a class="btn rh-btn-primary" href="@mobilePaymentAction">Update Mobile Money</a>
+            <button type="button" class="btn rh-btn-primary" data-mobile-money-open @(hasPendingMobilePaymentVerification ? "disabled" : null)>Update Mobile Money</button>
         }
     </div>
 </section>
+
+<div class="alert d-none" data-payment-feedback></div>
 
 @if (!isLandlord)
 {
@@ -62,16 +103,27 @@ else
             <h3>@(hasCurrentPlan ? "Active" : hasPendingSubscriptionPayment ? "Pending" : "Inactive")</h3>
             <small>@(hasCurrentPlan ? $"Current plan: {overview.CurrentPlanName}" : "Choose a plan when your account is ready")</small>
         </article>
-        <article class="rh-summary-card">
-            <p>Payment Method</p>
-            <h3>@registeredPaymentMethodLabel</h3>
-            <small>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Verified Mobile Money account required")</small>
-        </article>
-        <article class="rh-summary-card">
-            <p>Payout Account</p>
-            <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
-            <small>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not configured")</small>
-        </article>
+        @if (isCameroonLandlord)
+        {
+            <article class="rh-summary-card">
+                <p>Payment Method</p>
+                <h3>@registeredPaymentMethodLabel</h3>
+                <small>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Card payment available")</small>
+            </article>
+            <article class="rh-summary-card">
+                <p>Payout Account</p>
+                <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+                <small>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not configured")</small>
+            </article>
+        }
+        else
+        {
+            <article class="rh-summary-card">
+                <p>Payment Method</p>
+                <h3>Card</h3>
+                <small>Stripe checkout</small>
+            </article>
+        }
         <article class="rh-summary-card">
             <p>Subscription Access</p>
             <h3>@(overview.CanStartSubscriptionCheckout ? "Unlocked" : "Blocked")</h3>
@@ -80,39 +132,157 @@ else
     </section>
 
     <section class="rh-profile-grid mb-3">
-        <article class="rh-panel rh-panel-elevated">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h2 class="rh-section-title mb-0">Mobile Money Accounts</h2>
-                <a class="btn btn-sm rh-btn-subtle" href="@mobilePaymentAction">Edit setup</a>
-            </div>
+        @if (isCameroonLandlord)
+        {
+            <article class="rh-panel rh-panel-elevated">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h2 class="rh-section-title mb-0">Mobile Money Accounts</h2>
+                    <button type="button" class="btn btn-sm rh-btn-subtle" data-mobile-money-open @(hasPendingMobilePaymentVerification ? "disabled" : null)>Edit setup</button>
+                </div>
 
-            <div class="rh-profile-info-grid">
-                <div class="rh-profile-info-item">
-                    <p>Subscription Payment Number</p>
-                    <h3>@(!string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) ? overview.SubscriptionPaymentPhoneNumber : "Not provided")</h3>
+                @if (hasPendingMobilePaymentVerification)
+                {
+                    <div class="alert alert-warning py-2 rh-mobile-pending-banner">
+                        Finish OTP validation for the pending number before changing Mobile Money setup again.
+                    </div>
+                }
+
+                <div class="rh-profile-info-grid">
+                    <div class="rh-profile-info-item rh-payment-phone-section @(subscriptionPending ? "is-pending" : string.Empty)" data-otp-section="subscription">
+                        <p>Subscription Payment Number</p>
+                        <h3>@(!string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) ? overview.SubscriptionPaymentPhoneNumber : "Not provided")</h3>
+                        @if (subscriptionPending)
+                        {
+                            <div class="rh-payment-pending-note">
+                                Pending OTP verification. This number is not usable for subscription checkout yet.
+                            </div>
+                            <form action="@verifyMobileMoneyOtpUrl" method="post" class="rh-otp-form" data-mobile-otp-form>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="target" value="subscription" />
+                                <label class="form-label rh-mini-label" for="subscriptionPaymentOtp">OTP code</label>
+                                <div class="rh-otp-input-row">
+                                    <input id="subscriptionPaymentOtp" name="otp" class="form-control form-control-sm" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="Enter OTP" required />
+                                    <button type="submit" class="btn btn-sm rh-btn-primary" data-otp-verify>Verify</button>
+                                </div>
+                            </form>
+                            <form action="@resendMobileMoneyOtpUrl" method="post" class="rh-otp-resend-form" data-mobile-resend-form>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="target" value="subscription" />
+                                <button type="submit"
+                                        class="btn btn-sm rh-btn-subtle"
+                                        data-otp-resend
+                                        data-target="subscription"
+                                        data-retry-after="@subscriptionRetryAfter"
+                                        data-daily-limit-reached="@boolText(subscriptionDailyLimitReached)"
+                                        @(subscriptionDailyLimitReached || subscriptionRetryAfter > 0 ? "disabled" : null)>
+                                    Resend OTP
+                                </button>
+                            </form>
+                            <small class="text-muted d-block mt-2 @(subscriptionRetryAfter > 0 && !subscriptionDailyLimitReached ? string.Empty : "d-none")" data-otp-countdown></small>
+                            <small class="text-danger d-block mt-2 @(subscriptionDailyLimitReached ? string.Empty : "d-none")" data-otp-daily-limit>You have reached today's OTP request limit. Please try again after the daily reset.</small>
+                            <small class="d-block mt-2 d-none" data-otp-message></small>
+                        }
+                    </div>
+                    <div class="rh-profile-info-item">
+                        <p>Subscription Payment Network</p>
+                        <h3>@(overview.SubscriptionPaymentChannel?.ToString() ?? "Not provided")</h3>
+                    </div>
+                    <div class="rh-profile-info-item">
+                        <p>Subscription Payment Verification</p>
+                        <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
+                    </div>
+                    <div class="rh-profile-info-item rh-payment-phone-section @(payoutPending ? "is-pending" : string.Empty)" data-otp-section="payout">
+                        <p>Rent Payout Number</p>
+                        <h3>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not provided")</h3>
+                        @if (payoutPending)
+                        {
+                            <div class="rh-payment-pending-note">
+                                Pending OTP verification. This number cannot be used for rent payouts yet.
+                            </div>
+                            @if (payoutSharesSubscriptionPendingNumber)
+                            {
+                                <small class="text-muted d-block mt-2">This payout uses the same pending number as subscription payments. Verify the subscription payment number first.</small>
+                            }
+                            else
+                            {
+                                <form action="@verifyMobileMoneyOtpUrl" method="post" class="rh-otp-form" data-mobile-otp-form>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="target" value="payout" />
+                                    <label class="form-label rh-mini-label" for="payoutOtp">OTP code</label>
+                                    <div class="rh-otp-input-row">
+                                        <input id="payoutOtp" name="otp" class="form-control form-control-sm" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="Enter OTP" required />
+                                        <button type="submit" class="btn btn-sm rh-btn-primary" data-otp-verify>Verify</button>
+                                    </div>
+                                </form>
+                                <form action="@resendMobileMoneyOtpUrl" method="post" class="rh-otp-resend-form" data-mobile-resend-form>
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="target" value="payout" />
+                                    <button type="submit"
+                                            class="btn btn-sm rh-btn-subtle"
+                                            data-otp-resend
+                                            data-target="payout"
+                                            data-retry-after="@payoutRetryAfter"
+                                            data-daily-limit-reached="@boolText(payoutDailyLimitReached)"
+                                            @(payoutDailyLimitReached || payoutRetryAfter > 0 ? "disabled" : null)>
+                                        Resend OTP
+                                    </button>
+                                </form>
+                                <small class="text-muted d-block mt-2 @(payoutRetryAfter > 0 && !payoutDailyLimitReached ? string.Empty : "d-none")" data-otp-countdown></small>
+                                <small class="text-danger d-block mt-2 @(payoutDailyLimitReached ? string.Empty : "d-none")" data-otp-daily-limit>You have reached today's OTP request limit. Please try again after the daily reset.</small>
+                                <small class="d-block mt-2 d-none" data-otp-message></small>
+                            }
+                        }
+                    </div>
+                    <div class="rh-profile-info-item">
+                        <p>Rent Payout Network</p>
+                        <h3>@(overview.PayoutChannel?.ToString() ?? "Not provided")</h3>
+                    </div>
+                    <div class="rh-profile-info-item">
+                        <p>Rent Payout Verification</p>
+                        <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+                    </div>
+                    <div class="rh-profile-info-item rh-payment-phone-section @(whatsAppPending ? "is-pending" : string.Empty)" data-otp-section="whatsapp">
+                        <p>WhatsApp Alerts Number</p>
+                        <h3>@(!string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? overview.WhatsAppPhoneNumber : "Not provided")</h3>
+                        @if (whatsAppPending)
+                        {
+                            <div class="rh-payment-pending-note">
+                                Pending OTP verification. WhatsApp alerts will use this number after confirmation.
+                            </div>
+                            <form action="@verifyMobileMoneyOtpUrl" method="post" class="rh-otp-form" data-mobile-otp-form>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="target" value="whatsapp" />
+                                <label class="form-label rh-mini-label" for="whatsAppOtp">OTP code</label>
+                                <div class="rh-otp-input-row">
+                                    <input id="whatsAppOtp" name="otp" class="form-control form-control-sm" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="Enter OTP" required />
+                                    <button type="submit" class="btn btn-sm rh-btn-primary" data-otp-verify>Verify</button>
+                                </div>
+                            </form>
+                            <form action="@resendMobileMoneyOtpUrl" method="post" class="rh-otp-resend-form" data-mobile-resend-form>
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="target" value="whatsapp" />
+                                <button type="submit"
+                                        class="btn btn-sm rh-btn-subtle"
+                                        data-otp-resend
+                                        data-target="whatsapp"
+                                        data-retry-after="@whatsAppRetryAfter"
+                                        data-daily-limit-reached="@boolText(whatsAppDailyLimitReached)"
+                                        @(whatsAppDailyLimitReached || whatsAppRetryAfter > 0 ? "disabled" : null)>
+                                    Resend OTP
+                                </button>
+                            </form>
+                            <small class="text-muted d-block mt-2 @(whatsAppRetryAfter > 0 && !whatsAppDailyLimitReached ? string.Empty : "d-none")" data-otp-countdown></small>
+                            <small class="text-danger d-block mt-2 @(whatsAppDailyLimitReached ? string.Empty : "d-none")" data-otp-daily-limit>You have reached today's OTP request limit. Please try again after the daily reset.</small>
+                            <small class="d-block mt-2 d-none" data-otp-message></small>
+                        }
+                    </div>
+                    <div class="rh-profile-info-item">
+                        <p>WhatsApp Alerts Verification</p>
+                        <h3>@(string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? "Not required" : overview.IsWhatsAppPhoneVerified ? "Verified" : "Pending")</h3>
+                    </div>
                 </div>
-                <div class="rh-profile-info-item">
-                    <p>Subscription Payment Network</p>
-                    <h3>@(overview.SubscriptionPaymentChannel?.ToString() ?? "Not provided")</h3>
-                </div>
-                <div class="rh-profile-info-item">
-                    <p>Subscription Payment Verification</p>
-                    <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
-                </div>
-                <div class="rh-profile-info-item">
-                    <p>Rent Payout Number</p>
-                    <h3>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not provided")</h3>
-                </div>
-                <div class="rh-profile-info-item">
-                    <p>Rent Payout Network</p>
-                    <h3>@(overview.PayoutChannel?.ToString() ?? "Not provided")</h3>
-                </div>
-                <div class="rh-profile-info-item">
-                    <p>Rent Payout Verification</p>
-                    <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
-                </div>
-            </div>
-        </article>
+            </article>
+        }
 
         <article class="rh-panel rh-panel-elevated">
             @await Html.PartialAsync("_SubscriptionDetails", Model)
@@ -122,8 +292,14 @@ else
     <section class="rh-panel rh-panel-elevated">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <h2 class="rh-section-title mb-0">Choose Subscription</h2>
-            <small class="text-muted">Use MTN Mobile Money or Orange Money Cameroon to pay your landlord subscription.</small>
+            <small class="text-muted">Use card checkout to pay your landlord subscription.</small>
         </div>
+        @if (isCameroonLandlord)
+        {
+            <div class="alert alert-danger py-2">
+                @mobileMoneyUnavailableMessage
+            </div>
+        }
 
         @if (!overview.AvailablePlans.Any())
         {
@@ -147,7 +323,13 @@ else
                             <p class="text-muted mb-2">@plan.Description</p>
                         }
 
-                        <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
+                        <p class="rh-profile-plan-price">
+                            @FormatUsd(plan.Price)
+                            @if (isCameroonLandlord)
+                            {
+                                <span class="d-block text-muted small">Approx. @plan.Price.ToString("N0") XAF</span>
+                            }
+                        </p>
 
                         <ul class="rh-profile-plan-meta">
                             <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
@@ -157,11 +339,15 @@ else
                         <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="planId" value="@plan.Id" />
+                            <input type="hidden" name="paymentMethod" value="@PaymentMethodEnum.Card" />
 
                             <ul class="rh-profile-plan-meta mb-3">
-                                <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
-                                <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
-                                <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Not provided")</strong></li>
+                                <li>Amount: <strong>@FormatUsd(plan.Price)</strong></li>
+                                @if (isCameroonLandlord)
+                                {
+                                    <li>Local equivalent: <strong>@plan.Price.ToString("N0") XAF</strong></li>
+                                }
+                                <li>Payment method: <strong>Card via Stripe</strong></li>
                             </ul>
 
                             @if (isCurrent)
@@ -175,11 +361,16 @@ else
                             else
                             {
                                 <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!canPaySubscription)">
-                                    @(canPaySubscription ? (hasCurrentPlan ? "Switch to this plan" : "Proceed to payment") : (!overview.CanStartSubscriptionCheckout ? "Verification required" : "Payment account required"))
+                                    @(canPaySubscription ? (hasCurrentPlan ? "Switch with card" : "Pay with card") : "Verification required")
                                 </button>
                                 @if (!overview.CanStartSubscriptionCheckout && !string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason))
                                 {
                                     <div class="text-muted small mt-2">@overview.SubscriptionBlockedReason</div>
+                                }
+                                @if (isCameroonLandlord)
+                                {
+                                    <button type="button" class="btn rh-btn-subtle w-100 mt-2" disabled>Orange / MTN unavailable</button>
+                                    <div class="text-danger small mt-2">@mobileMoneyUnavailableMessage</div>
                                 }
                             }
                         </form>
@@ -188,6 +379,83 @@ else
             </div>
         }
     </section>
+
+    @if (isCameroonLandlord)
+    {
+        <div class="modal fade rh-mobile-money-modal" id="mobileMoneyModal" tabindex="-1" aria-labelledby="mobileMoneyModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <p class="rh-kicker mb-1">Payment settings</p>
+                        <h2 class="modal-title" id="mobileMoneyModalLabel">Update Mobile Money setup</h2>
+                    </div>
+                </div>
+                <form action="@startMobileMoneyUpdateUrl" method="post" class="rh-mobile-money-form" data-mobile-money-form data-setup-url="@mobileMoneySetupUrl" data-cancel-url="@cancelMobileMoneyUpdateUrl" data-verify-url="@verifyMobileMoneyOtpUrl">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="target" value="subscription" data-mobile-target-field />
+                    <div class="modal-body">
+                        <div class="rh-inline-hint mb-3">
+                            Verified main phone: <strong data-mobile-primary-phone>@primaryPhone</strong>
+                        </div>
+
+                        <p class="rh-modal-warning">
+                            Change one number at a time. A changed number must be confirmed by OTP before it becomes usable.
+                        </p>
+
+                        <div class="alert d-none py-2" data-mobile-money-message></div>
+
+                        <div class="rh-mobile-money-single">
+                            <div>
+                                <label class="form-label rh-mini-label" for="MobileMoneyTarget">Number to update</label>
+                                <select class="form-select" id="MobileMoneyTarget" data-mobile-target>
+                                    <option value="subscription">Subscription payment number</option>
+                                    <option value="payout">Rent payout number</option>
+                                    <option value="whatsapp">WhatsApp alerts number</option>
+                                </select>
+                            </div>
+
+                            <div class="rh-current-phone-card">
+                                <span>Current number</span>
+                                <strong data-current-phone>Not provided</strong>
+                                <small data-current-phone-meta></small>
+                            </div>
+
+                            <div data-operator-group>
+                                <label class="form-label rh-mini-label" for="MobileMoneyChannel">Mobile Money operator</label>
+                                <select class="form-select" id="MobileMoneyChannel" name="channel" data-mobile-channel>
+                                    <option value="">Choose operator</option>
+                                    <option value="@PayoutChannelEnum.MtnMoney">MTN Money</option>
+                                    <option value="@PayoutChannelEnum.OrangeMoney">Orange Money</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="form-label rh-mini-label" for="MobileMoneyPhoneNumber">New number</label>
+                                <div class="rh-phone-input-group">
+                                    <span class="rh-country-code-block">+237</span>
+                                    <input class="form-control" id="MobileMoneyPhoneNumber" name="phoneNumber" inputmode="numeric" placeholder="6XXXXXXXX" data-mobile-phone />
+                                </div>
+                                <small class="text-danger d-none mt-2" data-phone-format-message>Enter the 9-digit Cameroon number after +237, for example 696389202.</small>
+                            </div>
+
+                            <div class="rh-otp-panel d-none" data-modal-otp-panel>
+                                <label class="form-label rh-mini-label" for="MobileMoneyOtp">OTP code</label>
+                                <input class="form-control" id="MobileMoneyOtp" name="otp" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="Enter the 6-digit OTP" data-mobile-otp />
+                                <small class="text-muted d-block mt-2" data-mobile-otp-hint>Send OTP first, then enter the code here.</small>
+                                <button type="submit" class="btn rh-btn-primary mt-3 d-none" data-mobile-money-submit>Send OTP</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn rh-btn-subtle" data-mobile-money-discard>Discard</button>
+                        <button type="button" class="btn rh-btn-primary d-none" disabled data-mobile-money-confirm>Confirm OTP</button>
+                    </div>
+                </form>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @section Scripts {
@@ -260,6 +528,704 @@ else
                 document.addEventListener("DOMContentLoaded", startPolling, { once: true });
             } else {
                 startPolling();
+            }
+        })();
+    </script>
+    <script>
+        (() => {
+            const modalElement = document.getElementById("mobileMoneyModal");
+            let mobileMoneyModal = null;
+            let setup = null;
+            let otpSentSignature = null;
+
+            const getModal = () => {
+                if (!modalElement || !window.bootstrap?.Modal) {
+                    return null;
+                }
+
+                mobileMoneyModal ??= new window.bootstrap.Modal(modalElement, {
+                    backdrop: "static",
+                    keyboard: false
+                });
+                return mobileMoneyModal;
+            };
+
+            const pick = (source, ...names) => {
+                if (!source || typeof source !== "object") {
+                    return undefined;
+                }
+
+                for (const name of names) {
+                    if (Object.prototype.hasOwnProperty.call(source, name)) {
+                        return source[name];
+                    }
+                }
+
+                return undefined;
+            };
+
+            const readJson = async (response) => {
+                const text = await response.text();
+                if (!text) {
+                    return {};
+                }
+
+                try {
+                    return JSON.parse(text);
+                } catch {
+                    return { message: text };
+                }
+            };
+
+            const readMessage = (data, fallback) =>
+                pick(data, "message", "Message") || fallback;
+
+            const postForm = async (form, url = form.action, body = new FormData(form)) => {
+                const response = await fetch(url, {
+                    method: "POST",
+                    body,
+                    credentials: "same-origin",
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                const data = await readJson(response);
+
+                if (!response.ok) {
+                    throw data;
+                }
+
+                return data;
+            };
+
+            const showPageFeedback = (message, kind = "success") => {
+                const feedback = document.querySelector("[data-payment-feedback]");
+                if (!feedback || !message) {
+                    return;
+                }
+
+                feedback.textContent = message;
+                feedback.className = `alert alert-${kind}`;
+            };
+
+            const restorePageFeedback = () => {
+                const message = window.sessionStorage.getItem("renthub:payment-center-message");
+                if (!message) {
+                    return;
+                }
+
+                window.sessionStorage.removeItem("renthub:payment-center-message");
+                showPageFeedback(message, "success");
+            };
+
+            const setButtonBusy = (button, busy, busyText) => {
+                if (!button) {
+                    return;
+                }
+
+                if (!button.dataset.defaultText) {
+                    button.dataset.defaultText = button.textContent.trim();
+                }
+
+                button.disabled = busy;
+                button.textContent = busy ? busyText : button.dataset.defaultText;
+            };
+
+            const setModalBusy = (form, busy, busyText = "Working...") => {
+                const submit = form.querySelector("[data-mobile-money-submit]");
+                const confirm = form.querySelector("[data-mobile-money-confirm]");
+                setButtonBusy(submit, busy, busyText);
+                setButtonBusy(confirm, busy, "Confirming...");
+                form.querySelectorAll("input, select, button").forEach(input => {
+                    input.disabled = busy;
+                });
+            };
+
+            const showModalMessage = (form, message, kind) => {
+                const messageBox = form.querySelector("[data-mobile-money-message]");
+                if (!messageBox) {
+                    return;
+                }
+
+                messageBox.textContent = message;
+                messageBox.className = `alert py-2 alert-${kind}`;
+            };
+
+            const showOtpMessage = (section, message, kind) => {
+                const messageBox = section?.querySelector("[data-otp-message]");
+                if (!messageBox) {
+                    return;
+                }
+
+                messageBox.textContent = message;
+                messageBox.className = `d-block mt-2 text-${kind}`;
+            };
+
+            const asBool = (value) =>
+                value === true || value === "true" || value === "True";
+
+            const normalizePhone = (value) => {
+                let digits = String(value || "").replace(/\D/g, "");
+                if (digits.startsWith("00")) {
+                    digits = digits.slice(2);
+                }
+
+                if (digits.startsWith("237") && digits.length === 12) {
+                    digits = digits.slice(3);
+                }
+
+                return digits;
+            };
+
+            const cleanLocalCameroonPhone = (value) =>
+                normalizePhone(value).slice(0, 9);
+
+            const isValidLocalCameroonPhone = (value) =>
+                /^6\d{8}$/.test(cleanLocalCameroonPhone(value));
+
+            const targetLabel = (target) => {
+                if (target === "payout") return "Rent payout number";
+                if (target === "whatsapp") return "WhatsApp alerts number";
+                return "Subscription payment number";
+            };
+
+            const getTargetSetup = (target) => {
+                if (!setup) {
+                    return {
+                        number: "",
+                        channel: "MtnMoney",
+                        verified: false
+                    };
+                }
+
+                if (target === "payout") {
+                    return setup.payout;
+                }
+
+                if (target === "whatsapp") {
+                    return setup.whatsapp;
+                }
+
+                return setup.subscription;
+            };
+
+            const getSelectedTarget = (form) =>
+                form.querySelector("[data-mobile-target]")?.value || "subscription";
+
+            const modalSignature = (form) => {
+                const target = getSelectedTarget(form);
+                const phone = cleanLocalCameroonPhone(form.querySelector("[data-mobile-phone]")?.value);
+                const channel = target === "whatsapp"
+                    ? ""
+                    : form.querySelector("[data-mobile-channel]")?.value || "";
+
+                return `${target}|${phone}|${channel}`;
+            };
+
+            const hasChangedPhone = (form) => {
+                const current = getTargetSetup(getSelectedTarget(form)).number;
+                const next = form.querySelector("[data-mobile-phone]")?.value;
+                return isValidLocalCameroonPhone(next) &&
+                    cleanLocalCameroonPhone(next) !== cleanLocalCameroonPhone(current);
+            };
+
+            const targetVerifiedFromResponse = (data, target) => {
+                const status = pick(data, "status", "Status");
+                if (!status) {
+                    return false;
+                }
+
+                if (target === "payout") {
+                    return asBool(pick(status, "isPayoutPhoneVerified", "IsPayoutPhoneVerified"));
+                }
+
+                if (target === "whatsapp") {
+                    return asBool(pick(status, "isWhatsAppPhoneVerified", "IsWhatsAppPhoneVerified"));
+                }
+
+                return asBool(pick(status, "isSubscriptionPaymentPhoneVerified", "IsSubscriptionPaymentPhoneVerified"));
+            };
+
+            const updateConfirmButton = (form) => {
+                const confirm = form.querySelector("[data-mobile-money-confirm]");
+                const otp = form.querySelector("[data-mobile-otp]");
+                if (!confirm || !otp) {
+                    return;
+                }
+
+                const complete = otpSentSignature === modalSignature(form) &&
+                    /^\d{6}$/.test(otp.value.trim());
+                confirm.disabled = !complete;
+            };
+
+            const updateModalState = (form) => {
+                const target = getSelectedTarget(form);
+                const targetState = getTargetSetup(target);
+                const operatorGroup = form.querySelector("[data-operator-group]");
+                const channel = form.querySelector("[data-mobile-channel]");
+                const sendButton = form.querySelector("[data-mobile-money-submit]");
+                const confirmButton = form.querySelector("[data-mobile-money-confirm]");
+                const otpPanel = form.querySelector("[data-modal-otp-panel]");
+                const otpInput = form.querySelector("[data-mobile-otp]");
+                const otpHint = form.querySelector("[data-mobile-otp-hint]");
+                const phone = form.querySelector("[data-mobile-phone]");
+                const phoneFormatMessage = form.querySelector("[data-phone-format-message]");
+                const hiddenTarget = form.querySelector("[data-mobile-target-field]");
+                const currentPhone = form.querySelector("[data-current-phone]");
+                const currentMeta = form.querySelector("[data-current-phone-meta]");
+
+                if (hiddenTarget) {
+                    hiddenTarget.value = target;
+                }
+
+                if (currentPhone) {
+                    currentPhone.textContent = targetState.number || "Not provided";
+                }
+
+                if (currentMeta) {
+                    const meta = [];
+                    if (target !== "whatsapp" && targetState.channel) {
+                        meta.push(targetState.channel === "OrangeMoney" ? "Orange Money" : "MTN Money");
+                    }
+                    meta.push(targetState.verified ? "Verified" : "Pending verification");
+                    currentMeta.textContent = meta.join(" - ");
+                }
+
+                const usesOperator = target !== "whatsapp";
+                operatorGroup?.classList.toggle("d-none", !usesOperator);
+                if (channel) {
+                    channel.required = usesOperator;
+                    channel.disabled = !usesOperator;
+                }
+
+                const changed = hasChangedPhone(form);
+                const hasPhoneValue = cleanLocalCameroonPhone(phone?.value).length > 0;
+                const phoneIsValid = isValidLocalCameroonPhone(phone?.value);
+                phoneFormatMessage?.classList.toggle("d-none", !hasPhoneValue || phoneIsValid);
+                const currentSignature = modalSignature(form);
+                if (otpSentSignature && otpSentSignature !== currentSignature) {
+                    otpSentSignature = null;
+                    const otp = form.querySelector("[data-mobile-otp]");
+                    if (otp) {
+                        otp.value = "";
+                    }
+                }
+
+                const otpSent = otpSentSignature === currentSignature;
+                sendButton?.classList.toggle("d-none", !changed || otpSent);
+                confirmButton?.classList.toggle("d-none", !changed);
+                otpPanel?.classList.toggle("d-none", !changed);
+
+                if (otpInput) {
+                    otpInput.disabled = !otpSent;
+                }
+
+                if (otpHint) {
+                    otpHint.textContent = otpSent
+                        ? "Enter the OTP sent to the new number to finish the update."
+                        : "Send OTP first, then enter the code here.";
+                }
+
+                if (sendButton) {
+                    sendButton.disabled = !changed || !phoneIsValid || (usesOperator && !channel?.value);
+                }
+
+                updateConfirmButton(form);
+            };
+
+            const applyTargetToForm = (form) => {
+                const target = getSelectedTarget(form);
+                const targetState = getTargetSetup(target);
+                const phone = form.querySelector("[data-mobile-phone]");
+                const channel = form.querySelector("[data-mobile-channel]");
+                const otp = form.querySelector("[data-mobile-otp]");
+
+                if (phone) {
+                    phone.value = cleanLocalCameroonPhone(targetState.number);
+                    phone.defaultValue = phone.value;
+                }
+
+                if (channel) {
+                    channel.value = target === "whatsapp" ? "" : targetState.channel || "MtnMoney";
+                }
+
+                if (otp) {
+                    otp.value = "";
+                }
+
+                otpSentSignature = null;
+                clearModalMessage(form);
+                updateModalState(form);
+            };
+
+            const formatDuration = (seconds) => {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = seconds % 60;
+                return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
+            };
+
+            const applyCountdown = (button) => {
+                window.clearTimeout(button._otpTimer);
+
+                const section = button.closest("[data-otp-section]");
+                const countdown = section?.querySelector("[data-otp-countdown]");
+                const dailyLimit = section?.querySelector("[data-otp-daily-limit]");
+                const dailyLimitReached = button.dataset.dailyLimitReached === "true";
+                let retryAfter = Number.parseInt(button.dataset.retryAfter || "0", 10);
+
+                if (!Number.isFinite(retryAfter) || retryAfter < 0) {
+                    retryAfter = 0;
+                }
+
+                if (dailyLimitReached) {
+                    button.disabled = true;
+                    countdown?.classList.add("d-none");
+                    dailyLimit?.classList.remove("d-none");
+                    return;
+                }
+
+                dailyLimit?.classList.add("d-none");
+
+                if (retryAfter <= 0) {
+                    button.disabled = false;
+                    countdown?.classList.add("d-none");
+                    return;
+                }
+
+                button.disabled = true;
+                if (countdown) {
+                    countdown.textContent = `Resend available in ${formatDuration(retryAfter)}.`;
+                    countdown.classList.remove("d-none");
+                }
+
+                button.dataset.retryAfter = String(retryAfter - 1);
+                button._otpTimer = window.setTimeout(() => applyCountdown(button), 1000);
+            };
+
+            const getLimitForTarget = (data, target) => {
+                const status = pick(data, "status", "Status");
+                if (!status) {
+                    return null;
+                }
+
+                if (target === "subscription") {
+                    return pick(status, "subscriptionPaymentOtpRequestLimit", "SubscriptionPaymentOtpRequestLimit");
+                }
+
+                if (target === "payout") {
+                    return pick(status, "payoutOtpRequestLimit", "PayoutOtpRequestLimit");
+                }
+
+                if (target === "whatsapp") {
+                    return pick(status, "whatsAppOtpRequestLimit", "WhatsAppOtpRequestLimit");
+                }
+
+                return null;
+            };
+
+            const updateResendButtonState = (button, data, fallbackRetryAfter) => {
+                const target = button.dataset.target;
+                const limit = getLimitForTarget(data, target);
+                const retryAfter = Number(
+                    pick(limit, "retryAfterSeconds", "RetryAfterSeconds") ??
+                    pick(data, "retryAfterSeconds", "RetryAfterSeconds") ??
+                    fallbackRetryAfter
+                );
+                const dailyLimitReached = Boolean(
+                    pick(limit, "dailyLimitReached", "DailyLimitReached") ??
+                    pick(data, "dailyLimitReached", "DailyLimitReached") ??
+                    false
+                );
+
+                button.dataset.retryAfter = String(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 0);
+                button.dataset.dailyLimitReached = dailyLimitReached ? "true" : "false";
+                applyCountdown(button);
+            };
+
+            const clearModalMessage = (form) => {
+                const messageBox = form?.querySelector("[data-mobile-money-message]");
+                if (!messageBox) {
+                    return;
+                }
+
+                messageBox.textContent = "";
+                messageBox.className = "alert d-none py-2";
+            };
+
+            const reloadMobileMoneyForm = async (form) => {
+                if (!form?.dataset.setupUrl) {
+                    applyTargetToForm(form);
+                    return;
+                }
+
+                clearModalMessage(form);
+                otpSentSignature = null;
+
+                const separator = form.dataset.setupUrl.includes("?") ? "&" : "?";
+                const response = await fetch(`${form.dataset.setupUrl}${separator}_=${Date.now()}`, {
+                    credentials: "same-origin",
+                    headers: { "X-Requested-With": "XMLHttpRequest" }
+                });
+                const data = await readJson(response);
+
+                if (!response.ok) {
+                    form.reset();
+                    applyTargetToForm(form);
+                    throw data;
+                }
+
+                setup = {
+                    primaryPhoneNumber: pick(data, "primaryPhoneNumber", "PrimaryPhoneNumber"),
+                    subscription: {
+                        number: pick(data, "subscriptionPaymentPhoneNumber", "SubscriptionPaymentPhoneNumber") || "",
+                        channel: pick(data, "subscriptionPaymentChannel", "SubscriptionPaymentChannel") || "MtnMoney",
+                        verified: asBool(pick(data, "isSubscriptionPaymentPhoneVerified", "IsSubscriptionPaymentPhoneVerified"))
+                    },
+                    payout: {
+                        number: pick(data, "payoutPhoneNumber", "PayoutPhoneNumber") || "",
+                        channel: pick(data, "payoutChannel", "PayoutChannel") || "MtnMoney",
+                        verified: asBool(pick(data, "isPayoutPhoneVerified", "IsPayoutPhoneVerified"))
+                    },
+                    whatsapp: {
+                        number: pick(data, "whatsAppPhoneNumber", "WhatsAppPhoneNumber") || "",
+                        channel: "",
+                        verified: asBool(pick(data, "isWhatsAppPhoneVerified", "IsWhatsAppPhoneVerified"))
+                    }
+                };
+
+                const primaryPhone = modalElement.querySelector("[data-mobile-primary-phone]");
+                if (primaryPhone) {
+                    primaryPhone.textContent = setup.primaryPhoneNumber || "your verified phone";
+                }
+
+                applyTargetToForm(form);
+            };
+
+            const wireModal = () => {
+                const modal = getModal();
+                if (!modalElement || !modal) {
+                    return;
+                }
+
+                document.querySelectorAll("[data-mobile-money-open]").forEach(button => {
+                    button.addEventListener("click", async () => {
+                        const form = modalElement.querySelector("[data-mobile-money-form]");
+                        setButtonBusy(button, true, "Loading...");
+
+                        try {
+                            await reloadMobileMoneyForm(form);
+                            modal.show();
+                        } catch (error) {
+                            modal.show();
+                            showModalMessage(
+                                form,
+                                readMessage(error, "Unable to reload the latest Mobile Money setup. Showing the last loaded values."),
+                                "danger");
+                        } finally {
+                            setButtonBusy(button, false);
+                        }
+                    });
+                });
+
+                modalElement.addEventListener("shown.bs.modal", () => {
+                    document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+                        backdrop.classList.add("rh-mobile-money-backdrop");
+                    });
+                });
+
+                const form = modalElement.querySelector("[data-mobile-money-form]");
+                const target = form?.querySelector("[data-mobile-target]");
+                const phone = form?.querySelector("[data-mobile-phone]");
+                const channel = form?.querySelector("[data-mobile-channel]");
+                const otp = form?.querySelector("[data-mobile-otp]");
+
+                target?.addEventListener("change", () => applyTargetToForm(form));
+                phone?.addEventListener("input", () => {
+                    const cleaned = cleanLocalCameroonPhone(phone.value);
+                    if (phone.value !== cleaned) {
+                        phone.value = cleaned;
+                    }
+                    clearModalMessage(form);
+                    updateModalState(form);
+                });
+                channel?.addEventListener("change", () => {
+                    clearModalMessage(form);
+                    updateModalState(form);
+                });
+                otp?.addEventListener("input", () => {
+                    otp.value = otp.value.replace(/\D/g, "").slice(0, 6);
+                    updateConfirmButton(form);
+                });
+
+                modalElement.querySelector("[data-mobile-money-form]")?.addEventListener("submit", async (event) => {
+                    event.preventDefault();
+                    const form = event.currentTarget;
+                    const target = getSelectedTarget(form);
+
+                    if (!hasChangedPhone(form)) {
+                        updateModalState(form);
+                        return;
+                    }
+
+                    const body = new FormData(form);
+                    setModalBusy(form, true, "Sending...");
+
+                    try {
+                        const data = await postForm(form, form.action, body);
+                        if (targetVerifiedFromResponse(data, target)) {
+                            window.sessionStorage.setItem(
+                                "renthub:payment-center-message",
+                                `${targetLabel(target)} updated successfully.`);
+                            modal.hide();
+                            window.location.reload();
+                            return;
+                        }
+
+                        otpSentSignature = modalSignature(form);
+                        showModalMessage(
+                            form,
+                            readMessage(data, "OTP sent to the new number. Enter it below to confirm the update."),
+                            "success");
+                    } catch (error) {
+                        showModalMessage(
+                            form,
+                            readMessage(error, "Unable to send the OTP right now. Please try again."),
+                            "danger");
+
+                        if (pick(error, "code", "Code") === "OTP_REQUEST_LIMITED") {
+                            showModalMessage(form, readMessage(error, "You have reached today's OTP request limit. Please try again later."), "danger");
+                        }
+                    } finally {
+                        setModalBusy(form, false);
+                        updateModalState(form);
+                    }
+                });
+
+                modalElement.querySelector("[data-mobile-money-discard]")?.addEventListener("click", async () => {
+                    const form = modalElement.querySelector("[data-mobile-money-form]");
+                    const modal = getModal();
+
+                    if (!otpSentSignature) {
+                        otpSentSignature = null;
+                        applyTargetToForm(form);
+                        modal?.hide();
+                        return;
+                    }
+
+                    const body = new FormData();
+                    const token = form.querySelector("input[name='__RequestVerificationToken']")?.value;
+                    if (token) {
+                        body.append("__RequestVerificationToken", token);
+                    }
+                    body.append("target", getSelectedTarget(form));
+
+                    setModalBusy(form, true, "Discarding...");
+
+                    try {
+                        await postForm(form, form.dataset.cancelUrl, body);
+                        otpSentSignature = null;
+                        modal?.hide();
+                        window.location.reload();
+                    } catch (error) {
+                        showModalMessage(
+                            form,
+                            readMessage(error, "Unable to discard this update right now. Please try again."),
+                            "danger");
+                    } finally {
+                        setModalBusy(form, false);
+                        updateModalState(form);
+                    }
+                });
+
+                modalElement.querySelector("[data-mobile-money-confirm]")?.addEventListener("click", async () => {
+                    const form = modalElement.querySelector("[data-mobile-money-form]");
+                    const target = getSelectedTarget(form);
+                    const otp = form.querySelector("[data-mobile-otp]")?.value?.trim() || "";
+
+                    if (!/^\d{6}$/.test(otp)) {
+                        updateConfirmButton(form);
+                        return;
+                    }
+
+                    const body = new FormData();
+                    const token = form.querySelector("input[name='__RequestVerificationToken']")?.value;
+                    if (token) {
+                        body.append("__RequestVerificationToken", token);
+                    }
+                    body.append("target", target);
+                    body.append("otp", otp);
+
+                    setModalBusy(form, true, "Confirming...");
+
+                    try {
+                        const data = await postForm(form, form.dataset.verifyUrl, body);
+                        window.sessionStorage.setItem(
+                            "renthub:payment-center-message",
+                            readMessage(data, `${targetLabel(target)} verified successfully.`));
+                        modal.hide();
+                        window.location.reload();
+                    } catch (error) {
+                        showModalMessage(
+                            form,
+                            readMessage(error, "Unable to verify this OTP. Please try again."),
+                            "danger");
+                    } finally {
+                        setModalBusy(form, false);
+                        updateModalState(form);
+                    }
+                });
+            };
+
+            const wireOtpForms = () => {
+                document.querySelectorAll("[data-otp-resend]").forEach(applyCountdown);
+
+                document.querySelectorAll("[data-mobile-otp-form]").forEach(form => {
+                    form.addEventListener("submit", async (event) => {
+                        event.preventDefault();
+                        const section = form.closest("[data-otp-section]");
+                        const button = form.querySelector("[data-otp-verify]");
+
+                        setButtonBusy(button, true, "Verifying...");
+
+                        try {
+                            const data = await postForm(form);
+                            showOtpMessage(section, readMessage(data, "Number verified successfully."), "success");
+                            window.setTimeout(() => window.location.reload(), 700);
+                        } catch (error) {
+                            showOtpMessage(section, readMessage(error, "Unable to verify this OTP. Please try again."), "danger");
+                            setButtonBusy(button, false, "Verify");
+                        }
+                    });
+                });
+
+                document.querySelectorAll("[data-mobile-resend-form]").forEach(form => {
+                    form.addEventListener("submit", async (event) => {
+                        event.preventDefault();
+                        const section = form.closest("[data-otp-section]");
+                        const button = form.querySelector("[data-otp-resend]");
+
+                        setButtonBusy(button, true, "Sending...");
+
+                        try {
+                            const data = await postForm(form);
+                            showOtpMessage(section, readMessage(data, "OTP sent. You can request another code after the cooldown."), "info");
+                            updateResendButtonState(button, data, 60);
+                        } catch (error) {
+                            showOtpMessage(section, readMessage(error, "Unable to resend the OTP right now. Please try again."), "danger");
+                            updateResendButtonState(button, error, Number(button.dataset.retryAfter || 0));
+                        }
+                    });
+                });
+            };
+
+            const start = () => {
+                restorePageFeedback();
+                wireModal();
+                wireOtpForms();
+            };
+
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", start, { once: true });
+            } else {
+                start();
             }
         })();
     </script>

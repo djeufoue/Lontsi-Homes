@@ -4,7 +4,9 @@ using Common.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
+using RentHub.Portal.ViewModels.Auth;
 using RentHub.Portal.ViewModels.Profile;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
@@ -51,6 +53,217 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        [Authorize(Roles = "Landlord")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> MobileMoneySetup()
+        {
+            try
+            {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                return Json(new
+                {
+                    overview.Email,
+                    PrimaryPhoneNumber = overview.PhoneNumber,
+                    overview.UsePrimaryPhoneForSubscriptionPayments,
+                    overview.SubscriptionPaymentPhoneNumber,
+                    SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel?.ToString(),
+                    overview.IsSubscriptionPaymentPhoneVerified,
+                    overview.UsePrimaryPhoneForRentPayouts,
+                    overview.PayoutPhoneNumber,
+                    PayoutChannel = overview.PayoutChannel?.ToString(),
+                    overview.IsPayoutPhoneVerified,
+                    overview.WhatsAppPhoneNumber,
+                    overview.IsWhatsAppPhoneVerified
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load Mobile Money setup in Portal");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    Message = "Unable to reload Mobile Money setup right now. Please try again."
+                });
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartMobileMoneyUpdate(string target, string phoneNumber, PayoutChannelEnum? channel)
+        {
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return BadRequest(new { Message = "Choose the phone number you want to update." });
+            }
+
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+            {
+                return BadRequest(new { Message = "Enter the new phone number before requesting an OTP." });
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<StartMobilePaymentNumberUpdateRequest, JsonElement>(
+                    "Account/mobile-payments/start-update",
+                    new StartMobilePaymentNumberUpdateRequest
+                    {
+                        Target = target,
+                        PhoneNumber = phoneNumber.Trim(),
+                        Channel = channel
+                    });
+
+                return ApiJson(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mobile Money single-number update failed for target {Target}", target);
+                return ApiError(ex, "Unable to send the OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelMobileMoneyUpdate(string target)
+        {
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return BadRequest(new { Message = "Choose the phone number update to discard." });
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<CancelMobilePaymentNumberUpdateRequest, JsonElement>(
+                    "Account/mobile-payments/cancel-update",
+                    new CancelMobilePaymentNumberUpdateRequest
+                    {
+                        Target = target
+                    });
+
+                return ApiJson(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mobile Money update cancel failed for target {Target}", target);
+                return ApiError(ex, "Unable to discard the Mobile Money update right now. Please try again.");
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateMobileMoney(LandlordMobilePaymentsVm vm)
+        {
+            var email = ResolveAuthenticatedEmail();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return Unauthorized(new { Message = "Your session expired. Please sign in again." });
+            }
+
+            vm.Email = email;
+            ModelState.Remove(nameof(LandlordMobilePaymentsVm.Email));
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new { Message = ReadFirstModelError("Check the Mobile Money details and try again.") });
+            }
+
+            try
+            {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (HasPendingMobilePaymentVerification(overview))
+                {
+                    return BadRequest(new { Message = "Complete the pending OTP validation before changing Mobile Money setup again." });
+                }
+
+                var request = new UpsertLandlordMobilePaymentsRequest
+                {
+                    Email = email,
+                    UsePrimaryPhoneForSubscriptionPayments = vm.UsePrimaryPhoneForSubscriptionPayments,
+                    SubscriptionPaymentPhoneNumber = vm.SubscriptionPaymentPhoneNumber,
+                    SubscriptionPaymentChannel = vm.SubscriptionPaymentChannel,
+                    UsePrimaryPhoneForRentPayouts = vm.UsePrimaryPhoneForRentPayouts,
+                    PayoutPhoneNumber = vm.PayoutPhoneNumber,
+                    PayoutChannel = vm.PayoutChannel,
+                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
+                };
+
+                var response = await _api.PostAsync<UpsertLandlordMobilePaymentsRequest, JsonElement>(
+                    "Account/landlord-registration/mobile-payments",
+                    request);
+
+                return ApiJson(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mobile Money update failed from profile for {Email}", email);
+                return ApiError(ex, "Unable to save Mobile Money setup right now. Please try again.");
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyMobileMoneyOtp(string target, string otp)
+        {
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return BadRequest(new { Message = "Choose the number you want to verify." });
+            }
+
+            if (string.IsNullOrWhiteSpace(otp))
+            {
+                return BadRequest(new { Message = "Enter the OTP code before verifying this number." });
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<VerifyMobilePaymentOtpRequest, JsonElement>(
+                    "Account/mobile-payments/verify-otp",
+                    new VerifyMobilePaymentOtpRequest
+                    {
+                        Target = target,
+                        Otp = otp
+                    });
+
+                return ApiJson(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mobile Money OTP verification failed for target {Target}", target);
+                return ApiError(ex, "Unable to verify the OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendMobileMoneyOtp(string target)
+        {
+            if (string.IsNullOrWhiteSpace(target))
+            {
+                return BadRequest(new { Message = "Choose the number that should receive a new OTP." });
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<ResendMobilePaymentOtpRequest, JsonElement>(
+                    "Account/mobile-payments/resend-otp",
+                    new ResendMobilePaymentOtpRequest
+                    {
+                        Target = target
+                    });
+
+                return ApiJson(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mobile Money OTP resend failed for target {Target}", target);
+                return ApiError(ex, "Unable to resend the OTP right now. Please try again.");
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Upgrade(int planId)
@@ -85,7 +298,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartCheckout(int planId)
+        public async Task<IActionResult> StartCheckout(int planId, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
         {
             if (planId <= 0)
             {
@@ -97,7 +310,10 @@ namespace RentHub.Portal.Controllers
             {
                 var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(
                     $"Subscriptions/checkout/{planId}",
-                    new StartSubscriptionCheckoutRequest());
+                    new StartSubscriptionCheckoutRequest
+                    {
+                        PaymentMethod = paymentMethod
+                    });
 
                 if (!string.IsNullOrWhiteSpace(session.AuthorizationUrl))
                 {
@@ -123,7 +339,51 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> SubscriptionCallback(string? reference = null)
+        public async Task<IActionResult> CardCheckout(string? reference = null)
+        {
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                TempData["Error"] = "Card checkout reference is missing. Please choose a subscription plan again.";
+                return RedirectToAction(nameof(Payments));
+            }
+
+            try
+            {
+                var session = await _api.GetAsync<SubscriptionCheckoutSessionDto>(
+                    $"Subscriptions/checkout-session/{Uri.EscapeDataString(reference)}");
+
+                if (string.IsNullOrWhiteSpace(session.PublishableKey) ||
+                    string.IsNullOrWhiteSpace(session.ClientSecret))
+                {
+                    TempData["Error"] = "Card checkout is not configured yet. Please contact support or try again later.";
+                    return RedirectToAction(nameof(Payments));
+                }
+
+                return View(new SubscriptionCardCheckoutVm
+                {
+                    PlanId = session.PlanId,
+                    PlanName = session.PlanName,
+                    Amount = session.Amount,
+                    Currency = session.Currency,
+                    PaymentReference = session.PaymentReference,
+                    ProviderReference = session.ProviderReference,
+                    PublishableKey = session.PublishableKey,
+                    ClientSecret = session.ClientSecret,
+                    ReturnUrl = session.ReturnUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load card checkout for reference {Reference}", reference);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to load the secure card form right now. Please try again.");
+                return RedirectToAction(nameof(Payments));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SubscriptionCallback(string? reference = null, string? session_id = null)
         {
             if (string.IsNullOrWhiteSpace(reference))
             {
@@ -135,7 +395,7 @@ namespace RentHub.Portal.Controllers
             {
                 var status = await _api.GetAsync<SubscriptionCheckoutStatusDto>($"Subscriptions/checkout-status/{Uri.EscapeDataString(reference)}");
                 TempData[status.PaymentCompleted ? "Success" : "Error"] = string.IsNullOrWhiteSpace(status.Message)
-                    ? (status.PaymentCompleted ? "Subscription activated successfully." : "Subscription payment is still pending.")
+                    ? (status.PaymentCompleted ? "Subscription activated successfully." : "The card payment was not completed. Please try again.")
                     : status.Message;
             }
             catch (Exception ex)
@@ -200,6 +460,152 @@ namespace RentHub.Portal.Controllers
             {
                 Overview = overview,
                 NowUtc = DateTimeOffset.UtcNow
+            };
+        }
+
+        private ContentResult ApiJson(JsonElement element)
+        {
+            return Content(element.GetRawText(), "application/json");
+        }
+
+        private IActionResult ApiError(Exception ex, string fallback)
+        {
+            var payload = ParseApiErrorPayload(ex.Message);
+            payload.Message = SafeUserMessage(payload.Message, fallback);
+
+            var statusCode = payload.Code switch
+            {
+                "AUTH_SESSION_EXPIRED" => StatusCodes.Status401Unauthorized,
+                "OTP_REQUEST_LIMITED" => StatusCodes.Status429TooManyRequests,
+                "SERVER_ERROR" => StatusCodes.Status503ServiceUnavailable,
+                _ => StatusCodes.Status400BadRequest
+            };
+
+            return StatusCode(statusCode, payload);
+        }
+
+        private string? ResolveAuthenticatedEmail()
+        {
+            return User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name;
+        }
+
+        private string ReadFirstModelError(string fallback)
+        {
+            return ModelState.Values
+                .SelectMany(value => value.Errors)
+                .Select(error => error.ErrorMessage)
+                .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                ?? fallback;
+        }
+
+        private static bool HasPendingMobilePaymentVerification(ProfileOverviewDto overview)
+        {
+            return !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) && !overview.IsSubscriptionPaymentPhoneVerified ||
+                   !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) && !overview.IsPayoutPhoneVerified ||
+                   !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) && !overview.IsWhatsAppPhoneVerified;
+        }
+
+        private static UpsertLandlordMobilePaymentsRequest BuildMobileMoneyRequestFromOverview(
+            ProfileOverviewDto overview,
+            string email)
+        {
+            var hasPrimaryPhone = !string.IsNullOrWhiteSpace(overview.PhoneNumber);
+            return new UpsertLandlordMobilePaymentsRequest
+            {
+                Email = email,
+                UsePrimaryPhoneForSubscriptionPayments = overview.UsePrimaryPhoneForSubscriptionPayments && hasPrimaryPhone,
+                SubscriptionPaymentPhoneNumber = overview.SubscriptionPaymentPhoneNumber ?? overview.PhoneNumber,
+                SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
+                UsePrimaryPhoneForRentPayouts = overview.UsePrimaryPhoneForRentPayouts && hasPrimaryPhone,
+                PayoutPhoneNumber = overview.PayoutPhoneNumber ?? overview.PhoneNumber,
+                PayoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
+                WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber
+            };
+        }
+
+        private static bool SamePhone(string? left, string? right)
+        {
+            var normalizedLeft = NormalizePhone(left);
+            var normalizedRight = NormalizePhone(right);
+            return normalizedLeft.Length > 0 &&
+                   normalizedRight.Length > 0 &&
+                   string.Equals(normalizedLeft, normalizedRight, StringComparison.Ordinal);
+        }
+
+        private static string NormalizePhone(string? phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+                return string.Empty;
+
+            if (CameroonMobileMoneyNumberHelper.TryNormalizeNationalNumber(phoneNumber, out var normalized))
+                return normalized;
+
+            var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
+            return digits.StartsWith("00", StringComparison.Ordinal) ? digits[2..] : digits;
+        }
+
+        private static ApiErrorPayload ParseApiErrorPayload(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return new ApiErrorPayload();
+
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
+
+                if (root.ValueKind == JsonValueKind.String)
+                {
+                    return new ApiErrorPayload { Message = root.GetString() };
+                }
+
+                return new ApiErrorPayload
+                {
+                    Code = ReadString(root, "code"),
+                    Message = ReadString(root, "message"),
+                    RetryAfterSeconds = ReadInt(root, "retryAfterSeconds"),
+                    DailyRequestLimit = ReadInt(root, "dailyRequestLimit"),
+                    DailyRequestsRemaining = ReadInt(root, "dailyRequestsRemaining"),
+                    DailyLimitReached = ReadBool(root, "dailyLimitReached")
+                };
+            }
+            catch
+            {
+                return new ApiErrorPayload { Message = raw };
+            }
+        }
+
+        private static string? ReadString(JsonElement element, string propertyName)
+        {
+            return TryGetPropertyIgnoreCase(element, propertyName, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+
+        private static int? ReadInt(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyIgnoreCase(element, propertyName, out var value))
+                return null;
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.Number when value.TryGetInt32(out var number) => number,
+                JsonValueKind.String when int.TryParse(value.GetString(), out var number) => number,
+                _ => null
+            };
+        }
+
+        private static bool? ReadBool(JsonElement element, string propertyName)
+        {
+            if (!TryGetPropertyIgnoreCase(element, propertyName, out var value))
+                return null;
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
+                _ => null
             };
         }
 
@@ -279,6 +685,16 @@ namespace RentHub.Portal.Controllers
 
             return technicalFragments.Any(fragment =>
                 normalized.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private sealed class ApiErrorPayload
+        {
+            public string? Code { get; set; }
+            public string? Message { get; set; }
+            public int? RetryAfterSeconds { get; set; }
+            public int? DailyRequestLimit { get; set; }
+            public int? DailyRequestsRemaining { get; set; }
+            public bool? DailyLimitReached { get; set; }
         }
     }
 }

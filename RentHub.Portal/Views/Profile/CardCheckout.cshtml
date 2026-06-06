@@ -1,0 +1,80 @@
+@model RentHub.Portal.ViewModels.Profile.SubscriptionCardCheckoutVm
+@using System.Globalization
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Secure Card Payment";
+    var amount = Model.Amount.ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    var publishableKeyJson = JsonSerializer.Serialize(Model.PublishableKey);
+    var clientSecretJson = JsonSerializer.Serialize(Model.ClientSecret);
+}
+
+<section class="rh-card-checkout-page">
+    <div class="rh-card-checkout-shell">
+        <aside class="rh-card-checkout-summary">
+            <p class="rh-kicker">Card payment</p>
+            <h1>Complete your subscription</h1>
+            <p>Stripe securely checks and processes your card. Your subscription is activated only after the payment succeeds.</p>
+
+            <div class="rh-card-checkout-plan">
+                <span>Selected plan</span>
+                <strong>@Model.PlanName</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>Amount</span>
+                <strong>@amount @Model.Currency.ToUpperInvariant()</strong>
+            </div>
+        </aside>
+
+        <div class="rh-card-checkout-panel">
+            <div class="rh-card-checkout-panel-head">
+                <div>
+                    <p class="rh-kicker mb-1">Secure checkout</p>
+                    <h2>Enter card details</h2>
+                </div>
+                <a class="btn rh-btn-subtle" asp-action="Payments">Cancel</a>
+            </div>
+
+            <div class="alert alert-danger d-none" data-card-checkout-error></div>
+            <div id="stripe-checkout" class="rh-stripe-checkout-frame" aria-live="polite"></div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        (() => {
+            const publishableKey = @Html.Raw(publishableKeyJson);
+            const clientSecret = @Html.Raw(clientSecretJson);
+            const container = document.getElementById("stripe-checkout");
+            const errorBox = document.querySelector("[data-card-checkout-error]");
+
+            const showError = (message) => {
+                if (!errorBox) return;
+                errorBox.textContent = message || "Unable to load the secure card form. Please try again.";
+                errorBox.classList.remove("d-none");
+            };
+
+            if (!container) return;
+            if (!publishableKey || !clientSecret) {
+                showError("Card checkout is not configured yet. Please try again later.");
+                return;
+            }
+
+            if (!window.Stripe) {
+                showError("Stripe could not be loaded. Check your connection and refresh this page.");
+                return;
+            }
+
+            const stripe = Stripe(publishableKey);
+            stripe
+                .initEmbeddedCheckout({
+                    fetchClientSecret: () => Promise.resolve(clientSecret)
+                })
+                .then((checkout) => checkout.mount("#stripe-checkout"))
+                .catch((error) => {
+                    showError(error?.message || "Unable to load the secure card form. Please refresh and try again.");
+                });
+        })();
+    </script>
+}
