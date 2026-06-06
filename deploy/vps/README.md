@@ -95,7 +95,8 @@ Fill in:
 - Azure Blob connection string
 - Twilio secrets
 - SMTP secrets
-- Notch Pay secrets
+- Stripe publishable key, secret key, and webhook signing secret
+- USD to XAF conversion rate
 - admin seed credentials
 
 ## Domain DNS

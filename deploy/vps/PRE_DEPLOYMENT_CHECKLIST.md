@@ -1,6 +1,6 @@
 # Lontsi Homes Pre-Deployment Checklist
 
-Use this checklist before we start the live VPS deployment and before you submit the live website URL to Notch Pay.
+Use this checklist before we start the live VPS deployment and before you submit the live website URL to Stripe.
 
 ## 1. Public website pages
 
@@ -45,7 +45,7 @@ Prepare the real domains you want to use:
 
 You will point both to the VPS public IP during deployment.
 
-## 4. Notch Pay preparation
+## 4. Stripe preparation
 
 Before live approval, make sure you are ready to configure:
 
@@ -53,6 +53,7 @@ Before live approval, make sure you are ready to configure:
 - your webhook URL
 - your real support contact details
 - your settlement bank account for card payouts
+- your Stripe live publishable key, secret key, and webhook signing secret
 - your MTN / Orange admin receiving numbers if needed for later transfer flows
 
 ## 5. Application production values
@@ -64,8 +65,10 @@ Prepare these production values before deployment:
 - Azure Blob container name
 - SMTP host / port / username / password
 - Twilio Account SID / Auth Token / sender numbers
-- Notch Pay API key
-- Notch Pay webhook secret
+- Stripe publishable key
+- Stripe secret key
+- Stripe webhook signing secret
+- USD to XAF display/conversion rate
 - admin seed email / password
 
 ## 6. Server target

@@ -30,6 +30,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Api__BaseUrl: http://api:8080/api/
       DataProtection__KeysPath: /var/aspnet/data-protection-keys
+      Subscriptions__UsdToXafRate: ${SUBSCRIPTIONS_USD_TO_XAF_RATE}
     volumes:
       - portal_keys:/var/aspnet/data-protection-keys
     depends_on:
@@ -74,6 +75,12 @@ services:
       CamPay__AppUsername: ${CAMPAY_APP_USERNAME}
       CamPay__AppPassword: ${CAMPAY_APP_PASSWORD}
       CamPay__WebhookKey: ${CAMPAY_WEBHOOK_KEY}
+      Subscriptions__UsdToXafRate: ${SUBSCRIPTIONS_USD_TO_XAF_RATE}
+      Stripe__BaseUrl: ${STRIPE_BASE_URL}
+      Stripe__Currency: ${STRIPE_CURRENCY}
+      Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY}
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
       AdminSeed__Email: ${ADMIN_SEED_EMAIL}
       AdminSeed__Password: ${ADMIN_SEED_PASSWORD}
       AdminSeed__FullName: ${ADMIN_SEED_FULL_NAME}
