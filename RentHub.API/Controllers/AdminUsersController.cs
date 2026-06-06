@@ -961,6 +961,7 @@ namespace RentHub.API.Controllers
                 };
             }
 
+            var isCameroonLandlord = IsCameroonCountryCode(status.CountryCode);
             var hasSubscriptionPaymentDetails =
                 !string.IsNullOrWhiteSpace(status.SubscriptionPaymentPhoneNumber) &&
                 status.SubscriptionPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney;
@@ -975,18 +976,26 @@ namespace RentHub.API.Controllers
                 status.IsPayoutPhoneVerified &&
                 whatsAppReady;
 
-            return new List<AdminUserOnboardingStepDto>
+            var steps = new List<AdminUserOnboardingStepDto>
             {
                 CreateStep(LandlordOnboardingSteps.Account, "Account created", "Name, email, and landlord role are registered.", !string.IsNullOrWhiteSpace(status.Email), status.NextOnboardingStep == LandlordOnboardingSteps.Account, status.Email),
                 CreateStep(LandlordOnboardingSteps.Email, "Email verified", "The landlord confirms the email OTP.", status.EmailConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Email, status.EmailConfirmed ? "Email confirmed." : "Waiting for email OTP."),
-                CreateStep(LandlordOnboardingSteps.Phone, "Primary phone verified", "The landlord confirms the SMS OTP for the primary phone.", !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Phone, status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP."),
-                CreateStep(LandlordOnboardingSteps.MobilePayments, "Mobile money configured", "Subscription and rent payout numbers are selected with MTN or Orange Money.", hasSubscriptionPaymentDetails && hasPayoutDetails, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePayments, MobileMoneyDetails(status)),
-                CreateStep(LandlordOnboardingSteps.MobilePaymentVerification, "Payment numbers verified", "Every distinct mobile transaction number is validated by OTP.", mobilePaymentVerificationComplete, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePaymentVerification, MobileVerificationDetails(status)),
-                CreateStep(LandlordOnboardingSteps.Kyc, "Identity documents submitted", "The landlord uploads three face photos and ID document images for admin review.", status.IsKycSubmitted, status.NextOnboardingStep == LandlordOnboardingSteps.Kyc, KycDetails(status)),
-                CreateStep("kyc-approval", "Identity review approved", "An admin approves the submitted identity information before payments are unlocked.", status.IsKycApproved, false, status.IsKycApproved ? "KYC approved." : $"KYC status: {status.KycStatus}."),
-                CreateStep(LandlordOnboardingSteps.Contract, "Platform contract signed", "The landlord accepts the platform terms and signs with their full name.", status.PlatformTermsAccepted, status.NextOnboardingStep == LandlordOnboardingSteps.Contract, status.PlatformTermsAccepted ? $"Signed by {status.PlatformTermsSignatureName}" : "Waiting for signature."),
-                CreateStep(LandlordOnboardingSteps.Complete, "Registration ready", "The landlord can continue into the authenticated workspace.", status.IsOnboardingComplete, status.NextOnboardingStep == LandlordOnboardingSteps.Complete, status.IsOnboardingComplete ? "All required steps are complete." : "Some verification work remains.")
+                CreateStep(LandlordOnboardingSteps.Country, "Country selected", "The landlord chooses the country for payment setup rules.", !string.IsNullOrWhiteSpace(status.CountryCode), status.NextOnboardingStep == LandlordOnboardingSteps.Country, string.IsNullOrWhiteSpace(status.CountryCode) ? "Waiting for country selection." : status.CountryCode),
+                CreateStep(LandlordOnboardingSteps.Phone, "Primary phone verified", "The landlord confirms the SMS OTP for the primary phone.", !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Phone, status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")
             };
+
+            if (isCameroonLandlord)
+            {
+                steps.Add(CreateStep(LandlordOnboardingSteps.MobilePayments, "Mobile money configured", "Subscription and rent payout numbers are selected with MTN or Orange Money.", hasSubscriptionPaymentDetails && hasPayoutDetails, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePayments, MobileMoneyDetails(status)));
+                steps.Add(CreateStep(LandlordOnboardingSteps.MobilePaymentVerification, "Payment numbers verified", "Every distinct mobile transaction number is validated by OTP.", mobilePaymentVerificationComplete, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePaymentVerification, MobileVerificationDetails(status)));
+            }
+
+            steps.Add(CreateStep(LandlordOnboardingSteps.Kyc, "Identity documents submitted", "The landlord uploads three face photos and ID document images for admin review.", status.IsKycSubmitted, status.NextOnboardingStep == LandlordOnboardingSteps.Kyc, KycDetails(status)));
+            steps.Add(CreateStep("kyc-approval", "Identity review approved", "An admin approves the submitted identity information before payments are unlocked.", status.IsKycApproved, false, status.IsKycApproved ? "KYC approved." : $"KYC status: {status.KycStatus}."));
+            steps.Add(CreateStep(LandlordOnboardingSteps.Contract, "Platform contract signed", "The landlord accepts the platform terms and signs with their full name.", status.PlatformTermsAccepted, status.NextOnboardingStep == LandlordOnboardingSteps.Contract, status.PlatformTermsAccepted ? $"Signed by {status.PlatformTermsSignatureName}" : "Waiting for signature."));
+            steps.Add(CreateStep(LandlordOnboardingSteps.Complete, "Registration ready", "The landlord can continue into the authenticated workspace.", status.IsOnboardingComplete, status.NextOnboardingStep == LandlordOnboardingSteps.Complete, status.IsOnboardingComplete ? "All required steps are complete." : "Some verification work remains."));
+
+            return steps;
         }
 
         private static AdminUserOnboardingStepDto CreateStep(
@@ -1267,9 +1276,26 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Email;
             }
 
+            if (string.IsNullOrWhiteSpace(user.CountryCode))
+            {
+                return LandlordOnboardingSteps.Country;
+            }
+
             if (string.IsNullOrWhiteSpace(user.PhoneNumber) || !user.PhoneNumberConfirmed)
             {
                 return LandlordOnboardingSteps.Phone;
+            }
+
+            if (!IsCameroonCountryCode(user.CountryCode))
+            {
+                if (kycProfile?.Status is not (LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved))
+                {
+                    return LandlordOnboardingSteps.Kyc;
+                }
+
+                return user.PlatformTermsAccepted
+                    ? LandlordOnboardingSteps.Complete
+                    : LandlordOnboardingSteps.Contract;
             }
 
             var hasSubscriptionPaymentDetails =
@@ -1302,6 +1328,12 @@ namespace RentHub.API.Controllers
             }
 
             return LandlordOnboardingSteps.Complete;
+        }
+
+        private static bool IsCameroonCountryCode(string? countryCode)
+        {
+            var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            return string.Equals(digits, "237", StringComparison.Ordinal);
         }
     }
 }

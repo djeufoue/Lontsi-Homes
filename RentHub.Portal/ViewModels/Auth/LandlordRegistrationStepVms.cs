@@ -26,17 +26,30 @@ namespace RentHub.Portal.ViewModels.Auth
 
         [Display(Name = "Country code")]
         [Required]
-        [RegularExpression(@"^\+?237$", ErrorMessage = "Only Cameroon country code +237 is supported for this verification step.")]
-        public string? CountryCode { get; set; } = "+237";
+        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
+        public string? CountryCode { get; set; }
 
         [Required]
         [Display(Name = "Phone number")]
-        [RegularExpression(@"^6\d{8}$", ErrorMessage = "Enter the 9-digit Cameroon phone number without +237, for example REMOVED_PRIVATE_VALUE.")]
+        [RegularExpression(@"^\+?\d[\d\s().-]{5,24}$", ErrorMessage = "Enter a valid phone number for the selected country.")]
         public string PhoneNumber { get; set; } = string.Empty;
 
         [Display(Name = "Phone OTP")]
         [StringLength(6, MinimumLength = 4)]
         public string? PhoneOtp { get; set; }
+
+        public string? ReturnUrl { get; set; }
+        public LandlordOnboardingStatusDto? Status { get; set; }
+    }
+
+    public class LandlordCountryVm
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Country")]
+        public string CountryCode { get; set; } = string.Empty;
 
         public string? ReturnUrl { get; set; }
         public LandlordOnboardingStatusDto? Status { get; set; }

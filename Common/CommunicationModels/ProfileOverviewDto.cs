@@ -13,14 +13,19 @@ namespace Common.CommunicationModels
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
         public string? PhoneNumber { get; set; }
+        public bool UsePrimaryPhoneForSubscriptionPayments { get; set; }
         public string? SubscriptionPaymentPhoneNumber { get; set; }
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
         public bool IsSubscriptionPaymentPhoneVerified { get; set; }
+        public bool UsePrimaryPhoneForRentPayouts { get; set; }
         public string? PayoutPhoneNumber { get; set; }
         public PayoutChannelEnum? PayoutChannel { get; set; }
         public bool IsPayoutPhoneVerified { get; set; }
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
+        public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
+        public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }
+        public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
         public List<string> Roles { get; set; } = new();
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;

@@ -4,14 +4,15 @@
     ViewData["Title"] = "Mobile Payments";
     Layout = "_AuthLayout";
     var primaryPhone = string.IsNullOrWhiteSpace(Model.PrimaryPhoneNumber) ? "your verified phone" : Model.PrimaryPhoneNumber;
+    var isAccountUpdate = User.Identity?.IsAuthenticated == true;
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 4 of 7</span>
-            <h1>Choose Mobile Money numbers.</h1>
-            <p>Subscription payments and future tenant rent payouts can use the same verified phone or separate MTN/Orange numbers.</p>
+            <span class="rh-auth-kicker">@(isAccountUpdate ? "Payment settings" : "Step 5 of 8")</span>
+            <h1>@(isAccountUpdate ? "Update Mobile Money setup." : "Choose Mobile Money numbers.")</h1>
+            <p>@(isAccountUpdate ? "Changed numbers must be verified by OTP before they become usable for checkout or future payouts." : "Subscription payments and future tenant rent payouts can use the same verified phone or separate MTN/Orange numbers.")</p>
             <ul class="rh-auth-points">
                 <li>Subscription payments are paid by landlords to Lontsi Homes</li>
                 <li>Rent payout number is for future tenant rent collection flows</li>
@@ -20,19 +21,23 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
-                <span class="done">1</span>
-                <span class="done">2</span>
-                <span class="done">3</span>
-                <span class="active">4</span>
-                <span>5</span>
-                <span>6</span>
-                <span>7</span>
-            </div>
+            @if (!isAccountUpdate)
+            {
+                <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
+                    <span class="done">1</span>
+                    <span class="done">2</span>
+                    <span class="done">3</span>
+                    <span class="done">4</span>
+                    <span class="active">5</span>
+                    <span>6</span>
+                    <span>7</span>
+                    <span>8</span>
+                </div>
+            }
 
             <div class="rh-auth-card-header">
-                <h2>Mobile payment setup</h2>
-                <p>Pick the number and operator for each payment use case.</p>
+                <h2>@(isAccountUpdate ? "Edit Mobile Money accounts" : "Mobile payment setup")</h2>
+                <p>@(isAccountUpdate ? "Save changes to request OTP verification for any new number." : "Pick the number and operator for each payment use case.")</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -109,7 +114,7 @@
                     <span asp-validation-for="WhatsAppPhoneNumber" class="text-danger small"></span>
                 </div>
 
-                <button type="submit" class="btn rh-btn-primary w-100">Save and send required OTPs</button>
+                <button type="submit" class="btn rh-btn-primary w-100">@(isAccountUpdate ? "Save changes and send OTPs" : "Save and send required OTPs")</button>
             </form>
         </section>
     </div>

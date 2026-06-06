@@ -1,0 +1,92 @@
+@model RentHub.Portal.ViewModels.Auth.LandlordCountryVm
+@{
+    ViewData["Title"] = "Choose Country";
+    Layout = "_AuthLayout";
+    var countries = new[]
+    {
+        new { Code = "+237", Label = "Cameroon (+237)" },
+        new { Code = "+1", Label = "Canada / United States (+1)" },
+        new { Code = "+44", Label = "United Kingdom (+44)" },
+        new { Code = "+33", Label = "France (+33)" },
+        new { Code = "+32", Label = "Belgium (+32)" },
+        new { Code = "+49", Label = "Germany (+49)" },
+        new { Code = "+234", Label = "Nigeria (+234)" },
+        new { Code = "+225", Label = "Cote d'Ivoire (+225)" },
+        new { Code = "+233", Label = "Ghana (+233)" },
+        new { Code = "+27", Label = "South Africa (+27)" },
+        new { Code = "+254", Label = "Kenya (+254)" },
+        new { Code = "+971", Label = "United Arab Emirates (+971)" }
+    };
+}
+
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell">
+        <aside class="rh-auth-hero">
+            <span class="rh-auth-kicker">Step 3 of 8</span>
+            <h1>Choose your country.</h1>
+            <p>This controls which payment setup steps apply to your landlord account.</p>
+            <ul class="rh-auth-points">
+                <li>Cameroon accounts can configure MTN or Orange numbers</li>
+                <li>Other countries continue with card subscriptions</li>
+                <li>Your main phone is verified in the next step</li>
+            </ul>
+        </aside>
+
+        <section class="rh-auth-card">
+            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
+                <span class="done">1</span>
+                <span class="done">2</span>
+                <span class="active">3</span>
+                <span>4</span>
+                <span>5</span>
+                <span>6</span>
+                <span>7</span>
+                <span>8</span>
+            </div>
+
+            <div class="rh-auth-card-header">
+                <h2>Country</h2>
+                <p>Select where this landlord account is registered.</p>
+            </div>
+
+            @if (ViewBag.AuthInfo is string authInfo)
+            {
+                <div class="alert alert-info py-2">@authInfo</div>
+            }
+
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
+            <form asp-action="LandlordCountry" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <input asp-for="Email" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                <div class="mb-3">
+                    <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
+                    <select asp-for="CountryCode" class="form-select rh-auth-input" autocomplete="country">
+                        <option value="">Choose a country</option>
+                        @foreach (var country in countries)
+                        {
+                            <option value="@country.Code">@country.Label</option>
+                        }
+                    </select>
+                    <span asp-validation-for="CountryCode" class="text-danger small"></span>
+                </div>
+
+                <div class="rh-inline-hint mb-3">
+                    If you choose Cameroon, Mobile Money setup appears later. Other countries use card payments.
+                </div>
+
+                <button type="submit" class="btn rh-btn-primary w-100">Continue to phone OTP</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

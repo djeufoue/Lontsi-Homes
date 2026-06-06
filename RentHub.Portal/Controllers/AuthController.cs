@@ -207,7 +207,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> VerifyLandlordPhone(string? email = null, string? returnUrl = null)
+        public async Task<IActionResult> LandlordCountry(string? email = null, string? returnUrl = null)
         {
             if (User.Identity?.IsAuthenticated == true)
                 return RedirectToLocal(returnUrl);
@@ -222,11 +222,76 @@ namespace RentHub.Portal.Controllers
             if (status != null && status.NextStep == LandlordOnboardingSteps.Email)
                 return RedirectToAction(nameof(VerifyLandlordEmail), new { email = status.Email, returnUrl });
 
+            if (status != null && status.NextStep != LandlordOnboardingSteps.Country)
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+
+            return View(new LandlordCountryVm
+            {
+                Email = email ?? status?.Email ?? string.Empty,
+                CountryCode = status?.CountryCode ?? string.Empty,
+                ReturnUrl = returnUrl,
+                Status = status
+            });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LandlordCountry(LandlordCountryVm vm)
+        {
+            if (!ModelState.IsValid)
+            {
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+
+            try
+            {
+                var req = new UpsertLandlordCountryRequest
+                {
+                    Email = vm.Email,
+                    CountryCode = vm.CountryCode
+                };
+
+                var res = await _api.PostAnonymousAsync<UpsertLandlordCountryRequest, JsonElement>("Account/landlord-registration/country", req);
+                var nextStep = ReadString(res, "nextStep");
+                TempData["AuthInfo"] = ReadString(res, "message") ?? "Country saved.";
+                return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "LandlordCountry failed in Portal for {Email}", vm.Email);
+                var apiError = ParseApiError(ex.Message);
+                ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to save your country right now."));
+                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyLandlordPhone(string? email = null, string? returnUrl = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToLocal(returnUrl);
+
+            if (TempData["AuthInfo"] is string info)
+                ViewBag.AuthInfo = info;
+
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status != null && status.NextStep == LandlordOnboardingSteps.Email)
+                return RedirectToAction(nameof(VerifyLandlordEmail), new { email = status.Email, returnUrl });
+            if (status != null && status.NextStep == LandlordOnboardingSteps.Country)
+                return RedirectToAction(nameof(LandlordCountry), new { email = status.Email, returnUrl });
+
             return View(new VerifyLandlordPhoneVm
             {
                 Email = email ?? status?.Email ?? string.Empty,
-                CountryCode = string.IsNullOrWhiteSpace(status?.CountryCode) ? "+237" : status.CountryCode,
-                PhoneNumber = ToLocalCameroonPhoneNumber(status?.PhoneNumber),
+                CountryCode = status?.CountryCode,
+                PhoneNumber = ToLocalPhoneNumber(status?.PhoneNumber, status?.CountryCode),
                 ReturnUrl = returnUrl,
                 Status = status
             });
@@ -318,8 +383,10 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> LandlordMobilePayments(string? email = null, string? returnUrl = null)
         {
-            if (User.Identity?.IsAuthenticated == true)
+            if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Landlord"))
+            {
                 return RedirectToLocal(returnUrl);
+            }
 
             if (TempData["AuthInfo"] is string info)
                 ViewBag.AuthInfo = info;
@@ -327,13 +394,20 @@ namespace RentHub.Portal.Controllers
             if (TempData["AuthError"] is string error)
                 ViewBag.AuthError = error;
 
-            var status = await TryGetOnboardingStatusAsync(email);
-            if (status != null && status.NextStep is LandlordOnboardingSteps.Email or LandlordOnboardingSteps.Phone)
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                return View(BuildLandlordMobilePaymentsVm(overview, returnUrl));
+            }
+
+            var resolvedEmail = ResolveLandlordUpdateEmail(email);
+            var status = await TryGetOnboardingStatusAsync(resolvedEmail);
+            if (status != null && status.NextStep is LandlordOnboardingSteps.Email or LandlordOnboardingSteps.Country or LandlordOnboardingSteps.Phone)
                 return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
 
             return View(new LandlordMobilePaymentsVm
             {
-                Email = email ?? status?.Email ?? string.Empty,
+                Email = resolvedEmail ?? status?.Email ?? string.Empty,
                 UsePrimaryPhoneForSubscriptionPayments = status?.UsePrimaryPhoneForSubscriptionPayments ?? true,
                 SubscriptionPaymentPhoneNumber = status?.SubscriptionPaymentPhoneNumber,
                 SubscriptionPaymentChannel = status?.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
@@ -352,9 +426,24 @@ namespace RentHub.Portal.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LandlordMobilePayments(LandlordMobilePaymentsVm vm)
         {
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                if (!User.IsInRole("Landlord"))
+                {
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
+                var authenticatedEmail = ResolveAuthenticatedEmail();
+                if (!string.IsNullOrWhiteSpace(authenticatedEmail))
+                {
+                    vm.Email = authenticatedEmail;
+                    ModelState.Remove(nameof(vm.Email));
+                }
+            }
+
             if (!ModelState.IsValid)
             {
-                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.Status = await LoadMobilePaymentStatusAsync(vm.Email);
                 vm.PrimaryPhoneNumber = vm.Status?.PhoneNumber;
                 return View(vm);
             }
@@ -376,6 +465,19 @@ namespace RentHub.Portal.Controllers
                 var res = await _api.PostAnonymousAsync<UpsertLandlordMobilePaymentsRequest, JsonElement>("Account/landlord-registration/mobile-payments", req);
                 var nextStep = ReadString(res, "nextStep");
                 TempData["AuthInfo"] = ReadString(res, "message") ?? "Mobile payment details saved.";
+
+                if (User.Identity?.IsAuthenticated == true)
+                {
+                    if (string.Equals(nextStep, LandlordOnboardingSteps.MobilePaymentVerification, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return RedirectToAction(nameof(VerifyLandlordMobilePayments), new { email = vm.Email, returnUrl = vm.ReturnUrl });
+                    }
+
+                    TempData["Success"] = TempData["AuthInfo"];
+                    TempData.Remove("AuthInfo");
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
                 return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
             }
             catch (Exception ex)
@@ -383,7 +485,7 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "LandlordMobilePayments failed in Portal for {Email}", vm.Email);
                 var apiError = ParseApiError(ex.Message);
                 ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Unable to save mobile payment details right now."));
-                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.Status = await LoadMobilePaymentStatusAsync(vm.Email);
                 vm.PrimaryPhoneNumber = vm.Status?.PhoneNumber;
                 return View(vm);
             }
@@ -393,8 +495,10 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> VerifyLandlordMobilePayments(string? email = null, string? returnUrl = null)
         {
-            if (User.Identity?.IsAuthenticated == true)
+            if (User.Identity?.IsAuthenticated == true && !User.IsInRole("Landlord"))
+            {
                 return RedirectToLocal(returnUrl);
+            }
 
             if (TempData["AuthInfo"] is string info)
                 ViewBag.AuthInfo = info;
@@ -402,13 +506,37 @@ namespace RentHub.Portal.Controllers
             if (TempData["AuthError"] is string error)
                 ViewBag.AuthError = error;
 
-            var status = await TryGetOnboardingStatusAsync(email);
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (!string.Equals(overview.NextOnboardingStep, LandlordOnboardingSteps.MobilePaymentVerification, StringComparison.OrdinalIgnoreCase))
+                {
+                    return RedirectToLocal(returnUrl);
+                }
+
+                return View(new VerifyLandlordMobilePaymentsVm
+                {
+                    Email = overview.Email,
+                    ReturnUrl = returnUrl,
+                    Status = BuildLandlordStatusFromProfileOverview(overview)
+                });
+            }
+
+            var resolvedEmail = ResolveLandlordUpdateEmail(email);
+            var status = await TryGetOnboardingStatusAsync(resolvedEmail);
             if (status != null && status.NextStep != LandlordOnboardingSteps.MobilePaymentVerification)
+            {
+                if (User.Identity?.IsAuthenticated == true)
+                {
+                    return RedirectToLocal(returnUrl);
+                }
+
                 return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
+            }
 
             return View(new VerifyLandlordMobilePaymentsVm
             {
-                Email = email ?? status?.Email ?? string.Empty,
+                Email = resolvedEmail ?? status?.Email ?? string.Empty,
                 ReturnUrl = returnUrl,
                 Status = status
             });
@@ -419,9 +547,24 @@ namespace RentHub.Portal.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyLandlordMobilePayments(VerifyLandlordMobilePaymentsVm vm)
         {
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                if (!User.IsInRole("Landlord"))
+                {
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
+                var authenticatedEmail = ResolveAuthenticatedEmail();
+                if (!string.IsNullOrWhiteSpace(authenticatedEmail))
+                {
+                    vm.Email = authenticatedEmail;
+                    ModelState.Remove(nameof(vm.Email));
+                }
+            }
+
             if (!ModelState.IsValid)
             {
-                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.Status = await LoadMobilePaymentStatusAsync(vm.Email);
                 return View(vm);
             }
 
@@ -446,6 +589,19 @@ namespace RentHub.Portal.Controllers
 
                 var nextStep = ReadString(res, "nextStep");
                 TempData["AuthInfo"] = ReadString(res, "message") ?? "Verification updated.";
+
+                if (User.Identity?.IsAuthenticated == true)
+                {
+                    if (string.Equals(nextStep, LandlordOnboardingSteps.MobilePaymentVerification, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return RedirectToAction(nameof(VerifyLandlordMobilePayments), new { email = vm.Email, returnUrl = vm.ReturnUrl });
+                    }
+
+                    TempData["Success"] = TempData["AuthInfo"];
+                    TempData.Remove("AuthInfo");
+                    return RedirectToLocal(vm.ReturnUrl);
+                }
+
                 return RedirectToOnboardingStep(nextStep, vm.Email, vm.ReturnUrl);
             }
             catch (Exception ex)
@@ -453,7 +609,7 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "VerifyLandlordMobilePayments failed in Portal for {Email}", vm.Email);
                 var apiError = ParseApiError(ex.Message);
                 ModelState.AddModelError(string.Empty, SafeUserMessage(apiError.Message, "Mobile payment OTP verification failed. Please try again."));
-                vm.Status = await TryGetOnboardingStatusAsync(vm.Email);
+                vm.Status = await LoadMobilePaymentStatusAsync(vm.Email);
                 return View(vm);
             }
         }
@@ -471,6 +627,7 @@ namespace RentHub.Portal.Controllers
             var status = await TryGetOnboardingStatusAsync(email);
             if (status != null &&
                 status.NextStep is LandlordOnboardingSteps.Email
+                    or LandlordOnboardingSteps.Country
                     or LandlordOnboardingSteps.Phone
                     or LandlordOnboardingSteps.MobilePayments
                     or LandlordOnboardingSteps.MobilePaymentVerification)
@@ -904,7 +1061,6 @@ namespace RentHub.Portal.Controllers
                 Password = vm.Password,
                 FirstName = vm.FirstName,
                 LastName = vm.LastName,
-                CountryCode = vm.CountryCode,
                 PlanId = vm.PlanId
             };
 
@@ -989,11 +1145,105 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        private async Task<LandlordOnboardingStatusDto?> LoadMobilePaymentStatusAsync(string? email)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                try
+                {
+                    var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                    return BuildLandlordStatusFromProfileOverview(overview);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Unable to load authenticated mobile payment status.");
+                    return null;
+                }
+            }
+
+            return await TryGetOnboardingStatusAsync(email);
+        }
+
+        private static LandlordMobilePaymentsVm BuildLandlordMobilePaymentsVm(ProfileOverviewDto overview, string? returnUrl)
+        {
+            return new LandlordMobilePaymentsVm
+            {
+                Email = overview.Email,
+                UsePrimaryPhoneForSubscriptionPayments = overview.UsePrimaryPhoneForSubscriptionPayments,
+                SubscriptionPaymentPhoneNumber = overview.SubscriptionPaymentPhoneNumber,
+                SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
+                UsePrimaryPhoneForRentPayouts = overview.UsePrimaryPhoneForRentPayouts,
+                PayoutPhoneNumber = overview.PayoutPhoneNumber,
+                PayoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
+                WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber,
+                PrimaryPhoneNumber = overview.PhoneNumber,
+                ReturnUrl = returnUrl,
+                Status = BuildLandlordStatusFromProfileOverview(overview)
+            };
+        }
+
+        private static LandlordOnboardingStatusDto BuildLandlordStatusFromProfileOverview(ProfileOverviewDto overview)
+        {
+            return new LandlordOnboardingStatusDto
+            {
+                UserId = overview.UserId,
+                Email = overview.Email,
+                FirstName = overview.FirstName,
+                LastName = overview.LastName,
+                FullName = overview.FullName,
+                CountryCode = overview.CountryCode,
+                PhoneNumber = overview.PhoneNumber,
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(overview.PhoneNumber),
+                UsePrimaryPhoneForSubscriptionPayments = overview.UsePrimaryPhoneForSubscriptionPayments,
+                SubscriptionPaymentPhoneNumber = overview.SubscriptionPaymentPhoneNumber,
+                SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel,
+                IsSubscriptionPaymentPhoneVerified = overview.IsSubscriptionPaymentPhoneVerified,
+                UsePrimaryPhoneForRentPayouts = overview.UsePrimaryPhoneForRentPayouts,
+                PayoutPhoneNumber = overview.PayoutPhoneNumber,
+                PayoutChannel = overview.PayoutChannel,
+                IsPayoutPhoneVerified = overview.IsPayoutPhoneVerified,
+                WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber,
+                IsWhatsAppPhoneVerified = overview.IsWhatsAppPhoneVerified,
+                SubscriptionPaymentOtpRequestLimit = overview.SubscriptionPaymentOtpRequestLimit,
+                PayoutOtpRequestLimit = overview.PayoutOtpRequestLimit,
+                WhatsAppOtpRequestLimit = overview.WhatsAppOtpRequestLimit,
+                KycDocumentType = overview.KycDocumentType,
+                KycStatus = overview.KycStatus,
+                IsKycSubmitted = overview.IsKycSubmitted,
+                IsKycApproved = overview.IsKycApproved,
+                KycSubmittedAt = overview.KycSubmittedAt,
+                KycReviewedAt = overview.KycReviewedAt,
+                KycReviewNote = overview.KycReviewNote,
+                KycRejectedFiles = overview.KycRejectedFiles,
+                PlatformTermsAccepted = overview.PlatformTermsAccepted,
+                PlatformTermsAcceptedAt = overview.PlatformTermsAcceptedAt,
+                PlatformTermsSignatureName = overview.PlatformTermsSignatureName,
+                PlatformTermsVersion = overview.PlatformTermsVersion,
+                NextStep = overview.NextOnboardingStep,
+                IsComplete = string.Equals(overview.NextOnboardingStep, LandlordOnboardingSteps.Complete, StringComparison.OrdinalIgnoreCase),
+                Roles = overview.Roles
+            };
+        }
+
+        private string? ResolveLandlordUpdateEmail(string? email)
+        {
+            return User.Identity?.IsAuthenticated == true
+                ? ResolveAuthenticatedEmail() ?? email
+                : email;
+        }
+
+        private string? ResolveAuthenticatedEmail()
+        {
+            return User.FindFirstValue(ClaimTypes.Email) ?? User.Identity?.Name;
+        }
+
         private IActionResult RedirectToOnboardingStep(string? nextStep, string email, string? returnUrl)
         {
             var route = new { email, returnUrl };
             return (nextStep ?? LandlordOnboardingSteps.Email) switch
             {
+                LandlordOnboardingSteps.Country => RedirectToAction(nameof(LandlordCountry), route),
                 LandlordOnboardingSteps.Phone => RedirectToAction(nameof(VerifyLandlordPhone), route),
                 LandlordOnboardingSteps.MobilePayments => RedirectToAction(nameof(LandlordMobilePayments), route),
                 LandlordOnboardingSteps.MobilePaymentVerification => RedirectToAction(nameof(VerifyLandlordMobilePayments), route),
@@ -1066,17 +1316,19 @@ namespace RentHub.Portal.Controllers
             return LooksTechnicalMessage(apiMessage) ? fallback : apiMessage;
         }
 
-        private static string ToLocalCameroonPhoneNumber(string? phoneNumber)
+        private static string ToLocalPhoneNumber(string? phoneNumber, string? countryCode)
         {
             var digits = new string((phoneNumber ?? string.Empty).Where(char.IsDigit).ToArray());
-            if (digits.StartsWith("00237", StringComparison.Ordinal) && digits.Length == 14)
+            if (digits.StartsWith("00", StringComparison.Ordinal))
             {
-                return digits[5..];
+                digits = digits[2..];
             }
 
-            if (digits.StartsWith("237", StringComparison.Ordinal) && digits.Length == 12)
+            var countryDigits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (!string.IsNullOrWhiteSpace(countryDigits) &&
+                digits.StartsWith(countryDigits, StringComparison.Ordinal))
             {
-                return digits[3..];
+                digits = digits[countryDigits.Length..];
             }
 
             return digits;

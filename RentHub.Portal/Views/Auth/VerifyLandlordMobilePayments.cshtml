@@ -6,14 +6,15 @@
     var needsSubscriptionOtp = status == null || !status.IsSubscriptionPaymentPhoneVerified;
     var needsPayoutOtp = status == null || !status.IsPayoutPhoneVerified;
     var needsWhatsAppOtp = status == null || !status.IsWhatsAppPhoneVerified;
+    var isAccountUpdate = User.Identity?.IsAuthenticated == true;
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 5 of 7</span>
-            <h1>Verify payment numbers.</h1>
-            <p>Only the numbers that still need confirmation require an OTP. If the same number was already validated, the system reuses that validation.</p>
+            <span class="rh-auth-kicker">@(isAccountUpdate ? "Payment verification" : "Step 6 of 8")</span>
+            <h1>@(isAccountUpdate ? "Verify updated numbers." : "Verify payment numbers.")</h1>
+            <p>@(isAccountUpdate ? "Enter the OTP codes for changed numbers before they become usable for checkout or future payouts." : "Only the numbers that still need confirmation require an OTP. If the same number was already validated, the system reuses that validation.")</p>
             <ul class="rh-auth-points">
                 <li>No duplicate OTP for the same verified number</li>
                 <li>Subscription payments use your selected subscription number</li>
@@ -22,19 +23,23 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
-                <span class="done">1</span>
-                <span class="done">2</span>
-                <span class="done">3</span>
-                <span class="done">4</span>
-                <span class="active">5</span>
-                <span>6</span>
-                <span>7</span>
-            </div>
+            @if (!isAccountUpdate)
+            {
+                <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
+                    <span class="done">1</span>
+                    <span class="done">2</span>
+                    <span class="done">3</span>
+                    <span class="done">4</span>
+                    <span class="done">5</span>
+                    <span class="active">6</span>
+                    <span>7</span>
+                    <span>8</span>
+                </div>
+            }
 
             <div class="rh-auth-card-header">
                 <h2>OTP confirmation</h2>
-                <p>Enter the OTP codes received for pending numbers.</p>
+                <p>@(isAccountUpdate ? "Confirm the changed payment numbers." : "Enter the OTP codes received for pending numbers.")</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -101,7 +106,7 @@
                     </div>
                 }
 
-                <button type="submit" class="btn rh-btn-primary w-100">Complete registration</button>
+                <button type="submit" class="btn rh-btn-primary w-100">@(isAccountUpdate ? "Verify updated numbers" : "Complete registration")</button>
             </form>
 
             <p class="rh-auth-footnote mb-0 mt-3">

@@ -1,9 +1,17 @@
 @using System
 @using System.Linq
+@using System.Globalization
 @using Common.Enums
 @model RentHub.Portal.ViewModels.Properties.PropertyIndexVm
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Properties";
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 600m;
+    }
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
     var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
     var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
     var registeredPaymentMethodLabel = Model.RegisteredPaymentChannel switch
@@ -249,7 +257,7 @@ else if (Model.RequiresSubscriptionCheckout)
                 <div class="modal-header border-0 pb-0">
                     <div>
                         <h5 class="modal-title" id="subscriptionRequiredModalLabel">Choose a subscription before adding properties</h5>
-                        <small class="text-muted">Pay your landlord subscription with MTN Mobile Money or Orange Money Cameroon.</small>
+                        <small class="text-muted">Pay your landlord subscription with card checkout.</small>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -269,7 +277,7 @@ else if (Model.RequiresSubscriptionCheckout)
                                     <p class="text-muted mb-2">@plan.Description</p>
                                 }
 
-                                <p class="rh-profile-plan-price">@plan.Price.ToString("N0") XAF</p>
+                                <p class="rh-profile-plan-price">@FormatUsd(plan.Price)</p>
 
                                 <ul class="rh-profile-plan-meta">
                                     <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
@@ -279,14 +287,14 @@ else if (Model.RequiresSubscriptionCheckout)
                                 <form asp-controller="Profile" asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="planId" value="@plan.Id" />
+                                    <input type="hidden" name="paymentMethod" value="@PaymentMethodEnum.Card" />
 
                                     <ul class="rh-profile-plan-meta mb-3">
-                                        <li>Amount: <strong>@plan.Price.ToString("N0") XAF</strong></li>
-                                        <li>Payment method: <strong>@registeredPaymentMethodLabel</strong></li>
-                                        <li>Registered number: <strong>@(hasRegisteredMobileMoneyPayment ? Model.RegisteredPaymentNumber : "Not provided")</strong></li>
+                                        <li>Amount: <strong>@FormatUsd(plan.Price)</strong></li>
+                                        <li>Payment method: <strong>Card via Stripe</strong></li>
                                     </ul>
 
-                                    <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!hasRegisteredMobileMoneyPayment)">@(hasRegisteredMobileMoneyPayment ? "Proceed to payment" : "Payment account required")</button>
+                                    <button type="submit" class="btn rh-btn-primary w-100">Pay with card</button>
                                 </form>
                             </article>
                         }

@@ -1,26 +1,30 @@
 @model RentHub.Portal.ViewModels.Auth.RegisterVm
 @using System.Linq
+@using System.Globalization
 @using RentHub.Portal.ViewModels.Auth
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Register";
     Layout = "_AuthLayout";
     var plans = ViewBag.Plans as IEnumerable<SubscriptionPlanOptionVm> ?? Enumerable.Empty<SubscriptionPlanOptionVm>();
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
     var selectedPlan = plans.FirstOrDefault(p => p.Id == Model.PlanId);
     var selectedPlanLabel = selectedPlan == null
         ? "Choose later"
-        : $"{selectedPlan.Name} - {selectedPlan.Price:0.00} XAF ({selectedPlan.DurationInDays} days)";
+        : $"{selectedPlan.Name} - {FormatUsd(selectedPlan.Price)} ({selectedPlan.DurationInDays} days)";
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 1 of 7</span>
+            <span class="rh-auth-kicker">Step 1 of 8</span>
             <h1>Create your landlord workspace.</h1>
             <p>Start with your identity and password. Your progress is saved after this step, so you can return later and continue from the right screen.</p>
             <ul class="rh-auth-points">
                 <li>Email OTP confirmation</li>
-                <li>Phone OTP confirmation</li>
-                <li>Separate Mobile Money numbers for subscriptions and rent payouts</li>
+                <li>Country and main phone verification</li>
+                <li>Cameroon Mobile Money setup only when it applies</li>
             </ul>
         </aside>
 
@@ -33,6 +37,7 @@
                 <span>5</span>
                 <span>6</span>
                 <span>7</span>
+                <span>8</span>
             </div>
 
             <div class="rh-auth-card-header">
@@ -65,12 +70,6 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
-                        <input asp-for="CountryCode" class="form-control rh-auth-input" inputmode="numeric" placeholder="e.g. +237" />
-                        <span asp-validation-for="CountryCode" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-6">
                         <label asp-for="Password" class="form-label rh-auth-label"></label>
                         <input asp-for="Password" type="password" class="form-control rh-auth-input" autocomplete="new-password" placeholder="Create a strong password" />
                         <span asp-validation-for="Password" class="text-danger small"></span>
@@ -99,10 +98,10 @@
 
                                 @foreach (var plan in plans)
                                 {
-                                    var planLabel = $"{plan.Name} - {plan.Price:0.00} XAF ({plan.DurationInDays} days)";
+                                    var planLabel = $"{plan.Name} - {FormatUsd(plan.Price)} ({plan.DurationInDays} days)";
                                     <button type="button" class="rh-plan-option @(Model.PlanId == plan.Id ? "is-active" : null)" data-value="@plan.Id" data-label="@planLabel">
                                         <strong>@plan.Name</strong>
-                                        <small>@plan.Price.ToString("0.00") XAF for @plan.DurationInDays days</small>
+                                        <small>@FormatUsd(plan.Price) for @plan.DurationInDays days</small>
                                     </button>
                                 }
                             </div>
@@ -112,7 +111,7 @@
                                     <option value="">Choose later</option>
                                     @foreach (var plan in plans)
                                     {
-                                        <option value="@plan.Id">@plan.Name - @plan.Price.ToString("0.00") XAF (@plan.DurationInDays days)</option>
+                                        <option value="@plan.Id">@plan.Name - @FormatUsd(plan.Price) (@plan.DurationInDays days)</option>
                                     }
                                 </select>
                             </div>
@@ -123,7 +122,7 @@
                 </div>
 
                 <div class="rh-inline-hint mt-3">
-                    After this step, you will confirm your email, main phone, and Mobile Money numbers.
+                    After this step, you will confirm your email, choose your country, and verify your main phone.
                 </div>
 
                 <button type="submit" class="btn rh-btn-primary w-100 mt-4">Continue to email OTP</button>

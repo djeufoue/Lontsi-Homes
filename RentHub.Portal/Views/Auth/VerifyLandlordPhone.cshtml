@@ -11,18 +11,20 @@
         : phoneOtpCooldownSeconds > 0
             ? $"Send again in {phoneOtpCooldownSeconds}s"
             : "Save phone and send OTP";
+    var selectedCountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode;
+    var isCameroon = string.Equals(selectedCountryCode?.Trim(), "+237", StringComparison.Ordinal);
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 3 of 7</span>
+            <span class="rh-auth-kicker">Step 4 of 8</span>
             <h1>Confirm your main phone.</h1>
-            <p>This number identifies you in support logs and can also be reused for subscription payments and rent payouts in the next step.</p>
+            <p>This number identifies you in support logs and confirms that you can receive account security messages.</p>
             <ul class="rh-auth-points">
                 <li>Save your phone number first</li>
                 <li>Then enter the SMS OTP</li>
-                <li>A validated number is reused automatically when selected later</li>
+                <li>@(isCameroon ? "Cameroon accounts can reuse this number for Mobile Money later" : "Card subscriptions are used for this country")</li>
             </ul>
         </aside>
 
@@ -30,11 +32,12 @@
             <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
                 <span class="done">1</span>
                 <span class="done">2</span>
-                <span class="active">3</span>
-                <span>4</span>
+                <span class="done">3</span>
+                <span class="active">4</span>
                 <span>5</span>
                 <span>6</span>
                 <span>7</span>
+                <span>8</span>
             </div>
 
             <div class="rh-auth-card-header">
@@ -61,13 +64,13 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
-                        <input asp-for="CountryCode" class="form-control rh-auth-input" inputmode="numeric" placeholder="+237" />
+                        <input id="CountryCode" name="CountryCode" class="form-control rh-auth-input" value="@selectedCountryCode" readonly />
                         <span asp-validation-for="CountryCode" class="text-danger small"></span>
                     </div>
                     <div class="col-md-8">
                         <label asp-for="PhoneNumber" class="form-label rh-auth-label"></label>
-                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel-national" inputmode="numeric" maxlength="9" pattern="6[0-9]{8}" placeholder="REMOVED_PRIVATE_VALUE" />
-                        <div class="form-text">Enter the local number only. Do not include +237.</div>
+                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel-national" inputmode="tel" placeholder="@(isCameroon ? "REMOVED_PRIVATE_VALUE" : "Local phone number")" />
+                        <div class="form-text">Enter the local number only. Do not include @selectedCountryCode.</div>
                         <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
                     </div>
                 </div>

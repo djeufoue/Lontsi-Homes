@@ -173,7 +173,7 @@ else if (user.Roles.Any(role => string.Equals(role, "Landlord", StringComparison
     </section>
 }
 
-<section class="rh-panel rh-panel-elevated mb-3" data-otp-section data-otp-refresh-url="@Url.Action("OtpStatus", "AdminUsers", new { userId = user.UserId })">
+<section class="rh-panel rh-panel-elevated mb-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
             <p class="rh-kicker mb-1">Registration Timeline</p>
@@ -203,7 +203,7 @@ else if (user.Roles.Any(role => string.Equals(role, "Landlord", StringComparison
     </div>
 </section>
 
-<section class="rh-panel rh-panel-elevated mb-3">
+<section class="rh-panel rh-panel-elevated mb-3" data-otp-section data-otp-refresh-url="@Url.Action("OtpStatus", "AdminUsers", new { userId = user.UserId })">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
             <p class="rh-kicker mb-1">Testing OTPs</p>
@@ -639,18 +639,51 @@ else if (user.Roles.Any(role => string.Equals(role, "Landlord", StringComparison
                 }
             };
 
+            const copyTextToClipboard = async value => {
+                if (!value) return false;
+
+                if (navigator.clipboard?.writeText && window.isSecureContext) {
+                    try {
+                        await navigator.clipboard.writeText(value);
+                        return true;
+                    } catch {
+                        // Fall back below when browser permissions block the Clipboard API.
+                    }
+                }
+
+                const textarea = document.createElement("textarea");
+                textarea.value = value;
+                textarea.setAttribute("readonly", "");
+                textarea.style.position = "fixed";
+                textarea.style.left = "-9999px";
+                textarea.style.top = "0";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+
+                try {
+                    return document.execCommand("copy");
+                } finally {
+                    document.body.removeChild(textarea);
+                }
+            };
+
             section?.addEventListener("click", async event => {
                 const button = event.target.closest("[data-copy-value]");
                 if (!button || button.disabled) return;
 
-                const value = button.dataset.copyValue;
+                const value = button.dataset.copyValue?.trim();
                 if (!value) return;
 
                 const card = button.closest(".rh-otp-card");
                 const feedback = card?.querySelector(".rh-copy-feedback");
 
                 try {
-                    await navigator.clipboard.writeText(value);
+                    const copied = await copyTextToClipboard(value);
+                    if (!copied) throw new Error("Copy failed");
+
                     button.classList.add("is-copied");
                     if (feedback) feedback.textContent = "Copied";
                     window.setTimeout(() => {

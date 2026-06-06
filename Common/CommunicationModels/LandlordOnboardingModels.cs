@@ -9,6 +9,7 @@ namespace Common.CommunicationModels
     {
         public const string Account = "account";
         public const string Email = "email";
+        public const string Country = "country";
         public const string Phone = "phone";
         public const string MobilePayments = "mobile-payments";
         public const string MobilePaymentVerification = "mobile-payment-verification";
@@ -52,6 +53,18 @@ namespace Common.CommunicationModels
         public string EmailOtp { get; set; } = string.Empty;
     }
 
+    public class UpsertLandlordCountryRequest
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Country")]
+        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
+        public string CountryCode { get; set; } = string.Empty;
+    }
+
     public class UpsertLandlordPhoneRequest
     {
         [Required]
@@ -59,12 +72,12 @@ namespace Common.CommunicationModels
         public string Email { get; set; } = string.Empty;
 
         [Required]
-        [RegularExpression(@"^\+?237$", ErrorMessage = "Only Cameroon country code +237 is supported for this verification step.")]
-        public string? CountryCode { get; set; } = "+237";
+        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
+        public string? CountryCode { get; set; }
 
         [Required]
         [Display(Name = "Phone number")]
-        [RegularExpression(@"^6\d{8}$", ErrorMessage = "Phone number must be the 9-digit Cameroon number without +237, for example REMOVED_PRIVATE_VALUE.")]
+        [RegularExpression(@"^\+?\d[\d\s().-]{5,24}$", ErrorMessage = "Enter a valid phone number for the selected country.")]
         public string PhoneNumber { get; set; } = string.Empty;
     }
 
@@ -126,6 +139,42 @@ namespace Common.CommunicationModels
         [Display(Name = "WhatsApp OTP")]
         [StringLength(6, MinimumLength = 4)]
         public string? WhatsAppOtp { get; set; }
+    }
+
+    public class ResendMobilePaymentOtpRequest
+    {
+        [Required]
+        public string Target { get; set; } = string.Empty;
+    }
+
+    public class StartMobilePaymentNumberUpdateRequest
+    {
+        [Required]
+        public string Target { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Phone number")]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [Display(Name = "Mobile Money operator")]
+        public PayoutChannelEnum? Channel { get; set; }
+    }
+
+    public class CancelMobilePaymentNumberUpdateRequest
+    {
+        [Required]
+        public string Target { get; set; } = string.Empty;
+    }
+
+    public class VerifyMobilePaymentOtpRequest
+    {
+        [Required]
+        public string Target { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string Otp { get; set; } = string.Empty;
     }
 
     public class LandlordOnboardingStatusDto

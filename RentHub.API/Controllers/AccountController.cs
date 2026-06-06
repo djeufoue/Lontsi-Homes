@@ -13,6 +13,7 @@ using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
 using System.Security.Claims;
 using System.Linq;
+using System.Text.Json;
 
 using RentHub.API.Helpers;
 
@@ -33,6 +34,7 @@ namespace RentHub.API.Controllers
         private const string PayoutOtpExpiryTokenName = "PayoutOtpExpiryUnix";
         private const string WhatsAppOtpTokenName = "WhatsAppOtpCode";
         private const string WhatsAppOtpExpiryTokenName = "WhatsAppOtpExpiryUnix";
+        private const string MobilePaymentRollbackTokenPrefix = "MobilePaymentRollback:";
         private const string PlatformTermsVersion = "2026-06-kyc-v1";
 
         private readonly UserManager<ApplicationUser> _userManager;
@@ -394,12 +396,95 @@ namespace RentHub.API.Controllers
                     Email = user.Email,
                     NextStep = status.NextStep,
                     Status = status,
-                    Message = "Email verified. Continue with phone verification."
+                    Message = "Email verified. Choose your country to continue."
                 });
             }
             catch (Exception ex)
             {
                 return ServerError(ex, "VerifyLandlordEmail", "Unable to verify email OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost("landlord-registration/country")]
+        public async Task<IActionResult> UpsertLandlordCountry([FromBody] UpsertLandlordCountryRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var user = await FindLandlordForOnboardingAsync(request.Email);
+                if (user == null)
+                {
+                    return BadRequest("Invalid landlord account.");
+                }
+
+                if (!user.EmailConfirmed)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "LANDLORD_ONBOARDING_INCOMPLETE",
+                        Email = user.Email,
+                        NextStep = LandlordOnboardingSteps.Email,
+                        Message = "Confirm your email before choosing your country."
+                    });
+                }
+
+                var countryCode = NormalizeCountryCode(request.CountryCode);
+                if (string.IsNullOrWhiteSpace(countryCode))
+                {
+                    return BadRequest(new
+                    {
+                        Code = "COUNTRY_REQUIRED",
+                        Message = "Choose the country where your landlord account is registered."
+                    });
+                }
+
+                var countryChanged = !string.Equals(
+                    NormalizeCountryCode(user.CountryCode),
+                    countryCode,
+                    StringComparison.Ordinal);
+
+                user.CountryCode = countryCode;
+
+                if (countryChanged)
+                {
+                    user.PhoneNumberConfirmed = false;
+                    user.PhoneNumber = null;
+
+                    if (!IsCameroonCountryCode(countryCode))
+                    {
+                        ClearMobileMoneyFields(user);
+                    }
+                    else
+                    {
+                        user.UsePrimaryPhoneForSubscriptionPayments = true;
+                        user.UsePrimaryPhoneForRentPayouts = true;
+                    }
+                }
+
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    return BadRequest(updateResult.Errors);
+                }
+
+                var status = await BuildLandlordOnboardingStatusAsync(user);
+                return Ok(new
+                {
+                    Email = user.Email,
+                    NextStep = status.NextStep,
+                    Status = status,
+                    Message = IsCameroonCountryCode(countryCode)
+                        ? "Country saved. Verify your Cameroon phone number next."
+                        : "Country saved. Verify your main phone number next."
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "UpsertLandlordCountry", "Unable to save your country right now. Please try again.");
             }
         }
 
@@ -430,22 +515,36 @@ namespace RentHub.API.Controllers
                     });
                 }
 
-                var countryCode = NormalizeCountryCode(request.CountryCode);
-                if (!string.Equals(countryCode, "+237", StringComparison.Ordinal))
+                var countryCode = NormalizeCountryCode(request.CountryCode) ?? NormalizeCountryCode(user.CountryCode);
+                if (string.IsNullOrWhiteSpace(countryCode))
                 {
-                    return BadRequest(new
+                    return StatusCode(StatusCodes.Status403Forbidden, new
                     {
-                        Code = "PHONE_COUNTRY_UNSUPPORTED",
-                        Message = "Only Cameroon country code +237 is supported for landlord phone verification right now."
+                        Code = "LANDLORD_ONBOARDING_INCOMPLETE",
+                        Email = user.Email,
+                        NextStep = LandlordOnboardingSteps.Country,
+                        Message = "Choose your country before verifying your phone number."
                     });
                 }
 
-                if (!TryNormalizeLocalCameroonPhoneNumber(request.PhoneNumber, out var phone))
+                string phone;
+                if (IsCameroonCountryCode(countryCode))
+                {
+                    if (!TryNormalizeLocalCameroonPhoneNumber(request.PhoneNumber, out phone))
+                    {
+                        return BadRequest(new
+                        {
+                            Code = "PHONE_NUMBER_INVALID",
+                            Message = "Enter the 9-digit Cameroon phone number without the country code. Example: REMOVED_PRIVATE_VALUE."
+                        });
+                    }
+                }
+                else if (!TryNormalizeLocalPhoneNumber(request.PhoneNumber, countryCode, out phone))
                 {
                     return BadRequest(new
                     {
                         Code = "PHONE_NUMBER_INVALID",
-                        Message = "Enter the 9-digit Cameroon phone number without the country code. Example: REMOVED_PRIVATE_VALUE."
+                        Message = "Enter a valid phone number for the selected country."
                     });
                 }
 
@@ -458,18 +557,23 @@ namespace RentHub.API.Controllers
                 {
                     user.PhoneNumberConfirmed = false;
 
-                    if (user.UsePrimaryPhoneForSubscriptionPayments)
+                    if (IsCameroonCountryCode(countryCode) && user.UsePrimaryPhoneForSubscriptionPayments)
                     {
                         user.SubscriptionPaymentPhoneNumber = phone;
                         user.IsSubscriptionPaymentPhoneVerified = false;
                         user.SubscriptionPaymentPhoneVerifiedAt = null;
                     }
 
-                    if (user.UsePrimaryPhoneForRentPayouts)
+                    if (IsCameroonCountryCode(countryCode) && user.UsePrimaryPhoneForRentPayouts)
                     {
                         user.PayoutPhoneNumber = phone;
                         user.IsPayoutPhoneVerified = false;
                         user.PayoutPhoneVerifiedAt = null;
+                    }
+
+                    if (!IsCameroonCountryCode(countryCode))
+                    {
+                        ClearMobileMoneyFields(user);
                     }
                 }
 
@@ -569,7 +673,9 @@ namespace RentHub.API.Controllers
                     Email = user.Email,
                     NextStep = status.NextStep,
                     Status = status,
-                    Message = "Phone number verified. Configure mobile payment numbers next."
+                    Message = IsCameroonCountryCode(user.CountryCode)
+                        ? "Phone number verified. Configure mobile payment numbers next."
+                        : "Phone number verified. Continue with identity verification."
                 });
             }
             catch (Exception ex)
@@ -600,8 +706,21 @@ namespace RentHub.API.Controllers
                     {
                         Code = "LANDLORD_ONBOARDING_INCOMPLETE",
                         Email = user.Email,
-                        NextStep = !user.EmailConfirmed ? LandlordOnboardingSteps.Email : LandlordOnboardingSteps.Phone,
+                        NextStep = !user.EmailConfirmed
+                            ? LandlordOnboardingSteps.Email
+                            : string.IsNullOrWhiteSpace(user.CountryCode)
+                                ? LandlordOnboardingSteps.Country
+                                : LandlordOnboardingSteps.Phone,
                         Message = "Confirm your email and main phone number before configuring mobile payments."
+                    });
+                }
+
+                if (!IsCameroonCountryCode(user.CountryCode))
+                {
+                    return BadRequest(new
+                    {
+                        Code = "MOBILE_MONEY_COUNTRY_NOT_SUPPORTED",
+                        Message = "Mobile Money setup is only required for Cameroon landlord accounts. Use card payments for subscriptions."
                     });
                 }
 
@@ -889,6 +1008,509 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("mobile-payments/start-update")]
+        [Authorize]
+        public async Task<IActionResult> StartMobilePaymentNumberUpdate([FromBody] StartMobilePaymentNumberUpdateRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Landlord"))
+                {
+                    return Forbid();
+                }
+
+                if (!IsCameroonCountryCode(user.CountryCode))
+                {
+                    return BadRequest("Mobile Money setup is only available for Cameroon landlord accounts.");
+                }
+
+                if (HasPendingMobilePaymentVerification(user))
+                {
+                    return BadRequest("Complete the pending OTP validation before changing another Mobile Money number.");
+                }
+
+                var target = NormalizeMobilePaymentTarget(request.Target);
+                if (target == null)
+                {
+                    return BadRequest("Choose a valid phone number to update.");
+                }
+
+                var updateRequest = BuildMobilePaymentsRequestFromUser(user);
+                if (!CameroonMobileMoneyNumberHelper.TryNormalizeNationalNumber(request.PhoneNumber, out var newPhone))
+                {
+                    return BadRequest(new
+                    {
+                        Code = "PHONE_FORMAT_INVALID",
+                        Message = $"Enter a valid Cameroon number with country code +237. {CameroonMobileMoneyNumberHelper.SupportedPrefixesDescription}"
+                    });
+                }
+
+                switch (target)
+                {
+                    case "subscription":
+                        if (request.Channel is not PayoutChannelEnum.MtnMoney and not PayoutChannelEnum.OrangeMoney)
+                        {
+                            return BadRequest("Choose MTN Money or Orange Money for subscription payments.");
+                        }
+
+                        if (SamePhone(newPhone, user.SubscriptionPaymentPhoneNumber))
+                        {
+                            return BadRequest("Enter a different subscription payment number before requesting an OTP.");
+                        }
+
+                        updateRequest.UsePrimaryPhoneForSubscriptionPayments = SamePhone(newPhone, user.PhoneNumber);
+                        updateRequest.SubscriptionPaymentPhoneNumber = updateRequest.UsePrimaryPhoneForSubscriptionPayments
+                            ? null
+                            : newPhone;
+                        updateRequest.SubscriptionPaymentChannel = request.Channel;
+                        break;
+
+                    case "payout":
+                        if (request.Channel is not PayoutChannelEnum.MtnMoney and not PayoutChannelEnum.OrangeMoney)
+                        {
+                            return BadRequest("Choose MTN Money or Orange Money for rent payouts.");
+                        }
+
+                        if (SamePhone(newPhone, user.PayoutPhoneNumber))
+                        {
+                            return BadRequest("Enter a different rent payout number before requesting an OTP.");
+                        }
+
+                        updateRequest.UsePrimaryPhoneForRentPayouts = SamePhone(newPhone, user.PhoneNumber);
+                        updateRequest.PayoutPhoneNumber = updateRequest.UsePrimaryPhoneForRentPayouts
+                            ? null
+                            : newPhone;
+                        updateRequest.PayoutChannel = request.Channel;
+                        break;
+
+                    case "whatsapp":
+                        if (SamePhone(newPhone, user.WhatsAppPhoneNumber))
+                        {
+                            return BadRequest("Enter a different WhatsApp alerts number before requesting an OTP.");
+                        }
+
+                        updateRequest.WhatsAppPhoneNumber = newPhone;
+                        break;
+                }
+
+                await StoreMobilePaymentRollbackSnapshotAsync(user, target);
+                return await UpsertLandlordMobilePayments(updateRequest);
+            }
+            catch (OtpSendThrottledException ex)
+            {
+                return OtpThrottled(ex);
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "StartMobilePaymentNumberUpdate", "Unable to send the OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost("mobile-payments/cancel-update")]
+        [Authorize]
+        public async Task<IActionResult> CancelMobilePaymentNumberUpdate([FromBody] CancelMobilePaymentNumberUpdateRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Landlord"))
+                {
+                    return Forbid();
+                }
+
+                var target = NormalizeMobilePaymentTarget(request.Target);
+                if (target == null)
+                {
+                    return BadRequest("Choose a valid phone number to discard.");
+                }
+
+                var snapshot = await ReadMobilePaymentRollbackSnapshotAsync(user, target);
+                if (snapshot == null)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "No pending Mobile Money update was found."));
+                }
+
+                RestoreMobilePaymentSnapshot(user, snapshot);
+
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    return BadRequest(updateResult.Errors);
+                }
+
+                await RemoveMobilePaymentOtpForTargetAsync(user, target);
+                await RemoveMobilePaymentRollbackSnapshotAsync(user, target);
+
+                return Ok(await BuildMobilePaymentOtpResponseAsync(
+                    user,
+                    "Mobile Money update discarded. Previous number restored."));
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "CancelMobilePaymentNumberUpdate", "Unable to discard the Mobile Money update right now. Please try again.");
+            }
+        }
+
+        [HttpPost("mobile-payments/verify-otp")]
+        [Authorize]
+        public async Task<IActionResult> VerifyMobilePaymentOtp([FromBody] VerifyMobilePaymentOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Landlord"))
+                {
+                    return Forbid();
+                }
+
+                if (!IsCameroonCountryCode(user.CountryCode))
+                {
+                    return BadRequest("Mobile Money verification is only available for Cameroon landlord accounts.");
+                }
+
+                var target = (request.Target ?? string.Empty).Trim().ToLowerInvariant();
+                var otp = request.Otp.Trim();
+                var verifiedAt = DateTimeOffset.UtcNow;
+                string targetLabel;
+
+                switch (target)
+                {
+                    case "subscription":
+                    case "subscription-payment":
+                        if (string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) || user.SubscriptionPaymentChannel == null)
+                        {
+                            return BadRequest("Configure a subscription payment number before verifying it.");
+                        }
+
+                        if (!user.IsSubscriptionPaymentPhoneVerified)
+                        {
+                            if (SamePhone(user.SubscriptionPaymentPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed)
+                            {
+                                user.IsSubscriptionPaymentPhoneVerified = true;
+                                user.SubscriptionPaymentPhoneVerifiedAt = verifiedAt;
+                            }
+                            else
+                            {
+                                var otpResult = await ValidateOtpAsync(
+                                    user,
+                                    SubscriptionPaymentOtpTokenName,
+                                    SubscriptionPaymentOtpExpiryTokenName,
+                                    otp,
+                                    "subscription payment number");
+
+                                if (otpResult != null)
+                                {
+                                    return otpResult;
+                                }
+
+                                user.IsSubscriptionPaymentPhoneVerified = true;
+                                user.SubscriptionPaymentPhoneVerifiedAt = verifiedAt;
+                            }
+                        }
+
+                        if (!user.IsPayoutPhoneVerified &&
+                            SamePhone(user.PayoutPhoneNumber, user.SubscriptionPaymentPhoneNumber))
+                        {
+                            user.IsPayoutPhoneVerified = true;
+                            user.PayoutPhoneVerifiedAt = verifiedAt;
+                        }
+
+                        targetLabel = "Subscription payment number";
+                        break;
+
+                    case "payout":
+                    case "rent-payout":
+                        if (string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) || user.PayoutChannel == null)
+                        {
+                            return BadRequest("Configure a rent payout number before verifying it.");
+                        }
+
+                        if (!user.IsPayoutPhoneVerified)
+                        {
+                            if (SamePhone(user.PayoutPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed ||
+                                SamePhone(user.PayoutPhoneNumber, user.SubscriptionPaymentPhoneNumber) && user.IsSubscriptionPaymentPhoneVerified)
+                            {
+                                user.IsPayoutPhoneVerified = true;
+                                user.PayoutPhoneVerifiedAt = verifiedAt;
+                            }
+                            else if (SamePhone(user.PayoutPhoneNumber, user.SubscriptionPaymentPhoneNumber) &&
+                                     !user.IsSubscriptionPaymentPhoneVerified)
+                            {
+                                return BadRequest("Verify the subscription payment number first. The rent payout uses the same pending number.");
+                            }
+                            else
+                            {
+                                var otpResult = await ValidateOtpAsync(
+                                    user,
+                                    PayoutOtpTokenName,
+                                    PayoutOtpExpiryTokenName,
+                                    otp,
+                                    "rent payout number");
+
+                                if (otpResult != null)
+                                {
+                                    return otpResult;
+                                }
+
+                                user.IsPayoutPhoneVerified = true;
+                                user.PayoutPhoneVerifiedAt = verifiedAt;
+                            }
+                        }
+
+                        targetLabel = "Rent payout number";
+                        break;
+
+                    case "whatsapp":
+                        if (string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                        {
+                            return BadRequest("Configure a WhatsApp alerts number before verifying it.");
+                        }
+
+                        if (!user.IsWhatsAppPhoneVerified)
+                        {
+                            if (SamePhone(user.WhatsAppPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed)
+                            {
+                                user.IsWhatsAppPhoneVerified = true;
+                                user.WhatsAppPhoneVerifiedAt = verifiedAt;
+                            }
+                            else
+                            {
+                                var otpResult = await ValidateOtpAsync(
+                                    user,
+                                    WhatsAppOtpTokenName,
+                                    WhatsAppOtpExpiryTokenName,
+                                    otp,
+                                    "WhatsApp");
+
+                                if (otpResult != null)
+                                {
+                                    return otpResult;
+                                }
+
+                                user.IsWhatsAppPhoneVerified = true;
+                                user.WhatsAppPhoneVerifiedAt = verifiedAt;
+                            }
+                        }
+
+                        targetLabel = "WhatsApp alerts number";
+                        break;
+
+                    default:
+                        return BadRequest("Choose a valid mobile payment number to verify.");
+                }
+
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    return BadRequest(updateResult.Errors);
+                }
+
+                if (user.IsSubscriptionPaymentPhoneVerified)
+                {
+                    await RemoveOtpAsync(user, SubscriptionPaymentOtpTokenName, SubscriptionPaymentOtpExpiryTokenName);
+                }
+
+                if (user.IsPayoutPhoneVerified)
+                {
+                    await RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName);
+                }
+
+                if (user.IsWhatsAppPhoneVerified)
+                {
+                    await RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName);
+                }
+
+                var verifiedTarget = NormalizeMobilePaymentTarget(request.Target);
+                if (verifiedTarget != null)
+                {
+                    await RemoveMobilePaymentRollbackSnapshotAsync(user, verifiedTarget);
+                }
+
+                return Ok(await BuildMobilePaymentOtpResponseAsync(
+                    user,
+                    $"{targetLabel} verified successfully."));
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "VerifyMobilePaymentOtp", "Unable to verify the OTP right now. Please try again.");
+            }
+        }
+
+        [HttpPost("mobile-payments/resend-otp")]
+        [Authorize]
+        public async Task<IActionResult> ResendMobilePaymentOtp([FromBody] ResendMobilePaymentOtpRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                if (!await _userManager.IsInRoleAsync(user, "Landlord"))
+                {
+                    return Forbid();
+                }
+
+                if (!IsCameroonCountryCode(user.CountryCode))
+                {
+                    return BadRequest("Mobile Money OTP resend is only available for Cameroon landlord accounts.");
+                }
+
+                var target = (request.Target ?? string.Empty).Trim().ToLowerInvariant();
+                var sendSubscriptionOtp = false;
+                var sendPayoutOtp = false;
+                var sendWhatsAppOtp = false;
+                var targetLabel = string.Empty;
+
+                switch (target)
+                {
+                    case "subscription":
+                    case "subscription-payment":
+                        if (string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) || user.SubscriptionPaymentChannel == null)
+                        {
+                            return BadRequest("Configure a subscription payment number before requesting an OTP.");
+                        }
+
+                        if (user.IsSubscriptionPaymentPhoneVerified)
+                        {
+                            return Ok(await BuildMobilePaymentOtpResponseAsync(
+                                user,
+                                "Subscription payment number is already verified."));
+                        }
+
+                        sendSubscriptionOtp = true;
+                        targetLabel = "subscription payment number";
+                        break;
+
+                    case "payout":
+                    case "rent-payout":
+                        if (string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) || user.PayoutChannel == null)
+                        {
+                            return BadRequest("Configure a rent payout number before requesting an OTP.");
+                        }
+
+                        if (user.IsPayoutPhoneVerified)
+                        {
+                            return Ok(await BuildMobilePaymentOtpResponseAsync(
+                                user,
+                                "Rent payout number is already verified."));
+                        }
+
+                        if (SamePhone(user.PayoutPhoneNumber, user.SubscriptionPaymentPhoneNumber) &&
+                            !user.IsSubscriptionPaymentPhoneVerified)
+                        {
+                            return BadRequest("Verify the subscription payment number first. The rent payout uses the same pending number.");
+                        }
+
+                        sendPayoutOtp = true;
+                        targetLabel = "rent payout number";
+                        break;
+
+                    case "whatsapp":
+                        if (string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                        {
+                            return BadRequest("Configure a WhatsApp alerts number before requesting an OTP.");
+                        }
+
+                        if (user.IsWhatsAppPhoneVerified)
+                        {
+                            return Ok(await BuildMobilePaymentOtpResponseAsync(
+                                user,
+                                "WhatsApp alerts number is already verified."));
+                        }
+
+                        sendWhatsAppOtp = true;
+                        targetLabel = "WhatsApp alerts number";
+                        break;
+
+                    default:
+                        return BadRequest("Choose a valid mobile payment number to resend an OTP.");
+                }
+
+                await _userOnboardingService.SendLandlordMobilePaymentOtpsAsync(
+                    user,
+                    sendSubscriptionOtp,
+                    sendPayoutOtp,
+                    sendWhatsAppOtp);
+
+                return Ok(await BuildMobilePaymentOtpResponseAsync(
+                    user,
+                    $"OTP sent to your {targetLabel}."));
+            }
+            catch (OtpSendThrottledException ex)
+            {
+                return OtpThrottled(ex);
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "ResendMobilePaymentOtp", "Unable to resend the OTP right now. Please try again.");
+            }
+        }
+
         [HttpPost("landlord-registration/kyc")]
         [Consumes("multipart/form-data")]
         [RequestSizeLimit(40 * 1024 * 1024)]
@@ -909,6 +1531,7 @@ namespace RentHub.API.Controllers
 
                 var currentStatus = await BuildLandlordOnboardingStatusAsync(user);
                 if (currentStatus.NextStep is LandlordOnboardingSteps.Email
+                    or LandlordOnboardingSteps.Country
                     or LandlordOnboardingSteps.Phone
                     or LandlordOnboardingSteps.MobilePayments
                     or LandlordOnboardingSteps.MobilePaymentVerification)
@@ -1694,6 +2317,8 @@ namespace RentHub.API.Controllers
                         !us.IsDeleted &&
                         !us.IsApproved &&
                         us.PaymentStatus != PaymentStatusEnum.Success &&
+                        !(us.PaymentMethod == PaymentMethodEnum.Card &&
+                          us.PaymentStatus == PaymentStatusEnum.Pending) &&
                         us.EndDate > now)
                     .OrderByDescending(us => us.UpdatedAt ?? us.CreatedAt)
                     .FirstOrDefaultAsync();
@@ -1735,14 +2360,19 @@ namespace RentHub.API.Controllers
                     FullName = fullName,
                     CountryCode = user.CountryCode,
                     PhoneNumber = user.PhoneNumber,
+                    UsePrimaryPhoneForSubscriptionPayments = user.UsePrimaryPhoneForSubscriptionPayments,
                     SubscriptionPaymentPhoneNumber = user.SubscriptionPaymentPhoneNumber,
                     SubscriptionPaymentChannel = user.SubscriptionPaymentChannel,
                     IsSubscriptionPaymentPhoneVerified = user.IsSubscriptionPaymentPhoneVerified,
+                    UsePrimaryPhoneForRentPayouts = user.UsePrimaryPhoneForRentPayouts,
                     PayoutPhoneNumber = user.PayoutPhoneNumber,
                     PayoutChannel = user.PayoutChannel,
                     IsPayoutPhoneVerified = user.IsPayoutPhoneVerified,
                     WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
                     IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
+                    SubscriptionPaymentOtpRequestLimit = landlordStatus?.SubscriptionPaymentOtpRequestLimit,
+                    PayoutOtpRequestLimit = landlordStatus?.PayoutOtpRequestLimit,
+                    WhatsAppOtpRequestLimit = landlordStatus?.WhatsAppOtpRequestLimit,
                     Roles = roles.ToList(),
                     KycDocumentType = landlordStatus?.KycDocumentType,
                     KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
@@ -1977,6 +2607,166 @@ namespace RentHub.API.Controllers
             };
         }
 
+        private async Task<object> BuildMobilePaymentOtpResponseAsync(ApplicationUser user, string message)
+        {
+            var status = await BuildLandlordOnboardingStatusAsync(user);
+            return new
+            {
+                Email = user.Email,
+                NextStep = status.NextStep,
+                Status = status,
+                Message = message
+            };
+        }
+
+        private static UpsertLandlordMobilePaymentsRequest BuildMobilePaymentsRequestFromUser(ApplicationUser user)
+        {
+            return new UpsertLandlordMobilePaymentsRequest
+            {
+                Email = user.Email ?? string.Empty,
+                UsePrimaryPhoneForSubscriptionPayments = user.UsePrimaryPhoneForSubscriptionPayments,
+                SubscriptionPaymentPhoneNumber = user.SubscriptionPaymentPhoneNumber ?? user.PhoneNumber,
+                SubscriptionPaymentChannel = user.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
+                UsePrimaryPhoneForRentPayouts = user.UsePrimaryPhoneForRentPayouts,
+                PayoutPhoneNumber = user.PayoutPhoneNumber ?? user.PhoneNumber,
+                PayoutChannel = user.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
+                WhatsAppPhoneNumber = user.WhatsAppPhoneNumber
+            };
+        }
+
+        private static bool HasPendingMobilePaymentVerification(ApplicationUser user)
+        {
+            return !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) && !user.IsSubscriptionPaymentPhoneVerified ||
+                   !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) && !user.IsPayoutPhoneVerified ||
+                   !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
+        }
+
+        private static string? NormalizeMobilePaymentTarget(string? target)
+        {
+            return (target ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "subscription" or "subscription-payment" => "subscription",
+                "payout" or "rent-payout" => "payout",
+                "whatsapp" => "whatsapp",
+                _ => null
+            };
+        }
+
+        private async Task StoreMobilePaymentRollbackSnapshotAsync(ApplicationUser user, string target)
+        {
+            var snapshot = target switch
+            {
+                "payout" => new MobilePaymentRollbackSnapshot
+                {
+                    Target = target,
+                    UsePrimaryPhone = user.UsePrimaryPhoneForRentPayouts,
+                    PhoneNumber = user.PayoutPhoneNumber,
+                    Channel = user.PayoutChannel,
+                    IsVerified = user.IsPayoutPhoneVerified,
+                    VerifiedAt = user.PayoutPhoneVerifiedAt
+                },
+                "whatsapp" => new MobilePaymentRollbackSnapshot
+                {
+                    Target = target,
+                    PhoneNumber = user.WhatsAppPhoneNumber,
+                    IsVerified = user.IsWhatsAppPhoneVerified,
+                    VerifiedAt = user.WhatsAppPhoneVerifiedAt
+                },
+                _ => new MobilePaymentRollbackSnapshot
+                {
+                    Target = "subscription",
+                    UsePrimaryPhone = user.UsePrimaryPhoneForSubscriptionPayments,
+                    PhoneNumber = user.SubscriptionPaymentPhoneNumber,
+                    Channel = user.SubscriptionPaymentChannel,
+                    IsVerified = user.IsSubscriptionPaymentPhoneVerified,
+                    VerifiedAt = user.SubscriptionPaymentPhoneVerifiedAt
+                }
+            };
+
+            await _userManager.SetAuthenticationTokenAsync(
+                user,
+                OtpLoginProvider,
+                MobilePaymentRollbackTokenName(target),
+                JsonSerializer.Serialize(snapshot));
+        }
+
+        private async Task<MobilePaymentRollbackSnapshot?> ReadMobilePaymentRollbackSnapshotAsync(
+            ApplicationUser user,
+            string target)
+        {
+            var raw = await _userManager.GetAuthenticationTokenAsync(
+                user,
+                OtpLoginProvider,
+                MobilePaymentRollbackTokenName(target));
+
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<MobilePaymentRollbackSnapshot>(raw);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private Task RemoveMobilePaymentRollbackSnapshotAsync(ApplicationUser user, string target)
+        {
+            return _userManager.RemoveAuthenticationTokenAsync(
+                user,
+                OtpLoginProvider,
+                MobilePaymentRollbackTokenName(target));
+        }
+
+        private static string MobilePaymentRollbackTokenName(string target)
+        {
+            return $"{MobilePaymentRollbackTokenPrefix}{target}";
+        }
+
+        private static void RestoreMobilePaymentSnapshot(
+            ApplicationUser user,
+            MobilePaymentRollbackSnapshot snapshot)
+        {
+            switch (snapshot.Target)
+            {
+                case "payout":
+                    user.UsePrimaryPhoneForRentPayouts = snapshot.UsePrimaryPhone;
+                    user.PayoutPhoneNumber = snapshot.PhoneNumber;
+                    user.PayoutChannel = snapshot.Channel;
+                    user.IsPayoutPhoneVerified = snapshot.IsVerified;
+                    user.PayoutPhoneVerifiedAt = snapshot.VerifiedAt;
+                    break;
+
+                case "whatsapp":
+                    user.WhatsAppPhoneNumber = snapshot.PhoneNumber;
+                    user.IsWhatsAppPhoneVerified = snapshot.IsVerified;
+                    user.WhatsAppPhoneVerifiedAt = snapshot.VerifiedAt;
+                    break;
+
+                default:
+                    user.UsePrimaryPhoneForSubscriptionPayments = snapshot.UsePrimaryPhone;
+                    user.SubscriptionPaymentPhoneNumber = snapshot.PhoneNumber;
+                    user.SubscriptionPaymentChannel = snapshot.Channel;
+                    user.IsSubscriptionPaymentPhoneVerified = snapshot.IsVerified;
+                    user.SubscriptionPaymentPhoneVerifiedAt = snapshot.VerifiedAt;
+                    break;
+            }
+        }
+
+        private Task RemoveMobilePaymentOtpForTargetAsync(ApplicationUser user, string target)
+        {
+            return target switch
+            {
+                "payout" => RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName),
+                "whatsapp" => RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName),
+                _ => RemoveOtpAsync(user, SubscriptionPaymentOtpTokenName, SubscriptionPaymentOtpExpiryTokenName)
+            };
+        }
+
         private static string ResolveLandlordOnboardingStep(LandlordOnboardingStatusDto status)
         {
             if (status.Roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
@@ -1994,9 +2784,29 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Email;
             }
 
+            if (string.IsNullOrWhiteSpace(status.CountryCode))
+            {
+                return LandlordOnboardingSteps.Country;
+            }
+
             if (string.IsNullOrWhiteSpace(status.PhoneNumber) || !status.PhoneNumberConfirmed)
             {
                 return LandlordOnboardingSteps.Phone;
+            }
+
+            if (!IsCameroonCountryCode(status.CountryCode))
+            {
+                if (!status.IsKycSubmitted)
+                {
+                    return LandlordOnboardingSteps.Kyc;
+                }
+
+                if (!status.PlatformTermsAccepted)
+                {
+                    return LandlordOnboardingSteps.Contract;
+                }
+
+                return LandlordOnboardingSteps.Complete;
             }
 
             var hasSubscriptionPaymentDetails =
@@ -2036,6 +2846,8 @@ namespace RentHub.API.Controllers
             return new LandlordOnboardingStatusDto
             {
                 Email = status.Email,
+                CountryCode = status.CountryCode,
+                PhoneNumber = status.PhoneNumber,
                 EmailConfirmed = status.EmailConfirmed,
                 PhoneNumberConfirmed = status.PhoneNumberConfirmed,
                 UsePrimaryPhoneForSubscriptionPayments = status.UsePrimaryPhoneForSubscriptionPayments,
@@ -2078,8 +2890,7 @@ namespace RentHub.API.Controllers
             }
 
             return landlordStatus?.IsKycApproved == true &&
-                   user.PlatformTermsAccepted &&
-                   user.IsSubscriptionPaymentPhoneVerified;
+                   user.PlatformTermsAccepted;
         }
 
         private static string ResolveSubscriptionBlockedReason(
@@ -2117,11 +2928,6 @@ namespace RentHub.API.Controllers
             if (!user.PlatformTermsAccepted)
             {
                 return "Sign the platform contract before paying for a subscription.";
-            }
-
-            if (!user.IsSubscriptionPaymentPhoneVerified)
-            {
-                return "Verify your subscription payment number before subscribing.";
             }
 
             return string.Empty;
@@ -2308,6 +3114,11 @@ namespace RentHub.API.Controllers
             return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
         }
 
+        private static bool IsCameroonCountryCode(string? countryCode)
+        {
+            return string.Equals(NormalizeCountryCode(countryCode), "+237", StringComparison.Ordinal);
+        }
+
         private static bool TryNormalizeLocalCameroonPhoneNumber(string? phoneNumber, out string normalizedPhoneNumber)
         {
             normalizedPhoneNumber = string.Empty;
@@ -2324,6 +3135,51 @@ namespace RentHub.API.Controllers
 
             normalizedPhoneNumber = trimmed;
             return true;
+        }
+
+        private static bool TryNormalizeLocalPhoneNumber(
+            string? phoneNumber,
+            string countryCode,
+            out string normalizedPhoneNumber)
+        {
+            normalizedPhoneNumber = string.Empty;
+            var digits = new string((phoneNumber ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (digits.StartsWith("00", StringComparison.Ordinal))
+            {
+                digits = digits[2..];
+            }
+
+            var countryDigits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            if (!string.IsNullOrWhiteSpace(countryDigits) &&
+                digits.StartsWith(countryDigits, StringComparison.Ordinal))
+            {
+                digits = digits[countryDigits.Length..];
+            }
+
+            if (digits.Length is < 6 or > 15)
+            {
+                return false;
+            }
+
+            normalizedPhoneNumber = digits;
+            return true;
+        }
+
+        private static void ClearMobileMoneyFields(ApplicationUser user)
+        {
+            user.UsePrimaryPhoneForSubscriptionPayments = false;
+            user.SubscriptionPaymentPhoneNumber = null;
+            user.SubscriptionPaymentChannel = null;
+            user.IsSubscriptionPaymentPhoneVerified = false;
+            user.SubscriptionPaymentPhoneVerifiedAt = null;
+            user.UsePrimaryPhoneForRentPayouts = false;
+            user.PayoutPhoneNumber = null;
+            user.PayoutChannel = null;
+            user.IsPayoutPhoneVerified = false;
+            user.PayoutPhoneVerifiedAt = null;
+            user.WhatsAppPhoneNumber = null;
+            user.IsWhatsAppPhoneVerified = false;
+            user.WhatsAppPhoneVerifiedAt = null;
         }
 
         private static bool SamePhone(string? left, string? right)
@@ -2442,6 +3298,16 @@ namespace RentHub.API.Controllers
         {
             await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, otpTokenName);
             await _userManager.RemoveAuthenticationTokenAsync(user, OtpLoginProvider, expiryTokenName);
+        }
+
+        private sealed class MobilePaymentRollbackSnapshot
+        {
+            public string Target { get; set; } = string.Empty;
+            public bool UsePrimaryPhone { get; set; }
+            public string? PhoneNumber { get; set; }
+            public PayoutChannelEnum? Channel { get; set; }
+            public bool IsVerified { get; set; }
+            public DateTimeOffset? VerifiedAt { get; set; }
         }
     }
 }
