@@ -133,7 +133,6 @@ namespace RentHub.Portal.ViewModels.Auth
         public string Email { get; set; } = string.Empty;
 
         [Display(Name = "I accept the platform terms and conditions")]
-        [Range(typeof(bool), "true", "true", ErrorMessage = "Accept the platform terms before signing.")]
         public bool Accepted { get; set; }
 
         [Required]

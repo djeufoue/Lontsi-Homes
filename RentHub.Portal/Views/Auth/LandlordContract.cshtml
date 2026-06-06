@@ -103,15 +103,31 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         (() => {
+            const accepted = document.getElementById("@Html.IdFor(model => model.Accepted)");
+            const acceptedValidation = document.querySelector("[data-valmsg-for='@Html.NameFor(model => model.Accepted)']");
             const toggle = document.querySelector("[data-contract-toggle]");
             const more = document.querySelector("[data-contract-more]");
-            if (!toggle || !more) return;
 
-            toggle.addEventListener("click", () => {
-                const isHidden = more.hidden;
-                more.hidden = !isHidden;
-                toggle.textContent = isHidden ? "See less" : "See more";
-            });
+            const clearAcceptedValidation = () => {
+                if (!accepted?.checked || !acceptedValidation) {
+                    return;
+                }
+
+                acceptedValidation.textContent = "";
+                acceptedValidation.classList.remove("field-validation-error");
+                acceptedValidation.classList.add("field-validation-valid");
+            };
+
+            accepted?.addEventListener("change", clearAcceptedValidation);
+            clearAcceptedValidation();
+
+            if (toggle && more) {
+                toggle.addEventListener("click", () => {
+                    const isHidden = more.hidden;
+                    more.hidden = !isHidden;
+                    toggle.textContent = isHidden ? "See less" : "See more";
+                });
+            }
         })();
     </script>
 }
