@@ -9,6 +9,8 @@ namespace RentHub.API.Services.Payments
         Task<StripeConnectAccountStatus> CreateExpressAccountAsync(ApplicationUser user);
         Task<StripeConnectAccountStatus?> RetrieveAccountAsync(string accountId);
         Task<string> CreateOnboardingLinkAsync(string accountId, string returnUrl, string refreshUrl);
+        bool IsConnectPlatformEnabled();
+        string GetPlatformNotReadyMessage();
         bool IsConnectCountrySupported(string? countryIsoCode);
         string ResolveConnectCountry(ApplicationUser user);
         string GetUnsupportedCountryMessage(string? countryIsoCode);
@@ -17,6 +19,14 @@ namespace RentHub.API.Services.Payments
     public sealed class StripeConnectCountryUnsupportedException : InvalidOperationException
     {
         public StripeConnectCountryUnsupportedException(string message)
+            : base(message)
+        {
+        }
+    }
+
+    public sealed class StripeConnectPlatformNotReadyException : InvalidOperationException
+    {
+        public StripeConnectPlatformNotReadyException(string message)
             : base(message)
         {
         }
@@ -50,6 +60,11 @@ namespace RentHub.API.Services.Payments
 
         public async Task<StripeConnectAccountStatus> CreateExpressAccountAsync(ApplicationUser user)
         {
+            if (!IsConnectPlatformEnabled())
+            {
+                throw new StripeConnectPlatformNotReadyException(GetPlatformNotReadyMessage());
+            }
+
             var country = ResolveConnectCountry(user);
             if (!IsConnectCountrySupported(country))
             {
@@ -76,7 +91,7 @@ namespace RentHub.API.Services.Payments
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Stripe Connect account creation failed with status {StatusCode}: {Payload}", response.StatusCode, raw);
-                throw new InvalidOperationException(ExtractStripeMessage(raw));
+                throw BuildStripeRequestException(raw);
             }
 
             using var document = JsonDocument.Parse(raw);
@@ -126,7 +141,7 @@ namespace RentHub.API.Services.Payments
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Stripe Connect account link creation failed for {AccountId}: {Payload}", accountId, raw);
-                throw new InvalidOperationException(ExtractStripeMessage(raw));
+                throw BuildStripeRequestException(raw);
             }
 
             using var document = JsonDocument.Parse(raw);
@@ -166,6 +181,16 @@ namespace RentHub.API.Services.Payments
                 ?? "CA";
 
             return NormalizeCountryIso(country) ?? "CA";
+        }
+
+        public bool IsConnectPlatformEnabled()
+        {
+            return _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
+        }
+
+        public string GetPlatformNotReadyMessage()
+        {
+            return "Stripe Connect setup is temporarily unavailable while the platform owner completes Stripe Connect activation in the Stripe Dashboard. Please continue testing the rest of the platform for now.";
         }
 
         public bool IsConnectCountrySupported(string? countryIsoCode)
@@ -250,7 +275,7 @@ namespace RentHub.API.Services.Payments
                 DetailsSubmitted = ReadDirectBool(element, "details_submitted"),
                 ChargesEnabled = ReadDirectBool(element, "charges_enabled"),
                 PayoutsEnabled = ReadDirectBool(element, "payouts_enabled"),
-                DisabledReason = FindString(element, "disabled_reason") ?? string.Empty,
+                DisabledReason = FormatDisabledReason(FindString(element, "disabled_reason")),
                 RequirementsSummary = BuildRequirementsSummary(element)
             };
         }
@@ -263,33 +288,136 @@ namespace RentHub.API.Services.Payments
                 return string.Empty;
             }
 
-            var currentlyDue = ReadStringArray(requirements, "currently_due");
-            var eventuallyDue = ReadStringArray(requirements, "eventually_due");
-            var pastDue = ReadStringArray(requirements, "past_due");
-            var pendingVerification = ReadStringArray(requirements, "pending_verification");
+            var pastDueRaw = ReadStringArray(requirements, "past_due");
+            var pastDueSet = new HashSet<string>(pastDueRaw, StringComparer.OrdinalIgnoreCase);
+            var currentlyDue = FormatRequirementList(ReadStringArray(requirements, "currently_due")
+                .Where(value => !pastDueSet.Contains(value)));
+            var eventuallyDue = FormatRequirementList(ReadStringArray(requirements, "eventually_due"));
+            var pastDue = FormatRequirementList(pastDueRaw);
+            var pendingVerification = FormatRequirementList(ReadStringArray(requirements, "pending_verification"));
 
             var parts = new List<string>();
             if (currentlyDue.Count > 0)
             {
-                parts.Add($"Missing now: {string.Join(", ", currentlyDue)}");
+                parts.Add($"Action needed now: {JoinRequirementList(currentlyDue)}.");
             }
 
             if (pastDue.Count > 0)
             {
-                parts.Add($"Past due: {string.Join(", ", pastDue)}");
+                parts.Add($"Overdue: {JoinRequirementList(pastDue)}. Payouts stay waiting until this is completed in Stripe.");
             }
 
             if (pendingVerification.Count > 0)
             {
-                parts.Add($"Pending verification: {string.Join(", ", pendingVerification)}");
+                parts.Add($"Pending review: Stripe is checking {JoinRequirementList(pendingVerification)}.");
             }
 
             if (parts.Count == 0 && eventuallyDue.Count > 0)
             {
-                parts.Add($"May be required later: {string.Join(", ", eventuallyDue)}");
+                parts.Add($"May be required later: {JoinRequirementList(eventuallyDue)}.");
             }
 
-            return string.Join(" | ", parts);
+            return string.Join(" ", parts);
+        }
+
+        private static string FormatDisabledReason(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value.Trim();
+            return normalized switch
+            {
+                "requirements.past_due" => "Stripe needs overdue verification details before payouts can be enabled.",
+                "requirements.pending_verification" => "Stripe is reviewing the submitted payout account details.",
+                "requirements.eventually_due" => "Stripe will need more payout account details before payouts are fully enabled.",
+                "requirements.fields_needed" => "Stripe needs more payout account details before payouts can be enabled.",
+                "listed" => "Stripe paused this payout account for review.",
+                "rejected.fraud" => "Stripe rejected this payout account after risk review.",
+                "rejected.terms_of_service" => "Stripe rejected this payout account because required terms or compliance steps were not accepted.",
+                _ when normalized.StartsWith("requirements.", StringComparison.OrdinalIgnoreCase)
+                    => $"Stripe needs more verification details: {HumanizeStripeCode(normalized)}.",
+                _ => HumanizeStripeCode(normalized)
+            };
+        }
+
+        private static List<string> FormatRequirementList(IEnumerable<string> values)
+        {
+            return values
+                .Select(FormatRequirement)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string FormatRequirement(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value.Trim();
+            return normalized switch
+            {
+                "external_account" => "add a payout bank account",
+                "business_profile.mcc" => "select the business industry",
+                "business_profile.product_description" => "describe the product or service",
+                "business_profile.url" => "confirm the website",
+                "individual.email" => "confirm the email address",
+                "individual.first_name" => "confirm the legal first name",
+                "individual.last_name" => "confirm the legal last name",
+                "individual.phone" => "confirm the phone number",
+                "individual.verification.additional_document" => "upload an additional identity document",
+                "individual.verification.document" => "upload an identity document",
+                "individual.verification.proof_of_liveness" => "complete the Stripe identity/liveness check",
+                "tos_acceptance.date" => "accept Stripe terms of service",
+                "tos_acceptance.ip" => "accept Stripe terms of service",
+                _ when normalized.StartsWith("individual.address.", StringComparison.OrdinalIgnoreCase)
+                    => "confirm the home address",
+                _ when normalized.StartsWith("individual.dob.", StringComparison.OrdinalIgnoreCase)
+                    => "confirm the date of birth",
+                _ when normalized.StartsWith("company.", StringComparison.OrdinalIgnoreCase)
+                    => $"complete company information ({HumanizeStripeCode(normalized)})",
+                _ when normalized.StartsWith("representative.", StringComparison.OrdinalIgnoreCase)
+                    => $"complete representative information ({HumanizeStripeCode(normalized)})",
+                _ when normalized.StartsWith("owners.", StringComparison.OrdinalIgnoreCase)
+                    => $"complete owner information ({HumanizeStripeCode(normalized)})",
+                _ => HumanizeStripeCode(normalized)
+            };
+        }
+
+        private static string JoinRequirementList(IReadOnlyList<string> values)
+        {
+            if (values.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (values.Count == 1)
+            {
+                return values[0];
+            }
+
+            if (values.Count == 2)
+            {
+                return $"{values[0]} and {values[1]}";
+            }
+
+            return $"{string.Join(", ", values.Take(values.Count - 1))}, and {values[values.Count - 1]}";
+        }
+
+        private static string HumanizeStripeCode(string value)
+        {
+            return value
+                .Replace("requirements.", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("business_profile.", "business profile ", StringComparison.OrdinalIgnoreCase)
+                .Replace("individual.", "personal ", StringComparison.OrdinalIgnoreCase)
+                .Replace('_', ' ')
+                .Replace('.', ' ')
+                .Trim();
         }
 
         private static List<string> ReadStringArray(JsonElement element, string propertyName)
@@ -324,6 +452,20 @@ namespace RentHub.API.Services.Payments
             {
                 return raw;
             }
+        }
+
+        private InvalidOperationException BuildStripeRequestException(string raw)
+        {
+            var message = ExtractStripeMessage(raw);
+            return IsConnectSignupRequiredMessage(message)
+                ? new StripeConnectPlatformNotReadyException(GetPlatformNotReadyMessage())
+                : new InvalidOperationException(message);
+        }
+
+        private static bool IsConnectSignupRequiredMessage(string message)
+        {
+            return message.Contains("signed up for Connect", StringComparison.OrdinalIgnoreCase) ||
+                   message.Contains("dashboard.stripe.com/connect", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string? ReadDirectString(JsonElement element, string propertyName)

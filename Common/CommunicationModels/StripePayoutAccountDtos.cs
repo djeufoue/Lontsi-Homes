@@ -7,6 +7,8 @@ namespace Common.CommunicationModels
     {
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
         public bool IsKycApproved => KycStatus == LandlordKycStatusEnum.Approved;
+        public bool IsPlatformReady { get; set; } = true;
+        public string PlatformReadinessMessage { get; set; } = string.Empty;
         public string AccountId { get; set; } = string.Empty;
         public string CountryIsoCode { get; set; } = string.Empty;
         public bool IsCountrySupported { get; set; } = true;

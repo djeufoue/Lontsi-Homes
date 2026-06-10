@@ -48,7 +48,8 @@ namespace RentHub.API.Controllers
                 }
 
                 var kycStatus = await GetKycStatusAsync(user.Id);
-                if (!string.IsNullOrWhiteSpace(user.StripeConnectAccountId))
+                if (_stripeConnectService.IsConnectPlatformEnabled() &&
+                    !string.IsNullOrWhiteSpace(user.StripeConnectAccountId))
                 {
                     var status = await _stripeConnectService.RetrieveAccountAsync(user.StripeConnectAccountId);
                     if (status != null)
@@ -88,6 +89,15 @@ namespace RentHub.API.Controllers
                     {
                         Code = "KYC_APPROVAL_REQUIRED",
                         Message = "Your KYC must be approved by an administrator before you can set up a Stripe payout account."
+                    });
+                }
+
+                if (!_stripeConnectService.IsConnectPlatformEnabled())
+                {
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                    {
+                        Code = "STRIPE_CONNECT_PLATFORM_NOT_READY",
+                        Message = _stripeConnectService.GetPlatformNotReadyMessage()
                     });
                 }
 
@@ -145,6 +155,15 @@ namespace RentHub.API.Controllers
                 return BadRequest(new
                 {
                     Code = "STRIPE_CONNECT_COUNTRY_UNSUPPORTED",
+                    Message = ex.Message
+                });
+            }
+            catch (StripeConnectPlatformNotReadyException ex)
+            {
+                _logger.LogWarning(ex, "Stripe Connect platform setup is not ready");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    Code = "STRIPE_CONNECT_PLATFORM_NOT_READY",
                     Message = ex.Message
                 });
             }
@@ -215,6 +234,10 @@ namespace RentHub.API.Controllers
         {
             var hasAccount = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId);
             var setupComplete = IsStripePayoutSetupComplete(user);
+            var isPlatformReady = _stripeConnectService.IsConnectPlatformEnabled();
+            var platformReadinessMessage = isPlatformReady
+                ? string.Empty
+                : _stripeConnectService.GetPlatformNotReadyMessage();
             var countryIsoCode = _stripeConnectService.ResolveConnectCountry(user);
             var isCountrySupported = _stripeConnectService.IsConnectCountrySupported(countryIsoCode);
             var unsupportedMessage = isCountrySupported
@@ -222,6 +245,8 @@ namespace RentHub.API.Controllers
                 : _stripeConnectService.GetUnsupportedCountryMessage(countryIsoCode);
             var message = kycStatus != LandlordKycStatusEnum.Approved
                 ? "Your KYC must be approved by an administrator before Stripe payout setup becomes available."
+                : !isPlatformReady
+                ? platformReadinessMessage
                 : !isCountrySupported
                 ? unsupportedMessage
                 : setupComplete
@@ -233,6 +258,8 @@ namespace RentHub.API.Controllers
             return new StripePayoutAccountStatusDto
             {
                 KycStatus = kycStatus,
+                IsPlatformReady = isPlatformReady,
+                PlatformReadinessMessage = platformReadinessMessage,
                 AccountId = user.StripeConnectAccountId ?? string.Empty,
                 CountryIsoCode = countryIsoCode,
                 IsCountrySupported = isCountrySupported,
