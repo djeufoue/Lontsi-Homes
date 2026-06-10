@@ -1,31 +1,17 @@
 @using System
 @using System.Linq
-@using System.Globalization
-@using Common.Enums
 @model RentHub.Portal.ViewModels.Properties.PropertyIndexVm
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Properties";
-    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
-    if (usdToXafRate <= 0)
-    {
-        usdToXafRate = 600m;
-    }
-    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
     var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
     var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
-    var registeredPaymentMethodLabel = Model.RegisteredPaymentChannel switch
-    {
-        PayoutChannelEnum.MtnMoney => "MTN Mobile Money",
-        PayoutChannelEnum.OrangeMoney => "Orange Money",
-        _ => "Not configured"
-    };
-    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(Model.RegisteredPaymentNumber) &&
-        Model.RegisteredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
-        Model.RegisteredPaymentVerified;
 }
 
 <div class="rh-properties-page">
+    <section class="alert alert-info rh-test-mode-banner" role="status">
+        <strong>Testing mode:</strong> You can keep exploring properties while phone-number SMS verification is paused for Twilio approval. Please test the workflow and share any feedback you find useful.
+    </section>
+
     <section class="rh-properties-hero">
         <div class="rh-properties-overview-head">
             <div>
@@ -116,6 +102,17 @@
                 <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.ComplianceMessage) ? Model.ComplianceMessage : "Complete identity verification, admin approval, and the platform contract before subscription payments and property creation are unlocked.")</p>
             </div>
             <a asp-controller="Profile" asp-action="Index" class="btn rh-btn-primary">Open Profile Checklist</a>
+        </section>
+    }
+    else if (Model.RequiresPayoutSetup)
+    {
+        <section class="rh-compliance-callout">
+            <div>
+                <p class="rh-kicker rh-kicker-ghost mb-1">Payout setup required</p>
+                <h2 class="rh-section-title mb-1">Connect your payout account before adding properties</h2>
+                <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.PayoutSetupMessage) ? Model.PayoutSetupMessage : "Set up Stripe so tenant card rent payments can be routed to you later.")</p>
+            </div>
+            <a asp-controller="Profile" asp-action="PayoutSetup" class="btn rh-btn-primary">Set up payout account</a>
         </section>
     }
 
@@ -245,61 +242,6 @@
                         <button type="submit" class="btn rh-btn-primary">Create Property</button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-}
-else if (Model.RequiresSubscriptionCheckout)
-{
-    <div class="modal fade" id="subscriptionRequiredModal" tabindex="-1" aria-labelledby="subscriptionRequiredModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content rh-modal-content">
-                <div class="modal-header border-0 pb-0">
-                    <div>
-                        <h5 class="modal-title" id="subscriptionRequiredModalLabel">Choose a subscription before adding properties</h5>
-                        <small class="text-muted">Pay your landlord subscription with card checkout.</small>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-                    <div class="rh-profile-plan-grid">
-                        @foreach (var plan in Model.AvailablePlans)
-                        {
-                            <article class="rh-profile-plan-card">
-                                <div class="rh-admin-plan-head">
-                                    <h3>@plan.Name</h3>
-                                    <span class="rh-chip rh-chip-info">@plan.DurationInDays days</span>
-                                </div>
-
-                                @if (!string.IsNullOrWhiteSpace(plan.Description))
-                                {
-                                    <p class="text-muted mb-2">@plan.Description</p>
-                                }
-
-                                <p class="rh-profile-plan-price">@FormatUsd(plan.Price)</p>
-
-                                <ul class="rh-profile-plan-meta">
-                                    <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
-                                    <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
-                                </ul>
-
-                                <form asp-controller="Profile" asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="planId" value="@plan.Id" />
-                                    <input type="hidden" name="paymentMethod" value="@PaymentMethodEnum.Card" />
-
-                                    <ul class="rh-profile-plan-meta mb-3">
-                                        <li>Amount: <strong>@FormatUsd(plan.Price)</strong></li>
-                                        <li>Payment method: <strong>Card via Stripe</strong></li>
-                                    </ul>
-
-                                    <button type="submit" class="btn rh-btn-primary w-100">Pay with card</button>
-                                </form>
-                            </article>
-                        }
-                    </div>
-                </div>
             </div>
         </div>
     </div>

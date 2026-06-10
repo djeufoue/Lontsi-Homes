@@ -1,5 +1,6 @@
 @model RentHub.Portal.ViewModels.Profile.ProfileIndexVm
 @using Common.Enums
+@using Common.CommunicationModels
 @using System.Globalization
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
@@ -7,10 +8,10 @@
 
     var overview = Model.Overview;
     var now = Model.NowUtc;
-    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
     if (usdToXafRate <= 0)
     {
-        usdToXafRate = 600m;
+        usdToXafRate = 565m;
     }
     string NormalizeCountryCode(string? countryCode)
     {
@@ -18,7 +19,28 @@
         return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
     }
     string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    string FormatXaf(decimal xaf) => xaf.ToString("N0", CultureInfo.InvariantCulture);
+    List<string> PlanFeatures(SubscriptionPlanDto plan)
+    {
+        var features = (plan.FeatureHighlights ?? string.Empty)
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(feature => !string.IsNullOrWhiteSpace(feature))
+            .ToList();
+
+        if (features.Count > 0)
+        {
+            return features;
+        }
+
+        return new List<string>
+        {
+            $"Up to {(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString(CultureInfo.InvariantCulture) : "unlimited")} properties",
+            $"Up to {(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString(CultureInfo.InvariantCulture) : "unlimited")} apartments / property",
+            $"Up to {(plan.MaxTotalApartments.HasValue ? plan.MaxTotalApartments.Value.ToString("N0", CultureInfo.InvariantCulture) : "unlimited")} apartments total"
+        };
+    }
     var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
+    var smsVerificationUnavailable = !overview.SmsVerificationEnabled;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
         overview.PendingPaymentStatus == PaymentStatusEnum.Pending &&
         overview.PendingPaymentMethod != PaymentMethodEnum.Card;
@@ -34,25 +56,40 @@
         PayoutChannelEnum.OrangeMoney => "Orange Money",
         _ => "Not configured"
     };
-    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
+    var hasRegisteredMobileMoneyPayment = !smsVerificationUnavailable &&
+        !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
         registeredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
         overview.IsSubscriptionPaymentPhoneVerified;
     var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
     var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
     var canPaySubscription = overview.CanStartSubscriptionCheckout;
+    var stripePayoutStatusLabel = overview.StripePayoutSetupComplete
+        ? "Ready"
+        : overview.HasStripePayoutAccount
+            ? "Incomplete"
+            : "Not set up";
+    var stripePayoutStatusHint = overview.StripePayoutSetupComplete
+        ? "Tenant rent payouts enabled"
+        : overview.HasStripePayoutAccount
+            ? "Continue Stripe onboarding"
+            : "Required before subscription";
     var mobileMoneyUnavailableMessage = "MTN Mobile Money and Orange Money payments are not available yet. Please use card payment for this release.";
     var mobileMoneySetupUrl = Url.Action("MobileMoneySetup", "Profile");
     var startMobileMoneyUpdateUrl = Url.Action("StartMobileMoneyUpdate", "Profile");
     var cancelMobileMoneyUpdateUrl = Url.Action("CancelMobileMoneyUpdate", "Profile");
     var verifyMobileMoneyOtpUrl = Url.Action("VerifyMobileMoneyOtp", "Profile");
     var resendMobileMoneyOtpUrl = Url.Action("ResendMobileMoneyOtp", "Profile");
-    var subscriptionPending = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) &&
+    var subscriptionPending = !smsVerificationUnavailable &&
+        !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) &&
         !overview.IsSubscriptionPaymentPhoneVerified;
-    var payoutPending = !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) &&
+    var payoutPending = !smsVerificationUnavailable &&
+        !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) &&
         !overview.IsPayoutPhoneVerified;
-    var whatsAppPending = !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) &&
+    var whatsAppPending = !smsVerificationUnavailable &&
+        !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) &&
         !overview.IsWhatsAppPhoneVerified;
     var hasPendingMobilePaymentVerification = subscriptionPending || payoutPending || whatsAppPending;
+    var mobileMoneyActionDisabled = smsVerificationUnavailable || hasPendingMobilePaymentVerification;
     var payoutSharesSubscriptionPendingNumber = payoutPending &&
         subscriptionPending &&
         string.Equals(
@@ -66,7 +103,9 @@
     var payoutDailyLimitReached = overview.PayoutOtpRequestLimit?.DailyLimitReached ?? false;
     var whatsAppDailyLimitReached = overview.WhatsAppOtpRequestLimit?.DailyLimitReached ?? false;
     var boolText = (Func<bool, string>)(value => value.ToString().ToLowerInvariant());
-    var primaryPhone = string.IsNullOrWhiteSpace(overview.PhoneNumber) ? "your verified phone" : overview.PhoneNumber;
+    var primaryPhone = smsVerificationUnavailable
+        ? "temporarily skipped while Twilio approval is pending"
+        : string.IsNullOrWhiteSpace(overview.PhoneNumber) ? "your verified phone" : overview.PhoneNumber;
     var subscriptionChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney;
     var payoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney;
 }
@@ -81,7 +120,7 @@
         <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Index">Back to Profile</a>
         @if (isLandlord && isCameroonLandlord)
         {
-            <button type="button" class="btn rh-btn-primary" data-mobile-money-open @(hasPendingMobilePaymentVerification ? "disabled" : null)>Update Mobile Money</button>
+            <button type="button" class="btn rh-btn-primary" data-mobile-money-open @(mobileMoneyActionDisabled ? "disabled" : null)>Update Mobile Money</button>
         }
     </div>
 </section>
@@ -97,6 +136,10 @@
 }
 else
 {
+    <section class="alert alert-warning rh-test-mode-banner" role="status">
+        <strong>Payment testing mode:</strong> Do not use real card information. Use fake or test card details only. Any card or payment information entered during this testing period will not be treated as operational payment data when the platform becomes fully operational. Phone-number SMS verification is also temporarily skipped while Twilio approval is pending.
+    </section>
+
     <section class="rh-profile-metrics mb-3">
         <article class="rh-summary-card">
             <p>Subscription Status</p>
@@ -107,12 +150,12 @@ else
         {
             <article class="rh-summary-card">
                 <p>Payment Method</p>
-                <h3>@registeredPaymentMethodLabel</h3>
-                <small>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Card payment available")</small>
+                <h3>@(smsVerificationUnavailable ? "Card testing" : registeredPaymentMethodLabel)</h3>
+                <small>@(smsVerificationUnavailable ? "Mobile Money SMS verification is paused" : hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : "Card payment available")</small>
             </article>
             <article class="rh-summary-card">
-                <p>Payout Account</p>
-                <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+                <p>Mobile Money Payout</p>
+                <h3>@(smsVerificationUnavailable ? "Temporarily skipped" : overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
                 <small>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : "Not configured")</small>
             </article>
         }
@@ -125,11 +168,46 @@ else
             </article>
         }
         <article class="rh-summary-card">
+            <p>Stripe Payout Account</p>
+            <h3>@stripePayoutStatusLabel</h3>
+            <small>@stripePayoutStatusHint</small>
+        </article>
+        <article class="rh-summary-card">
             <p>Subscription Access</p>
             <h3>@(overview.CanStartSubscriptionCheckout ? "Unlocked" : "Blocked")</h3>
             <small>@(string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason) ? "Ready for checkout" : overview.SubscriptionBlockedReason)</small>
         </article>
     </section>
+
+    @if (!overview.StripePayoutSetupComplete)
+    {
+        <section class="rh-panel rh-panel-elevated rh-payout-setup-panel mb-3">
+            <div>
+                <p class="rh-kicker mb-1">Payout setup</p>
+                <h2 class="rh-section-title mb-1">@(overview.IsKycApproved ? "Set up your Stripe payout account" : "KYC approval required before Stripe setup")</h2>
+                <p class="rh-card-meta mb-0">@(overview.IsKycApproved ? "Required before subscription so tenant rent payments can be routed to you later." : "An administrator must approve your KYC before you can connect a Stripe payout account.")</p>
+            </div>
+            @if (overview.IsKycApproved)
+            {
+                <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="PayoutSetup">Set up payout account</a>
+            }
+            else
+            {
+                <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Index">Check KYC status</a>
+            }
+        </section>
+    }
+    else if (!hasCurrentPlan)
+    {
+        <section class="rh-panel rh-panel-elevated rh-payout-setup-panel is-complete mb-3">
+            <div>
+                <p class="rh-kicker mb-1">Payout setup</p>
+                <h2 class="rh-section-title mb-1">Payout account ready</h2>
+                <p class="rh-card-meta mb-0">Choose a subscription plan when your KYC approval is complete.</p>
+            </div>
+            <a class="btn rh-btn-primary" href="#subscriptionPlans">Choose subscription</a>
+        </section>
+    }
 
     <section class="rh-profile-grid mb-3">
         @if (isCameroonLandlord)
@@ -137,10 +215,16 @@ else
             <article class="rh-panel rh-panel-elevated">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                     <h2 class="rh-section-title mb-0">Mobile Money Accounts</h2>
-                    <button type="button" class="btn btn-sm rh-btn-subtle" data-mobile-money-open @(hasPendingMobilePaymentVerification ? "disabled" : null)>Edit setup</button>
+                    <button type="button" class="btn btn-sm rh-btn-subtle" data-mobile-money-open @(mobileMoneyActionDisabled ? "disabled" : null)>Edit setup</button>
                 </div>
 
-                @if (hasPendingMobilePaymentVerification)
+                @if (smsVerificationUnavailable)
+                {
+                    <div class="alert alert-warning py-2 rh-mobile-pending-banner">
+                        Mobile Money and WhatsApp number verification are temporarily skipped while Twilio approval is pending. Continue testing with card checkout only.
+                    </div>
+                }
+                else if (hasPendingMobilePaymentVerification)
                 {
                     <div class="alert alert-warning py-2 rh-mobile-pending-banner">
                         Finish OTP validation for the pending number before changing Mobile Money setup again.
@@ -189,7 +273,7 @@ else
                     </div>
                     <div class="rh-profile-info-item">
                         <p>Subscription Payment Verification</p>
-                        <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
+                        <h3>@(smsVerificationUnavailable ? "Temporarily skipped" : overview.IsSubscriptionPaymentPhoneVerified ? "Verified" : "Pending")</h3>
                     </div>
                     <div class="rh-profile-info-item rh-payment-phone-section @(payoutPending ? "is-pending" : string.Empty)" data-otp-section="payout">
                         <p>Rent Payout Number</p>
@@ -239,7 +323,7 @@ else
                     </div>
                     <div class="rh-profile-info-item">
                         <p>Rent Payout Verification</p>
-                        <h3>@(overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
+                        <h3>@(smsVerificationUnavailable ? "Temporarily skipped" : overview.IsPayoutPhoneVerified ? "Verified" : "Pending")</h3>
                     </div>
                     <div class="rh-profile-info-item rh-payment-phone-section @(whatsAppPending ? "is-pending" : string.Empty)" data-otp-section="whatsapp">
                         <p>WhatsApp Alerts Number</p>
@@ -278,7 +362,7 @@ else
                     </div>
                     <div class="rh-profile-info-item">
                         <p>WhatsApp Alerts Verification</p>
-                        <h3>@(string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? "Not required" : overview.IsWhatsAppPhoneVerified ? "Verified" : "Pending")</h3>
+                        <h3>@(smsVerificationUnavailable ? "Temporarily skipped" : string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? "Not required" : overview.IsWhatsAppPhoneVerified ? "Verified" : "Pending")</h3>
                     </div>
                 </div>
             </article>
@@ -289,7 +373,7 @@ else
         </article>
     </section>
 
-    <section class="rh-panel rh-panel-elevated">
+    <section class="rh-panel rh-panel-elevated" id="subscriptionPlans">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
             <h2 class="rh-section-title mb-0">Choose Subscription</h2>
             <small class="text-muted">Use card checkout to pay your landlord subscription.</small>
@@ -312,10 +396,17 @@ else
                 {
                     var isCurrent = overview.CurrentPlanId.HasValue && overview.CurrentPlanId.Value == plan.Id && hasCurrentPlan;
                     var isPendingPlan = hasPendingSubscriptionPayment && overview.PendingPlanId == plan.Id;
-                    <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty)">
+                    var features = PlanFeatures(plan);
+                    <article class="rh-profile-plan-card @(isCurrent ? "is-current" : string.Empty) @(plan.IsRecommended ? "is-recommended" : string.Empty)">
                         <div class="rh-admin-plan-head">
-                            <h3>@plan.Name</h3>
-                            <span class="rh-chip @(isCurrent ? "rh-chip-primary" : "rh-chip-info")">@plan.DurationInDays days</span>
+                            <div>
+                                @if (plan.IsRecommended)
+                                {
+                                    <span class="rh-landing-pricing-badge">Recommended</span>
+                                }
+                                <h3>@plan.Name</h3>
+                            </div>
+                            <span class="rh-chip @(isCurrent ? "rh-chip-primary" : "rh-chip-info")">@(plan.IsContactSales ? "Custom" : "Monthly")</span>
                         </div>
 
                         @if (!string.IsNullOrWhiteSpace(plan.Description))
@@ -323,29 +414,53 @@ else
                             <p class="text-muted mb-2">@plan.Description</p>
                         }
 
-                        <p class="rh-profile-plan-price">
-                            @FormatUsd(plan.Price)
-                            @if (isCameroonLandlord)
-                            {
-                                <span class="d-block text-muted small">Approx. @plan.Price.ToString("N0") XAF</span>
-                            }
-                        </p>
+                        @if (plan.IsContactSales)
+                        {
+                            <p class="rh-profile-plan-price">
+                                Custom pricing
+                                <span class="d-block text-muted small">Contact sales</span>
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="rh-profile-plan-price">
+                                @FormatUsd(plan.Price)
+                                <span class="d-block text-muted small">per month</span>
+                                @if (plan.AnnualPrice.HasValue)
+                                {
+                                    <span class="d-block text-muted small">Yearly: @FormatUsd(plan.AnnualPrice.Value)</span>
+                                }
+                            </p>
+                            <button type="button" class="btn btn-sm rh-btn-subtle rh-plan-fx-button" data-bs-toggle="modal" data-bs-target="#planFxModal_@plan.Id">
+                                View FCFA estimate
+                            </button>
+                        }
 
                         <ul class="rh-profile-plan-meta">
-                            <li>Max properties: @(plan.MaxProperties.HasValue ? plan.MaxProperties.Value.ToString() : "Unlimited")</li>
-                            <li>Max apartments/property: @(plan.MaxApartmentsPerProperty.HasValue ? plan.MaxApartmentsPerProperty.Value.ToString() : "Unlimited")</li>
+                            @foreach (var feature in features)
+                            {
+                                <li>@feature</li>
+                            }
                         </ul>
 
-                        <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
+                        @if (plan.IsContactSales)
+                        {
+                            <div class="mt-3">
+                                <button type="button" class="btn rh-btn-subtle w-100" disabled>Contact Sales</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <form asp-action="StartCheckout" method="post" class="mt-3 rh-subscription-form" data-subscription-form>
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="planId" value="@plan.Id" />
                             <input type="hidden" name="paymentMethod" value="@PaymentMethodEnum.Card" />
 
                             <ul class="rh-profile-plan-meta mb-3">
                                 <li>Amount: <strong>@FormatUsd(plan.Price)</strong></li>
-                                @if (isCameroonLandlord)
+                                @if (plan.AnnualPrice.HasValue)
                                 {
-                                    <li>Local equivalent: <strong>@plan.Price.ToString("N0") XAF</strong></li>
+                                    <li>Yearly value: <strong>@FormatUsd(plan.AnnualPrice.Value)</strong></li>
                                 }
                                 <li>Payment method: <strong>Card via Stripe</strong></li>
                             </ul>
@@ -360,6 +475,13 @@ else
                             }
                             else
                             {
+                                <input type="hidden" name="allowAutomaticCardPayments" value="false" />
+                                <div class="form-check rh-auto-renew-check">
+                                    <input class="form-check-input" type="checkbox" name="allowAutomaticCardPayments" value="true" id="autoRenew_@plan.Id" checked />
+                                    <label class="form-check-label" for="autoRenew_@plan.Id">
+                                        Renew this plan automatically by card
+                                    </label>
+                                </div>
                                 <button type="submit" class="btn rh-btn-primary w-100" disabled="@(!canPaySubscription)">
                                     @(canPaySubscription ? (hasCurrentPlan ? "Switch with card" : "Pay with card") : "Verification required")
                                 </button>
@@ -373,14 +495,61 @@ else
                                     <div class="text-danger small mt-2">@mobileMoneyUnavailableMessage</div>
                                 }
                             }
-                        </form>
+                            </form>
+                        }
                     </article>
+
+                    @if (!plan.IsContactSales)
+                    {
+                        <div class="modal fade rh-plan-fx-modal" id="planFxModal_@plan.Id" tabindex="-1" aria-labelledby="planFxModalLabel_@plan.Id" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <div>
+                                            <p class="rh-kicker mb-1">Currency estimate</p>
+                                            <h2 class="modal-title" id="planFxModalLabel_@plan.Id">@plan.Name plan</h2>
+                                        </div>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="rh-plan-fx-grid">
+                                            <div>
+                                                <span>Monthly card amount</span>
+                                                <strong>@FormatUsd(plan.Price)</strong>
+                                            </div>
+                                            <div>
+                                                <span>Estimated FCFA value</span>
+                                                <strong>@FormatXaf(plan.Price) XAF</strong>
+                                            </div>
+                                            @if (plan.AnnualPrice.HasValue)
+                                            {
+                                                <div>
+                                                    <span>Yearly card value</span>
+                                                    <strong>@FormatUsd(plan.AnnualPrice.Value)</strong>
+                                                </div>
+                                                <div>
+                                                    <span>Estimated yearly FCFA value</span>
+                                                    <strong>@FormatXaf(plan.AnnualPrice.Value) XAF</strong>
+                                                </div>
+                                            }
+                                        </div>
+                                        <p class="text-muted small mb-0 mt-3">
+                                            Estimate uses @usdToXafRate.ToString("N0", CultureInfo.InvariantCulture) XAF per USD. Stripe charges the USD amount shown on the plan.
+                                        </p>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 }
             </div>
         }
     </section>
 
-    @if (isCameroonLandlord)
+    @if (isCameroonLandlord && !smsVerificationUnavailable)
     {
         <div class="modal fade rh-mobile-money-modal" id="mobileMoneyModal" tabindex="-1" aria-labelledby="mobileMoneyModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered modal-lg">

@@ -14,6 +14,8 @@ namespace RentHub.Portal.Controllers
     [Authorize]
     public class ProfileController : Controller
     {
+        private const string SmsVerificationUnavailableMessage = "SMS phone verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification.";
+
         private readonly RentHubApiClient _api;
         private readonly ILogger<ProfileController> _logger;
 
@@ -55,6 +57,87 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Landlord")]
+        public async Task<IActionResult> PayoutSetup()
+        {
+            try
+            {
+                var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
+                return View(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load Stripe payout setup in Portal");
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to load payout setup right now. Please try again.");
+                return RedirectToAction(nameof(Payments));
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Landlord")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartPayoutSetup()
+        {
+            try
+            {
+                var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
+                if (!status.IsKycApproved)
+                {
+                    TempData["Error"] = "Your KYC must be approved by an administrator before you can set up a Stripe payout account.";
+                    return RedirectToAction(nameof(PayoutSetup));
+                }
+
+                var link = await _api.PostAsync<object, StripePayoutSetupLinkDto>(
+                    "PayoutAccounts/stripe/start",
+                    new { });
+
+                if (!string.IsNullOrWhiteSpace(link.OnboardingUrl))
+                {
+                    return Redirect(link.OnboardingUrl);
+                }
+
+                TempData["Error"] = "Stripe did not return an onboarding link. Please try again.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start Stripe payout setup in Portal");
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to start payout setup right now. Please try again.");
+            }
+
+            return RedirectToAction(nameof(PayoutSetup));
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Landlord")]
+        public async Task<IActionResult> PayoutSetupReturn()
+        {
+            try
+            {
+                var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
+                if (status.SetupComplete)
+                {
+                    TempData["Success"] = "Payout account setup is complete. You can now choose a subscription.";
+                    return RedirectToAction(nameof(Payments));
+                }
+
+                TempData["Error"] = "Payout account setup was saved, but Stripe still needs a few details before payouts are enabled.";
+                return RedirectToAction(nameof(PayoutSetup));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh Stripe payout setup return in Portal");
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to verify payout setup right now. Please refresh in a moment.");
+                return RedirectToAction(nameof(Payments));
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Landlord")]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> MobileMoneySetup()
         {
@@ -74,7 +157,8 @@ namespace RentHub.Portal.Controllers
                     PayoutChannel = overview.PayoutChannel?.ToString(),
                     overview.IsPayoutPhoneVerified,
                     overview.WhatsAppPhoneNumber,
-                    overview.IsWhatsAppPhoneVerified
+                    overview.IsWhatsAppPhoneVerified,
+                    overview.SmsVerificationEnabled
                 });
             }
             catch (Exception ex)
@@ -97,13 +181,19 @@ namespace RentHub.Portal.Controllers
                 return BadRequest(new { Message = "Choose the phone number you want to update." });
             }
 
-            if (string.IsNullOrWhiteSpace(phoneNumber))
-            {
-                return BadRequest(new { Message = "Enter the new phone number before requesting an OTP." });
-            }
-
             try
             {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (!overview.SmsVerificationEnabled)
+                {
+                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
+                }
+
+                if (string.IsNullOrWhiteSpace(phoneNumber))
+                {
+                    return BadRequest(new { Message = "Enter the new phone number before requesting an OTP." });
+                }
+
                 var response = await _api.PostAsync<StartMobilePaymentNumberUpdateRequest, JsonElement>(
                     "Account/mobile-payments/start-update",
                     new StartMobilePaymentNumberUpdateRequest
@@ -172,6 +262,11 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (!overview.SmsVerificationEnabled)
+                {
+                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
+                }
+
                 if (HasPendingMobilePaymentVerification(overview))
                 {
                     return BadRequest(new { Message = "Complete the pending OTP validation before changing Mobile Money setup again." });
@@ -212,13 +307,19 @@ namespace RentHub.Portal.Controllers
                 return BadRequest(new { Message = "Choose the number you want to verify." });
             }
 
-            if (string.IsNullOrWhiteSpace(otp))
-            {
-                return BadRequest(new { Message = "Enter the OTP code before verifying this number." });
-            }
-
             try
             {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (!overview.SmsVerificationEnabled)
+                {
+                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
+                }
+
+                if (string.IsNullOrWhiteSpace(otp))
+                {
+                    return BadRequest(new { Message = "Enter the OTP code before verifying this number." });
+                }
+
                 var response = await _api.PostAsync<VerifyMobilePaymentOtpRequest, JsonElement>(
                     "Account/mobile-payments/verify-otp",
                     new VerifyMobilePaymentOtpRequest
@@ -248,6 +349,12 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (!overview.SmsVerificationEnabled)
+                {
+                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
+                }
+
                 var response = await _api.PostAsync<ResendMobilePaymentOtpRequest, JsonElement>(
                     "Account/mobile-payments/resend-otp",
                     new ResendMobilePaymentOtpRequest
@@ -298,7 +405,10 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartCheckout(int planId, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
+        public async Task<IActionResult> StartCheckout(
+            int planId,
+            PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card,
+            bool allowAutomaticCardPayments = true)
         {
             if (planId <= 0)
             {
@@ -312,7 +422,8 @@ namespace RentHub.Portal.Controllers
                     $"Subscriptions/checkout/{planId}",
                     new StartSubscriptionCheckoutRequest
                     {
-                        PaymentMethod = paymentMethod
+                        PaymentMethod = paymentMethod,
+                        AllowAutomaticCardPayments = allowAutomaticCardPayments
                     });
 
                 if (!string.IsNullOrWhiteSpace(session.AuthorizationUrl))
@@ -500,6 +611,11 @@ namespace RentHub.Portal.Controllers
 
         private static bool HasPendingMobilePaymentVerification(ProfileOverviewDto overview)
         {
+            if (!overview.SmsVerificationEnabled)
+            {
+                return false;
+            }
+
             return !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) && !overview.IsSubscriptionPaymentPhoneVerified ||
                    !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) && !overview.IsPayoutPhoneVerified ||
                    !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) && !overview.IsWhatsAppPhoneVerified;

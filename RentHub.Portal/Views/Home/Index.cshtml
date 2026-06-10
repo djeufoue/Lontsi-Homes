@@ -1,10 +1,33 @@
 @model RentHub.Portal.ViewModels.Home.PublicHomeIndexVm
+@using System.Globalization
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
     ViewData["Title"] = "Lontsi Homes";
-    var featuredPlanIndex = Model.Plans.Count > 1 ? 1 : 0;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 565m;
+    }
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    string FormatXaf(decimal xaf) => xaf.ToString("N0", CultureInfo.InvariantCulture);
+    List<string> PlanFeatures(RentHub.Portal.ViewModels.Auth.SubscriptionPlanOptionVm plan)
+    {
+        var features = (plan.FeatureHighlights ?? string.Empty)
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(feature => !string.IsNullOrWhiteSpace(feature))
+            .ToList();
+
+        return features.Count > 0
+            ? features
+            : new List<string> { "Landlord onboarding and verification", "Property and apartment workspace access", "Reminder and payment follow-up tools" };
+    }
 }
 
 <section class="rh-landing-home">
+    <section class="alert alert-warning rh-test-mode-banner" role="status">
+        <strong>Testing mode:</strong> Lontsi Homes is currently open for testing while SMS verification and payment operations are being finalized. Please explore the platform and share feedback; phone-number verification is temporarily skipped while Twilio approval is pending.
+    </section>
+
     <section class="rh-landing-hero-block">
         <div class="rh-landing-hero-surface">
             <div class="rh-landing-hero-topline">
@@ -248,15 +271,14 @@
         <div class="rh-landing-pricing-shell">
             <article class="rh-landing-pricing-intro">
                 <span class="rh-landing-section-kicker is-light">Subscription</span>
-                <h2>Choose the plan that matches your property management stage.</h2>
+                <h2>Choose the plan that fits your rental business.</h2>
                 <p>
-                    Landlord plans are designed to unlock workspace access, property publishing, and operational follow-up
-                    inside Lontsi Homes.
+                    Monthly billing for flexibility. Yearly pricing is shown with a two-month saving.
                 </p>
 
                 <div class="rh-landing-pricing-toggle">
-                    <span class="is-active">Landlord Access</span>
-                    <span>Operational Plans</span>
+                    <span class="is-active">Monthly</span>
+                    <span>Yearly (Save 2 months)</span>
                 </div>
             </article>
 
@@ -272,7 +294,8 @@
                 @for (var i = 0; i < Model.Plans.Count; i++)
                 {
                     var plan = Model.Plans[i];
-                    var isFeatured = i == featuredPlanIndex;
+                    var isFeatured = plan.IsRecommended;
+                    var features = PlanFeatures(plan);
 
                     <article class="rh-landing-pricing-card @(isFeatured ? "is-featured" : null)">
                         @if (isFeatured)
@@ -281,18 +304,31 @@
                         }
 
                         <h3>@plan.Name</h3>
-                        <strong>@plan.Price.ToString("N0") XAF</strong>
-                        <p class="rh-landing-pricing-meta">@plan.DurationInDays days of access</p>
-                        <p>@(plan.Description ?? "Professional landlord subscription plan")</p>
+                        @if (plan.IsContactSales)
+                        {
+                            <strong>Custom pricing</strong>
+                            <p class="rh-landing-pricing-meta">Unlimited scale</p>
+                        }
+                        else
+                        {
+                            <strong>@FormatUsd(plan.Price) <span class="rh-price-period">/ month</span></strong>
+                            <p class="rh-landing-pricing-meta">Approx. @FormatXaf(plan.Price) XAF / month</p>
+                            @if (plan.AnnualPrice.HasValue)
+                            {
+                                <p class="rh-landing-pricing-meta">Yearly: @FormatUsd(plan.AnnualPrice.Value) - Approx. @FormatXaf(plan.AnnualPrice.Value) XAF</p>
+                            }
+                        }
+                        <p>@(!string.IsNullOrWhiteSpace(plan.AudienceLabel) ? plan.AudienceLabel : plan.Description ?? "Professional landlord subscription plan")</p>
 
                         <ul class="rh-landing-pricing-list">
-                            <li>Landlord onboarding and verification</li>
-                            <li>Property and apartment workspace access</li>
-                            <li>Reminder and payment follow-up tools</li>
+                            @foreach (var feature in features)
+                            {
+                                <li>@feature</li>
+                            }
                         </ul>
 
                         <a class="btn @(isFeatured ? "rh-btn-primary" : "rh-btn-subtle") w-100" asp-controller="Auth" asp-action="Register">
-                            Create account for @plan.Name
+                            @(plan.IsContactSales ? "Contact Sales" : $"Choose {plan.Name}")
                         </a>
                     </article>
                 }
