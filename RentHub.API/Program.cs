@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Hangfire;
+using Hangfire.SqlServer;
 using System.Text;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
@@ -20,6 +22,7 @@ using RentHub.API.Services.Email;
 using RentHub.API.Services.Reminders;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
+using RentHub.API.Services.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -141,6 +144,8 @@ builder.Services.AddScoped<IPaymentService, OrangeMoneyService>();
 builder.Services.AddScoped<INotchPayService, NotchPayService>();
 builder.Services.AddScoped<ICamPayService, CamPayService>();
 builder.Services.AddScoped<IStripeCheckoutService, StripeCheckoutService>();
+builder.Services.AddScoped<IStripeConnectService, StripeConnectService>();
+builder.Services.AddScoped<ISubscriptionAutoRenewalService, SubscriptionAutoRenewalService>();
 builder.Services.AddScoped<MomoService>();
 builder.Services.AddScoped<CardPaymentService>();
 builder.Services.AddScoped<IStorageService, AzureStorageService>();
@@ -161,6 +166,8 @@ else
 
 // Rent reminder background worker
 builder.Services.AddHostedService<RentReminderHostedService>();
+
+ConfigureHangfire(builder.Services, builder.Configuration);
 
 var app = builder.Build();
 
@@ -188,6 +195,13 @@ app.UseSwaggerUI(c =>
     // Optional: show Swagger at root instead of /swagger
     // c.RoutePrefix = string.Empty;
 });
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseHangfireDashboard("/hangfire");
+}
+
+RegisterRecurringJobs(app.Services, builder.Configuration);
 
 // Optional: redirect root to Swagger if you didn't set RoutePrefix = string.Empty
 app.MapGet("/", () => Results.Redirect("/swagger"));
@@ -228,6 +242,50 @@ void ConfigureIdentity(IServiceCollection services)
         options.Password.RequireNonAlphanumeric = false;
         options.Password.RequireUppercase = false;
     });
+}
+
+void ConfigureHangfire(IServiceCollection services, IConfiguration configuration)
+{
+    var connectionString = configuration.GetConnectionString("DefaultConnection")
+        ?? "Server=(localdb)\\mssqllocaldb;Database=RentHubDb;Trusted_Connection=True;MultipleActiveResultSets=true";
+
+    services.AddHangfire(config => config
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.FromSeconds(15),
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true
+        }));
+
+    services.AddHangfireServer();
+}
+
+void RegisterRecurringJobs(IServiceProvider services, IConfiguration configuration)
+{
+    if (!configuration.GetValue<bool?>("Subscriptions:EnableAutomaticRenewalJob").GetValueOrDefault(true))
+    {
+        return;
+    }
+
+    var intervalMinutes = Math.Clamp(
+        configuration.GetValue<int?>("Subscriptions:AutoRenewalCheckMinutes") ?? 60,
+        5,
+        1440);
+    var cron = intervalMinutes < 60
+        ? $"*/{intervalMinutes} * * * *"
+        : Cron.Hourly();
+
+    using var scope = services.CreateScope();
+    var recurringJobs = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<ISubscriptionAutoRenewalService>(
+        "landlord-subscription-card-renewal",
+        service => service.ProcessDueRenewalsAsync(),
+        cron);
 }
 
 

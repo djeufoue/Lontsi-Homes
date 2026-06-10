@@ -2,6 +2,7 @@ using Common.CommunicationModels;
 using Common.Enums;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
+using RentHub.API.Models.Entities;
 
 namespace RentHub.API.Helpers
 {
@@ -41,6 +42,7 @@ namespace RentHub.API.Helpers
                 SubscriptionApproved = activeSubscription?.IsApproved == true,
                 KycApproved = kycProfile?.Status == LandlordKycStatusEnum.Approved,
                 PlatformTermsAccepted = landlord?.PlatformTermsAccepted == true,
+                StripePayoutSetupComplete = landlord != null && IsStripePayoutSetupComplete(landlord),
                 CanCreate = false,
                 StatusMessage = "No active subscription found."
             };
@@ -71,6 +73,12 @@ namespace RentHub.API.Helpers
                 return scope;
             }
 
+            if (!scope.StripePayoutSetupComplete)
+            {
+                scope.StatusMessage = "Set up your payout account before creating properties so tenant rent payments can be routed to you later.";
+                return scope;
+            }
+
             if (activeSubscription == null)
                 return scope;
 
@@ -91,6 +99,14 @@ namespace RentHub.API.Helpers
             scope.CanCreate = true;
             scope.StatusMessage = "Creation available.";
             return scope;
+        }
+
+        private static bool IsStripePayoutSetupComplete(ApplicationUser landlord)
+        {
+            return !string.IsNullOrWhiteSpace(landlord.StripeConnectAccountId) &&
+                   landlord.StripePayoutDetailsSubmitted &&
+                   landlord.StripeChargesEnabled &&
+                   landlord.StripePayoutsEnabled;
         }
 
         public static async Task<bool> CanAccessPropertyAsync(

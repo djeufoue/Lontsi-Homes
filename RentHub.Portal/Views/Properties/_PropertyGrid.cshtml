@@ -9,9 +9,24 @@
             <div class="rh-smart-table-heading-row">               
                 @if (Model.ShowCreateEntryPoint)
                 {
-                    <button class="btn rh-btn-primary rh-smart-table-add-btn" type="button" data-bs-toggle="modal" data-bs-target="@(Model.CanCreateProperty ? "#createPropertyModal" : "#subscriptionRequiredModal")">
-                        Add+
-                    </button>
+                    if (Model.CanCreateProperty)
+                    {
+                        <button class="btn rh-btn-primary rh-smart-table-add-btn" type="button" data-bs-toggle="modal" data-bs-target="#createPropertyModal">
+                            Add+
+                        </button>
+                    }
+                    else if (Model.RequiresPayoutSetup)
+                    {
+                        <a class="btn rh-btn-primary rh-smart-table-add-btn" asp-controller="Profile" asp-action="PayoutSetup">
+                            Add+
+                        </a>
+                    }
+                    else if (Model.RequiresSubscriptionCheckout)
+                    {
+                        <a class="btn rh-btn-primary rh-smart-table-add-btn" asp-controller="Profile" asp-action="Payments">
+                            Add+
+                        </a>
+                    }
                 }
             </div>
         </div>

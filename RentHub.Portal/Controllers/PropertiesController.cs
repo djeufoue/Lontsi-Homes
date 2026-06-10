@@ -18,7 +18,7 @@ namespace RentHub.Portal.Controllers
     [Authorize]
     public class PropertiesController : Controller
     {
-        private const long PropertyImageMaxBytes = 2 * 1024 * 1024;
+        private const long PropertyImageMaxBytes = 4 * 1024 * 1024;
 
         private readonly RentHubApiClient _api;
         private readonly ILogger<PropertiesController> _logger;
@@ -502,7 +502,7 @@ namespace RentHub.Portal.Controllers
             {
                 if (file.Length > PropertyImageMaxBytes)
                 {
-                    const string message = "Property images must be 2 MB or smaller.";
+                    const string message = "Property images must be 4 MB or smaller.";
                     if (IsAjaxRequest())
                     {
                         return BadRequest(new { Message = message });
@@ -836,21 +836,15 @@ namespace RentHub.Portal.Controllers
 
             var endpoint = $"properties/dashboard?search={E(search)}&city={E(city)}&access={E(access)}&page={page}&pageSize={pageSize}";
             var dashboardTask = _api.GetAsync<PropertyListResponseDto>(endpoint);
-            var plansTask = _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
             var profileTask = _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-            await Task.WhenAll(dashboardTask, plansTask, profileTask);
+            await Task.WhenAll(dashboardTask, profileTask);
 
             var response = dashboardTask.Result;
-            var plans = plansTask.Result;
             var profile = profileTask.Result;
             var isLandlord = string.Equals(response.UserRole, "Landlord", StringComparison.OrdinalIgnoreCase);
-            var requiresComplianceAction = isLandlord && !response.CanCreateProperty && !profile.CanStartSubscriptionCheckout;
-            var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty && !requiresComplianceAction;
-            var registeredPaymentNumber = !string.IsNullOrWhiteSpace(profile.SubscriptionPaymentPhoneNumber)
-                ? profile.SubscriptionPaymentPhoneNumber
-                : !string.IsNullOrWhiteSpace(profile.PayoutPhoneNumber)
-                    ? profile.PayoutPhoneNumber
-                    : profile.PhoneNumber ?? string.Empty;
+            var requiresPayoutSetup = isLandlord && !response.CanCreateProperty && profile.IsKycApproved && !profile.StripePayoutSetupComplete;
+            var requiresComplianceAction = isLandlord && !response.CanCreateProperty && !requiresPayoutSetup && !profile.CanStartSubscriptionCheckout;
+            var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty && !requiresPayoutSetup && !requiresComplianceAction;
 
             return new PropertyIndexVm
             {
@@ -863,15 +857,13 @@ namespace RentHub.Portal.Controllers
                 UserRole = response.UserRole,
                 CanCreateProperty = response.CanCreateProperty,
                 ShowCreateEntryPoint = response.CanCreateProperty || (isLandlord && !requiresComplianceAction),
+                RequiresPayoutSetup = requiresPayoutSetup,
                 RequiresSubscriptionCheckout = requiresSubscriptionCheckout,
                 RequiresComplianceAction = requiresComplianceAction,
+                PayoutSetupMessage = "Set up your payout account before adding properties.",
                 ComplianceMessage = profile.SubscriptionBlockedReason,
                 NextOnboardingStep = profile.NextOnboardingStep,
-                RegisteredPaymentNumber = registeredPaymentNumber,
-                RegisteredPaymentChannel = profile.SubscriptionPaymentChannel ?? profile.PayoutChannel,
-                RegisteredPaymentVerified = profile.IsSubscriptionPaymentPhoneVerified,
                 CreationScopes = response.CreationScopes,
-                AvailablePlans = plans,
                 Items = response.Items
             };
         }

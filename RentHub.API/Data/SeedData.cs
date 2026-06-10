@@ -28,40 +28,11 @@ namespace RentHub.API.Data
             EnsureSystemTransferAccountsTable(context);
             EnsureOtpSendLogsTable(context);
             EnsurePlatformTermsColumns(context);
+            EnsureStripeConnectColumns(context);
             EnsureLandlordKycTable(context);
+            EnsureSubscriptionPlanCatalogColumns(context);
 
-            // Seed subscription plans
-            if (!context.SubscriptionPlans.Any())
-            {
-                context.SubscriptionPlans.AddRange(new[]
-                {
-                    new SubscriptionPlan {
-                        Name = "Basic",
-                        Price = 5000M,
-                        DurationInDays = 30,
-                        Description = "Advertise up to 3 properties.",
-                        MaxProperties = 3,
-                        MaxApartmentsPerProperty = 2
-                    },
-                    new SubscriptionPlan {
-                        Name = "Pro",
-                        Price = 15000M,
-                        DurationInDays = 90,
-                        Description = "Advertise up to 10 properties and manage tenants.",
-                        MaxProperties = 10,
-                        MaxApartmentsPerProperty = 5
-                    },
-                    new SubscriptionPlan {
-                        Name = "Enterprise",
-                        Price = 30000M,
-                        DurationInDays = 365,
-                        Description = "Unlimited properties with premium support.",
-                        MaxProperties = null,
-                        MaxApartmentsPerProperty = null
-                    }
-                });
-                context.SaveChanges();
-            }
+            SeedSubscriptionPlans(context);
 
             // Ensure roles exist (Admin, Landlord, Tenant, Owner, Manager, Visitor)
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
@@ -77,6 +48,191 @@ namespace RentHub.API.Data
             SeedDefaultAdministrator(scope.ServiceProvider, configuration);
 
             // Additional seeding (roles, admin user) can be added here.
+        }
+
+        private static void SeedSubscriptionPlans(ApplicationDbContext context)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var planDefinitions = new[]
+            {
+                new SubscriptionPlan
+                {
+                    Name = "Starter",
+                    Price = 5650M,
+                    AnnualPrice = 56500M,
+                    DurationInDays = 30,
+                    Description = "Best for very small landlords",
+                    AudienceLabel = "Best for very small landlords",
+                    MaxProperties = 2,
+                    MaxApartmentsPerProperty = 10,
+                    MaxTotalApartments = 20,
+                    FeatureHighlights = "Up to 2 properties|Up to 10 apartments / property|Up to 20 apartments total|Basic reminders and tenant tracking",
+                    DisplayOrder = 10
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Growth",
+                    Price = 11300M,
+                    AnnualPrice = 113000M,
+                    DurationInDays = 30,
+                    Description = "For growing landlords",
+                    AudienceLabel = "For growing landlords",
+                    MaxProperties = 5,
+                    MaxApartmentsPerProperty = 25,
+                    MaxTotalApartments = 100,
+                    FeatureHighlights = "Up to 5 properties|Up to 25 apartments / property|Up to 100 apartments total|Tenant management and payment follow-up",
+                    DisplayOrder = 20
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Manager",
+                    Price = 22600M,
+                    AnnualPrice = 226000M,
+                    DurationInDays = 30,
+                    Description = "For active property managers",
+                    AudienceLabel = "For active property managers",
+                    MaxProperties = 15,
+                    MaxApartmentsPerProperty = 50,
+                    MaxTotalApartments = 400,
+                    FeatureHighlights = "Up to 15 properties|Up to 50 apartments / property|Up to 400 apartments total|Reports, dashboard insights, and team access",
+                    IsRecommended = true,
+                    DisplayOrder = 30
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Agency",
+                    Price = 39550M,
+                    AnnualPrice = 395500M,
+                    DurationInDays = 30,
+                    Description = "For agencies and operators",
+                    AudienceLabel = "For agencies and operators",
+                    MaxProperties = 40,
+                    MaxApartmentsPerProperty = 150,
+                    MaxTotalApartments = 1100,
+                    FeatureHighlights = "Up to 40 properties|Up to 150 apartments / property|Up to 1,100 apartments total|Multi-user access and advanced automation",
+                    DisplayOrder = 40
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Portfolio",
+                    Price = 56500M,
+                    AnnualPrice = 565000M,
+                    DurationInDays = 30,
+                    Description = "For large portfolios",
+                    AudienceLabel = "For large portfolios",
+                    MaxProperties = 100,
+                    MaxApartmentsPerProperty = 500,
+                    MaxTotalApartments = 5100,
+                    FeatureHighlights = "Up to 100 properties|Up to 500 apartments / property|Up to 5,100 apartments total|Priority support, export, and integrations",
+                    DisplayOrder = 50
+                },
+                new SubscriptionPlan
+                {
+                    Name = "Enterprise Unlimited",
+                    Price = 0M,
+                    AnnualPrice = null,
+                    DurationInDays = 30,
+                    Description = "For enterprise portfolios",
+                    AudienceLabel = "For enterprise portfolios",
+                    MaxProperties = null,
+                    MaxApartmentsPerProperty = null,
+                    MaxTotalApartments = null,
+                    FeatureHighlights = "Unlimited properties|Unlimited apartments|Dedicated onboarding|SLA support and custom workflows",
+                    IsContactSales = true,
+                    DisplayOrder = 60
+                }
+            };
+
+            var existingPlans = context.SubscriptionPlans
+                .IgnoreQueryFilters()
+                .ToList();
+            var currentNames = planDefinitions.Select(plan => plan.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var stalePlan in existingPlans.Where(plan => !currentNames.Contains(plan.Name)))
+            {
+                stalePlan.IsDeleted = true;
+                stalePlan.DeletedAt ??= now;
+                stalePlan.UpdatedAt = now;
+            }
+
+            foreach (var planDefinition in planDefinitions)
+            {
+                var plan = existingPlans.FirstOrDefault(existing =>
+                    string.Equals(existing.Name, planDefinition.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (plan == null)
+                {
+                    planDefinition.CreatedAt = now;
+                    context.SubscriptionPlans.Add(planDefinition);
+                    continue;
+                }
+
+                plan.Name = planDefinition.Name;
+                plan.Price = planDefinition.Price;
+                plan.AnnualPrice = planDefinition.AnnualPrice;
+                plan.DurationInDays = planDefinition.DurationInDays;
+                plan.Description = planDefinition.Description;
+                plan.AudienceLabel = planDefinition.AudienceLabel;
+                plan.MaxProperties = planDefinition.MaxProperties;
+                plan.MaxApartmentsPerProperty = planDefinition.MaxApartmentsPerProperty;
+                plan.MaxTotalApartments = planDefinition.MaxTotalApartments;
+                plan.FeatureHighlights = planDefinition.FeatureHighlights;
+                plan.IsRecommended = planDefinition.IsRecommended;
+                plan.IsContactSales = planDefinition.IsContactSales;
+                plan.DisplayOrder = planDefinition.DisplayOrder;
+                plan.IsDeleted = false;
+                plan.DeletedAt = null;
+                plan.DeletedBy = null;
+                plan.UpdatedAt = now;
+            }
+
+            context.SaveChanges();
+        }
+
+        private static void EnsureSubscriptionPlanCatalogColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('SubscriptionPlans', 'AnnualPrice') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans] ADD [AnnualPrice] decimal(18,2) NULL;
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'MaxTotalApartments') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans] ADD [MaxTotalApartments] int NULL;
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'AudienceLabel') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans] ADD [AudienceLabel] nvarchar(max) NULL;
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'FeatureHighlights') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans] ADD [FeatureHighlights] nvarchar(max) NULL;
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'IsRecommended') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans]
+    ADD [IsRecommended] bit NOT NULL
+        CONSTRAINT [DF_SubscriptionPlans_IsRecommended] DEFAULT(0);
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'IsContactSales') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans]
+    ADD [IsContactSales] bit NOT NULL
+        CONSTRAINT [DF_SubscriptionPlans_IsContactSales] DEFAULT(0);
+END
+
+IF COL_LENGTH('SubscriptionPlans', 'DisplayOrder') IS NULL
+BEGIN
+    ALTER TABLE [SubscriptionPlans]
+    ADD [DisplayOrder] int NOT NULL
+        CONSTRAINT [DF_SubscriptionPlans_DisplayOrder] DEFAULT(0);
+END
+");
         }
 
         private static void EnsureOtpSendLogsTable(ApplicationDbContext context)
@@ -273,6 +429,67 @@ IF NOT EXISTS (
 BEGIN
     CREATE INDEX [IX_LandlordKycProfiles_ReviewedById]
     ON [LandlordKycProfiles]([ReviewedById]);
+END
+");
+        }
+
+        private static void EnsureStripeConnectColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('AspNetUsers', 'CountryIsoCode') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [CountryIsoCode] nvarchar(2) NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripeConnectAccountId') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripeConnectAccountId] nvarchar(128) NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutDetailsSubmitted') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [StripePayoutDetailsSubmitted] bit NOT NULL
+        CONSTRAINT [DF_AspNetUsers_StripePayoutDetailsSubmitted] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripeChargesEnabled') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [StripeChargesEnabled] bit NOT NULL
+        CONSTRAINT [DF_AspNetUsers_StripeChargesEnabled] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutsEnabled') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers]
+    ADD [StripePayoutsEnabled] bit NOT NULL
+        CONSTRAINT [DF_AspNetUsers_StripePayoutsEnabled] DEFAULT(0) WITH VALUES;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutRequirementsSummary') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripePayoutRequirementsSummary] nvarchar(1024) NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutDisabledReason') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripePayoutDisabledReason] nvarchar(512) NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutSetupStartedAt') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripePayoutSetupStartedAt] datetimeoffset NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutSetupCompletedAt') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripePayoutSetupCompletedAt] datetimeoffset NULL;
+END
+
+IF COL_LENGTH('AspNetUsers', 'StripePayoutStatusUpdatedAt') IS NULL
+BEGIN
+    ALTER TABLE [AspNetUsers] ADD [StripePayoutStatusUpdatedAt] datetimeoffset NULL;
 END
 ");
         }
@@ -627,6 +844,37 @@ END
                         CONSTRAINT [DF_UserSubscriptions_AllowAutomaticCardPayments] DEFAULT(0);
                 END
 
+                IF COL_LENGTH('UserSubscriptions', 'StripeCustomerId') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [StripeCustomerId] nvarchar(128) NULL;
+                END
+
+                IF COL_LENGTH('UserSubscriptions', 'StripePaymentMethodId') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [StripePaymentMethodId] nvarchar(128) NULL;
+                END
+
+                IF COL_LENGTH('UserSubscriptions', 'IsAutomaticRenewal') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [IsAutomaticRenewal] bit NOT NULL
+                        CONSTRAINT [DF_UserSubscriptions_IsAutomaticRenewal] DEFAULT(0);
+                END
+
+                IF COL_LENGTH('UserSubscriptions', 'LastAutomaticPaymentAttemptAt') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [LastAutomaticPaymentAttemptAt] datetimeoffset NULL;
+                END
+
+                IF COL_LENGTH('UserSubscriptions', 'AutomaticPaymentFailureReason') IS NULL
+                BEGIN
+                    ALTER TABLE [UserSubscriptions]
+                    ADD [AutomaticPaymentFailureReason] nvarchar(1024) NULL;
+                END
+
                 IF COL_LENGTH('UserSubscriptions', 'PaymentCompletedAt') IS NULL
                 BEGIN
                     ALTER TABLE [UserSubscriptions]
@@ -638,6 +886,18 @@ END
                     ALTER TABLE [UserSubscriptions]
                     ADD [PaymentAttemptCount] int NOT NULL
                         CONSTRAINT [DF_UserSubscriptions_PaymentAttemptCount] DEFAULT(0);
+                END
+
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM sys.indexes
+                    WHERE name = 'IX_UserSubscriptions_AutomaticRenewalDue'
+                      AND object_id = OBJECT_ID('UserSubscriptions')
+                )
+                BEGIN
+                    CREATE INDEX [IX_UserSubscriptions_AutomaticRenewalDue]
+                    ON [UserSubscriptions] ([AllowAutomaticCardPayments], [EndDate])
+                    WHERE [IsDeleted] = 0;
                 END
             ");
 

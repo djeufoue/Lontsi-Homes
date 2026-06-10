@@ -11,6 +11,7 @@ namespace Common.CommunicationModels
         public bool SubscriptionApproved { get; set; }
         public bool KycApproved { get; set; }
         public bool PlatformTermsAccepted { get; set; }
+        public bool StripePayoutSetupComplete { get; set; }
         public bool CanCreate { get; set; }
 
         public string StatusMessage { get; set; } = string.Empty;

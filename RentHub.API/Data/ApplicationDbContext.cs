@@ -58,6 +58,25 @@ namespace RentHub.API.Data
                 .Property(p => p.Price)
                 .HasPrecision(18, 2);
 
+            builder.Entity<SubscriptionPlan>()
+                .Property(p => p.AnnualPrice)
+                .HasPrecision(18, 2);
+
+            builder.Entity<ApplicationUser>(entity =>
+            {
+                entity.Property(u => u.CountryIsoCode)
+                    .HasMaxLength(2);
+
+                entity.Property(u => u.StripeConnectAccountId)
+                    .HasMaxLength(128);
+
+                entity.Property(u => u.StripePayoutRequirementsSummary)
+                    .HasMaxLength(1024);
+
+                entity.Property(u => u.StripePayoutDisabledReason)
+                    .HasMaxLength(512);
+            });
+
             builder.Entity<Tenancy>()
                 .Property(t => t.MonthlyRent)
                 .HasPrecision(18, 2);
@@ -76,6 +95,15 @@ namespace RentHub.API.Data
                 entity.Property(us => us.PaymentAuthorizationUrl)
                     .HasMaxLength(2048);
 
+                entity.Property(us => us.StripeCustomerId)
+                    .HasMaxLength(128);
+
+                entity.Property(us => us.StripePaymentMethodId)
+                    .HasMaxLength(128);
+
+                entity.Property(us => us.AutomaticPaymentFailureReason)
+                    .HasMaxLength(1024);
+
                 entity.HasIndex(us => us.PaymentReference)
                     .IsUnique()
                     .HasFilter("[PaymentReference] IS NOT NULL AND [PaymentReference] <> N'' AND [IsDeleted] = 0");
@@ -88,6 +116,9 @@ namespace RentHub.API.Data
                     .HasDatabaseName("IX_UserSubscriptions_UserId_SubscriptionPlanId_OpenPayment")
                     .IsUnique()
                     .HasFilter("[IsDeleted] = 0 AND [IsApproved] = 0 AND [PaymentStatus] <> 1");
+
+                entity.HasIndex(us => new { us.AllowAutomaticCardPayments, us.EndDate })
+                    .HasDatabaseName("IX_UserSubscriptions_AutomaticRenewalDue");
             });
 
             builder.Entity<Payment>(entity =>

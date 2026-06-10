@@ -11,6 +11,7 @@ namespace RentHub.API.Models.Entities
     {
         public string? FullName { get; set; }
         public string? CountryCode { get; set; }
+        public string? CountryIsoCode { get; set; }
         public bool UsePrimaryPhoneForSubscriptionPayments { get; set; }
         public string? SubscriptionPaymentPhoneNumber { get; set; }
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
@@ -28,6 +29,15 @@ namespace RentHub.API.Models.Entities
         public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
         public string? PlatformTermsSignatureName { get; set; }
         public string? PlatformTermsVersion { get; set; }
+        public string? StripeConnectAccountId { get; set; }
+        public bool StripePayoutDetailsSubmitted { get; set; }
+        public bool StripeChargesEnabled { get; set; }
+        public bool StripePayoutsEnabled { get; set; }
+        public string? StripePayoutRequirementsSummary { get; set; }
+        public string? StripePayoutDisabledReason { get; set; }
+        public DateTimeOffset? StripePayoutSetupStartedAt { get; set; }
+        public DateTimeOffset? StripePayoutSetupCompletedAt { get; set; }
+        public DateTimeOffset? StripePayoutStatusUpdatedAt { get; set; }
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation properties
