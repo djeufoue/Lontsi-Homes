@@ -34,6 +34,11 @@ namespace RentHub.API.Models.Entities
         public string? PaymentProviderTransactionId { get; set; }
         public string? PaymentAuthorizationUrl { get; set; }
         public bool AllowAutomaticCardPayments { get; set; }
+        public string? StripeCustomerId { get; set; }
+        public string? StripePaymentMethodId { get; set; }
+        public bool IsAutomaticRenewal { get; set; }
+        public DateTimeOffset? LastAutomaticPaymentAttemptAt { get; set; }
+        public string? AutomaticPaymentFailureReason { get; set; }
         public DateTimeOffset? PaymentCompletedAt { get; set; }
         public int PaymentAttemptCount { get; set; }
 

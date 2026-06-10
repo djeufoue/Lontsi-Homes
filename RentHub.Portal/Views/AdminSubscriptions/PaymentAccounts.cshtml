@@ -138,8 +138,18 @@
                     </div>
 
                     <div class="col-md-6">
+                        <label class="form-label mb-1">Annual Price (XAF)</label>
+                        <input class="form-control rh-input" type="number" min="0" step="0.01" name="AnnualPrice" value="@(plan.AnnualPrice?.ToString() ?? string.Empty)" data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
                         <label class="form-label mb-1">Duration (days)</label>
                         <input class="form-control rh-input" type="number" min="1" name="DurationInDays" value="@plan.DurationInDays" required data-edit-field disabled />
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Display Order</label>
+                        <input class="form-control rh-input" type="number" min="0" name="DisplayOrder" value="@plan.DisplayOrder" data-edit-field disabled />
                     </div>
 
                     <div class="col-md-6">
@@ -157,6 +167,39 @@
                         <div class="form-check mt-1">
                             <input class="form-check-input" type="checkbox" name="UnlimitedApartmentsPerProperty" value="true" @(plan.MaxApartmentsPerProperty.HasValue ? null : "checked") data-edit-field disabled />
                             <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Max Apartments Total</label>
+                        <input class="form-control rh-input" type="number" min="0" name="MaxTotalApartments" value="@(plan.MaxTotalApartments?.ToString() ?? string.Empty)" data-edit-field disabled />
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="UnlimitedTotalApartments" value="true" @(plan.MaxTotalApartments.HasValue ? null : "checked") data-edit-field disabled />
+                            <label class="form-check-label">Unlimited</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Audience Label</label>
+                        <input class="form-control rh-input" name="AudienceLabel" value="@plan.AudienceLabel" data-edit-field disabled />
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label mb-1">Feature Highlights</label>
+                        <textarea class="form-control rh-input" name="FeatureHighlights" rows="3" placeholder="Separate features with |" data-edit-field disabled>@plan.FeatureHighlights</textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="IsRecommended" value="true" @(plan.IsRecommended ? "checked" : null) data-edit-field disabled />
+                            <label class="form-check-label">Recommended plan</label>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="IsContactSales" value="true" @(plan.IsContactSales ? "checked" : null) data-edit-field disabled />
+                            <label class="form-check-label">Contact sales plan</label>
                         </div>
                     </div>
 
@@ -220,6 +263,8 @@
                 const propsInput = form.querySelector("input[name='MaxProperties']");
                 const apartmentsUnlimited = form.querySelector("input[name='UnlimitedApartmentsPerProperty']");
                 const apartmentsInput = form.querySelector("input[name='MaxApartmentsPerProperty']");
+                const totalApartmentsUnlimited = form.querySelector("input[name='UnlimitedTotalApartments']");
+                const totalApartmentsInput = form.querySelector("input[name='MaxTotalApartments']");
 
                 const hasChanges = () => fields.some(field => serialize(field) !== original.get(field));
 
@@ -235,6 +280,13 @@
                         apartmentsInput.disabled = !editing || apartmentsUnlimited.checked;
                         if (editing && apartmentsUnlimited.checked) {
                             apartmentsInput.value = "";
+                        }
+                    }
+
+                    if (totalApartmentsInput && totalApartmentsUnlimited) {
+                        totalApartmentsInput.disabled = !editing || totalApartmentsUnlimited.checked;
+                        if (editing && totalApartmentsUnlimited.checked) {
+                            totalApartmentsInput.value = "";
                         }
                     }
                 };

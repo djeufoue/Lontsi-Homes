@@ -9,6 +9,13 @@ namespace RentHub.Portal.ViewModels.AdminUsers
         public List<AdminUserVerificationStatusDto> Users { get; set; } = new();
     }
 
+    public class AdminLandlordsIndexVm
+    {
+        public string? Search { get; set; }
+        public bool CanDeleteUsers { get; set; }
+        public List<AdminUserVerificationStatusDto> Landlords { get; set; } = new();
+    }
+
     public class AdminUserOverviewVm
     {
         public AdminUserOverviewDto Overview { get; set; } = new();

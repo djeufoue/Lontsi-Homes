@@ -82,16 +82,24 @@ namespace RentHub.API.Controllers
             try
             {
                 var plans = await _context.SubscriptionPlans
-                    .OrderBy(p => p.Price)
+                    .OrderBy(p => p.DisplayOrder)
+                    .ThenBy(p => p.Price)
                     .Select(p => new SubscriptionPlanDto
                     {
                         Id = p.Id,
                         Name = p.Name,
                         Price = p.Price,
+                        AnnualPrice = p.AnnualPrice,
                         DurationInDays = p.DurationInDays,
                         Description = p.Description ?? string.Empty,
                         MaxProperties = p.MaxProperties,
-                        MaxApartmentsPerProperty = p.MaxApartmentsPerProperty
+                        MaxApartmentsPerProperty = p.MaxApartmentsPerProperty,
+                        MaxTotalApartments = p.MaxTotalApartments,
+                        AudienceLabel = p.AudienceLabel ?? string.Empty,
+                        FeatureHighlights = p.FeatureHighlights ?? string.Empty,
+                        IsRecommended = p.IsRecommended,
+                        IsContactSales = p.IsContactSales,
+                        DisplayOrder = p.DisplayOrder
                     })
                     .ToListAsync();
 
@@ -145,6 +153,20 @@ namespace RentHub.API.Controllers
                     plan.Price = request.Price.Value;
                 }
 
+                if (request.AnnualPrice.HasValue)
+                {
+                    if (request.AnnualPrice.Value < 0)
+                    {
+                        return BadRequest("AnnualPrice must be greater than or equal to 0.");
+                    }
+
+                    plan.AnnualPrice = request.AnnualPrice.Value;
+                }
+                else if (request.IsContactSales == true)
+                {
+                    plan.AnnualPrice = null;
+                }
+
                 if (request.DurationInDays.HasValue)
                 {
                     if (request.DurationInDays.Value < 1)
@@ -165,6 +187,38 @@ namespace RentHub.API.Controllers
                     plan.MaxApartmentsPerProperty = request.MaxApartmentsPerProperty.Value < 0
                         ? null
                         : request.MaxApartmentsPerProperty.Value;
+                }
+
+                if (request.MaxTotalApartments.HasValue)
+                {
+                    plan.MaxTotalApartments = request.MaxTotalApartments.Value < 0
+                        ? null
+                        : request.MaxTotalApartments.Value;
+                }
+
+                if (request.AudienceLabel != null)
+                {
+                    plan.AudienceLabel = request.AudienceLabel.Trim();
+                }
+
+                if (request.FeatureHighlights != null)
+                {
+                    plan.FeatureHighlights = request.FeatureHighlights.Trim();
+                }
+
+                if (request.IsRecommended.HasValue)
+                {
+                    plan.IsRecommended = request.IsRecommended.Value;
+                }
+
+                if (request.IsContactSales.HasValue)
+                {
+                    plan.IsContactSales = request.IsContactSales.Value;
+                }
+
+                if (request.DisplayOrder.HasValue)
+                {
+                    plan.DisplayOrder = Math.Max(0, request.DisplayOrder.Value);
                 }
 
                 plan.UpdatedBy = UserHelpers.GetUserId(User);
@@ -249,12 +303,30 @@ namespace RentHub.API.Controllers
                             Message = "Sign the platform contract before paying for a subscription."
                         });
                     }
+
+                    if (!IsStripePayoutSetupComplete(user))
+                    {
+                        return StatusCode(StatusCodes.Status403Forbidden, new
+                        {
+                            Code = "STRIPE_PAYOUT_SETUP_REQUIRED",
+                            Message = "Set up your payout account before paying for a subscription. This lets tenant rent payments be routed to you later."
+                        });
+                    }
                 }
 
                 var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(p => p.Id == planId && !p.IsDeleted);
                 if (plan == null)
                 {
                     return NotFound("Plan not found.");
+                }
+
+                if (plan.IsContactSales || plan.Price <= 0)
+                {
+                    return BadRequest(new
+                    {
+                        Code = "PLAN_REQUIRES_SALES_CONTACT",
+                        Message = "This plan needs a custom quote. Please contact sales before checkout."
+                    });
                 }
 
                 var requestedPaymentMethod = SubscriptionPaymentMethodHelper.Normalize(request.PaymentMethod);
@@ -428,7 +500,13 @@ namespace RentHub.API.Controllers
                 var providerStatus = ResolveStripeProviderStatus(checkout.PaymentStatus, checkout.Status);
                 if (IsSuccessfulProviderStatus(providerStatus))
                 {
-                    await ApplyPaymentStatusAsync(pendingSubscription, providerStatus, checkout.SessionId, userId);
+                    await ApplyPaymentStatusAsync(
+                        pendingSubscription,
+                        providerStatus,
+                        checkout.SessionId,
+                        userId,
+                        checkout.CustomerId,
+                        checkout.PaymentMethodId);
                 }
 
                 _logger.LogInformation(
@@ -505,7 +583,9 @@ namespace RentHub.API.Controllers
                                 subscription,
                                 ResolveStripeProviderStatus(remoteStatus.PaymentStatus, remoteStatus.Status),
                                 remoteStatus.SessionId,
-                                userId);
+                                userId,
+                                remoteStatus.CustomerId,
+                                remoteStatus.PaymentMethodId);
                         }
                     }
                     else if (IsCamPayPayment(subscription))
@@ -737,6 +817,21 @@ namespace RentHub.API.Controllers
                     return Ok(new { Message = "Webhook ignored." });
                 }
 
+                if (!string.IsNullOrWhiteSpace(providerTransactionId))
+                {
+                    var enrichedSession = await _stripeCheckoutService.RetrieveSessionAsync(providerTransactionId);
+                    if (enrichedSession != null &&
+                        (string.IsNullOrWhiteSpace(enrichedSession.PaymentReference) ||
+                         string.Equals(enrichedSession.PaymentReference, subscription.PaymentReference, StringComparison.Ordinal)))
+                    {
+                        session = enrichedSession;
+                        paymentReference = string.IsNullOrWhiteSpace(enrichedSession.PaymentReference)
+                            ? paymentReference
+                            : enrichedSession.PaymentReference;
+                        providerTransactionId = enrichedSession.SessionId;
+                    }
+                }
+
                 var providerStatus = eventType?.Trim().ToLowerInvariant() switch
                 {
                     "checkout.session.completed" => ResolveStripeProviderStatus(session?.PaymentStatus, session?.Status),
@@ -749,7 +844,13 @@ namespace RentHub.API.Controllers
                 var processed = false;
                 if (IsTerminalProviderStatus(providerStatus))
                 {
-                    await ApplyPaymentStatusAsync(subscription, providerStatus, providerTransactionId, "stripe-webhook");
+                    await ApplyPaymentStatusAsync(
+                        subscription,
+                        providerStatus,
+                        providerTransactionId,
+                        "stripe-webhook",
+                        session?.CustomerId,
+                        session?.PaymentMethodId);
                     processed = true;
                 }
 
@@ -1069,11 +1170,168 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpGet("payment-activity")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetPaymentActivity(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] string? search = null,
+            [FromQuery] string? status = null)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 10, 100);
+
+                var query = _context.UserSubscriptions
+                    .Include(subscription => subscription.User)
+                    .Where(subscription =>
+                        !subscription.IsDeleted &&
+                        (!string.IsNullOrWhiteSpace(subscription.PaymentReference) ||
+                         subscription.PaymentAttemptCount > 0 ||
+                         subscription.PaymentCompletedAt != null));
+
+                var normalizedSearch = (search ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(normalizedSearch))
+                {
+                    query = query.Where(subscription =>
+                        subscription.PaymentReference.Contains(normalizedSearch) ||
+                        (subscription.PaymentProviderTransactionId != null &&
+                         subscription.PaymentProviderTransactionId.Contains(normalizedSearch)) ||
+                        subscription.PlanNameSnapshot.Contains(normalizedSearch) ||
+                        (subscription.User != null &&
+                         ((subscription.User.Email != null && subscription.User.Email.Contains(normalizedSearch)) ||
+                          (subscription.User.FullName != null && subscription.User.FullName.Contains(normalizedSearch)))));
+                }
+
+                var normalizedStatus = (status ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                {
+                    if (string.Equals(normalizedStatus, "automatic", StringComparison.OrdinalIgnoreCase))
+                    {
+                        query = query.Where(subscription => subscription.IsAutomaticRenewal);
+                    }
+                    else if (Enum.TryParse<PaymentStatusEnum>(normalizedStatus, true, out var parsedStatus))
+                    {
+                        query = query.Where(subscription => subscription.PaymentStatus == parsedStatus);
+                    }
+                }
+
+                var totalCount = await query.CountAsync();
+                var summaryRows = await query
+                    .Select(subscription => new
+                    {
+                        subscription.PaymentStatus,
+                        subscription.PlanPriceSnapshot,
+                        subscription.IsAutomaticRenewal
+                    })
+                    .ToListAsync();
+
+                var pageRows = await query
+                    .OrderByDescending(subscription => subscription.PaymentCompletedAt ?? subscription.UpdatedAt ?? subscription.CreatedAt)
+                    .ThenByDescending(subscription => subscription.Id)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var userIds = pageRows
+                    .Select(subscription => subscription.UserId)
+                    .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+
+                var propertyLookup = (await _context.Properties
+                        .Where(property => !property.IsDeleted && userIds.Contains(property.LandlordId))
+                        .OrderBy(property => property.Name)
+                        .Select(property => new
+                        {
+                            property.LandlordId,
+                            property.Id,
+                            property.Name
+                        })
+                        .ToListAsync())
+                    .GroupBy(property => property.LandlordId, StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+                var items = pageRows.Select(subscription =>
+                {
+                    propertyLookup.TryGetValue(subscription.UserId, out var property);
+
+                    return new SubscriptionPaymentActivityDto
+                    {
+                        SubscriptionId = subscription.Id,
+                        PlanId = subscription.SubscriptionPlanId,
+                        PlanName = subscription.PlanNameSnapshot,
+                        UserId = subscription.UserId,
+                        UserEmail = subscription.User?.Email ?? string.Empty,
+                        UserFullName = subscription.User?.FullName ?? string.Empty,
+                        PropertyId = property?.Id,
+                        PropertyName = property?.Name ?? "Account subscription",
+                        PaymentReference = subscription.PaymentReference,
+                        Provider = subscription.PaymentMethod == PaymentMethodEnum.Card
+                            ? "Stripe"
+                            : subscription.PaymentMethod is PaymentMethodEnum.Momo or PaymentMethodEnum.OrangeMoney
+                                ? "Mobile Money"
+                                : "Manual",
+                        ProviderReference = subscription.PaymentProviderTransactionId ?? string.Empty,
+                        PaymentMethod = subscription.PaymentMethod?.ToString() ?? "Unknown",
+                        PaymentStatus = subscription.PaymentStatus.ToString(),
+                        AmountUsd = ConvertXafToUsd(subscription.PlanPriceSnapshot),
+                        AmountXaf = subscription.PlanPriceSnapshot,
+                        Currency = ResolveStripeCurrency().ToUpperInvariant(),
+                        AllowAutomaticCardPayments = subscription.AllowAutomaticCardPayments,
+                        IsAutomaticRenewal = subscription.IsAutomaticRenewal,
+                        CreatedAt = subscription.CreatedAt,
+                        PaymentCompletedAt = subscription.PaymentCompletedAt,
+                        StartDate = subscription.StartDate,
+                        EndDate = subscription.EndDate,
+                        ProcessingMessage = subscription.AutomaticPaymentFailureReason ?? string.Empty
+                    };
+                }).ToList();
+
+                var successfulTotalXaf = summaryRows
+                    .Where(row => row.PaymentStatus == PaymentStatusEnum.Success)
+                    .Sum(row => row.PlanPriceSnapshot);
+
+                return Ok(new SubscriptionPaymentActivityResponseDto
+                {
+                    Items = items,
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalCount = totalCount,
+                    TotalPages = totalCount == 0 ? 1 : (int)Math.Ceiling(totalCount / (decimal)pageSize),
+                    Search = normalizedSearch,
+                    Status = normalizedStatus,
+                    Summary = new SubscriptionPaymentActivitySummaryDto
+                    {
+                        TotalTransactions = summaryRows.Count,
+                        SuccessfulTransactions = summaryRows.Count(row => row.PaymentStatus == PaymentStatusEnum.Success),
+                        FailedTransactions = summaryRows.Count(row => row.PaymentStatus is PaymentStatusEnum.Failed or PaymentStatusEnum.Error),
+                        PendingTransactions = summaryRows.Count(row => row.PaymentStatus == PaymentStatusEnum.Pending),
+                        AutomaticRenewals = summaryRows.Count(row => row.IsAutomaticRenewal),
+                        TotalSuccessfulXaf = successfulTotalXaf,
+                        TotalSuccessfulUsd = ConvertXafToUsd(successfulTotalXaf)
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load subscription payment activity");
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    Code = "PAYMENT_ACTIVITY_FETCH_FAILED",
+                    Message = "Unable to load payment activity right now."
+                });
+            }
+        }
+
         private async Task ApplyPaymentStatusAsync(
             UserSubscription subscription,
             string providerStatus,
             string? providerTransactionId,
-            string? actor)
+            string? actor,
+            string? stripeCustomerId = null,
+            string? stripePaymentMethodId = null)
         {
             if (subscription.PaymentStatus == PaymentStatusEnum.Success && subscription.IsApproved)
             {
@@ -1084,6 +1342,19 @@ namespace RentHub.API.Controllers
             if (IsSuccessfulProviderStatus(normalizedStatus))
             {
                 subscription.PaymentProviderTransactionId = providerTransactionId ?? subscription.PaymentProviderTransactionId;
+                if (subscription.AllowAutomaticCardPayments)
+                {
+                    if (!string.IsNullOrWhiteSpace(stripeCustomerId))
+                    {
+                        subscription.StripeCustomerId = stripeCustomerId;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(stripePaymentMethodId))
+                    {
+                        subscription.StripePaymentMethodId = stripePaymentMethodId;
+                    }
+                }
+
                 await ActivateSubscriptionAsync(subscription, actor, markPaymentAsSuccess: true);
                 var userEmail = await ResolveSubscriptionUserEmailAsync(subscription.UserId);
                 _logger.LogInformation(
@@ -1310,12 +1581,23 @@ namespace RentHub.API.Controllers
                 : configured.ToUpperInvariant();
         }
 
-        private long ConvertXafToStripeMinorUnits(decimal xafAmount)
+        private decimal ConvertXafToUsd(decimal xafAmount)
         {
-            var usdToXafRate = _configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+            var usdToXafRate = _configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
             if (usdToXafRate <= 0)
             {
-                usdToXafRate = 600m;
+                usdToXafRate = 565m;
+            }
+
+            return Math.Round(xafAmount / usdToXafRate, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private long ConvertXafToStripeMinorUnits(decimal xafAmount)
+        {
+            var usdToXafRate = _configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
+            if (usdToXafRate <= 0)
+            {
+                usdToXafRate = 565m;
             }
 
             var usdAmount = xafAmount / usdToXafRate;
@@ -1379,6 +1661,14 @@ namespace RentHub.API.Controllers
         private static string BuildPaymentReference(int subscriptionId, int attemptCount)
         {
             return $"rhsub_{subscriptionId}_{attemptCount}";
+        }
+
+        private static bool IsStripePayoutSetupComplete(ApplicationUser user)
+        {
+            return !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) &&
+                   user.StripePayoutDetailsSubmitted &&
+                   user.StripeChargesEnabled &&
+                   user.StripePayoutsEnabled;
         }
 
         private static string HashPayload(string value)

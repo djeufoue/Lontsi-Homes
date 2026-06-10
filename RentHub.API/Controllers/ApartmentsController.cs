@@ -289,6 +289,21 @@ namespace RentHub.API.Controllers
                         return BadRequest($"Maximum number of apartments per property ({maxApts.Value}) reached for your subscription.");
                 }
 
+                var maxTotalApts = activeSubscription?.SubscriptionPlan?.MaxTotalApartments;
+                if (maxTotalApts.HasValue)
+                {
+                    var totalCount = await _context.Apartments.CountAsync(a =>
+                        a.Property != null &&
+                        a.Property.LandlordId == property.LandlordId &&
+                        !a.IsDeleted &&
+                        !a.Property.IsDeleted);
+
+                    if (totalCount >= maxTotalApts.Value)
+                    {
+                        return BadRequest($"Maximum total apartments ({maxTotalApts.Value}) reached for your subscription.");
+                    }
+                }
+
                 var apt = new Apartment
                 {
                     PropertyId = request.PropertyId,

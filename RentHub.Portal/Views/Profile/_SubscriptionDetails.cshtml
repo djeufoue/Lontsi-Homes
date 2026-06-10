@@ -5,10 +5,10 @@
 @{
     var overview = Model.Overview;
     var now = Model.NowUtc;
-    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
     if (usdToXafRate <= 0)
     {
-        usdToXafRate = 600m;
+        usdToXafRate = 565m;
     }
     string NormalizeCountryCode(string? countryCode)
     {
@@ -16,6 +16,7 @@
         return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
     }
     string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    string FormatXaf(decimal xaf) => xaf.ToString("N0", CultureInfo.InvariantCulture);
     var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
     var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
@@ -45,7 +46,7 @@
                 <h3 class="mb-0">@FormatUsd(overview.CurrentPlanPrice ?? 0m)</h3>
                 @if (isCameroonLandlord)
                 {
-                    <small class="text-muted">Approx. @((overview.CurrentPlanPrice ?? 0m).ToString("N0")) XAF</small>
+                    <small class="text-muted">Approx. @FormatXaf(overview.CurrentPlanPrice ?? 0m) XAF</small>
                 }
             </div>
         </div>

@@ -1,0 +1,190 @@
+@model Common.CommunicationModels.SubscriptionPaymentActivityResponseDto
+@using System.Globalization
+@{
+    ViewData["Title"] = "Payment Activity";
+    var currency = CultureInfo.GetCultureInfo("en-US");
+    var previousPage = Math.Max(1, Model.Page - 1);
+    var nextPage = Math.Min(Model.TotalPages, Model.Page + 1);
+    string StatusChip(string status) => status switch
+    {
+        "Success" => "rh-chip-success",
+        "Failed" or "Error" => "rh-chip-danger",
+        "Pending" => "rh-chip-warning",
+        _ => "rh-chip-info"
+    };
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Payments</p>
+        <h1 class="rh-heading-title">Payment Activity</h1>
+        <p class="rh-heading-subtitle">Review landlord subscription money activity, including manual card checkout and automatic renewals.</p>
+    </div>
+    <div class="rh-toolbar">
+        <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="Index">Subscription Control</a>
+        <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">Payment Accounts</a>
+    </div>
+</section>
+
+<section class="rh-property-summary mb-3">
+    <article class="rh-summary-card">
+        <p>Processed Revenue</p>
+        <h3>@Model.Summary.TotalSuccessfulUsd.ToString("C", currency)</h3>
+        <small>@Model.Summary.TotalSuccessfulXaf.ToString("N0", CultureInfo.InvariantCulture) XAF successful</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Transactions</p>
+        <h3>@Model.Summary.TotalTransactions</h3>
+        <small>@Model.Summary.SuccessfulTransactions successful, @Model.Summary.PendingTransactions pending</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Failed or Error</p>
+        <h3>@Model.Summary.FailedTransactions</h3>
+        <small>Requires landlord action or support follow-up</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Automatic Renewals</p>
+        <h3>@Model.Summary.AutomaticRenewals</h3>
+        <small>Saved-card renewal attempts</small>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <form method="get" asp-action="PaymentActivity" class="row g-2 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label mb-1" for="PaymentSearch">Search</label>
+            <input id="PaymentSearch" class="form-control rh-input" name="search" value="@Model.Search" placeholder="User, email, plan, payment reference" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label mb-1" for="PaymentStatus">Status</label>
+            <select id="PaymentStatus" class="form-select rh-input" name="status">
+                <option value="">All activity</option>
+                <option value="Success" selected="@(string.Equals(Model.Status, "Success", StringComparison.OrdinalIgnoreCase))">Successful</option>
+                <option value="Pending" selected="@(string.Equals(Model.Status, "Pending", StringComparison.OrdinalIgnoreCase))">Pending</option>
+                <option value="Failed" selected="@(string.Equals(Model.Status, "Failed", StringComparison.OrdinalIgnoreCase))">Failed</option>
+                <option value="Error" selected="@(string.Equals(Model.Status, "Error", StringComparison.OrdinalIgnoreCase))">Error</option>
+                <option value="automatic" selected="@(string.Equals(Model.Status, "automatic", StringComparison.OrdinalIgnoreCase))">Automatic renewals</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1" for="PaymentPageSize">Rows</label>
+            <select id="PaymentPageSize" class="form-select rh-input" name="pageSize">
+                <option value="25" selected="@(Model.PageSize == 25)">25</option>
+                <option value="50" selected="@(Model.PageSize == 50)">50</option>
+                <option value="100" selected="@(Model.PageSize == 100)">100</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button class="btn rh-btn-primary" type="submit">Apply Filters</button>
+        </div>
+    </form>
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title mb-0">Money Activity</h2>
+            <small class="text-muted">Newest transactions appear first.</small>
+        </div>
+        <small class="text-muted">Page @Model.Page of @Model.TotalPages</small>
+    </div>
+
+    @if (!Model.Items.Any())
+    {
+        <div class="rh-empty">No payment activity matches these filters.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle rh-table mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Property</th>
+                        <th>Plan</th>
+                        <th>Provider</th>
+                        <th>Status</th>
+                        <th class="text-end">Amount</th>
+                        <th>Reference</th>
+                        <th>Completed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>
+                                <a class="fw-semibold rh-table-property-link" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@item.UserId">
+                                    @(string.IsNullOrWhiteSpace(item.UserFullName) ? item.UserEmail : item.UserFullName)
+                                </a>
+                                <small class="d-block text-muted">@item.UserEmail</small>
+                            </td>
+                            <td>
+                                @if (item.PropertyId.HasValue)
+                                {
+                                    <a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId.Value">@item.PropertyName</a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@item.PropertyName</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@item.PlanName</div>
+                                <small class="text-muted">Subscription #@item.SubscriptionId @(item.IsAutomaticRenewal ? "- automatic" : string.Empty)</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@item.Provider</div>
+                                <small class="text-muted">@item.PaymentMethod</small>
+                            </td>
+                            <td>
+                                <span class="rh-chip @StatusChip(item.PaymentStatus)">@item.PaymentStatus</span>
+                                @if (!string.IsNullOrWhiteSpace(item.ProcessingMessage))
+                                {
+                                    <small class="d-block text-danger mt-1">@item.ProcessingMessage</small>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <div class="fw-semibold">@item.AmountUsd.ToString("C", currency)</div>
+                                <small class="text-muted">@item.AmountXaf.ToString("N0", CultureInfo.InvariantCulture) XAF</small>
+                            </td>
+                            <td>
+                                <code>@item.PaymentReference</code>
+                                @if (!string.IsNullOrWhiteSpace(item.ProviderReference))
+                                {
+                                    <small class="d-block text-muted">@item.ProviderReference</small>
+                                }
+                            </td>
+                            <td>
+                                @if (item.PaymentCompletedAt.HasValue)
+                                {
+                                    <span>@item.PaymentCompletedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@item.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <a class="btn rh-btn-subtle @(Model.Page <= 1 ? "disabled" : string.Empty)"
+           asp-action="PaymentActivity"
+           asp-route-page="@previousPage"
+           asp-route-pageSize="@Model.PageSize"
+           asp-route-search="@Model.Search"
+           asp-route-status="@Model.Status">Previous</a>
+        <small class="text-muted">@Model.TotalCount transactions</small>
+        <a class="btn rh-btn-subtle @(Model.Page >= Model.TotalPages ? "disabled" : string.Empty)"
+           asp-action="PaymentActivity"
+           asp-route-page="@nextPage"
+           asp-route-pageSize="@Model.PageSize"
+           asp-route-search="@Model.Search"
+           asp-route-status="@Model.Status">Next</a>
+    </div>
+</section>

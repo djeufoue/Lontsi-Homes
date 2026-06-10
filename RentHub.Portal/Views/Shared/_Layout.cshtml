@@ -15,7 +15,9 @@
     var isAdminSubscriptionsController = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
     var isSubscriptionsAdmin = isAdminSubscriptionsController && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
     var isAdminPaymentAccounts = isAdminSubscriptionsController && string.Equals(currentAction, "PaymentAccounts", StringComparison.OrdinalIgnoreCase);
+    var isAdminPaymentActivity = isAdminSubscriptionsController && string.Equals(currentAction, "PaymentActivity", StringComparison.OrdinalIgnoreCase);
     var isUsersAdmin = string.Equals(currentController, "AdminUsers", StringComparison.OrdinalIgnoreCase);
+    var isLandlordValidation = isUsersAdmin && string.Equals(currentAction, "Landlords", StringComparison.OrdinalIgnoreCase);
     var isKycApprovals = isUsersAdmin && string.Equals(currentAction, "LandlordApprovals", StringComparison.OrdinalIgnoreCase);
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
     var isProfileHome = isProfile && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
@@ -115,9 +117,17 @@
                                 <span class="rh-nav-icon">&#9635;</span>
                                 <span>Payment Accounts</span>
                             </a>
-                            <a class="rh-nav-link @(isUsersAdmin && !isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
+                            <a class="rh-nav-link @(isAdminPaymentActivity ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentActivity">
+                                <span class="rh-nav-icon">&#36;</span>
+                                <span>Payment Activity</span>
+                            </a>
+                            <a class="rh-nav-link @(isUsersAdmin && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
                                 <span class="rh-nav-icon">&#9711;</span>
                                 <span>User Validation</span>
+                            </a>
+                            <a class="rh-nav-link @(isLandlordValidation ? "active" : null)" asp-controller="AdminUsers" asp-action="Landlords">
+                                <span class="rh-nav-icon">&#9737;</span>
+                                <span>Landlord Validation</span>
                             </a>
                             <a class="rh-nav-link @(isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="LandlordApprovals">
                                 <span class="rh-nav-icon">&#9678;</span>

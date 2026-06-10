@@ -43,6 +43,35 @@ namespace RentHub.Portal.Controllers
             });
         }
 
+        [HttpGet]
+        public async Task<IActionResult> PaymentActivity(
+            int page = 1,
+            int pageSize = 25,
+            string? search = null,
+            string? status = null)
+        {
+            var query = new List<string>
+            {
+                $"page={Math.Max(1, page)}",
+                $"pageSize={Math.Clamp(pageSize, 10, 100)}"
+            };
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query.Add($"search={Uri.EscapeDataString(search.Trim())}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                query.Add($"status={Uri.EscapeDataString(status.Trim())}");
+            }
+
+            var response = await _api.GetAsync<SubscriptionPaymentActivityResponseDto>(
+                $"Subscriptions/payment-activity?{string.Join("&", query)}");
+
+            return View(response);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Approve(int subscriptionId)
@@ -82,6 +111,12 @@ namespace RentHub.Portal.Controllers
                 return RedirectToAction(nameof(PaymentAccounts));
             }
 
+            if (!vm.UnlimitedTotalApartments && (!vm.MaxTotalApartments.HasValue || vm.MaxTotalApartments.Value < 0))
+            {
+                TempData["Error"] = "Max total apartments must be 0 or greater, or select unlimited.";
+                return RedirectToAction(nameof(PaymentAccounts));
+            }
+
             try
             {
                 var req = new UpdateSubscriptionPlanRequest
@@ -89,9 +124,16 @@ namespace RentHub.Portal.Controllers
                     Name = vm.Name,
                     Description = vm.Description,
                     Price = vm.Price,
+                    AnnualPrice = vm.AnnualPrice,
                     DurationInDays = vm.DurationInDays,
                     MaxProperties = vm.UnlimitedProperties ? -1 : vm.MaxProperties,
-                    MaxApartmentsPerProperty = vm.UnlimitedApartmentsPerProperty ? -1 : vm.MaxApartmentsPerProperty
+                    MaxApartmentsPerProperty = vm.UnlimitedApartmentsPerProperty ? -1 : vm.MaxApartmentsPerProperty,
+                    MaxTotalApartments = vm.UnlimitedTotalApartments ? -1 : vm.MaxTotalApartments,
+                    AudienceLabel = vm.AudienceLabel,
+                    FeatureHighlights = vm.FeatureHighlights,
+                    IsRecommended = vm.IsRecommended,
+                    IsContactSales = vm.IsContactSales,
+                    DisplayOrder = vm.DisplayOrder
                 };
 
                 await _api.PutAsync($"Subscriptions/plans/{vm.PlanId}", req);

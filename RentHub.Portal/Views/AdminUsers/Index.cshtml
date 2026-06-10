@@ -8,9 +8,12 @@
     <div>
         <p class="rh-kicker">Admin Workspace</p>
         <h1 class="rh-heading-title">User Validation Monitor</h1>
-        <p class="rh-heading-subtitle">Search users, inspect onboarding status, and restart validation during testing without touching the database manually.</p>
+        <p class="rh-heading-subtitle">Search non-landlord users, inspect onboarding status, and restart validation during testing without touching the database manually.</p>
     </div>
-    <a asp-action="LandlordApprovals" class="btn rh-btn-primary">KYC Approval Queue</a>
+    <div class="rh-toolbar">
+        <a asp-action="Landlords" class="btn rh-btn-subtle">Landlord Validation</a>
+        <a asp-action="LandlordApprovals" class="btn rh-btn-primary">KYC Approval Queue</a>
+    </div>
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
@@ -27,7 +30,7 @@
 
 <section class="rh-panel rh-panel-elevated">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="rh-section-title mb-0">Users</h2>
+        <h2 class="rh-section-title mb-0">Non-landlord users</h2>
         <small class="text-muted">Showing up to 100 records</small>
     </div>
 

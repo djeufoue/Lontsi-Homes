@@ -38,6 +38,26 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> Landlords(string? search = null)
+        {
+            var endpoint = string.IsNullOrWhiteSpace(search)
+                ? "AdminUsers/landlord-verification-status"
+                : $"AdminUsers/landlord-verification-status?search={Uri.EscapeDataString(search.Trim())}";
+
+            var landlordsTask = _api.GetAsync<List<AdminUserVerificationStatusDto>>(endpoint);
+            var permissionsTask = _api.GetAsync<AdminUserManagementPermissionsDto>("AdminUsers/management-permissions");
+
+            await Task.WhenAll(landlordsTask, permissionsTask);
+
+            return View(new AdminLandlordsIndexVm
+            {
+                Search = search,
+                CanDeleteUsers = permissionsTask.Result.CanDeleteUsers,
+                Landlords = landlordsTask.Result
+            });
+        }
+
+        [HttpGet]
         public async Task<IActionResult> LandlordApprovals(string? search = null)
         {
             var endpoint = string.IsNullOrWhiteSpace(search)
@@ -141,7 +161,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RestartValidation(string userId, string? search = null)
+        public async Task<IActionResult> RestartValidation(string userId, string? search = null, string? returnTo = null)
         {
             try
             {
@@ -153,19 +173,23 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = ExtractMessage(ex.Message);
             }
 
-            return RedirectToAction(nameof(Index), new { search });
+            return string.Equals(returnTo, "landlords", StringComparison.OrdinalIgnoreCase)
+                ? RedirectToAction(nameof(Landlords), new { search })
+                : RedirectToAction(nameof(Index), new { search });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteUser(string userId, string? search = null)
+        public async Task<IActionResult> DeleteUser(string userId, string? search = null, string? returnTo = null)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(userId))
                 {
                     TempData["Error"] = "User id is required.";
-                    return RedirectToAction(nameof(Index), new { search });
+                    return string.Equals(returnTo, "landlords", StringComparison.OrdinalIgnoreCase)
+                        ? RedirectToAction(nameof(Landlords), new { search })
+                        : RedirectToAction(nameof(Index), new { search });
                 }
 
                 await _api.DeleteAsync($"AdminUsers/{Uri.EscapeDataString(userId)}");
@@ -176,7 +200,9 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = ExtractMessage(ex.Message);
             }
 
-            return RedirectToAction(nameof(Index), new { search });
+            return string.Equals(returnTo, "landlords", StringComparison.OrdinalIgnoreCase)
+                ? RedirectToAction(nameof(Landlords), new { search })
+                : RedirectToAction(nameof(Index), new { search });
         }
 
         private async Task<IActionResult> ReviewKyc(

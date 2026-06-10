@@ -214,7 +214,7 @@
         return;
       }
 
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > 4 * 1024 * 1024) {
         setValidation("Property images must be 2 MB or smaller.");
         imageInput.value = "";
         return;
