@@ -12,6 +12,7 @@ namespace Common.CommunicationModels
         public bool KycApproved { get; set; }
         public bool PlatformTermsAccepted { get; set; }
         public bool StripePayoutSetupComplete { get; set; }
+        public bool StripePayoutSetupRequired { get; set; } = true;
         public bool CanCreate { get; set; }
 
         public string StatusMessage { get; set; } = string.Empty;

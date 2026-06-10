@@ -72,6 +72,12 @@ namespace RentHub.API.Controllers
         private bool IsSmsVerificationEnabled =>
             _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
 
+        private bool IsStripeConnectPlatformEnabled =>
+            _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
+
+        private bool IsStripePayoutSetupRequired =>
+            _configuration.GetValue<bool?>("Stripe:Connect:RequirePayoutSetup") ?? IsStripeConnectPlatformEnabled;
+
         /// <summary>
         /// Registers a new user. All self-registered accounts are landlords and must verify
         /// their email with an OTP before login is allowed.
@@ -2478,6 +2484,8 @@ namespace RentHub.API.Controllers
                     HasStripePayoutAccount = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId),
                     StripePayoutSetupStarted = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) || user.StripePayoutSetupStartedAt.HasValue,
                     StripePayoutSetupComplete = IsStripePayoutSetupComplete(user),
+                    StripeConnectPlatformEnabled = IsStripeConnectPlatformEnabled,
+                    StripePayoutSetupRequired = IsStripePayoutSetupRequired,
                     StripeConnectAccountId = user.StripeConnectAccountId ?? string.Empty,
                     StripePayoutDetailsSubmitted = user.StripePayoutDetailsSubmitted,
                     StripeChargesEnabled = user.StripeChargesEnabled,
@@ -2488,8 +2496,8 @@ namespace RentHub.API.Controllers
                     StripePayoutSetupCompletedAt = user.StripePayoutSetupCompletedAt,
                     StripePayoutStatusUpdatedAt = user.StripePayoutStatusUpdatedAt,
                     NextOnboardingStep = landlordStatus?.NextStep ?? LandlordOnboardingSteps.Complete,
-                    CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user),
-                    SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user),
+                    CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user, IsStripePayoutSetupRequired),
+                    SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user, IsStripePayoutSetupRequired),
                     PropertyCount = properties.Count,
                     ApartmentCount = properties.Sum(p => p.ApartmentCount),
                     HasActiveSubscription = activeSubscription != null,
@@ -3002,7 +3010,8 @@ namespace RentHub.API.Controllers
         private static bool CanStartSubscriptionCheckout(
             IReadOnlyCollection<string> roles,
             LandlordOnboardingStatusDto? landlordStatus,
-            ApplicationUser user)
+            ApplicationUser user,
+            bool requireStripePayoutSetup)
         {
             if (!roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase)))
             {
@@ -3011,13 +3020,14 @@ namespace RentHub.API.Controllers
 
             return landlordStatus?.IsKycApproved == true &&
                    user.PlatformTermsAccepted &&
-                   IsStripePayoutSetupComplete(user);
+                   (!requireStripePayoutSetup || IsStripePayoutSetupComplete(user));
         }
 
         private static string ResolveSubscriptionBlockedReason(
             IReadOnlyCollection<string> roles,
             LandlordOnboardingStatusDto? landlordStatus,
-            ApplicationUser user)
+            ApplicationUser user,
+            bool requireStripePayoutSetup)
         {
             if (!roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase)))
             {
@@ -3051,7 +3061,7 @@ namespace RentHub.API.Controllers
                 return "Sign the platform contract before paying for a subscription.";
             }
 
-            if (!IsStripePayoutSetupComplete(user))
+            if (requireStripePayoutSetup && !IsStripePayoutSetupComplete(user))
             {
                 return "Set up your payout account before paying for a subscription.";
             }

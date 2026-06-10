@@ -304,7 +304,7 @@ namespace RentHub.API.Controllers
                         });
                     }
 
-                    if (!IsStripePayoutSetupComplete(user))
+                    if (IsStripePayoutSetupRequired() && !IsStripePayoutSetupComplete(user))
                     {
                         return StatusCode(StatusCodes.Status403Forbidden, new
                         {
@@ -1669,6 +1669,12 @@ namespace RentHub.API.Controllers
                    user.StripePayoutDetailsSubmitted &&
                    user.StripeChargesEnabled &&
                    user.StripePayoutsEnabled;
+        }
+
+        private bool IsStripePayoutSetupRequired()
+        {
+            var connectEnabled = _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
+            return _configuration.GetValue<bool?>("Stripe:Connect:RequirePayoutSetup") ?? connectEnabled;
         }
 
         private static string HashPayload(string value)

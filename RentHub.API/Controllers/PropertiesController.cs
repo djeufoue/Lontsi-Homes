@@ -20,12 +20,18 @@ namespace RentHub.API.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
+        private readonly IConfiguration _configuration;
 
-        public PropertiesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IStorageService storageService)
+        public PropertiesController(
+            ApplicationDbContext context,
+            UserManager<ApplicationUser> userManager,
+            IStorageService storageService,
+            IConfiguration configuration)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
+            _configuration = configuration;
         }
         /// <summary>
         /// Admin-only full property list endpoint.
@@ -205,7 +211,11 @@ namespace RentHub.API.Controllers
 
                 if (isLandlord)
                 {
-                    var scope = await PropertyHelpers.BuildCreationScopeAsync(_context, userId, user.FullName ?? user.Email ?? "Landlord");
+                    var scope = await PropertyHelpers.BuildCreationScopeAsync(
+                        _context,
+                        userId,
+                        user.FullName ?? user.Email ?? "Landlord",
+                        IsStripePayoutSetupRequired());
                     response.CreationScopes.Add(scope);
                     response.CanCreateProperty = response.CanCreateProperty || scope.CanCreate;
                 }
@@ -224,7 +234,11 @@ namespace RentHub.API.Controllers
 
                     foreach (var landlord in managerLandlords)
                     {
-                        var scope = await PropertyHelpers.BuildCreationScopeAsync(_context, landlord.LandlordId, landlord.LandlordName);
+                        var scope = await PropertyHelpers.BuildCreationScopeAsync(
+                            _context,
+                            landlord.LandlordId,
+                            landlord.LandlordName,
+                            IsStripePayoutSetupRequired());
                         response.CreationScopes.Add(scope);
                         response.CanCreateProperty = response.CanCreateProperty || scope.CanCreate;
                     }
@@ -405,7 +419,11 @@ namespace RentHub.API.Controllers
 
                 if (!isAdmin)
                 {
-                    var creationScope = await PropertyHelpers.BuildCreationScopeAsync(_context, landlordId, landlord.FullName ?? landlord.Email ?? "Landlord");
+                    var creationScope = await PropertyHelpers.BuildCreationScopeAsync(
+                        _context,
+                        landlordId,
+                        landlord.FullName ?? landlord.Email ?? "Landlord",
+                        IsStripePayoutSetupRequired());
                     if (!creationScope.CanCreate)
                         return BadRequest(creationScope.StatusMessage);
                 }
@@ -468,6 +486,12 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private bool IsStripePayoutSetupRequired()
+        {
+            var connectEnabled = _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
+            return _configuration.GetValue<bool?>("Stripe:Connect:RequirePayoutSetup") ?? connectEnabled;
         }
 
         [HttpPut("{id}")]

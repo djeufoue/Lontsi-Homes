@@ -11,7 +11,8 @@ namespace RentHub.API.Helpers
         public static async Task<PropertyCreationScopeDto> BuildCreationScopeAsync(
             ApplicationDbContext context,
             string landlordId,
-            string landlordName)
+            string landlordName,
+            bool requireStripePayoutSetup = true)
         {
             var now = DateTimeOffset.UtcNow;
             var landlord = await context.Users
@@ -43,6 +44,7 @@ namespace RentHub.API.Helpers
                 KycApproved = kycProfile?.Status == LandlordKycStatusEnum.Approved,
                 PlatformTermsAccepted = landlord?.PlatformTermsAccepted == true,
                 StripePayoutSetupComplete = landlord != null && IsStripePayoutSetupComplete(landlord),
+                StripePayoutSetupRequired = requireStripePayoutSetup,
                 CanCreate = false,
                 StatusMessage = "No active subscription found."
             };
@@ -73,7 +75,7 @@ namespace RentHub.API.Helpers
                 return scope;
             }
 
-            if (!scope.StripePayoutSetupComplete)
+            if (requireStripePayoutSetup && !scope.StripePayoutSetupComplete)
             {
                 scope.StatusMessage = "Set up your payout account before creating properties so tenant rent payments can be routed to you later.";
                 return scope;

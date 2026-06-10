@@ -44,6 +44,8 @@ namespace Common.CommunicationModels
         public bool HasStripePayoutAccount { get; set; }
         public bool StripePayoutSetupStarted { get; set; }
         public bool StripePayoutSetupComplete { get; set; }
+        public bool StripeConnectPlatformEnabled { get; set; } = true;
+        public bool StripePayoutSetupRequired { get; set; } = true;
         public string StripeConnectAccountId { get; set; } = string.Empty;
         public bool StripePayoutDetailsSubmitted { get; set; }
         public bool StripeChargesEnabled { get; set; }
