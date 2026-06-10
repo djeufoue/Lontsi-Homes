@@ -3,6 +3,8 @@
     ViewData["Title"] = "Payout Account Setup";
     var statusText = !Model.IsKycApproved
         ? "KYC approval required"
+        : !Model.IsPlatformReady
+        ? "Platform activation pending"
         : !Model.IsCountrySupported
         ? "Unsupported country"
         : Model.SetupComplete
@@ -10,6 +12,16 @@
         : Model.HasAccount
             ? "Needs details"
             : "Not started";
+    var requirementsSummary = FriendlyStripeMessage(Model.RequirementsSummary);
+    var disabledReason = FriendlyStripeMessage(Model.DisabledReason);
+    var hasStripeActionNeeded = !string.IsNullOrWhiteSpace(requirementsSummary) || !string.IsNullOrWhiteSpace(disabledReason);
+    var payoutReadinessText = Model.PayoutsEnabled
+        ? "Enabled"
+        : hasStripeActionNeeded
+            ? "Action needed"
+            : Model.DetailsSubmitted
+                ? "Reviewing"
+                : "Waiting";
 }
 
 <section class="rh-page-header rh-page-header-elevated">
@@ -33,6 +45,13 @@
         {
             <div class="alert alert-warning py-2">
                 KYC status: <strong>@Model.KycStatus</strong>. An administrator must approve your KYC before Stripe payout setup is available.
+            </div>
+        }
+
+        @if (Model.IsKycApproved && !Model.IsPlatformReady)
+        {
+            <div class="alert alert-info py-2">
+                @Model.PlatformReadinessMessage
             </div>
         }
 
@@ -62,18 +81,22 @@
             </div>
             <div class="rh-payout-status-item @(Model.PayoutsEnabled ? "is-complete" : string.Empty)">
                 <span>Payouts</span>
-                <strong>@(Model.PayoutsEnabled ? "Enabled" : "Waiting")</strong>
+                <strong>@payoutReadinessText</strong>
             </div>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(Model.RequirementsSummary))
+        @if (!string.IsNullOrWhiteSpace(requirementsSummary))
         {
-            <div class="alert alert-warning mt-3 mb-0">@Model.RequirementsSummary</div>
+            <div class="alert alert-warning mt-3 mb-0">
+                <strong>Stripe still needs attention:</strong> @requirementsSummary
+            </div>
         }
 
-        @if (!string.IsNullOrWhiteSpace(Model.DisabledReason))
+        @if (!string.IsNullOrWhiteSpace(disabledReason))
         {
-            <div class="alert alert-danger mt-3 mb-0">@Model.DisabledReason</div>
+            <div class="alert alert-danger mt-3 mb-0">
+                <strong>Payouts are waiting:</strong> @disabledReason
+            </div>
         }
     </article>
 
@@ -84,6 +107,11 @@
         {
             <p class="text-muted">Wait for the administrator to approve your submitted KYC before connecting Stripe. You can review your current verification status from the profile checklist.</p>
             <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Index">Open profile checklist</a>
+        }
+        else if (!Model.IsPlatformReady)
+        {
+            <p class="text-muted">Stripe Connect account setup is paused while the platform activation is completed. You can keep testing subscriptions, profiles, and property workflows.</p>
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">Continue testing payments</a>
         }
         else if (!Model.IsCountrySupported)
         {
@@ -109,3 +137,23 @@
         <a class="btn rh-btn-subtle mt-2" asp-controller="Profile" asp-action="Index">Do this later</a>
     </article>
 </section>
+
+@functions {
+    private static string FriendlyStripeMessage(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("requirements.past_due", "Stripe needs overdue verification details before payouts can be enabled", StringComparison.OrdinalIgnoreCase)
+            .Replace("requirements.pending_verification", "Stripe is reviewing the submitted payout account details", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.proof_of_liveness", "complete the Stripe identity/liveness check", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.document", "upload an identity document", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.additional_document", "upload an additional identity document", StringComparison.OrdinalIgnoreCase)
+            .Replace("Missing now:", "Action needed now:", StringComparison.OrdinalIgnoreCase)
+            .Replace("Past due:", "Overdue:", StringComparison.OrdinalIgnoreCase)
+            .Replace("Pending verification:", "Pending review:", StringComparison.OrdinalIgnoreCase);
+    }
+}

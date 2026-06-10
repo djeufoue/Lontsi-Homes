@@ -18,6 +18,7 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool CanCreateProperty { get; set; }
         public bool ShowCreateEntryPoint { get; set; }
         public bool RequiresPayoutSetup { get; set; }
+        public bool PayoutSetupStarted { get; set; }
         public bool RequiresSubscriptionCheckout { get; set; }
         public bool RequiresComplianceAction { get; set; }
         public string PayoutSetupMessage { get; set; } = string.Empty;

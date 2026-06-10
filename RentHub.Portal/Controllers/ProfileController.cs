@@ -57,10 +57,15 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Landlord")]
-        public async Task<IActionResult> PayoutSetup()
+        public async Task<IActionResult> PayoutSetup(bool refresh = false)
         {
             try
             {
+                if (refresh)
+                {
+                    return await RedirectToStripePayoutSetupAsync();
+                }
+
                 var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
                 return View(status);
             }
@@ -81,23 +86,7 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
-                var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
-                if (!status.IsKycApproved)
-                {
-                    TempData["Error"] = "Your KYC must be approved by an administrator before you can set up a Stripe payout account.";
-                    return RedirectToAction(nameof(PayoutSetup));
-                }
-
-                var link = await _api.PostAsync<object, StripePayoutSetupLinkDto>(
-                    "PayoutAccounts/stripe/start",
-                    new { });
-
-                if (!string.IsNullOrWhiteSpace(link.OnboardingUrl))
-                {
-                    return Redirect(link.OnboardingUrl);
-                }
-
-                TempData["Error"] = "Stripe did not return an onboarding link. Please try again.";
+                return await RedirectToStripePayoutSetupAsync();
             }
             catch (Exception ex)
             {
@@ -123,7 +112,7 @@ namespace RentHub.Portal.Controllers
                     return RedirectToAction(nameof(Payments));
                 }
 
-                TempData["Error"] = "Payout account setup was saved, but Stripe still needs a few details before payouts are enabled.";
+                TempData["Info"] = "Payout account setup was saved, but Stripe still needs a few details before payouts are enabled. Use Continue Stripe setup to finish the remaining requirements.";
                 return RedirectToAction(nameof(PayoutSetup));
             }
             catch (Exception ex)
@@ -134,6 +123,36 @@ namespace RentHub.Portal.Controllers
                     "Unable to verify payout setup right now. Please refresh in a moment.");
                 return RedirectToAction(nameof(Payments));
             }
+        }
+
+        private async Task<IActionResult> RedirectToStripePayoutSetupAsync()
+        {
+            var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
+            if (!status.IsKycApproved)
+            {
+                TempData["Error"] = "Your KYC must be approved by an administrator before you can set up a Stripe payout account.";
+                return RedirectToAction(nameof(PayoutSetup));
+            }
+
+            if (!status.IsPlatformReady)
+            {
+                TempData["Error"] = SafeUserMessage(
+                    status.PlatformReadinessMessage,
+                    "Stripe Connect setup is temporarily unavailable. Please continue testing the rest of the platform for now.");
+                return RedirectToAction(nameof(PayoutSetup));
+            }
+
+            var link = await _api.PostAsync<object, StripePayoutSetupLinkDto>(
+                "PayoutAccounts/stripe/start",
+                new { });
+
+            if (!string.IsNullOrWhiteSpace(link.OnboardingUrl))
+            {
+                return Redirect(link.OnboardingUrl);
+            }
+
+            TempData["Error"] = "Stripe did not return an onboarding link. Please try again.";
+            return RedirectToAction(nameof(PayoutSetup));
         }
 
         [HttpGet]

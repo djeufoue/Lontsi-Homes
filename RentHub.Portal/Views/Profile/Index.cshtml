@@ -25,9 +25,13 @@
     var kycAction = Url.Action("LandlordKyc", "Auth", new { email = overview.Email });
     var contractAction = Url.Action("LandlordContract", "Auth", new { email = overview.Email });
     var payoutSetupAction = Url.Action("PayoutSetup", "Profile");
+    var payoutSetupInProgress = overview.StripePayoutSetupStarted || overview.HasStripePayoutAccount;
+    var payoutSetupButtonText = payoutSetupInProgress ? "Continue Stripe setup" : "Set up payout account";
     var payoutSetupStatusText = overview.StripePayoutSetupComplete
         ? "Connected"
-        : overview.HasStripePayoutAccount
+        : !overview.StripeConnectPlatformEnabled
+            ? "Temporarily skipped"
+        : payoutSetupInProgress
             ? "Needs Stripe details"
             : "Not started";
     var contractSignedAtText = overview.PlatformTermsAcceptedAt?.LocalDateTime.ToString("yyyy-MM-dd");
@@ -171,13 +175,13 @@
                 <div class="rh-readiness-marker"></div>
                 <div>
                     <h3>Payout account setup</h3>
-                    <p>Connect Stripe after KYC approval so tenant card rent payments can be routed to you.</p>
+                    <p>@(overview.StripeConnectPlatformEnabled ? "Connect Stripe after KYC approval so tenant card rent payments can be routed to you." : "Stripe Connect setup is paused while platform activation is pending. Continue testing the other workflows.")</p>
                     <small>Status: @payoutSetupStatusText</small>
-                    @if (!overview.StripePayoutSetupComplete)
+                    @if (!overview.StripePayoutSetupComplete && overview.StripeConnectPlatformEnabled)
                     {
                         @if (overview.IsKycApproved)
                         {
-                            <a class="btn btn-sm rh-btn-primary mt-2" href="@payoutSetupAction">Set up payout account</a>
+                            <a class="btn btn-sm rh-btn-primary mt-2" href="@payoutSetupAction">@payoutSetupButtonText</a>
                         }
                         else
                         {
@@ -223,9 +227,9 @@
                 @if (isLandlord)
                 {
                     <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">Open Payment Center</a>
-                    @if (!overview.StripePayoutSetupComplete && overview.IsKycApproved)
+                    @if (!overview.StripePayoutSetupComplete && overview.IsKycApproved && overview.StripeConnectPlatformEnabled)
                     {
-                        <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="PayoutSetup">Set up payout account</a>
+                        <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="PayoutSetup">@payoutSetupButtonText</a>
                     }
                 }
                 @if (isAdmin)

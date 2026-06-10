@@ -3,6 +3,7 @@
 @using RentHub.Portal.Helpers
 @{
     var successMessage = TempData["Success"] as string;
+    var infoMessage = TempData["Info"] as string;
     var errorMessage = TempData["Error"] as string;
     var successDialog = SuccessDialogHelper.GetActive(Context.Session);
 
@@ -279,6 +280,26 @@
         </div>
     }
 
+    @if (!string.IsNullOrWhiteSpace(infoMessage))
+    {
+        <div class="modal fade" id="infoDialogModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rh-success-modal">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title">Action Needed</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body pt-0">
+                        <p class="mb-0">@infoMessage</p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content rh-confirm-modal">
@@ -310,7 +331,7 @@
     }
     <script src="~/js/site.js" asp-append-version="true"></script>
 
-    @if (!string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(errorMessage))
+    @if (!string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(infoMessage) || !string.IsNullOrWhiteSpace(errorMessage))
     {
         <script>
             (() => {
@@ -320,9 +341,11 @@
 
                 const queue = [];
                 const errorEl = document.getElementById("errorDialogModal");
+                const infoEl = document.getElementById("infoDialogModal");
                 const successEl = document.getElementById("successDialogModal");
 
                 if (errorEl) queue.push(errorEl);
+                if (infoEl) queue.push(infoEl);
                 if (successEl) queue.push(successEl);
 
                 if (!queue.length) return;

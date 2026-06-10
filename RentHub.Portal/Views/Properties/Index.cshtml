@@ -5,6 +5,10 @@
     ViewData["Title"] = "Properties";
     var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
     var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
+    var payoutSetupButtonText = Model.PayoutSetupStarted ? "Continue Stripe setup" : "Set up payout account";
+    var payoutSetupHeading = Model.PayoutSetupStarted
+        ? "Continue your payout setup before adding properties"
+        : "Connect your payout account before adding properties";
 }
 
 <div class="rh-properties-page">
@@ -109,10 +113,10 @@
         <section class="rh-compliance-callout">
             <div>
                 <p class="rh-kicker rh-kicker-ghost mb-1">Payout setup required</p>
-                <h2 class="rh-section-title mb-1">Connect your payout account before adding properties</h2>
+                <h2 class="rh-section-title mb-1">@payoutSetupHeading</h2>
                 <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.PayoutSetupMessage) ? Model.PayoutSetupMessage : "Set up Stripe so tenant card rent payments can be routed to you later.")</p>
             </div>
-            <a asp-controller="Profile" asp-action="PayoutSetup" class="btn rh-btn-primary">Set up payout account</a>
+            <a asp-controller="Profile" asp-action="PayoutSetup" class="btn rh-btn-primary">@payoutSetupButtonText</a>
         </section>
     }
 

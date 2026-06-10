@@ -59,6 +59,8 @@
                 <tbody>
                     @foreach (var landlord in Model.Landlords)
                     {
+                        var stripeDisabledReason = FriendlyStripeMessage(landlord.StripePayoutDisabledReason);
+                        var stripeRequirementsSummary = FriendlyStripeMessage(landlord.StripePayoutRequirementsSummary);
                         <tr>
                             <td>
                                 <div class="fw-semibold">@(string.IsNullOrWhiteSpace(landlord.FullName) ? "N/A" : landlord.FullName)</div>
@@ -93,13 +95,13 @@
                                 <span class="rh-chip @StripeChipClass(landlord)">
                                     @StripeStatusLabel(landlord)
                                 </span>
-                                @if (!string.IsNullOrWhiteSpace(landlord.StripePayoutDisabledReason))
+                                @if (!string.IsNullOrWhiteSpace(stripeDisabledReason))
                                 {
-                                    <small class="d-block text-danger">@landlord.StripePayoutDisabledReason</small>
+                                    <small class="d-block text-danger">Payouts waiting: @stripeDisabledReason</small>
                                 }
-                                else if (!string.IsNullOrWhiteSpace(landlord.StripePayoutRequirementsSummary))
+                                else if (!string.IsNullOrWhiteSpace(stripeRequirementsSummary))
                                 {
-                                    <small class="d-block text-muted">@landlord.StripePayoutRequirementsSummary</small>
+                                    <small class="d-block text-muted">@stripeRequirementsSummary</small>
                                 }
                             </td>
                             <td>
@@ -199,6 +201,12 @@
             return "Ready";
         }
 
+        if (!string.IsNullOrWhiteSpace(landlord.StripePayoutDisabledReason) ||
+            !string.IsNullOrWhiteSpace(landlord.StripePayoutRequirementsSummary))
+        {
+            return "Action needed";
+        }
+
         if (landlord.HasStripePayoutAccount)
         {
             return landlord.StripePayoutDetailsSubmitted ? "Waiting" : "Needs details";
@@ -233,6 +241,24 @@
             LandlordKycStatusEnum.Submitted => "rh-chip-warning",
             _ => "rh-chip-info"
         };
+    }
+
+    private static string FriendlyStripeMessage(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("requirements.past_due", "Stripe needs overdue verification details before payouts can be enabled", StringComparison.OrdinalIgnoreCase)
+            .Replace("requirements.pending_verification", "Stripe is reviewing the submitted payout account details", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.proof_of_liveness", "complete the Stripe identity/liveness check", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.document", "upload an identity document", StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.additional_document", "upload an additional identity document", StringComparison.OrdinalIgnoreCase)
+            .Replace("Missing now:", "Action needed now:", StringComparison.OrdinalIgnoreCase)
+            .Replace("Past due:", "Overdue:", StringComparison.OrdinalIgnoreCase)
+            .Replace("Pending verification:", "Pending review:", StringComparison.OrdinalIgnoreCase);
     }
 }
 

@@ -63,14 +63,24 @@
     var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
     var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
     var canPaySubscription = overview.CanStartSubscriptionCheckout;
+    var payoutSetupInProgress = overview.StripePayoutSetupStarted || overview.HasStripePayoutAccount;
+    var payoutSetupButtonText = payoutSetupInProgress ? "Continue Stripe setup" : "Set up payout account";
+    var payoutSetupHeading = payoutSetupInProgress ? "Continue your Stripe payout setup" : "Set up your Stripe payout account";
+    var payoutSetupHint = payoutSetupInProgress
+        ? "Stripe saved your payout account, but still needs a few details before tenant rent payments can be routed to you."
+        : "Required before subscription so tenant rent payments can be routed to you later.";
     var stripePayoutStatusLabel = overview.StripePayoutSetupComplete
         ? "Ready"
-        : overview.HasStripePayoutAccount
+        : !overview.StripeConnectPlatformEnabled
+            ? "Testing bypass"
+        : payoutSetupInProgress
             ? "Incomplete"
             : "Not set up";
     var stripePayoutStatusHint = overview.StripePayoutSetupComplete
         ? "Tenant rent payouts enabled"
-        : overview.HasStripePayoutAccount
+        : !overview.StripeConnectPlatformEnabled
+            ? "Stripe Connect activation pending"
+        : payoutSetupInProgress
             ? "Continue Stripe onboarding"
             : "Required before subscription";
     var mobileMoneyUnavailableMessage = "MTN Mobile Money and Orange Money payments are not available yet. Please use card payment for this release.";
@@ -179,22 +189,33 @@ else
         </article>
     </section>
 
-    @if (!overview.StripePayoutSetupComplete)
+    @if (!overview.StripePayoutSetupComplete && overview.StripePayoutSetupRequired)
     {
         <section class="rh-panel rh-panel-elevated rh-payout-setup-panel mb-3">
             <div>
                 <p class="rh-kicker mb-1">Payout setup</p>
-                <h2 class="rh-section-title mb-1">@(overview.IsKycApproved ? "Set up your Stripe payout account" : "KYC approval required before Stripe setup")</h2>
-                <p class="rh-card-meta mb-0">@(overview.IsKycApproved ? "Required before subscription so tenant rent payments can be routed to you later." : "An administrator must approve your KYC before you can connect a Stripe payout account.")</p>
+                <h2 class="rh-section-title mb-1">@(overview.IsKycApproved ? payoutSetupHeading : "KYC approval required before Stripe setup")</h2>
+                <p class="rh-card-meta mb-0">@(overview.IsKycApproved ? payoutSetupHint : "An administrator must approve your KYC before you can connect a Stripe payout account.")</p>
             </div>
             @if (overview.IsKycApproved)
             {
-                <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="PayoutSetup">Set up payout account</a>
+                <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="PayoutSetup">@payoutSetupButtonText</a>
             }
             else
             {
                 <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Index">Check KYC status</a>
             }
+        </section>
+    }
+    else if (!overview.StripeConnectPlatformEnabled)
+    {
+        <section class="rh-panel rh-panel-elevated rh-payout-setup-panel mb-3">
+            <div>
+                <p class="rh-kicker mb-1">Payout setup</p>
+                <h2 class="rh-section-title mb-1">Stripe Connect activation pending</h2>
+                <p class="rh-card-meta mb-0">Payout account setup is temporarily skipped. Continue testing checkout with fake card information only.</p>
+            </div>
+            <a class="btn rh-btn-primary" href="#subscriptionPlans">Test subscription checkout</a>
         </section>
     }
     else if (!hasCurrentPlan)

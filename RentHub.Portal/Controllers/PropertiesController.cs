@@ -842,7 +842,11 @@ namespace RentHub.Portal.Controllers
             var response = dashboardTask.Result;
             var profile = profileTask.Result;
             var isLandlord = string.Equals(response.UserRole, "Landlord", StringComparison.OrdinalIgnoreCase);
-            var requiresPayoutSetup = isLandlord && !response.CanCreateProperty && profile.IsKycApproved && !profile.StripePayoutSetupComplete;
+            var requiresPayoutSetup = isLandlord &&
+                                      !response.CanCreateProperty &&
+                                      profile.IsKycApproved &&
+                                      profile.StripePayoutSetupRequired &&
+                                      !profile.StripePayoutSetupComplete;
             var requiresComplianceAction = isLandlord && !response.CanCreateProperty && !requiresPayoutSetup && !profile.CanStartSubscriptionCheckout;
             var requiresSubscriptionCheckout = isLandlord && !response.CanCreateProperty && !requiresPayoutSetup && !requiresComplianceAction;
 
@@ -858,9 +862,14 @@ namespace RentHub.Portal.Controllers
                 CanCreateProperty = response.CanCreateProperty,
                 ShowCreateEntryPoint = response.CanCreateProperty || (isLandlord && !requiresComplianceAction),
                 RequiresPayoutSetup = requiresPayoutSetup,
+                PayoutSetupStarted = profile.StripePayoutSetupStarted || profile.HasStripePayoutAccount,
                 RequiresSubscriptionCheckout = requiresSubscriptionCheckout,
                 RequiresComplianceAction = requiresComplianceAction,
-                PayoutSetupMessage = "Set up your payout account before adding properties.",
+                PayoutSetupMessage = profile.StripeConnectPlatformEnabled
+                    ? profile.StripePayoutSetupStarted || profile.HasStripePayoutAccount
+                        ? "Continue Stripe setup before adding properties. Stripe still needs a few details before tenant rent payouts can be enabled."
+                        : "Set up your payout account before adding properties."
+                    : "Stripe Connect setup is temporarily skipped while platform activation is pending.",
                 ComplianceMessage = profile.SubscriptionBlockedReason,
                 NextOnboardingStep = profile.NextOnboardingStep,
                 CreationScopes = response.CreationScopes,
