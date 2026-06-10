@@ -101,7 +101,7 @@ namespace RentHub.Portal.Controllers
                 return RedirectToLocal(returnUrl);
 
             ViewBag.Plans = await GetPlansAsync();
-            return View(new RegisterVm { ReturnUrl = returnUrl });
+            return View(new RegisterVm { ReturnUrl = returnUrl, CountryCode = "+1" });
         }
 
         [HttpPost]
@@ -228,7 +228,10 @@ namespace RentHub.Portal.Controllers
             return View(new LandlordCountryVm
             {
                 Email = email ?? status?.Email ?? string.Empty,
-                CountryCode = status?.CountryCode ?? string.Empty,
+                CountryCode = string.IsNullOrWhiteSpace(status?.CountryCode) ? "+1" : status.CountryCode,
+                CountryIsoCode = string.IsNullOrWhiteSpace(status?.CountryIsoCode)
+                    ? ResolveCountryIsoFromDialingCode(status?.CountryCode)
+                    : status.CountryIsoCode.Trim().ToUpperInvariant(),
                 ReturnUrl = returnUrl,
                 Status = status
             });
@@ -250,7 +253,8 @@ namespace RentHub.Portal.Controllers
                 var req = new UpsertLandlordCountryRequest
                 {
                     Email = vm.Email,
-                    CountryCode = vm.CountryCode
+                    CountryCode = vm.CountryCode,
+                    CountryIsoCode = vm.CountryIsoCode
                 };
 
                 var res = await _api.PostAnonymousAsync<UpsertLandlordCountryRequest, JsonElement>("Account/landlord-registration/country", req);
@@ -295,6 +299,20 @@ namespace RentHub.Portal.Controllers
                 ReturnUrl = returnUrl,
                 Status = status
             });
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> ContinueLandlordPhone(string? email = null, string? returnUrl = null)
+        {
+            var status = await TryGetOnboardingStatusAsync(email);
+            if (status == null)
+            {
+                TempData["AuthError"] = "Unable to load your registration progress. Please sign in again to continue.";
+                return RedirectToAction(nameof(Login), new { returnUrl });
+            }
+
+            return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
         }
 
         [HttpPost]
@@ -1182,6 +1200,32 @@ namespace RentHub.Portal.Controllers
             };
         }
 
+        private static string ResolveCountryIsoFromDialingCode(string? countryCode)
+        {
+            var normalized = NormalizeDialingCode(countryCode);
+            return normalized switch
+            {
+                "+237" => "CM",
+                "+44" => "GB",
+                "+33" => "FR",
+                "+32" => "BE",
+                "+49" => "DE",
+                "+234" => "NG",
+                "+225" => "CI",
+                "+233" => "GH",
+                "+27" => "ZA",
+                "+254" => "KE",
+                "+971" => "AE",
+                _ => "CA"
+            };
+        }
+
+        private static string NormalizeDialingCode(string? countryCode)
+        {
+            var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
+        }
+
         private static LandlordOnboardingStatusDto BuildLandlordStatusFromProfileOverview(ProfileOverviewDto overview)
         {
             return new LandlordOnboardingStatusDto
@@ -1192,9 +1236,12 @@ namespace RentHub.Portal.Controllers
                 LastName = overview.LastName,
                 FullName = overview.FullName,
                 CountryCode = overview.CountryCode,
+                CountryIsoCode = overview.CountryIsoCode,
                 PhoneNumber = overview.PhoneNumber,
                 EmailConfirmed = true,
-                PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(overview.PhoneNumber),
+                PhoneNumberConfirmed = overview.SmsVerificationEnabled
+                    ? !string.IsNullOrWhiteSpace(overview.PhoneNumber)
+                    : true,
                 UsePrimaryPhoneForSubscriptionPayments = overview.UsePrimaryPhoneForSubscriptionPayments,
                 SubscriptionPaymentPhoneNumber = overview.SubscriptionPaymentPhoneNumber,
                 SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel,
@@ -1208,6 +1255,7 @@ namespace RentHub.Portal.Controllers
                 SubscriptionPaymentOtpRequestLimit = overview.SubscriptionPaymentOtpRequestLimit,
                 PayoutOtpRequestLimit = overview.PayoutOtpRequestLimit,
                 WhatsAppOtpRequestLimit = overview.WhatsAppOtpRequestLimit,
+                SmsVerificationEnabled = overview.SmsVerificationEnabled,
                 KycDocumentType = overview.KycDocumentType,
                 KycStatus = overview.KycStatus,
                 IsKycSubmitted = overview.IsKycSubmitted,

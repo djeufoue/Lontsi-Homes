@@ -63,6 +63,11 @@ namespace Common.CommunicationModels
         [Display(Name = "Country")]
         [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
         public string CountryCode { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Country")]
+        [RegularExpression(@"^[A-Za-z]{2}$", ErrorMessage = "Choose a valid country.")]
+        public string CountryIsoCode { get; set; } = string.Empty;
     }
 
     public class UpsertLandlordPhoneRequest
@@ -152,9 +157,8 @@ namespace Common.CommunicationModels
         [Required]
         public string Target { get; set; } = string.Empty;
 
-        [Required]
         [Display(Name = "Phone number")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
 
         [Display(Name = "Mobile Money operator")]
         public PayoutChannelEnum? Channel { get; set; }
@@ -171,10 +175,9 @@ namespace Common.CommunicationModels
         [Required]
         public string Target { get; set; } = string.Empty;
 
-        [Required]
         [Display(Name = "OTP")]
         [StringLength(6, MinimumLength = 4)]
-        public string Otp { get; set; } = string.Empty;
+        public string? Otp { get; set; }
     }
 
     public class LandlordOnboardingStatusDto
@@ -185,6 +188,7 @@ namespace Common.CommunicationModels
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
+        public string? CountryIsoCode { get; set; }
         public string? PhoneNumber { get; set; }
         public bool EmailConfirmed { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
@@ -214,6 +218,7 @@ namespace Common.CommunicationModels
         public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
+        public bool SmsVerificationEnabled { get; set; }
         public string NextStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsComplete { get; set; }
         public DateTimeOffset CreatedAt { get; set; }

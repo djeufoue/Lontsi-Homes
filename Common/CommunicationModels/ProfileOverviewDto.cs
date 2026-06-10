@@ -12,6 +12,7 @@ namespace Common.CommunicationModels
         public string LastName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
+        public string? CountryIsoCode { get; set; }
         public string? PhoneNumber { get; set; }
         public bool UsePrimaryPhoneForSubscriptionPayments { get; set; }
         public string? SubscriptionPaymentPhoneNumber { get; set; }
@@ -26,6 +27,7 @@ namespace Common.CommunicationModels
         public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
+        public bool SmsVerificationEnabled { get; set; }
         public List<string> Roles { get; set; } = new();
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
@@ -39,6 +41,18 @@ namespace Common.CommunicationModels
         public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
         public string? PlatformTermsSignatureName { get; set; }
         public string? PlatformTermsVersion { get; set; }
+        public bool HasStripePayoutAccount { get; set; }
+        public bool StripePayoutSetupStarted { get; set; }
+        public bool StripePayoutSetupComplete { get; set; }
+        public string StripeConnectAccountId { get; set; } = string.Empty;
+        public bool StripePayoutDetailsSubmitted { get; set; }
+        public bool StripeChargesEnabled { get; set; }
+        public bool StripePayoutsEnabled { get; set; }
+        public string StripePayoutRequirementsSummary { get; set; } = string.Empty;
+        public string StripePayoutDisabledReason { get; set; } = string.Empty;
+        public DateTimeOffset? StripePayoutSetupStartedAt { get; set; }
+        public DateTimeOffset? StripePayoutSetupCompletedAt { get; set; }
+        public DateTimeOffset? StripePayoutStatusUpdatedAt { get; set; }
         public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Complete;
         public bool CanStartSubscriptionCheckout { get; set; }
         public string SubscriptionBlockedReason { get; set; } = string.Empty;

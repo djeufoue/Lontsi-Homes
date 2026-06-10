@@ -7,38 +7,41 @@
     ViewData["Title"] = "Register";
     Layout = "_AuthLayout";
     var plans = ViewBag.Plans as IEnumerable<SubscriptionPlanOptionVm> ?? Enumerable.Empty<SubscriptionPlanOptionVm>();
-    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 600m;
+    var selectablePlans = plans.Where(plan => !plan.IsContactSales).ToList();
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 565m;
+    }
     string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.GetCultureInfo("en-US"));
-    var selectedPlan = plans.FirstOrDefault(p => p.Id == Model.PlanId);
+    string FormatXaf(decimal xaf) => xaf.ToString("N0", CultureInfo.InvariantCulture);
+    var selectedPlan = selectablePlans.FirstOrDefault(p => p.Id == Model.PlanId);
     var selectedPlanLabel = selectedPlan == null
         ? "Choose later"
-        : $"{selectedPlan.Name} - {FormatUsd(selectedPlan.Price)} ({selectedPlan.DurationInDays} days)";
+        : $"{selectedPlan.Name} - {FormatUsd(selectedPlan.Price)} (Approx. {FormatXaf(selectedPlan.Price)} XAF)";
+    var progress = new LandlordOnboardingProgressVm
+    {
+        CurrentStep = LandlordOnboardingSteps.Account,
+        CountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode,
+        SmsVerificationTemporarilyUnavailable = !Configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false)
+    };
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 1 of 8</span>
+            <partial name="_LandlordOnboardingKicker" model="progress" />
             <h1>Create your landlord workspace.</h1>
             <p>Start with your identity and password. Your progress is saved after this step, so you can return later and continue from the right screen.</p>
             <ul class="rh-auth-points">
                 <li>Email OTP confirmation</li>
-                <li>Country and main phone verification</li>
-                <li>Cameroon Mobile Money setup only when it applies</li>
+                <li>Country selection before identity verification</li>
+                <li>SMS phone verification will be enabled after Twilio approval</li>
             </ul>
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
-                <span class="active">1</span>
-                <span>2</span>
-                <span>3</span>
-                <span>4</span>
-                <span>5</span>
-                <span>6</span>
-                <span>7</span>
-                <span>8</span>
-            </div>
+            <partial name="_LandlordOnboardingStepper" model="progress" />
 
             <div class="rh-auth-card-header">
                 <h2>Account details</h2>
@@ -96,12 +99,12 @@
                                     <small>Complete registration now and subscribe when you are ready.</small>
                                 </button>
 
-                                @foreach (var plan in plans)
+                                @foreach (var plan in selectablePlans)
                                 {
-                                    var planLabel = $"{plan.Name} - {FormatUsd(plan.Price)} ({plan.DurationInDays} days)";
+                                    var planLabel = $"{plan.Name} - {FormatUsd(plan.Price)} (Approx. {FormatXaf(plan.Price)} XAF)";
                                     <button type="button" class="rh-plan-option @(Model.PlanId == plan.Id ? "is-active" : null)" data-value="@plan.Id" data-label="@planLabel">
                                         <strong>@plan.Name</strong>
-                                        <small>@FormatUsd(plan.Price) for @plan.DurationInDays days</small>
+                                        <small>@FormatUsd(plan.Price) / month - Approx. @FormatXaf(plan.Price) XAF</small>
                                     </button>
                                 }
                             </div>
@@ -109,9 +112,9 @@
                             <div class="rh-native-plan-wrap" aria-hidden="true">
                                 <select asp-for="PlanId" class="rh-native-plan-select" tabindex="-1">
                                     <option value="">Choose later</option>
-                                    @foreach (var plan in plans)
+                                    @foreach (var plan in selectablePlans)
                                     {
-                                        <option value="@plan.Id">@plan.Name - @FormatUsd(plan.Price) (@plan.DurationInDays days)</option>
+                                        <option value="@plan.Id">@plan.Name - @FormatUsd(plan.Price) (Approx. @FormatXaf(plan.Price) XAF)</option>
                                     }
                                 </select>
                             </div>

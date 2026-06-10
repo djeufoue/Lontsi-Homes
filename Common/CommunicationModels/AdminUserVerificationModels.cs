@@ -10,6 +10,7 @@ namespace Common.CommunicationModels
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? CountryCode { get; set; }
+        public string? CountryIsoCode { get; set; }
         public string? PhoneNumber { get; set; }
         public bool EmailConfirmed { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
@@ -35,8 +36,20 @@ namespace Common.CommunicationModels
         public bool PlatformTermsAccepted { get; set; }
         public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
         public string? PlatformTermsSignatureName { get; set; }
+        public bool SmsVerificationEnabled { get; set; }
         public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsOnboardingComplete { get; set; }
+        public string StripeConnectAccountId { get; set; } = string.Empty;
+        public bool HasStripePayoutAccount { get; set; }
+        public bool StripePayoutDetailsSubmitted { get; set; }
+        public bool StripeChargesEnabled { get; set; }
+        public bool StripePayoutsEnabled { get; set; }
+        public bool StripePayoutSetupComplete { get; set; }
+        public string StripePayoutRequirementsSummary { get; set; } = string.Empty;
+        public string StripePayoutDisabledReason { get; set; } = string.Empty;
+        public DateTimeOffset? StripePayoutSetupStartedAt { get; set; }
+        public DateTimeOffset? StripePayoutSetupCompletedAt { get; set; }
+        public DateTimeOffset? StripePayoutStatusUpdatedAt { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public List<string> Roles { get; set; } = new();
     }

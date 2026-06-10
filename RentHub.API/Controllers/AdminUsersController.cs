@@ -54,10 +54,28 @@ namespace RentHub.API.Controllers
             _logger = logger;
         }
 
+        private bool IsSmsVerificationEnabled =>
+            _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
+
         [HttpGet("verification-status")]
         public async Task<IActionResult> GetVerificationStatus([FromQuery] string? search = null)
         {
             var query = _context.Users.AsNoTracking();
+
+            var landlordRoleId = await _context.Roles
+                .Where(r => r.NormalizedName == "LANDLORD")
+                .Select(r => r.Id)
+                .FirstOrDefaultAsync();
+
+            if (!string.IsNullOrWhiteSpace(landlordRoleId))
+            {
+                var landlordUserIds = _context.UserRoles
+                    .Where(ur => ur.RoleId == landlordRoleId)
+                    .Select(ur => ur.UserId);
+
+                query = query.Where(u => !landlordUserIds.Contains(u.Id));
+            }
+
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var term = search.Trim();
@@ -80,6 +98,55 @@ namespace RentHub.API.Controllers
                 var kyc = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase))
                     ? await _context.LandlordKycProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == user.Id)
                     : null;
+                results.Add(BuildStatusDto(user, roles, kyc));
+            }
+
+            return Ok(results);
+        }
+
+        [HttpGet("landlord-verification-status")]
+        public async Task<IActionResult> GetLandlordVerificationStatus([FromQuery] string? search = null)
+        {
+            var landlordRoleId = await _context.Roles
+                .Where(r => r.NormalizedName == "LANDLORD")
+                .Select(r => r.Id)
+                .FirstOrDefaultAsync();
+
+            if (string.IsNullOrWhiteSpace(landlordRoleId))
+            {
+                return Ok(new List<AdminUserVerificationStatusDto>());
+            }
+
+            var landlordUserIds = _context.UserRoles
+                .Where(ur => ur.RoleId == landlordRoleId)
+                .Select(ur => ur.UserId);
+
+            var query = _context.Users
+                .AsNoTracking()
+                .Where(u => landlordUserIds.Contains(u.Id));
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim();
+                query = query.Where(u =>
+                    (u.Email ?? string.Empty).Contains(term) ||
+                    (u.FullName ?? string.Empty).Contains(term) ||
+                    (u.PhoneNumber ?? string.Empty).Contains(term));
+            }
+
+            var users = await query
+                .OrderByDescending(u => u.CreatedAt)
+                .ThenBy(u => u.Email)
+                .Take(100)
+                .ToListAsync();
+
+            var results = new List<AdminUserVerificationStatusDto>();
+            foreach (var user in users)
+            {
+                var roles = (await _userManager.GetRolesAsync(user)).ToList();
+                var kyc = await _context.LandlordKycProfiles
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.UserId == user.Id);
                 results.Add(BuildStatusDto(user, roles, kyc));
             }
 
@@ -438,15 +505,16 @@ namespace RentHub.API.Controllers
             return Ok(new { Message = status == LandlordKycStatusEnum.Approved ? "KYC approved." : "KYC rejected." });
         }
 
-        private static AdminUserVerificationStatusDto BuildStatusDto(ApplicationUser user, List<string> roles, LandlordKycProfile? kycProfile)
+        private AdminUserVerificationStatusDto BuildStatusDto(ApplicationUser user, List<string> roles, LandlordKycProfile? kycProfile)
         {
-            var nextStep = ResolveLandlordOnboardingStep(user, roles, kycProfile);
+            var nextStep = ResolveLandlordOnboardingStep(user, roles, kycProfile, IsSmsVerificationEnabled);
             return new AdminUserVerificationStatusDto
             {
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
                 FullName = user.FullName ?? string.Empty,
                 CountryCode = user.CountryCode,
+                CountryIsoCode = NormalizeCountryIsoCode(user.CountryIsoCode) ?? ResolveCountryIsoFromCountryCode(user.CountryCode),
                 PhoneNumber = user.PhoneNumber,
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumberConfirmed = user.PhoneNumberConfirmed,
@@ -472,6 +540,18 @@ namespace RentHub.API.Controllers
                 PlatformTermsAccepted = user.PlatformTermsAccepted,
                 PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                 PlatformTermsSignatureName = user.PlatformTermsSignatureName,
+                SmsVerificationEnabled = IsSmsVerificationEnabled,
+                StripeConnectAccountId = user.StripeConnectAccountId ?? string.Empty,
+                HasStripePayoutAccount = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId),
+                StripePayoutDetailsSubmitted = user.StripePayoutDetailsSubmitted,
+                StripeChargesEnabled = user.StripeChargesEnabled,
+                StripePayoutsEnabled = user.StripePayoutsEnabled,
+                StripePayoutSetupComplete = IsStripePayoutSetupComplete(user),
+                StripePayoutRequirementsSummary = user.StripePayoutRequirementsSummary ?? string.Empty,
+                StripePayoutDisabledReason = user.StripePayoutDisabledReason ?? string.Empty,
+                StripePayoutSetupStartedAt = user.StripePayoutSetupStartedAt,
+                StripePayoutSetupCompletedAt = user.StripePayoutSetupCompletedAt,
+                StripePayoutStatusUpdatedAt = user.StripePayoutStatusUpdatedAt,
                 CreatedAt = user.CreatedAt,
                 Roles = roles,
                 NextOnboardingStep = nextStep,
@@ -961,7 +1041,8 @@ namespace RentHub.API.Controllers
                 };
             }
 
-            var isCameroonLandlord = IsCameroonCountryCode(status.CountryCode);
+            var isCameroonLandlord = IsCameroonCountry(status.CountryIsoCode, status.CountryCode);
+            var smsVerificationUnavailable = !status.SmsVerificationEnabled;
             var hasSubscriptionPaymentDetails =
                 !string.IsNullOrWhiteSpace(status.SubscriptionPaymentPhoneNumber) &&
                 status.SubscriptionPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney;
@@ -980,11 +1061,17 @@ namespace RentHub.API.Controllers
             {
                 CreateStep(LandlordOnboardingSteps.Account, "Account created", "Name, email, and landlord role are registered.", !string.IsNullOrWhiteSpace(status.Email), status.NextOnboardingStep == LandlordOnboardingSteps.Account, status.Email),
                 CreateStep(LandlordOnboardingSteps.Email, "Email verified", "The landlord confirms the email OTP.", status.EmailConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Email, status.EmailConfirmed ? "Email confirmed." : "Waiting for email OTP."),
-                CreateStep(LandlordOnboardingSteps.Country, "Country selected", "The landlord chooses the country for payment setup rules.", !string.IsNullOrWhiteSpace(status.CountryCode), status.NextOnboardingStep == LandlordOnboardingSteps.Country, string.IsNullOrWhiteSpace(status.CountryCode) ? "Waiting for country selection." : status.CountryCode),
-                CreateStep(LandlordOnboardingSteps.Phone, "Primary phone verified", "The landlord confirms the SMS OTP for the primary phone.", !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed, status.NextOnboardingStep == LandlordOnboardingSteps.Phone, status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")
+                CreateStep(LandlordOnboardingSteps.Country, "Country selected", "The landlord chooses the country for payment setup rules.", !string.IsNullOrWhiteSpace(status.CountryIsoCode) || !string.IsNullOrWhiteSpace(status.CountryCode), status.NextOnboardingStep == LandlordOnboardingSteps.Country, CountryDetails(status)),
+                CreateStep(
+                    LandlordOnboardingSteps.Phone,
+                    smsVerificationUnavailable ? "Primary phone paused" : "Primary phone verified",
+                    smsVerificationUnavailable ? "SMS phone verification is temporarily paused while Twilio approval is pending." : "The landlord confirms the SMS OTP for the primary phone.",
+                    smsVerificationUnavailable || !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed,
+                    status.NextOnboardingStep == LandlordOnboardingSteps.Phone,
+                    smsVerificationUnavailable ? "Temporarily skipped." : status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")
             };
 
-            if (isCameroonLandlord)
+            if (isCameroonLandlord && !smsVerificationUnavailable)
             {
                 steps.Add(CreateStep(LandlordOnboardingSteps.MobilePayments, "Mobile money configured", "Subscription and rent payout numbers are selected with MTN or Orange Money.", hasSubscriptionPaymentDetails && hasPayoutDetails, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePayments, MobileMoneyDetails(status)));
                 steps.Add(CreateStep(LandlordOnboardingSteps.MobilePaymentVerification, "Payment numbers verified", "Every distinct mobile transaction number is validated by OTP.", mobilePaymentVerificationComplete, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePaymentVerification, MobileVerificationDetails(status)));
@@ -1129,6 +1216,23 @@ namespace RentHub.API.Controllers
             };
         }
 
+        private static string CountryDetails(AdminUserVerificationStatusDto status)
+        {
+            if (string.IsNullOrWhiteSpace(status.CountryIsoCode) && string.IsNullOrWhiteSpace(status.CountryCode))
+            {
+                return "Waiting for country selection.";
+            }
+
+            if (string.IsNullOrWhiteSpace(status.CountryIsoCode))
+            {
+                return status.CountryCode ?? "Waiting for country selection.";
+            }
+
+            return string.IsNullOrWhiteSpace(status.CountryCode)
+                ? status.CountryIsoCode
+                : $"{status.CountryIsoCode} ({status.CountryCode})";
+        }
+
         private static string MobileMoneyDetails(AdminUserVerificationStatusDto status)
         {
             var subscription = string.IsNullOrWhiteSpace(status.SubscriptionPaymentPhoneNumber)
@@ -1259,7 +1363,11 @@ namespace RentHub.API.Controllers
                 : (path, contentType ?? string.Empty, originalFileName ?? string.Empty);
         }
 
-        private static string ResolveLandlordOnboardingStep(ApplicationUser user, IReadOnlyCollection<string> roles, LandlordKycProfile? kycProfile)
+        private static string ResolveLandlordOnboardingStep(
+            ApplicationUser user,
+            IReadOnlyCollection<string> roles,
+            LandlordKycProfile? kycProfile,
+            bool smsVerificationEnabled)
         {
             if (roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
             {
@@ -1276,9 +1384,21 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Email;
             }
 
-            if (string.IsNullOrWhiteSpace(user.CountryCode))
+            if (string.IsNullOrWhiteSpace(user.CountryCode) && string.IsNullOrWhiteSpace(user.CountryIsoCode))
             {
                 return LandlordOnboardingSteps.Country;
+            }
+
+            if (!smsVerificationEnabled)
+            {
+                if (kycProfile?.Status is not (LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved))
+                {
+                    return LandlordOnboardingSteps.Kyc;
+                }
+
+                return user.PlatformTermsAccepted
+                    ? LandlordOnboardingSteps.Complete
+                    : LandlordOnboardingSteps.Contract;
             }
 
             if (string.IsNullOrWhiteSpace(user.PhoneNumber) || !user.PhoneNumberConfirmed)
@@ -1286,7 +1406,7 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Phone;
             }
 
-            if (!IsCameroonCountryCode(user.CountryCode))
+            if (!IsCameroonCountry(user.CountryIsoCode, user.CountryCode))
             {
                 if (kycProfile?.Status is not (LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved))
                 {
@@ -1328,6 +1448,47 @@ namespace RentHub.API.Controllers
             }
 
             return LandlordOnboardingSteps.Complete;
+        }
+
+        private static bool IsStripePayoutSetupComplete(ApplicationUser user)
+        {
+            return !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) &&
+                   user.StripePayoutDetailsSubmitted &&
+                   user.StripeChargesEnabled &&
+                   user.StripePayoutsEnabled;
+        }
+
+        private static string? NormalizeCountryIsoCode(string? countryIsoCode)
+        {
+            var trimmed = (countryIsoCode ?? string.Empty).Trim().ToUpperInvariant();
+            return trimmed.Length == 2 && trimmed.All(char.IsLetter) ? trimmed : null;
+        }
+
+        private static string? ResolveCountryIsoFromCountryCode(string? countryCode)
+        {
+            var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+            return digits switch
+            {
+                "1" => "CA",
+                "237" => "CM",
+                "44" => "GB",
+                "33" => "FR",
+                "32" => "BE",
+                "49" => "DE",
+                "234" => "NG",
+                "225" => "CI",
+                "233" => "GH",
+                "27" => "ZA",
+                "254" => "KE",
+                "971" => "AE",
+                _ => null
+            };
+        }
+
+        private static bool IsCameroonCountry(string? countryIsoCode, string? countryCode)
+        {
+            return string.Equals(NormalizeCountryIsoCode(countryIsoCode), "CM", StringComparison.OrdinalIgnoreCase) ||
+                   IsCameroonCountryCode(countryCode);
         }
 
         private static bool IsCameroonCountryCode(string? countryCode)

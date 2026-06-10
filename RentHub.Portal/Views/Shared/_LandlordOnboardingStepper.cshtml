@@ -1,0 +1,24 @@
+@model LandlordOnboardingProgressVm
+
+<div class="rh-auth-stepper @(Model.TotalSteps > 6 ? "rh-auth-stepper-wide" : null)"
+     style="--rh-auth-step-count: @Model.TotalSteps"
+     aria-label="Registration progress"
+     data-onboarding-stepper
+     data-current-step="@Model.CurrentStep">
+    @for (var index = 0; index < Model.TotalSteps; index++)
+    {
+        var stepNumber = index + 1;
+        var cssClass = stepNumber == Model.CurrentStepNumber
+            ? "active"
+            : stepNumber < Model.CurrentStepNumber ? "done" : null;
+
+        if (string.IsNullOrEmpty(cssClass))
+        {
+            <span>@stepNumber</span>
+        }
+        else
+        {
+            <span class="@cssClass">@stepNumber</span>
+        }
+    }
+</div>

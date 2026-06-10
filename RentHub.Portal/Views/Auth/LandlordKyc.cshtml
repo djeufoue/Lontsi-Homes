@@ -13,12 +13,19 @@
     var showFaceLeft = !isPartialResubmission || rejectedFiles.FaceLeft;
     var showDocumentFront = !isPartialResubmission || rejectedFiles.DocumentFront;
     var showDocumentBack = !isPartialResubmission || rejectedFiles.DocumentBack;
+    var progress = new LandlordOnboardingProgressVm
+    {
+        CurrentStep = LandlordOnboardingSteps.Kyc,
+        CountryCode = status?.CountryCode ?? "+1",
+        CountryIsoCode = status?.CountryIsoCode,
+        SmsVerificationTemporarilyUnavailable = status?.SmsVerificationEnabled != true
+    };
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 7 of 8</span>
+            <partial name="_LandlordOnboardingKicker" model="progress" />
             <h1>Verify landlord identity.</h1>
             <p>Upload face photos and an identity document so the platform can reduce fraud before property management tools are unlocked.</p>
             <ul class="rh-auth-points">
@@ -29,16 +36,7 @@
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
-                <span class="done">1</span>
-                <span class="done">2</span>
-                <span class="done">3</span>
-                <span class="done">4</span>
-                <span class="done">5</span>
-                <span class="done">6</span>
-                <span class="active">7</span>
-                <span>8</span>
-            </div>
+            <partial name="_LandlordOnboardingStepper" model="progress" />
 
             <div class="rh-auth-card-header">
                 <h2>KYC submission</h2>

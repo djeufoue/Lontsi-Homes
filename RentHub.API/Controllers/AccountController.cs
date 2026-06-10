@@ -44,6 +44,7 @@ namespace RentHub.API.Controllers
         private readonly IEmailService _emailService;
         private readonly IUserOnboardingService _userOnboardingService;
         private readonly IKycFileStorageService _kycFileStorageService;
+        private readonly IConfiguration _configuration;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -54,6 +55,7 @@ namespace RentHub.API.Controllers
             IEmailService emailService,
             IUserOnboardingService userOnboardingService,
             IKycFileStorageService kycFileStorageService,
+            IConfiguration configuration,
             ILogger<AccountController> logger)
         {
             _userManager = userManager;
@@ -63,8 +65,12 @@ namespace RentHub.API.Controllers
             _emailService = emailService;
             _userOnboardingService = userOnboardingService;
             _kycFileStorageService = kycFileStorageService;
+            _configuration = configuration;
             _logger = logger;
         }
+
+        private bool IsSmsVerificationEnabled =>
+            _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
 
         /// <summary>
         /// Registers a new user. All self-registered accounts are landlords and must verify
@@ -433,7 +439,8 @@ namespace RentHub.API.Controllers
                 }
 
                 var countryCode = NormalizeCountryCode(request.CountryCode);
-                if (string.IsNullOrWhiteSpace(countryCode))
+                var countryIsoCode = NormalizeCountryIsoCode(request.CountryIsoCode) ?? ResolveCountryIsoFromCountryCode(countryCode);
+                if (string.IsNullOrWhiteSpace(countryCode) || string.IsNullOrWhiteSpace(countryIsoCode))
                 {
                     return BadRequest(new
                     {
@@ -445,16 +452,21 @@ namespace RentHub.API.Controllers
                 var countryChanged = !string.Equals(
                     NormalizeCountryCode(user.CountryCode),
                     countryCode,
-                    StringComparison.Ordinal);
+                    StringComparison.Ordinal) ||
+                    !string.Equals(
+                        NormalizeCountryIsoCode(user.CountryIsoCode),
+                        countryIsoCode,
+                        StringComparison.OrdinalIgnoreCase);
 
                 user.CountryCode = countryCode;
+                user.CountryIsoCode = countryIsoCode;
 
                 if (countryChanged)
                 {
                     user.PhoneNumberConfirmed = false;
                     user.PhoneNumber = null;
 
-                    if (!IsCameroonCountryCode(countryCode))
+                    if (!IsCameroonCountry(countryIsoCode, countryCode))
                     {
                         ClearMobileMoneyFields(user);
                     }
@@ -472,12 +484,18 @@ namespace RentHub.API.Controllers
                 }
 
                 var status = await BuildLandlordOnboardingStatusAsync(user);
+                var nextStep = IsSmsVerificationEnabled
+                    ? status.NextStep
+                    : LandlordOnboardingSteps.Phone;
+
                 return Ok(new
                 {
                     Email = user.Email,
-                    NextStep = status.NextStep,
+                    NextStep = nextStep,
                     Status = status,
-                    Message = IsCameroonCountryCode(countryCode)
+                    Message = !IsSmsVerificationEnabled
+                        ? "Country saved. SMS phone verification is not available yet while we wait for Twilio approval."
+                        : IsCameroonCountry(countryIsoCode, countryCode)
                         ? "Country saved. Verify your Cameroon phone number next."
                         : "Country saved. Verify your main phone number next."
                 });
@@ -551,6 +569,7 @@ namespace RentHub.API.Controllers
                 var phoneChanged = !SamePhone(user.PhoneNumber, phone);
 
                 user.CountryCode = countryCode;
+                user.CountryIsoCode ??= ResolveCountryIsoFromCountryCode(countryCode);
                 user.PhoneNumber = phone;
 
                 if (phoneChanged)
@@ -581,6 +600,18 @@ namespace RentHub.API.Controllers
                 if (!updateResult.Succeeded)
                 {
                     return BadRequest(updateResult.Errors);
+                }
+
+                if (!IsSmsVerificationEnabled)
+                {
+                    var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
+                    return Ok(new
+                    {
+                        Email = user.Email,
+                        NextStep = deferredStatus.NextStep,
+                        Status = deferredStatus,
+                        Message = "SMS phone verification is not available yet while we wait for Twilio approval. Continue with identity verification."
+                    });
                 }
 
                 if (!user.PhoneNumberConfirmed)
@@ -623,6 +654,18 @@ namespace RentHub.API.Controllers
                 if (user == null)
                 {
                     return BadRequest("Invalid landlord account.");
+                }
+
+                if (!IsSmsVerificationEnabled)
+                {
+                    var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
+                    return Ok(new
+                    {
+                        Email = user.Email,
+                        NextStep = deferredStatus.NextStep,
+                        Status = deferredStatus,
+                        Message = "SMS phone verification is not available yet while we wait for Twilio approval. Continue with identity verification."
+                    });
                 }
 
                 if (string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -698,6 +741,13 @@ namespace RentHub.API.Controllers
                 if (user == null)
                 {
                     return BadRequest("Invalid landlord account.");
+                }
+
+                if (!IsSmsVerificationEnabled)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue with identity verification."));
                 }
 
                 if (!user.EmailConfirmed || !user.PhoneNumberConfirmed || string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -868,6 +918,13 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
+                if (!IsSmsVerificationEnabled)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue with identity verification."));
+                }
+
                 if (string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) || user.SubscriptionPaymentChannel == null)
                 {
                     return BadRequest("Configure subscription payment details before verifying them.");
@@ -1034,6 +1091,13 @@ namespace RentHub.API.Controllers
                 if (!await _userManager.IsInRoleAsync(user, "Landlord"))
                 {
                     return Forbid();
+                }
+
+                if (!IsSmsVerificationEnabled)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
                 }
 
                 if (!IsCameroonCountryCode(user.CountryCode))
@@ -1214,13 +1278,20 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
+                if (!IsSmsVerificationEnabled)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
+                }
+
                 if (!IsCameroonCountryCode(user.CountryCode))
                 {
                     return BadRequest("Mobile Money verification is only available for Cameroon landlord accounts.");
                 }
 
                 var target = (request.Target ?? string.Empty).Trim().ToLowerInvariant();
-                var otp = request.Otp.Trim();
+                var otp = request.Otp?.Trim() ?? string.Empty;
                 var verifiedAt = DateTimeOffset.UtcNow;
                 string targetLabel;
 
@@ -1413,6 +1484,13 @@ namespace RentHub.API.Controllers
                 if (!await _userManager.IsInRoleAsync(user, "Landlord"))
                 {
                     return Forbid();
+                }
+
+                if (!IsSmsVerificationEnabled)
+                {
+                    return Ok(await BuildMobilePaymentOtpResponseAsync(
+                        user,
+                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
                 }
 
                 if (!IsCameroonCountryCode(user.CountryCode))
@@ -1673,6 +1751,7 @@ namespace RentHub.API.Controllers
 
                 await _context.SaveChangesAsync();
                 await _kycFileStorageService.DeleteFilesAsync(previousFilesToDelete);
+                await SendKycSubmittedAdminEmailAsync(user, profile);
 
                 var status = await BuildLandlordOnboardingStatusAsync(user);
                 return Ok(new
@@ -2328,16 +2407,24 @@ namespace RentHub.API.Controllers
                     : null;
 
                 var plans = await _context.SubscriptionPlans
-                    .OrderBy(p => p.Price)
+                    .OrderBy(p => p.DisplayOrder)
+                    .ThenBy(p => p.Price)
                     .Select(p => new SubscriptionPlanDto
                     {
                         Id = p.Id,
                         Name = p.Name,
                         Price = p.Price,
+                        AnnualPrice = p.AnnualPrice,
                         DurationInDays = p.DurationInDays,
                         Description = p.Description ?? string.Empty,
                         MaxProperties = p.MaxProperties,
-                        MaxApartmentsPerProperty = p.MaxApartmentsPerProperty
+                        MaxApartmentsPerProperty = p.MaxApartmentsPerProperty,
+                        MaxTotalApartments = p.MaxTotalApartments,
+                        AudienceLabel = p.AudienceLabel ?? string.Empty,
+                        FeatureHighlights = p.FeatureHighlights ?? string.Empty,
+                        IsRecommended = p.IsRecommended,
+                        IsContactSales = p.IsContactSales,
+                        DisplayOrder = p.DisplayOrder
                     })
                     .ToListAsync();
 
@@ -2359,6 +2446,7 @@ namespace RentHub.API.Controllers
                     LastName = lastName,
                     FullName = fullName,
                     CountryCode = user.CountryCode,
+                    CountryIsoCode = NormalizeCountryIsoCode(user.CountryIsoCode) ?? ResolveCountryIsoFromCountryCode(user.CountryCode),
                     PhoneNumber = user.PhoneNumber,
                     UsePrimaryPhoneForSubscriptionPayments = user.UsePrimaryPhoneForSubscriptionPayments,
                     SubscriptionPaymentPhoneNumber = user.SubscriptionPaymentPhoneNumber,
@@ -2373,6 +2461,7 @@ namespace RentHub.API.Controllers
                     SubscriptionPaymentOtpRequestLimit = landlordStatus?.SubscriptionPaymentOtpRequestLimit,
                     PayoutOtpRequestLimit = landlordStatus?.PayoutOtpRequestLimit,
                     WhatsAppOtpRequestLimit = landlordStatus?.WhatsAppOtpRequestLimit,
+                    SmsVerificationEnabled = landlordStatus?.SmsVerificationEnabled ?? IsSmsVerificationEnabled,
                     Roles = roles.ToList(),
                     KycDocumentType = landlordStatus?.KycDocumentType,
                     KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
@@ -2386,6 +2475,18 @@ namespace RentHub.API.Controllers
                     PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                     PlatformTermsSignatureName = user.PlatformTermsSignatureName,
                     PlatformTermsVersion = user.PlatformTermsVersion,
+                    HasStripePayoutAccount = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId),
+                    StripePayoutSetupStarted = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) || user.StripePayoutSetupStartedAt.HasValue,
+                    StripePayoutSetupComplete = IsStripePayoutSetupComplete(user),
+                    StripeConnectAccountId = user.StripeConnectAccountId ?? string.Empty,
+                    StripePayoutDetailsSubmitted = user.StripePayoutDetailsSubmitted,
+                    StripeChargesEnabled = user.StripeChargesEnabled,
+                    StripePayoutsEnabled = user.StripePayoutsEnabled,
+                    StripePayoutRequirementsSummary = user.StripePayoutRequirementsSummary ?? string.Empty,
+                    StripePayoutDisabledReason = user.StripePayoutDisabledReason ?? string.Empty,
+                    StripePayoutSetupStartedAt = user.StripePayoutSetupStartedAt,
+                    StripePayoutSetupCompletedAt = user.StripePayoutSetupCompletedAt,
+                    StripePayoutStatusUpdatedAt = user.StripePayoutStatusUpdatedAt,
                     NextOnboardingStep = landlordStatus?.NextStep ?? LandlordOnboardingSteps.Complete,
                     CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user),
                     SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user),
@@ -2554,6 +2655,7 @@ namespace RentHub.API.Controllers
                 LastName = lastName,
                 FullName = user.FullName ?? string.Empty,
                 CountryCode = user.CountryCode,
+                CountryIsoCode = NormalizeCountryIsoCode(user.CountryIsoCode) ?? ResolveCountryIsoFromCountryCode(user.CountryCode),
                 PhoneNumber = user.PhoneNumber,
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumberConfirmed = user.PhoneNumberConfirmed,
@@ -2579,6 +2681,7 @@ namespace RentHub.API.Controllers
                 PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                 PlatformTermsSignatureName = user.PlatformTermsSignatureName,
                 PlatformTermsVersion = user.PlatformTermsVersion,
+                SmsVerificationEnabled = IsSmsVerificationEnabled,
                 CreatedAt = user.CreatedAt,
                 Roles = roles
             };
@@ -2789,12 +2892,27 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Country;
             }
 
+            if (!status.SmsVerificationEnabled)
+            {
+                if (!status.IsKycSubmitted)
+                {
+                    return LandlordOnboardingSteps.Kyc;
+                }
+
+                if (!status.PlatformTermsAccepted)
+                {
+                    return LandlordOnboardingSteps.Contract;
+                }
+
+                return LandlordOnboardingSteps.Complete;
+            }
+
             if (string.IsNullOrWhiteSpace(status.PhoneNumber) || !status.PhoneNumberConfirmed)
             {
                 return LandlordOnboardingSteps.Phone;
             }
 
-            if (!IsCameroonCountryCode(status.CountryCode))
+            if (!IsCameroonCountry(status.CountryIsoCode, status.CountryCode))
             {
                 if (!status.IsKycSubmitted)
                 {
@@ -2847,6 +2965,7 @@ namespace RentHub.API.Controllers
             {
                 Email = status.Email,
                 CountryCode = status.CountryCode,
+                CountryIsoCode = status.CountryIsoCode,
                 PhoneNumber = status.PhoneNumber,
                 EmailConfirmed = status.EmailConfirmed,
                 PhoneNumberConfirmed = status.PhoneNumberConfirmed,
@@ -2873,6 +2992,7 @@ namespace RentHub.API.Controllers
                 SubscriptionPaymentOtpRequestLimit = status.SubscriptionPaymentOtpRequestLimit,
                 PayoutOtpRequestLimit = status.PayoutOtpRequestLimit,
                 WhatsAppOtpRequestLimit = status.WhatsAppOtpRequestLimit,
+                SmsVerificationEnabled = status.SmsVerificationEnabled,
                 NextStep = status.NextStep,
                 IsComplete = status.IsComplete,
                 CreatedAt = status.CreatedAt
@@ -2890,7 +3010,8 @@ namespace RentHub.API.Controllers
             }
 
             return landlordStatus?.IsKycApproved == true &&
-                   user.PlatformTermsAccepted;
+                   user.PlatformTermsAccepted &&
+                   IsStripePayoutSetupComplete(user);
         }
 
         private static string ResolveSubscriptionBlockedReason(
@@ -2930,7 +3051,111 @@ namespace RentHub.API.Controllers
                 return "Sign the platform contract before paying for a subscription.";
             }
 
+            if (!IsStripePayoutSetupComplete(user))
+            {
+                return "Set up your payout account before paying for a subscription.";
+            }
+
             return string.Empty;
+        }
+
+        private async Task SendKycSubmittedAdminEmailAsync(ApplicationUser user, LandlordKycProfile profile)
+        {
+            var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                AddRecipient(_configuration["Notifications:KycAdminEmail"]);
+                AddRecipient(_configuration["AdminNotifications:KycEmail"]);
+                AddRecipient(_configuration["AdminSeed:Email"]);
+
+                var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+                foreach (var adminUser in adminUsers)
+                {
+                    AddRecipient(adminUser.Email);
+                }
+
+                if (recipients.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "KYC submitted for user {UserId}, but no admin email recipient is configured.",
+                        user.Id);
+                    return;
+                }
+
+                var reviewUrl = BuildPortalUrl($"/AdminUsers/Overview?userId={Uri.EscapeDataString(user.Id)}");
+                var approvalsUrl = BuildPortalUrl($"/AdminUsers/LandlordApprovals?search={Uri.EscapeDataString(user.Email ?? user.Id)}");
+                var subject = $"KYC approval needed for {DisplayNameOrEmail(user)}";
+                var lines = new[]
+                {
+                    "A landlord has submitted KYC documents and needs admin approval.",
+                    string.Empty,
+                    $"Name: {DisplayNameOrEmail(user)}",
+                    $"Email: {user.Email ?? "Not provided"}",
+                    $"Document type: {profile.DocumentType}",
+                    $"Submitted at: {profile.SubmittedAt:yyyy-MM-dd HH:mm} UTC",
+                    string.Empty,
+                    "Open the direct approval page:",
+                    reviewUrl,
+                    string.Empty,
+                    "Approvals queue:",
+                    approvalsUrl,
+                    string.Empty,
+                    "Lontsi Homes"
+                };
+
+                var body = string.Join(Environment.NewLine, lines);
+                foreach (var recipient in recipients)
+                {
+                    await _emailService.SendEmailAsync(recipient, subject, body);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "KYC admin notification failed for user {UserId}.", user.Id);
+            }
+
+            void AddRecipient(string? email)
+            {
+                var value = (email ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    recipients.Add(value);
+                }
+            }
+        }
+
+        private string BuildPortalUrl(string pathAndQuery)
+        {
+            var configuredBaseUrl =
+                _configuration["Portal:BaseUrl"] ??
+                _configuration["Portal:Domain"] ??
+                _configuration["PORTAL_DOMAIN"] ??
+                "https://lontsihomes.com";
+
+            var baseUrl = configuredBaseUrl.Trim().TrimEnd('/');
+            if (!baseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !baseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                baseUrl = $"https://{baseUrl}";
+            }
+
+            return $"{baseUrl}/{pathAndQuery.TrimStart('/')}";
+        }
+
+        private static string DisplayNameOrEmail(ApplicationUser user)
+        {
+            return !string.IsNullOrWhiteSpace(user.FullName)
+                ? user.FullName.Trim()
+                : user.Email ?? user.Id;
+        }
+
+        private static bool IsStripePayoutSetupComplete(ApplicationUser user)
+        {
+            return !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) &&
+                   user.StripePayoutDetailsSubmitted &&
+                   user.StripeChargesEnabled &&
+                   user.StripePayoutsEnabled;
         }
 
         private static LandlordKycSummaryDto BuildKycSummary(LandlordKycProfile? profile, string? mediaBaseUrl = null)
@@ -3112,6 +3337,38 @@ namespace RentHub.API.Controllers
         {
             var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
             return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
+        }
+
+        private static string? NormalizeCountryIsoCode(string? countryIsoCode)
+        {
+            var trimmed = (countryIsoCode ?? string.Empty).Trim().ToUpperInvariant();
+            return trimmed.Length == 2 && trimmed.All(char.IsLetter) ? trimmed : null;
+        }
+
+        private static string? ResolveCountryIsoFromCountryCode(string? countryCode)
+        {
+            return NormalizeCountryCode(countryCode) switch
+            {
+                "+1" => "CA",
+                "+237" => "CM",
+                "+44" => "GB",
+                "+33" => "FR",
+                "+32" => "BE",
+                "+49" => "DE",
+                "+234" => "NG",
+                "+225" => "CI",
+                "+233" => "GH",
+                "+27" => "ZA",
+                "+254" => "KE",
+                "+971" => "AE",
+                _ => null
+            };
+        }
+
+        private static bool IsCameroonCountry(string? countryIsoCode, string? countryCode)
+        {
+            return string.Equals(NormalizeCountryIsoCode(countryIsoCode), "CM", StringComparison.OrdinalIgnoreCase) ||
+                   IsCameroonCountryCode(countryCode);
         }
 
         private static bool IsCameroonCountryCode(string? countryCode)

@@ -11,38 +11,59 @@
         : phoneOtpCooldownSeconds > 0
             ? $"Send again in {phoneOtpCooldownSeconds}s"
             : "Save phone and send OTP";
+    var smsVerificationUnavailable = Model.Status?.SmsVerificationEnabled != true;
+    if (smsVerificationUnavailable)
+    {
+        phoneOtpButtonDisabled = true;
+        phoneOtpButtonText = "SMS verification unavailable";
+    }
     var selectedCountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode;
+    var selectedCountryIsoCode = string.IsNullOrWhiteSpace(Model.Status?.CountryIsoCode) ? "CA" : Model.Status.CountryIsoCode.Trim().ToUpperInvariant();
     var isCameroon = string.Equals(selectedCountryCode?.Trim(), "+237", StringComparison.Ordinal);
+    var progress = new LandlordOnboardingProgressVm
+    {
+        CurrentStep = LandlordOnboardingSteps.Phone,
+        CountryCode = selectedCountryCode,
+        CountryIsoCode = Model.Status?.CountryIsoCode,
+        SmsVerificationTemporarilyUnavailable = Model.Status?.SmsVerificationEnabled != true
+    };
+    var countries = new[]
+    {
+        new { Iso = "CA", Code = "+1", Label = "Canada (+1)" },
+        new { Iso = "US", Code = "+1", Label = "United States (+1)" },
+        new { Iso = "CM", Code = "+237", Label = "Cameroon (+237)" },
+        new { Iso = "GB", Code = "+44", Label = "United Kingdom (+44)" },
+        new { Iso = "FR", Code = "+33", Label = "France (+33)" },
+        new { Iso = "BE", Code = "+32", Label = "Belgium (+32)" },
+        new { Iso = "DE", Code = "+49", Label = "Germany (+49)" },
+        new { Iso = "NG", Code = "+234", Label = "Nigeria (+234)" },
+        new { Iso = "CI", Code = "+225", Label = "Cote d'Ivoire (+225)" },
+        new { Iso = "GH", Code = "+233", Label = "Ghana (+233)" },
+        new { Iso = "ZA", Code = "+27", Label = "South Africa (+27)" },
+        new { Iso = "KE", Code = "+254", Label = "Kenya (+254)" },
+        new { Iso = "AE", Code = "+971", Label = "United Arab Emirates (+971)" }
+    };
 }
 
 <div class="rh-auth-wrap">
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
-            <span class="rh-auth-kicker">Step 4 of 8</span>
-            <h1>Confirm your main phone.</h1>
-            <p>This number identifies you in support logs and confirms that you can receive account security messages.</p>
+            <partial name="_LandlordOnboardingKicker" model="progress" />
+            <h1>@(smsVerificationUnavailable ? "Phone SMS verification is waiting on Twilio." : "Confirm your main phone.")</h1>
+            <p>@(smsVerificationUnavailable ? "Phone number verification by SMS is not available yet. Choose your country and continue with the remaining registration steps." : "This number identifies you in support logs and confirms that you can receive account security messages.")</p>
             <ul class="rh-auth-points">
-                <li>Save your phone number first</li>
-                <li>Then enter the SMS OTP</li>
-                <li>@(isCameroon ? "Cameroon accounts can reuse this number for Mobile Money later" : "Card subscriptions are used for this country")</li>
+                <li>@(smsVerificationUnavailable ? "Twilio platform approval is still pending" : "Save your phone number first")</li>
+                <li>@(smsVerificationUnavailable ? "Phone and OTP fields are visible but locked" : "Then enter the SMS OTP")</li>
+                <li>@(smsVerificationUnavailable ? "Country selection remains available" : isCameroon ? "Cameroon accounts can reuse this number for Mobile Money later" : "Card subscriptions are used for this country")</li>
             </ul>
         </aside>
 
         <section class="rh-auth-card">
-            <div class="rh-auth-stepper rh-auth-stepper-wide" aria-label="Registration progress">
-                <span class="done">1</span>
-                <span class="done">2</span>
-                <span class="done">3</span>
-                <span class="active">4</span>
-                <span>5</span>
-                <span>6</span>
-                <span>7</span>
-                <span>8</span>
-            </div>
+            <partial name="_LandlordOnboardingStepper" model="progress" />
 
             <div class="rh-auth-card-header">
                 <h2>Phone verification</h2>
-                <p>Confirm the phone number that belongs to you.</p>
+                <p>@(smsVerificationUnavailable ? "SMS verification is paused until Twilio approves the platform number." : "Confirm the phone number that belongs to you.")</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -55,12 +76,38 @@
                 <div class="alert alert-danger py-2">@authError</div>
             }
 
+            @if (smsVerificationUnavailable)
+            {
+                <div class="alert alert-warning py-2">
+                    We are waiting for Twilio platform approval before enabling SMS phone verification. Please keep your country selected and continue with the next registration steps.
+                </div>
+
+                <form asp-action="LandlordCountry" method="post" class="rh-auth-form mb-3">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="ReturnUrl" type="hidden" />
+                    <input asp-for="Email" type="hidden" />
+                    <input name="CountryCode" type="hidden" value="@selectedCountryCode" data-country-code-output />
+                    <div class="mb-3">
+                        <label class="form-label rh-auth-label" for="CountryIsoCode">Country</label>
+                        <select id="CountryIsoCode" name="CountryIsoCode" class="form-select rh-auth-input" autocomplete="country" data-country-selector>
+                            <option value="">Choose a country</option>
+                            @foreach (var country in countries)
+                            {
+                                <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, selectedCountryIsoCode, StringComparison.OrdinalIgnoreCase))">@country.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <button type="submit" class="btn rh-btn-subtle w-100">Save country</button>
+                </form>
+            }
+
             <form asp-action="SaveLandlordPhone" method="post" class="rh-auth-form mb-3">
                 @Html.AntiForgeryToken()
                 <input asp-for="ReturnUrl" type="hidden" />
                 <input asp-for="Email" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
 
+                <fieldset disabled="@smsVerificationUnavailable">
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label asp-for="CountryCode" class="form-label rh-auth-label"></label>
@@ -81,7 +128,9 @@
                         data-default-label="Save phone and send OTP"
                         data-countdown-seconds="@phoneOtpCooldownSeconds"
                         data-daily-limit-reached="@phoneOtpDailyLimitReached.ToString().ToLowerInvariant()"
+                        data-sms-unavailable="@smsVerificationUnavailable.ToString().ToLowerInvariant()"
                         disabled="@phoneOtpButtonDisabled">@phoneOtpButtonText</button>
+                </fieldset>
                 @if (phoneOtpDailyLimitReached)
                 {
                     <div class="text-danger small mt-2">
@@ -103,6 +152,7 @@
                 <input asp-for="CountryCode" type="hidden" />
                 <input asp-for="PhoneNumber" type="hidden" />
 
+                <fieldset disabled="@smsVerificationUnavailable">
                 <div class="mb-3">
                     <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
                     <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" inputmode="numeric" placeholder="Code from SMS" required data-required-when-visible="true" />
@@ -110,7 +160,18 @@
                 </div>
 
                 <button type="submit" class="btn rh-btn-primary w-100">Verify phone</button>
+                </fieldset>
             </form>
+
+            @if (smsVerificationUnavailable)
+            {
+                <a asp-action="ContinueLandlordPhone"
+                   asp-route-email="@Model.Email"
+                   asp-route-returnUrl="@Model.ReturnUrl"
+                   class="btn rh-btn-primary w-100 mt-3">
+                    Continue with the next steps
+                </a>
+            }
         </section>
     </div>
 </div>
@@ -126,9 +187,17 @@
 
             const defaultLabel = button.dataset.defaultLabel || "Save phone and send OTP";
             const dailyLimitReached = button.dataset.dailyLimitReached === "true";
+            const smsUnavailable = button.dataset.smsUnavailable === "true";
             let remainingSeconds = Number.parseInt(button.dataset.countdownSeconds || "0", 10);
 
             const render = () => {
+                if (smsUnavailable) {
+                    button.dataset.externalDisabled = "true";
+                    button.disabled = true;
+                    button.textContent = "SMS verification unavailable";
+                    return false;
+                }
+
                 if (dailyLimitReached) {
                     button.dataset.externalDisabled = "true";
                     button.disabled = true;
@@ -166,6 +235,18 @@
                     button.textContent = "Sending OTP...";
                 }
             });
+
+            const countrySelect = document.querySelector("[data-country-selector]");
+            const countryCodeOutput = document.querySelector("[data-country-code-output]");
+            if (countrySelect && countryCodeOutput) {
+                const syncCountryCode = () => {
+                    const selectedOption = countrySelect.options[countrySelect.selectedIndex];
+                    countryCodeOutput.value = selectedOption?.dataset?.countryCode || "";
+                };
+
+                countrySelect.addEventListener("change", syncCountryCode);
+                syncCountryCode();
+            }
         })();
     </script>
 }
