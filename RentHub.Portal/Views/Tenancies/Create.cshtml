@@ -7,7 +7,11 @@
     var draft = Model.Draft;
     var step = Model.Step;
     var periods = draft.RentPeriods ?? new List<Common.CommunicationModels.RentPeriodSeedDto>();
+    var orderedPeriods = periods.OrderBy(period => period.PeriodStart).ToList();
     var today = DateTimeOffset.UtcNow.Date;
+    var prepaidEligiblePeriods = orderedPeriods
+        .Where(period => period.DueDate.Date > today)
+        .ToList();
     var scheduleErrors = periods.Any()
         ? RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, draft.StartDate, draft.EndDate, draft.EndBehavior)
         : new List<string> { "Rent schedule has not been generated yet." };
@@ -17,10 +21,18 @@
         && draft.MonthlyRent > 0
         && draft.MaxMembers >= 1
         && draft.RentDueDay is >= 1 and <= 31
+        && draft.HasSelectedImportMode
+        && draft.ImportMode.HasValue
         && !string.IsNullOrWhiteSpace(draft.MainTenant.Email);
-    var periodStarts = string.Join("|", periods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
-    var periodEnds = string.Join("|", periods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
-    var oldestOpenPeriod = periods
+    var periodStarts = string.Join("|", orderedPeriods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
+    var periodEnds = string.Join("|", orderedPeriods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
+    var prepaidPeriodStarts = string.Join("|", prepaidEligiblePeriods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
+    var prepaidPeriodEnds = string.Join("|", prepaidEligiblePeriods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
+    var minPeriodDate = orderedPeriods.Any() ? orderedPeriods.First().PeriodStart.ToString("yyyy-MM-dd") : string.Empty;
+    var maxPeriodDate = orderedPeriods.Any() ? orderedPeriods.Last().PeriodEnd.ToString("yyyy-MM-dd") : string.Empty;
+    var minPrepaidDate = prepaidEligiblePeriods.Any() ? prepaidEligiblePeriods.First().PeriodStart.ToString("yyyy-MM-dd") : string.Empty;
+    var maxPrepaidDate = prepaidEligiblePeriods.Any() ? prepaidEligiblePeriods.Last().PeriodEnd.ToString("yyyy-MM-dd") : string.Empty;
+    var oldestOpenPeriod = orderedPeriods
         .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
         .OrderBy(period => period.PeriodStart)
         .FirstOrDefault();
@@ -219,29 +231,29 @@
                 </div>
             </div>
 
-            <form asp-action="SaveImport" method="post" class="row g-3" data-import-form data-period-starts="@periodStarts" data-period-ends="@periodEnds">
+            <form asp-action="SaveImport" method="post" class="row g-3" data-import-form data-period-starts="@periodStarts" data-period-ends="@periodEnds" data-prepaid-starts="@prepaidPeriodStarts" data-prepaid-ends="@prepaidPeriodEnds">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
                 <div class="col-12">
                     <div class="rh-guided-option-grid">
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) data-import-mode />
                             <span>All generated periods are unpaid</span>
                             <small>Use this when nothing was paid before entering the system.</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)" @(draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub ? "checked" : null) data-import-mode />
                             <span>All past periods were paid before RentHub</span>
                             <small>Past months are recorded as already paid outside the platform.</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) data-import-mode />
                             <span>Some periods were already paid</span>
                             <small>Choose one continuous unpaid range; earlier periods become paid before RentHub.</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) data-import-mode />
                             <span>Tenant paid in advance</span>
                             <small>Mark future periods as paid in advance.</small>
                         </label>
@@ -254,11 +266,11 @@
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Unpaid from</label>
-                                <input class="form-control rh-input" type="date" name="UnpaidFrom" value="@DateValue(draft.UnpaidFrom)" data-unpaid-from />
+                                <input class="form-control rh-input" type="date" name="UnpaidFrom" value="@DateValue(draft.UnpaidFrom)" min="@minPeriodDate" max="@maxPeriodDate" data-unpaid-from />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Unpaid to</label>
-                                <input class="form-control rh-input" type="date" name="UnpaidTo" value="@DateValue(draft.UnpaidTo)" data-unpaid-to />
+                                <input class="form-control rh-input" type="date" name="UnpaidTo" value="@DateValue(draft.UnpaidTo)" min="@minPeriodDate" max="@maxPeriodDate" data-unpaid-to />
                             </div>
                         </div>
                     </div>
@@ -270,11 +282,11 @@
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Paid in advance from</label>
-                                <input class="form-control rh-input" type="date" name="PaidInAdvanceFrom" value="@DateValue(draft.PaidInAdvanceFrom)" data-prepaid-from />
+                                <input class="form-control rh-input" type="date" name="PaidInAdvanceFrom" value="@DateValue(draft.PaidInAdvanceFrom)" min="@minPrepaidDate" max="@maxPrepaidDate" data-prepaid-from />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Paid in advance to</label>
-                                <input class="form-control rh-input" type="date" name="PaidInAdvanceTo" value="@DateValue(draft.PaidInAdvanceTo)" data-prepaid-to />
+                                <input class="form-control rh-input" type="date" name="PaidInAdvanceTo" value="@DateValue(draft.PaidInAdvanceTo)" min="@minPrepaidDate" max="@maxPrepaidDate" data-prepaid-to />
                             </div>
                         </div>
                     </div>
@@ -533,6 +545,8 @@
                 const prepaidTo = importForm.querySelector("[data-prepaid-to]");
                 const starts = (importForm.dataset.periodStarts || "").split("|").filter(Boolean);
                 const ends = (importForm.dataset.periodEnds || "").split("|").filter(Boolean);
+                const prepaidStarts = (importForm.dataset.prepaidStarts || "").split("|").filter(Boolean);
+                const prepaidEnds = (importForm.dataset.prepaidEnds || "").split("|").filter(Boolean);
                 const selectedMode = selectedValue(importModeInputs);
 
                 let valid = !!selectedMode && starts.length > 0 && ends.length > 0;
@@ -543,7 +557,7 @@
 
                 const hasAnyPrepaidDate = !!prepaidFrom?.value || !!prepaidTo?.value;
                 if (selectedMode === prepaidValue || hasAnyPrepaidDate) {
-                    valid = valid && rangeLooksValid(prepaidFrom?.value, prepaidTo?.value, starts, ends);
+                    valid = valid && rangeLooksValid(prepaidFrom?.value, prepaidTo?.value, prepaidStarts, prepaidEnds);
                 }
 
                 setButtonState(submitButton, valid && importForm.checkValidity());

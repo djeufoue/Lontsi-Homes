@@ -17,7 +17,8 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public int MaxMembers { get; set; } = 1;
         public int RentDueDay { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public RentPaymentImportModeEnum ImportMode { get; set; } = RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid;
+        public RentPaymentImportModeEnum? ImportMode { get; set; }
+        public bool HasSelectedImportMode { get; set; }
         public DateTimeOffset? UnpaidFrom { get; set; }
         public DateTimeOffset? UnpaidTo { get; set; }
         public DateTimeOffset? PaidInAdvanceFrom { get; set; }
@@ -66,7 +67,7 @@ namespace RentHub.Portal.ViewModels.Tenancies
     public class TenancyImportStepVm
     {
         public int ApartmentId { get; set; }
-        public RentPaymentImportModeEnum ImportMode { get; set; } = RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid;
+        public RentPaymentImportModeEnum? ImportMode { get; set; }
 
         [DataType(DataType.Date)]
         public DateTimeOffset? UnpaidFrom { get; set; }

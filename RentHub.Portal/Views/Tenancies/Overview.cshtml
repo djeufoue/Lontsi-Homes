@@ -190,7 +190,7 @@
                                             }
                                             else if (tenancy.CanWrite && period.IsPayable)
                                             {
-                                                <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="Mark rent as paid?" data-confirm-message="Use this only when the tenant paid outside the platform, for example by cash. Stripe will not be used." data-confirm-proceed="Mark paid">
+                                                <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="Mark this rent period as paid by cash?" data-confirm-message="This will mark the oldest unlocked rent period as paid outside Stripe, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method." data-confirm-proceed="Mark paid cash" data-confirm-style="primary">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                                                     <input type="hidden" name="rentPeriodId" value="@period.Id" />
@@ -245,13 +245,20 @@
                     <div class="rh-member-stack">
                         @foreach (var member in members)
                         {
-                            <article class="rh-member-card rh-card-spotlight">
+                            <article class="rh-member-card rh-card-spotlight rh-member-card-clickable">
+                                <a class="rh-member-card-link"
+                                   asp-action="MemberProfile"
+                                   asp-route-tenancyId="@tenancy.Id"
+                                   asp-route-memberId="@member.Id"
+                                   aria-label="Open profile for @member.FullName"></a>
                                 <div class="rh-member-card-copy">
                                     <strong>@member.FullName</strong>
                                     <small>@member.Role • @(string.IsNullOrWhiteSpace(member.Email) ? "No email saved" : member.Email)</small>
+                                    <small>@(member.EmailConfirmed ? "Email confirmed" : "Email activation pending")</small>
                                 </div>
                                 <div class="rh-member-card-actions">
                                     <span class="rh-chip @(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@member.Role</span>
+                                    <span class="rh-chip @(member.EmailConfirmed ? "rh-chip-primary" : "rh-chip-warning")">@(member.EmailConfirmed ? "Active" : "Pending")</span>
                                     @if (!string.IsNullOrWhiteSpace(member.CountryCode))
                                     {
                                         <span class="rh-chip rh-chip-info">@member.CountryCode</span>
@@ -259,7 +266,7 @@
                                     @if (tenancy.CanWrite)
                                     {
                                         <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editTenancyMemberModal-@member.Id">Edit</button>
-                                        <form method="post" asp-action="RemoveMember" data-confirm-modal="true" data-confirm-title="Remove tenancy member?" data-confirm-message="This member will be removed from the tenancy." data-confirm-proceed="Remove member">
+                                        <form method="post" asp-action="RemoveMember" data-confirm-modal="true" data-confirm-title="Remove this tenancy member?" data-confirm-message="This will remove the member from this tenancy and revoke their access to this tenancy workspace. Existing rent periods, payments, and generated receipts will stay in the system." data-confirm-proceed="Remove member" data-confirm-style="danger">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                                             <input type="hidden" name="memberId" value="@member.Id" />

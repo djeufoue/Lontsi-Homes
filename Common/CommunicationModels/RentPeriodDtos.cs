@@ -66,6 +66,40 @@ namespace Common.CommunicationModels
         public PaymentMethodEnum Method { get; set; } = PaymentMethodEnum.Card;
     }
 
+    public class RentCheckoutSessionDto
+    {
+        public int PaymentId { get; set; }
+        public int TenancyId { get; set; }
+        public decimal RentAmount { get; set; }
+        public string RentCurrency { get; set; } = "XAF";
+        public decimal ChargeAmount { get; set; }
+        public string ChargeCurrency { get; set; } = "USD";
+        public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Card;
+        public string PaymentReference { get; set; } = string.Empty;
+        public string ProviderReference { get; set; } = string.Empty;
+        public string ClientSecret { get; set; } = string.Empty;
+        public string PublishableKey { get; set; } = string.Empty;
+        public string ReturnUrl { get; set; } = string.Empty;
+        public string CheckoutUrl { get; set; } = string.Empty;
+        public string Provider { get; set; } = "Stripe";
+        public string PropertyName { get; set; } = string.Empty;
+        public string ApartmentName { get; set; } = string.Empty;
+        public string PeriodLabel { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+    }
+
+    public class RentCheckoutStatusDto
+    {
+        public int PaymentId { get; set; }
+        public int TenancyId { get; set; }
+        public string PaymentReference { get; set; } = string.Empty;
+        public string ProviderReference { get; set; } = string.Empty;
+        public string PaymentStatus { get; set; } = string.Empty;
+        public bool PaymentCompleted { get; set; }
+        public string ReceiptNumber { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+
     public class TenantPaymentHistoryDto
     {
         public int PaymentId { get; set; }
@@ -95,6 +129,9 @@ namespace Common.CommunicationModels
         public string LandlordEmail { get; set; } = string.Empty;
         public decimal OutstandingBalance { get; set; }
         public DateTimeOffset? NextDueDate { get; set; }
+        public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Card;
+        public bool CanPayRent { get; set; }
+        public string PaymentUnavailableReason { get; set; } = string.Empty;
         public List<RentPeriodDto> RentPeriods { get; set; } = new();
         public List<TenantPaymentHistoryDto> PaymentHistory { get; set; } = new();
         public List<DocumentDto> Documents { get; set; } = new();

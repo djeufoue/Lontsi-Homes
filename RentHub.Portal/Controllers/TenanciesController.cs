@@ -67,6 +67,47 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> MemberProfile(int tenancyId, int memberId)
+        {
+            try
+            {
+                var overview = await BuildOverviewVmAsync(tenancyId, null);
+                var member = overview.Members.FirstOrDefault(item => item.Id == memberId);
+                if (member == null)
+                {
+                    TempData["Error"] = "Tenancy member was not found.";
+                    return RedirectToAction(nameof(Overview), new { id = tenancyId });
+                }
+
+                var rentPeriods = overview.RentPeriods
+                    .OrderBy(period => period.PeriodStart)
+                    .ToList();
+                var paidPeriods = rentPeriods.Count(period => RentPeriodScheduleHelper.IsPaidStatus(period.Status));
+                var progressPercent = rentPeriods.Count == 0
+                    ? 0
+                    : (int)Math.Round(paidPeriods * 100m / rentPeriods.Count);
+
+                return View(new TenancyMemberProfileVm
+                {
+                    Tenancy = overview.Tenancy,
+                    Member = member,
+                    RentPeriods = rentPeriods,
+                    OutstandingBalance = rentPeriods
+                        .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+                        .Sum(period => period.Amount - period.PaidAmount),
+                    PaidPeriods = paidPeriods,
+                    TotalPeriods = rentPeriods.Count,
+                    ProgressPercent = progressPercent,
+                    NextPayablePeriod = rentPeriods.FirstOrDefault(period => period.IsPayable)
+                });
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Overview), new { id = tenancyId }));
+            }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Create(int apartmentId, int step = 1)
         {
             try
@@ -162,6 +203,7 @@ namespace RentHub.Portal.Controllers
                 var draft = await LoadOrCreateDraftAsync(vm.ApartmentId);
 
                 draft.ImportMode = vm.ImportMode;
+                draft.HasSelectedImportMode = vm.ImportMode.HasValue;
                 draft.UnpaidFrom = vm.UnpaidFrom;
                 draft.UnpaidTo = vm.UnpaidTo;
                 draft.PaidInAdvanceFrom = vm.PaidInAdvanceFrom;
@@ -504,6 +546,11 @@ namespace RentHub.Portal.Controllers
             var existing = LoadDraft(apartmentId);
             if (existing != null)
             {
+                if (!existing.HasSelectedImportMode)
+                {
+                    existing.ImportMode = null;
+                }
+
                 RegenerateRentPeriods(existing);
                 return existing;
             }
@@ -521,8 +568,7 @@ namespace RentHub.Portal.Controllers
                 MonthlyRent = apartment.Price > 0 ? apartment.Price : 1,
                 MaxMembers = 1,
                 RentDueDay = 1,
-                EndBehavior = TenancyEndBehaviorEnum.NoEndDate,
-                ImportMode = RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid
+                EndBehavior = TenancyEndBehaviorEnum.NoEndDate
             };
 
             RegenerateRentPeriods(draft);
@@ -582,14 +628,17 @@ namespace RentHub.Portal.Controllers
                 draft.RentDueDay,
                 DateTimeOffset.UtcNow);
 
-            RentPeriodScheduleHelper.ApplyImportMode(
-                draft.RentPeriods,
-                draft.ImportMode,
-                DateTimeOffset.UtcNow,
-                draft.UnpaidFrom,
-                draft.UnpaidTo,
-                draft.PaidInAdvanceFrom,
-                draft.PaidInAdvanceTo);
+            if (draft.ImportMode.HasValue)
+            {
+                RentPeriodScheduleHelper.ApplyImportMode(
+                    draft.RentPeriods,
+                    draft.ImportMode.Value,
+                    DateTimeOffset.UtcNow,
+                    draft.UnpaidFrom,
+                    draft.UnpaidTo,
+                    draft.PaidInAdvanceFrom,
+                    draft.PaidInAdvanceTo);
+            }
         }
 
         private List<string> ValidateImport(TenancyCreateDraft draft)
@@ -611,6 +660,12 @@ namespace RentHub.Portal.Controllers
 
             if (errors.Any())
             {
+                return errors;
+            }
+
+            if (!draft.HasSelectedImportMode || !draft.ImportMode.HasValue)
+            {
+                errors.Add("Please choose how existing rent periods should be treated.");
                 return errors;
             }
 
@@ -645,6 +700,18 @@ namespace RentHub.Portal.Controllers
                         draft.PaidInAdvanceFrom.Value,
                         draft.PaidInAdvanceTo.Value,
                         "Paid in advance"));
+
+                    var nowUtc = DateTimeOffset.UtcNow;
+                    var prepaidPeriods = draft.RentPeriods
+                        .Where(period =>
+                            period.PeriodStart.Date >= draft.PaidInAdvanceFrom.Value.Date &&
+                            period.PeriodEnd.Date <= draft.PaidInAdvanceTo.Value.Date)
+                        .ToList();
+
+                    if (prepaidPeriods.Any(period => period.DueDate.Date <= nowUtc.Date))
+                    {
+                        errors.Add("Paid in advance can only include rent periods whose due date is still in the future.");
+                    }
                 }
             }
 

@@ -8,7 +8,7 @@ namespace Common.Helpers
 {
     public static class RentPeriodScheduleHelper
     {
-        public const int DefaultPreviewMonths = 12;
+        public const int DefaultPreviewMonths = 1;
 
         public static List<RentPeriodSeedDto> GeneratePeriods(
             DateTimeOffset startDate,
@@ -119,7 +119,8 @@ namespace Common.Helpers
 
                 foreach (var period in periods.Where(period =>
                              period.PeriodStart.Date >= paidInAdvanceFrom.Value.Date &&
-                             period.PeriodEnd.Date <= paidInAdvanceTo.Value.Date))
+                             period.PeriodEnd.Date <= paidInAdvanceTo.Value.Date &&
+                             period.DueDate.Date > nowUtc.Date))
                 {
                     MarkPaid(period, RentPeriodStatusEnum.PaidInAdvance, paidInAdvanceFrom.Value);
                 }
@@ -308,6 +309,14 @@ namespace Common.Helpers
             var previewEnd = startDate.AddMonths(previewMonths).AddDays(-1);
             var operationalEnd = nowUtc.AddMonths(previewMonths).AddDays(-1);
             var selectedEnd = previewEnd > operationalEnd ? previewEnd : operationalEnd;
+
+            if (endBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth &&
+                endDate.HasValue &&
+                endDate.Value.Date > selectedEnd.Date)
+            {
+                selectedEnd = endDate.Value;
+            }
+
             return LastDayOfMonth(selectedEnd);
         }
 

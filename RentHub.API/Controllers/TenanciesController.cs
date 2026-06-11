@@ -657,6 +657,10 @@ namespace RentHub.API.Controllers
                     FullName = memberUser.FullName ?? string.Empty,
                     Email = memberUser.Email ?? string.Empty,
                     CountryCode = memberUser.CountryCode ?? string.Empty,
+                    PhoneNumber = memberUser.PhoneNumber ?? string.Empty,
+                    WhatsAppPhoneNumber = memberUser.WhatsAppPhoneNumber ?? string.Empty,
+                    EmailConfirmed = memberUser.EmailConfirmed,
+                    WhatsAppPhoneVerified = memberUser.IsWhatsAppPhoneVerified,
                     CreatedAt = member.CreatedAt
                 });
             }
@@ -835,6 +839,10 @@ namespace RentHub.API.Controllers
                         FullName = m.Member != null ? (m.Member.FullName ?? m.Member.Email ?? string.Empty) : string.Empty,
                         Email = m.Member?.Email ?? string.Empty,
                         CountryCode = m.Member?.CountryCode ?? string.Empty,
+                        PhoneNumber = m.Member?.PhoneNumber ?? string.Empty,
+                        WhatsAppPhoneNumber = m.Member?.WhatsAppPhoneNumber ?? string.Empty,
+                        EmailConfirmed = m.Member?.EmailConfirmed ?? false,
+                        WhatsAppPhoneVerified = m.Member?.IsWhatsAppPhoneVerified ?? false,
                         CreatedAt = m.CreatedAt
                     })
                     .ToList();
@@ -935,6 +943,10 @@ namespace RentHub.API.Controllers
                             .OrderBy(period => period.PeriodStart)
                             .Select(period => (DateTimeOffset?)period.DueDate)
                             .FirstOrDefault();
+                        var paymentAvailability = ResolveTenantRentPaymentAvailability(
+                            tenancy.Apartment?.Property?.Landlord,
+                            tenancy.Apartment?.Property?.CountryIsoCode,
+                            tenancy.Apartment?.Property?.CountryCode);
 
                         return new TenantDashboardTenancyDto
                         {
@@ -961,6 +973,9 @@ namespace RentHub.API.Controllers
                             LandlordEmail = tenancy.Apartment?.Property?.Landlord?.Email ?? string.Empty,
                             OutstandingBalance = outstanding,
                             NextDueDate = nextDue,
+                            PaymentMethod = paymentAvailability.Method,
+                            CanPayRent = paymentAvailability.CanPay,
+                            PaymentUnavailableReason = paymentAvailability.Message,
                             RentPeriods = periodDtos,
                             PaymentHistory = MapPaymentHistory(payments.Where(payment => payment.TenancyId == tenancy.Id), periods),
                             Documents = documentDtos.Where(document => document.TenancyId == tenancy.Id).ToList()
@@ -1054,6 +1069,111 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        internal static TenantRentPaymentAvailability ResolveTenantRentPaymentAvailability(
+            ApplicationUser? landlord,
+            string? propertyCountryIsoCode = null,
+            string? propertyCountryCode = null)
+        {
+            if (landlord == null)
+            {
+                return TenantRentPaymentAvailability.Unavailable(
+                    PaymentMethodEnum.Card,
+                    "Rent payment is not available because the landlord profile could not be found.");
+            }
+
+            if (!IsCameroonPropertyOrProfile(landlord, propertyCountryIsoCode, propertyCountryCode))
+            {
+                return IsStripePayoutReady(landlord)
+                    ? TenantRentPaymentAvailability.Available(PaymentMethodEnum.Card, "Card payment is available.")
+                    : TenantRentPaymentAvailability.Unavailable(
+                        PaymentMethodEnum.Card,
+                        "Card payment mode is not available because the landlord has not completed Stripe payout setup.");
+            }
+
+            if (landlord.PayoutChannel == PayoutChannelEnum.MtnMoney &&
+                landlord.IsPayoutPhoneVerified &&
+                !string.IsNullOrWhiteSpace(landlord.PayoutPhoneNumber))
+            {
+                return TenantRentPaymentAvailability.Available(PaymentMethodEnum.Momo, "MTN Mobile Money payment is available.");
+            }
+
+            if (landlord.PayoutChannel == PayoutChannelEnum.OrangeMoney &&
+                landlord.IsPayoutPhoneVerified &&
+                !string.IsNullOrWhiteSpace(landlord.PayoutPhoneNumber))
+            {
+                return TenantRentPaymentAvailability.Available(PaymentMethodEnum.OrangeMoney, "Orange Money payment is available.");
+            }
+
+            return IsStripePayoutReady(landlord)
+                ? TenantRentPaymentAvailability.Available(PaymentMethodEnum.Card, "Card payment is available.")
+                : TenantRentPaymentAvailability.Unavailable(
+                    PaymentMethodEnum.Card,
+                    "Rent payment is not available because the landlord has not configured a verified payout method.");
+        }
+
+        internal sealed class TenantRentPaymentAvailability
+        {
+            public PaymentMethodEnum Method { get; init; } = PaymentMethodEnum.Card;
+            public bool CanPay { get; init; }
+            public string Message { get; init; } = string.Empty;
+
+            public static TenantRentPaymentAvailability Available(PaymentMethodEnum method, string message)
+            {
+                return new TenantRentPaymentAvailability
+                {
+                    Method = method,
+                    CanPay = true,
+                    Message = message
+                };
+            }
+
+            public static TenantRentPaymentAvailability Unavailable(PaymentMethodEnum method, string message)
+            {
+                return new TenantRentPaymentAvailability
+                {
+                    Method = method,
+                    CanPay = false,
+                    Message = message
+                };
+            }
+        }
+
+        internal static bool IsStripePayoutReady(ApplicationUser landlord)
+        {
+            return !string.IsNullOrWhiteSpace(landlord.StripeConnectAccountId) &&
+                   landlord.StripePayoutDetailsSubmitted &&
+                   landlord.StripeChargesEnabled &&
+                   landlord.StripePayoutsEnabled;
+        }
+
+        internal static bool IsCameroonProfile(ApplicationUser landlord)
+        {
+            if (!string.IsNullOrWhiteSpace(landlord.CountryIsoCode))
+            {
+                return string.Equals(landlord.CountryIsoCode.Trim(), "CM", StringComparison.OrdinalIgnoreCase);
+            }
+
+            return string.Equals(landlord.CountryCode?.Trim(), "+237", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool IsCameroonPropertyOrProfile(
+            ApplicationUser landlord,
+            string? propertyCountryIsoCode,
+            string? propertyCountryCode)
+        {
+            if (!string.IsNullOrWhiteSpace(propertyCountryIsoCode) || !string.IsNullOrWhiteSpace(propertyCountryCode))
+            {
+                if (!string.IsNullOrWhiteSpace(propertyCountryIsoCode))
+                {
+                    return string.Equals(propertyCountryIsoCode.Trim(), "CM", StringComparison.OrdinalIgnoreCase);
+                }
+
+                return string.Equals(propertyCountryCode?.Trim(), "+237", StringComparison.OrdinalIgnoreCase);
+            }
+
+            return IsCameroonProfile(landlord);
         }
 
         private static List<string> ValidateRentPeriodSeeds(

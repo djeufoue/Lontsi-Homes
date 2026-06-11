@@ -95,6 +95,10 @@ namespace RentHub.API.Controllers
                     FullName = memberUser.FullName ?? string.Empty,
                     Email = memberUser.Email ?? string.Empty,
                     CountryCode = memberUser.CountryCode ?? string.Empty,
+                    PhoneNumber = memberUser.PhoneNumber ?? string.Empty,
+                    WhatsAppPhoneNumber = memberUser.WhatsAppPhoneNumber ?? string.Empty,
+                    EmailConfirmed = memberUser.EmailConfirmed,
+                    WhatsAppPhoneVerified = memberUser.IsWhatsAppPhoneVerified,
                     CreatedAt = member.CreatedAt
                 };
 
@@ -133,6 +137,10 @@ namespace RentHub.API.Controllers
                         FullName = m.Member?.FullName ?? string.Empty,
                         Email = m.Member?.Email ?? string.Empty,
                         CountryCode = m.Member?.CountryCode ?? string.Empty,
+                        PhoneNumber = m.Member?.PhoneNumber ?? string.Empty,
+                        WhatsAppPhoneNumber = m.Member?.WhatsAppPhoneNumber ?? string.Empty,
+                        EmailConfirmed = m.Member?.EmailConfirmed ?? false,
+                        WhatsAppPhoneVerified = m.Member?.IsWhatsAppPhoneVerified ?? false,
                         CreatedAt = m.CreatedAt
                     })
                     .ToList();

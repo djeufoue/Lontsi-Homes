@@ -18,6 +18,10 @@ namespace Common.CommunicationModels
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string CountryCode { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string WhatsAppPhoneNumber { get; set; } = string.Empty;
+        public bool EmailConfirmed { get; set; }
+        public bool WhatsAppPhoneVerified { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; }
     }
