@@ -22,8 +22,10 @@ namespace RentHub.API.Data
             EnsureApartmentMemberRoleColumn(context);
             EnsureTenancyTenantColumnRemoved(context);
             EnsureTenancyApartmentShadowColumnRemoved(context);
+            EnsureTenancyLifecycleSchema(context);
             EnsureUserVerificationColumns(context);
             EnsureSubscriptionCheckoutColumns(context);
+            EnsureRentPaymentReceiptColumns(context);
             EnsureConversationTables(context);
             EnsureSystemTransferAccountsTable(context);
             EnsureOtpSendLogsTable(context);
@@ -696,6 +698,91 @@ END
             ");
         }
 
+        private static void EnsureTenancyLifecycleSchema(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('Tenancies', 'RentDueDay') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies]
+    ADD [RentDueDay] int NOT NULL
+        CONSTRAINT [DF_Tenancies_RentDueDay] DEFAULT(1) WITH VALUES;
+END
+
+IF COL_LENGTH('Tenancies', 'EndBehavior') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies]
+    ADD [EndBehavior] int NOT NULL
+        CONSTRAINT [DF_Tenancies_EndBehavior] DEFAULT(3) WITH VALUES;
+END
+
+IF COL_LENGTH('Tenancies', 'TerminatedAt') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies] ADD [TerminatedAt] datetimeoffset NULL;
+END
+
+IF COL_LENGTH('Tenancies', 'TerminationReason') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies] ADD [TerminationReason] int NULL;
+END
+
+IF COL_LENGTH('Tenancies', 'TerminationNotes') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies] ADD [TerminationNotes] nvarchar(512) NULL;
+END
+
+IF COL_LENGTH('Tenancies', 'TerminatedBy') IS NULL
+BEGIN
+    ALTER TABLE [Tenancies] ADD [TerminatedBy] nvarchar(max) NULL;
+END
+
+IF OBJECT_ID(N'[RentPeriods]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [RentPeriods](
+        [Id] int NOT NULL IDENTITY,
+        [TenancyId] int NOT NULL,
+        [PeriodStart] datetimeoffset NOT NULL,
+        [PeriodEnd] datetimeoffset NOT NULL,
+        [DueDate] datetimeoffset NOT NULL,
+        [Amount] decimal(14,2) NOT NULL,
+        [PaidAmount] decimal(14,2) NOT NULL CONSTRAINT [DF_RentPeriods_PaidAmount] DEFAULT(0),
+        [PaidDate] datetimeoffset NULL,
+        [PaymentId] int NULL,
+        [PaymentReference] nvarchar(128) NOT NULL CONSTRAINT [DF_RentPeriods_PaymentReference] DEFAULT(N''),
+        [Status] int NOT NULL CONSTRAINT [DF_RentPeriods_Status] DEFAULT(0),
+        [IsDeleted] bit NOT NULL CONSTRAINT [DF_RentPeriods_IsDeleted] DEFAULT(0),
+        [CreatedBy] nvarchar(max) NULL,
+        [CreatedAt] datetimeoffset NOT NULL CONSTRAINT [DF_RentPeriods_CreatedAt] DEFAULT(SYSDATETIMEOFFSET()),
+        [UpdatedBy] nvarchar(max) NULL,
+        [UpdatedAt] datetimeoffset NULL,
+        [DeletedBy] nvarchar(max) NULL,
+        [DeletedAt] datetimeoffset NULL,
+        CONSTRAINT [PK_RentPeriods] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_RentPeriods_Tenancies_TenancyId] FOREIGN KEY ([TenancyId]) REFERENCES [Tenancies]([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_RentPeriods_Payments_PaymentId] FOREIGN KEY ([PaymentId]) REFERENCES [Payments]([Id])
+    );
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_RentPeriods_TenancyId_PeriodStart' AND [object_id] = OBJECT_ID(N'[RentPeriods]'))
+BEGIN
+    CREATE UNIQUE INDEX [IX_RentPeriods_TenancyId_PeriodStart]
+    ON [RentPeriods]([TenancyId], [PeriodStart])
+    WHERE [IsDeleted] = 0;
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_RentPeriods_TenancyId_Status_DueDate' AND [object_id] = OBJECT_ID(N'[RentPeriods]'))
+BEGIN
+    CREATE INDEX [IX_RentPeriods_TenancyId_Status_DueDate]
+    ON [RentPeriods]([TenancyId], [Status], [DueDate]);
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_RentPeriods_PaymentId' AND [object_id] = OBJECT_ID(N'[RentPeriods]'))
+BEGIN
+    CREATE INDEX [IX_RentPeriods_PaymentId]
+    ON [RentPeriods]([PaymentId]);
+END
+");
+        }
+
         private static void EnsureUserVerificationColumns(ApplicationDbContext context)
         {
             context.Database.ExecuteSqlRaw(@"
@@ -800,6 +887,47 @@ END
                 WHERE [PhoneNumber] IS NULL
                   AND [PayoutPhoneNumber] IS NOT NULL;
             ");
+        }
+
+        private static void EnsureRentPaymentReceiptColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('Payments', 'ProviderReceiptUrl') IS NULL
+BEGIN
+    ALTER TABLE [Payments] ADD [ProviderReceiptUrl] nvarchar(2048) NULL;
+END
+
+IF COL_LENGTH('Payments', 'SystemReceiptNumber') IS NULL
+BEGIN
+    ALTER TABLE [Payments] ADD [SystemReceiptNumber] nvarchar(64) NULL;
+END
+
+IF COL_LENGTH('Payments', 'ReceiptVerificationCode') IS NULL
+BEGIN
+    ALTER TABLE [Payments] ADD [ReceiptVerificationCode] nvarchar(64) NULL;
+END
+
+IF COL_LENGTH('Payments', 'ReceiptIssuedAt') IS NULL
+BEGIN
+    ALTER TABLE [Payments] ADD [ReceiptIssuedAt] datetimeoffset NULL;
+END
+");
+
+            context.Database.ExecuteSqlRaw(@"
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_Payments_SystemReceiptNumber' AND [object_id] = OBJECT_ID(N'[Payments]'))
+BEGIN
+    CREATE UNIQUE INDEX [IX_Payments_SystemReceiptNumber]
+    ON [Payments]([SystemReceiptNumber])
+    WHERE [SystemReceiptNumber] IS NOT NULL AND [SystemReceiptNumber] <> N'' AND [IsDeleted] = 0;
+END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_Payments_ReceiptVerificationCode' AND [object_id] = OBJECT_ID(N'[Payments]'))
+BEGIN
+    CREATE UNIQUE INDEX [IX_Payments_ReceiptVerificationCode]
+    ON [Payments]([ReceiptVerificationCode])
+    WHERE [ReceiptVerificationCode] IS NOT NULL AND [ReceiptVerificationCode] <> N'' AND [IsDeleted] = 0;
+END
+");
         }
 
         private static void EnsureSubscriptionCheckoutColumns(ApplicationDbContext context)
