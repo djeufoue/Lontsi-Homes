@@ -9,6 +9,22 @@
     var payoutSetupHeading = Model.PayoutSetupStarted
         ? "Continue your payout setup before adding properties"
         : "Connect your payout account before adding properties";
+    var countries = new[]
+    {
+        new { Iso = "CA", Code = "+1", Label = "Canada (+1)" },
+        new { Iso = "US", Code = "+1", Label = "United States (+1)" },
+        new { Iso = "CM", Code = "+237", Label = "Cameroon (+237)" },
+        new { Iso = "GB", Code = "+44", Label = "United Kingdom (+44)" },
+        new { Iso = "FR", Code = "+33", Label = "France (+33)" },
+        new { Iso = "BE", Code = "+32", Label = "Belgium (+32)" },
+        new { Iso = "DE", Code = "+49", Label = "Germany (+49)" },
+        new { Iso = "NG", Code = "+234", Label = "Nigeria (+234)" },
+        new { Iso = "CI", Code = "+225", Label = "Cote d'Ivoire (+225)" },
+        new { Iso = "GH", Code = "+233", Label = "Ghana (+233)" },
+        new { Iso = "ZA", Code = "+27", Label = "South Africa (+27)" },
+        new { Iso = "KE", Code = "+254", Label = "Kenya (+254)" },
+        new { Iso = "AE", Code = "+971", Label = "United Arab Emirates (+971)" }
+    };
 }
 
 <div class="rh-properties-page">
@@ -57,7 +73,7 @@
         <form method="get" asp-action="Index" class="rh-properties-filter-grid">
             <div class="rh-properties-filter-field rh-properties-filter-field-wide">
                 <label class="form-label mb-1">Search</label>
-                <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="Name, address, landlord, or city" />
+                <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="Name, address, city, or country" />
             </div>
 
             <div class="rh-properties-filter-field">
@@ -217,6 +233,20 @@
                             <div class="col-md-6">
                                 <label class="form-label">City</label>
                                 <input class="form-control rh-input" name="City" required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Country</label>
+                                <input type="hidden" name="CountryCode" value="@Model.DefaultPropertyCountryCode" data-country-code-output />
+                                <div class="rh-select-wrap">
+                                    <select class="form-select rh-input rh-select" name="CountryIsoCode" autocomplete="country" required data-country-selector>
+                                        <option value="">Choose a country</option>
+                                        @foreach (var country in countries)
+                                        {
+                                            <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, Model.DefaultPropertyCountryIsoCode, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Label</option>
+                                        }
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="col-12">

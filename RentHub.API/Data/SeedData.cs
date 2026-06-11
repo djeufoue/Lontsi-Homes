@@ -26,6 +26,7 @@ namespace RentHub.API.Data
             EnsureUserVerificationColumns(context);
             EnsureSubscriptionCheckoutColumns(context);
             EnsureRentPaymentReceiptColumns(context);
+            EnsurePropertyCountryColumns(context);
             EnsureConversationTables(context);
             EnsureSystemTransferAccountsTable(context);
             EnsureOtpSendLogsTable(context);
@@ -926,6 +927,21 @@ BEGIN
     CREATE UNIQUE INDEX [IX_Payments_ReceiptVerificationCode]
     ON [Payments]([ReceiptVerificationCode])
     WHERE [ReceiptVerificationCode] IS NOT NULL AND [ReceiptVerificationCode] <> N'' AND [IsDeleted] = 0;
+END
+");
+        }
+
+        private static void EnsurePropertyCountryColumns(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('Properties', 'CountryIsoCode') IS NULL
+BEGIN
+    ALTER TABLE [Properties] ADD [CountryIsoCode] nvarchar(2) NULL;
+END
+
+IF COL_LENGTH('Properties', 'CountryCode') IS NULL
+BEGIN
+    ALTER TABLE [Properties] ADD [CountryCode] nvarchar(8) NULL;
 END
 ");
         }

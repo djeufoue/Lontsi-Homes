@@ -27,6 +27,8 @@ namespace RentHub.Portal.ViewModels.Properties
         public string RegisteredPaymentNumber { get; set; } = string.Empty;
         public PayoutChannelEnum? RegisteredPaymentChannel { get; set; }
         public bool RegisteredPaymentVerified { get; set; }
+        public string DefaultPropertyCountryCode { get; set; } = "+1";
+        public string DefaultPropertyCountryIsoCode { get; set; } = "CA";
 
         public List<PropertyCreationScopeDto> CreationScopes { get; set; } = new();
         public List<SubscriptionPlanDto> AvailablePlans { get; set; } = new();

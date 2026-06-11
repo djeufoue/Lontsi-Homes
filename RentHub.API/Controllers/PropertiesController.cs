@@ -52,6 +52,8 @@ namespace RentHub.API.Controllers
                         Name = p.Name,
                         City = p.City,
                         Address = p.Address,
+                        CountryCode = p.CountryCode,
+                        CountryIsoCode = p.CountryIsoCode,
                         ApartmentCount = p.Apartments.Count(a => !a.IsDeleted),
                         LandlordId = p.LandlordId,
                         LandlordName = p.Landlord != null ? (p.Landlord.FullName ?? p.Landlord.Email ?? "") : "",
@@ -154,7 +156,9 @@ namespace RentHub.API.Controllers
                     query = query.Where(p =>
                         p.Name.ToLower().Contains(s) ||
                         p.City.ToLower().Contains(s) ||
-                        p.Address.ToLower().Contains(s));
+                        p.Address.ToLower().Contains(s) ||
+                        (p.CountryIsoCode != null && p.CountryIsoCode.ToLower().Contains(s)) ||
+                        (p.CountryCode != null && p.CountryCode.ToLower().Contains(s)));
                 }
 
                 if (!string.IsNullOrWhiteSpace(city))
@@ -177,6 +181,8 @@ namespace RentHub.API.Controllers
                     Name = p.Name,
                     City = p.City,
                     Address = p.Address,
+                    CountryCode = p.CountryCode,
+                    CountryIsoCode = p.CountryIsoCode,
                     ApartmentCount = p.Apartments.Count(a => !a.IsDeleted),
                     LandlordId = p.LandlordId,
                     LandlordName = p.Landlord != null ? (p.Landlord.FullName ?? p.Landlord.Email ?? "") : "",
@@ -280,6 +286,8 @@ namespace RentHub.API.Controllers
                         Name = p.Name,
                         City = p.City,
                         Address = p.Address,
+                        CountryCode = p.CountryCode,
+                        CountryIsoCode = p.CountryIsoCode,
                         ApartmentCount = p.Apartments.Count(a => !a.IsDeleted),
                         LandlordId = p.LandlordId,
                         LandlordName = p.Landlord != null ? (p.Landlord.FullName ?? p.Landlord.Email ?? "") : "",
@@ -330,6 +338,8 @@ namespace RentHub.API.Controllers
                     Name = property.Name,
                     City = property.City,
                     Address = property.Address,
+                    CountryCode = property.CountryCode,
+                    CountryIsoCode = property.CountryIsoCode,
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
@@ -438,6 +448,17 @@ namespace RentHub.API.Controllers
                 if (string.IsNullOrWhiteSpace(normalizedCity) || string.IsNullOrWhiteSpace(normalizedAddress))
                     return BadRequest("City and Address are required.");
 
+                var country = ResolvePropertyCountry(
+                    request.CountryIsoCode,
+                    request.CountryCode,
+                    null,
+                    null,
+                    landlord.CountryIsoCode,
+                    landlord.CountryCode,
+                    requireCountry: true);
+                if (country.CountryIsoCode == null || country.CountryCode == null)
+                    return BadRequest("Property country is required.");
+
                 var nameKey = normalizedName.ToUpperInvariant();
                 var cityKey = normalizedCity.ToUpperInvariant();
 
@@ -454,6 +475,8 @@ namespace RentHub.API.Controllers
                     Name = normalizedName,
                     City = normalizedCity,
                     Address = normalizedAddress,
+                    CountryIsoCode = country.CountryIsoCode,
+                    CountryCode = country.CountryCode,
                     Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
                     Latitude = request.Latitude,
                     Longitude = request.Longitude,
@@ -472,6 +495,8 @@ namespace RentHub.API.Controllers
                     Name = propertyEntity.Name,
                     City = propertyEntity.City,
                     Address = propertyEntity.Address,
+                    CountryCode = propertyEntity.CountryCode,
+                    CountryIsoCode = propertyEntity.CountryIsoCode,
                     Description = propertyEntity.Description,
                     Latitude = propertyEntity.Latitude,
                     Longitude = propertyEntity.Longitude,
@@ -492,6 +517,103 @@ namespace RentHub.API.Controllers
         {
             var connectEnabled = _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
             return _configuration.GetValue<bool?>("Stripe:Connect:RequirePayoutSetup") ?? connectEnabled;
+        }
+
+        private static (string? CountryIsoCode, string? CountryCode) ResolvePropertyCountry(
+            string? requestedCountryIsoCode,
+            string? requestedCountryCode,
+            string? currentCountryIsoCode,
+            string? currentCountryCode,
+            string? landlordCountryIsoCode,
+            string? landlordCountryCode,
+            bool requireCountry)
+        {
+            var countryIsoCode = NormalizeCountryIsoCode(requestedCountryIsoCode)
+                ?? NormalizeCountryIsoCode(currentCountryIsoCode)
+                ?? NormalizeCountryIsoCode(landlordCountryIsoCode)
+                ?? ResolveCountryIsoFromCountryCode(requestedCountryCode)
+                ?? ResolveCountryIsoFromCountryCode(currentCountryCode)
+                ?? ResolveCountryIsoFromCountryCode(landlordCountryCode);
+
+            var countryCode = NormalizeCountryCode(requestedCountryCode)
+                ?? ResolveCountryCodeFromIso(countryIsoCode)
+                ?? NormalizeCountryCode(currentCountryCode)
+                ?? NormalizeCountryCode(landlordCountryCode);
+
+            if (!requireCountry)
+            {
+                return (countryIsoCode, countryCode);
+            }
+
+            return string.IsNullOrWhiteSpace(countryIsoCode) || string.IsNullOrWhiteSpace(countryCode)
+                ? (null, null)
+                : (countryIsoCode, countryCode);
+        }
+
+        private static string? NormalizeCountryIsoCode(string? countryIsoCode)
+        {
+            var normalized = countryIsoCode?.Trim().ToUpperInvariant();
+            return normalized is { Length: 2 } && normalized.All(char.IsLetter)
+                ? normalized
+                : null;
+        }
+
+        private static string? NormalizeCountryCode(string? countryCode)
+        {
+            var normalized = countryCode?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            if (!normalized.StartsWith("+", StringComparison.Ordinal))
+            {
+                normalized = $"+{normalized}";
+            }
+
+            return normalized.Length > 1 && normalized.Skip(1).All(char.IsDigit)
+                ? normalized
+                : null;
+        }
+
+        private static string? ResolveCountryCodeFromIso(string? countryIsoCode)
+        {
+            return NormalizeCountryIsoCode(countryIsoCode) switch
+            {
+                "CA" or "US" => "+1",
+                "CM" => "+237",
+                "GB" => "+44",
+                "FR" => "+33",
+                "BE" => "+32",
+                "DE" => "+49",
+                "NG" => "+234",
+                "CI" => "+225",
+                "GH" => "+233",
+                "ZA" => "+27",
+                "KE" => "+254",
+                "AE" => "+971",
+                _ => null
+            };
+        }
+
+        private static string? ResolveCountryIsoFromCountryCode(string? countryCode)
+        {
+            return NormalizeCountryCode(countryCode) switch
+            {
+                "+237" => "CM",
+                "+44" => "GB",
+                "+33" => "FR",
+                "+32" => "BE",
+                "+49" => "DE",
+                "+234" => "NG",
+                "+225" => "CI",
+                "+233" => "GH",
+                "+27" => "ZA",
+                "+254" => "KE",
+                "+971" => "AE",
+                "+1" => "CA",
+                _ => null
+            };
         }
 
         [HttpPut("{id}")]
@@ -540,6 +662,16 @@ namespace RentHub.API.Controllers
                 property.Name = name;
                 property.City = city;
                 property.Address = address;
+                var country = ResolvePropertyCountry(
+                    request.CountryIsoCode,
+                    request.CountryCode,
+                    property.CountryIsoCode,
+                    property.CountryCode,
+                    property.Landlord?.CountryIsoCode,
+                    property.Landlord?.CountryCode,
+                    requireCountry: false);
+                property.CountryIsoCode = country.CountryIsoCode;
+                property.CountryCode = country.CountryCode;
                 property.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
                 property.Latitude = request.Latitude;
                 property.Longitude = request.Longitude;
@@ -555,6 +687,8 @@ namespace RentHub.API.Controllers
                     Name = property.Name,
                     City = property.City,
                     Address = property.Address,
+                    CountryCode = property.CountryCode,
+                    CountryIsoCode = property.CountryIsoCode,
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
@@ -604,6 +738,8 @@ namespace RentHub.API.Controllers
                     Name = property.Name,
                     City = property.City,
                     Address = property.Address,
+                    CountryCode = property.CountryCode,
+                    CountryIsoCode = property.CountryIsoCode,
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,

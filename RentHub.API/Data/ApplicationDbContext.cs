@@ -78,6 +78,15 @@ namespace RentHub.API.Data
                     .HasMaxLength(512);
             });
 
+            builder.Entity<Property>(entity =>
+            {
+                entity.Property(p => p.CountryIsoCode)
+                    .HasMaxLength(2);
+
+                entity.Property(p => p.CountryCode)
+                    .HasMaxLength(8);
+            });
+
             builder.Entity<Tenancy>()
                 .Property(t => t.MonthlyRent)
                 .HasPrecision(18, 2);

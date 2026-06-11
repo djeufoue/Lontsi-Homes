@@ -107,6 +107,8 @@ namespace RentHub.Portal.Controllers
                     Name = vm.Name,
                     City = vm.City,
                     Address = vm.Address,
+                    CountryCode = vm.CountryCode,
+                    CountryIsoCode = vm.CountryIsoCode,
                     Description = vm.Description,
                     Latitude = vm.Latitude,
                     Longitude = vm.Longitude,
@@ -872,6 +874,8 @@ namespace RentHub.Portal.Controllers
                     : "Stripe Connect setup is temporarily skipped while platform activation is pending.",
                 ComplianceMessage = profile.SubscriptionBlockedReason,
                 NextOnboardingStep = profile.NextOnboardingStep,
+                DefaultPropertyCountryCode = string.IsNullOrWhiteSpace(profile.CountryCode) ? "+1" : profile.CountryCode,
+                DefaultPropertyCountryIsoCode = string.IsNullOrWhiteSpace(profile.CountryIsoCode) ? "CA" : profile.CountryIsoCode.Trim().ToUpperInvariant(),
                 CreationScopes = response.CreationScopes,
                 Items = response.Items
             };

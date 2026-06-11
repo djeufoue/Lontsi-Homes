@@ -16,6 +16,12 @@ namespace Common.CommunicationModels
         [Required]
         public string Address { get; set; } = string.Empty;
 
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode { get; set; }
+
+        [RegularExpression(@"^[A-Za-z]{2}$", ErrorMessage = "Country must be a valid 2-letter ISO code.")]
+        public string? CountryIsoCode { get; set; }
+
         public string? Description { get; set; }
 
         [Range(-90, 90)]

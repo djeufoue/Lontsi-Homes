@@ -62,6 +62,7 @@
                         <th>Code</th>
                         <th>Property</th>
                         <th>City</th>
+                        <th>Country</th>
                         <th>Units</th>
                         <th>Landlord</th>
                         <th>Access</th>
@@ -106,6 +107,9 @@
                         </td>
                         <td>
                             <span class="rh-table-city">@property.City</span>
+                        </td>
+                        <td>
+                            <span class="rh-chip rh-chip-info">@(string.IsNullOrWhiteSpace(property.CountryIsoCode) ? "Not set" : property.CountryIsoCode)</span>
                         </td>
                         <td>
                             <div class="rh-row-metric">

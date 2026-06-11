@@ -13,6 +13,14 @@ namespace RentHub.Portal.ViewModels.Properties
         [Required]
         public string Address { get; set; } = string.Empty;
 
+        [Required]
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string CountryCode { get; set; } = string.Empty;
+
+        [Required]
+        [RegularExpression(@"^[A-Za-z]{2}$", ErrorMessage = "Country must be a valid 2-letter ISO code.")]
+        public string CountryIsoCode { get; set; } = string.Empty;
+
         public string? Description { get; set; }
 
         [Range(-90, 90)]

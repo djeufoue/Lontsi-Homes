@@ -26,6 +26,26 @@
     var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? "Landlord" : property.LandlordName;
     var landlordInitial = landlordName.Trim()[0].ToString().ToUpperInvariant();
     var members = Model.FilteredManagers ?? new List<Common.CommunicationModels.PropertyManagerDto>();
+    var selectedCountryIsoCode = string.IsNullOrWhiteSpace(property.CountryIsoCode) ? string.Empty : property.CountryIsoCode.Trim().ToUpperInvariant();
+    var selectedCountryCode = string.IsNullOrWhiteSpace(property.CountryCode) ? string.Empty : property.CountryCode.Trim();
+    var countries = new[]
+    {
+        new { Iso = "CA", Code = "+1", Label = "Canada (+1)" },
+        new { Iso = "US", Code = "+1", Label = "United States (+1)" },
+        new { Iso = "CM", Code = "+237", Label = "Cameroon (+237)" },
+        new { Iso = "GB", Code = "+44", Label = "United Kingdom (+44)" },
+        new { Iso = "FR", Code = "+33", Label = "France (+33)" },
+        new { Iso = "BE", Code = "+32", Label = "Belgium (+32)" },
+        new { Iso = "DE", Code = "+49", Label = "Germany (+49)" },
+        new { Iso = "NG", Code = "+234", Label = "Nigeria (+234)" },
+        new { Iso = "CI", Code = "+225", Label = "Cote d'Ivoire (+225)" },
+        new { Iso = "GH", Code = "+233", Label = "Ghana (+233)" },
+        new { Iso = "ZA", Code = "+27", Label = "South Africa (+27)" },
+        new { Iso = "KE", Code = "+254", Label = "Kenya (+254)" },
+        new { Iso = "AE", Code = "+971", Label = "United Arab Emirates (+971)" }
+    };
+    var selectedCountry = countries.FirstOrDefault(country => string.Equals(country.Iso, selectedCountryIsoCode, StringComparison.OrdinalIgnoreCase));
+    var propertyCountryLabel = selectedCountry?.Label ?? (string.IsNullOrWhiteSpace(selectedCountryIsoCode) ? "Country not set" : selectedCountryIsoCode);
 }
 
 <section class="rh-overview-shell"
@@ -40,10 +60,11 @@
             <a class="rh-overview-backlink" asp-action="Index">&#8592; Back to properties</a>
             <p class="rh-kicker">Property Command Center</p>
             <h1 class="rh-heading-title">@property.Name</h1>
-            <p class="rh-heading-subtitle">@property.Address, @property.City</p>
+            <p class="rh-heading-subtitle">@property.Address, @property.City@(!string.IsNullOrWhiteSpace(selectedCountryIsoCode) ? $", {selectedCountryIsoCode}" : string.Empty)</p>
 
             <div class="rh-overview-badges">
                 <span class="rh-chip rh-chip-primary">@Model.TotalUnits apartments</span>
+                <span class="rh-chip rh-chip-info">@propertyCountryLabel</span>
                 <span class="rh-chip rh-chip-info">@(propertyDocuments.Count) documents</span>
                 <span class="rh-chip @(Model.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(Model.CanWrite ? "Write access" : "Read access")</span>
             </div>
@@ -415,6 +436,20 @@
                 <div class="col-md-6">
                     <label class="form-label">City</label>
                     <input class="form-control rh-input" name="City" value="@property.City" @(Model.CanWrite ? "readonly" : "disabled") />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Country</label>
+                    <input type="hidden" name="CountryCode" value="@selectedCountryCode" data-country-code-output />
+                    <div class="rh-select-wrap">
+                        <select class="form-select rh-input rh-select" name="CountryIsoCode" autocomplete="country" required data-country-selector @(Model.CanWrite ? null : "disabled")>
+                            <option value="">Choose a country</option>
+                            @foreach (var country in countries)
+                            {
+                                <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, selectedCountryIsoCode, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Label</option>
+                            }
+                        </select>
+                    </div>
                 </div>
 
                 <div class="col-md-6">

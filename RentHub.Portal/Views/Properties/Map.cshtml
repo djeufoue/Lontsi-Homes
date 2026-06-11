@@ -12,6 +12,7 @@
     var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? "Landlord" : property.LandlordName;
     var landlordInitial = landlordName.Trim()[0].ToString().ToUpperInvariant();
     var hasCoordinates = property.Latitude.HasValue && property.Longitude.HasValue;
+    var countryLabel = string.IsNullOrWhiteSpace(property.CountryIsoCode) ? "Country not set" : property.CountryIsoCode.Trim().ToUpperInvariant();
 
     var latitude = property.Latitude ?? 4.048300;
     var longitude = property.Longitude ?? 9.704400;
@@ -37,7 +38,7 @@
         <div>
             <p class="rh-kicker">Geo Workspace</p>
             <h1 class="rh-heading-title">@property.Name map</h1>
-            <p class="rh-heading-subtitle">A coordinate-based location board centered on @property.Address, @property.City.</p>
+            <p class="rh-heading-subtitle">A coordinate-based location board centered on @property.Address, @property.City@(!string.IsNullOrWhiteSpace(property.CountryIsoCode) ? $", {countryLabel}" : string.Empty).</p>
         </div>
 
         <div class="rh-map-toolbar">
@@ -110,7 +111,7 @@
                             <div class="rh-map-device-row">
                                 <div>
                                     <strong>@unit.Name</strong>
-                                    <small>@property.City, Cameroon</small>
+                                    <small>@property.City, @countryLabel</small>
                                 </div>
                                 <span>@unit.Status</span>
                             </div>
