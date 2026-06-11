@@ -20,6 +20,7 @@ namespace RentHub.API.Data
         public DbSet<Apartment> Apartments => Set<Apartment>();
         public DbSet<Tenancy> Tenancies => Set<Tenancy>();
         public DbSet<TenancyMember> TenancyMembers => Set<TenancyMember>();
+        public DbSet<RentPeriod> RentPeriods => Set<RentPeriod>();
         public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
         public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
         public DbSet<Payment> Payments => Set<Payment>();
@@ -80,6 +81,40 @@ namespace RentHub.API.Data
             builder.Entity<Tenancy>()
                 .Property(t => t.MonthlyRent)
                 .HasPrecision(18, 2);
+
+            builder.Entity<Tenancy>(entity =>
+            {
+                entity.Property(t => t.TerminationNotes)
+                    .HasMaxLength(512);
+            });
+
+            builder.Entity<RentPeriod>(entity =>
+            {
+                entity.Property(rp => rp.Amount)
+                    .HasPrecision(14, 2);
+
+                entity.Property(rp => rp.PaidAmount)
+                    .HasPrecision(14, 2);
+
+                entity.Property(rp => rp.PaymentReference)
+                    .HasMaxLength(128);
+
+                entity.HasOne(rp => rp.Tenancy)
+                    .WithMany(t => t.RentPeriods)
+                    .HasForeignKey(rp => rp.TenancyId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(rp => rp.Payment)
+                    .WithMany()
+                    .HasForeignKey(rp => rp.PaymentId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(rp => new { rp.TenancyId, rp.PeriodStart })
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0");
+
+                entity.HasIndex(rp => new { rp.TenancyId, rp.Status, rp.DueDate });
+            });
 
             builder.Entity<UserSubscription>(entity =>
             {
@@ -263,6 +298,7 @@ namespace RentHub.API.Data
             builder.Entity<Apartment>().HasQueryFilter(a => !a.IsDeleted);
             builder.Entity<Tenancy>().HasQueryFilter(t => !t.IsDeleted);
             builder.Entity<TenancyMember>().HasQueryFilter(tm => !tm.IsDeleted);
+            builder.Entity<RentPeriod>().HasQueryFilter(rp => !rp.IsDeleted);
             builder.Entity<SubscriptionPlan>().HasQueryFilter(sp => !sp.IsDeleted);
             builder.Entity<UserSubscription>().HasQueryFilter(us => !us.IsDeleted);
             builder.Entity<Payment>().HasQueryFilter(p => !p.IsDeleted);

@@ -9,6 +9,7 @@ using Common.CommunicationModels;
 using RentHub.API.Services.Storage;
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
+using Common.Helpers;
 
 namespace RentHub.API.Controllers
 {
@@ -156,18 +157,14 @@ namespace RentHub.API.Controllers
                     .Where(payment => payment.TenancyId != null && tenancies.Select(t => t.Id).Contains(payment.TenancyId.Value))
                     .ToListAsync();
 
+                var tenancyRentPeriods = await _context.RentPeriods
+                    .Where(period => tenancies.Select(t => t.Id).Contains(period.TenancyId) && !period.IsDeleted)
+                    .ToListAsync();
+
                 var tenanciesDto = tenancies
                     .Select(tenancy =>
                     {
-                        var snapshot = TenancyReminderHelpers.BuildSnapshot(
-                            tenancy,
-                            apt,
-                            tenancyPayments.Where(payment => payment.TenancyId == tenancy.Id),
-                            apt.RentReminderDaysBeforeDue,
-                            apt.LeaseTerminationReminderDaysBeforeEnd,
-                            DateTimeOffset.UtcNow);
-
-                        return snapshot.ApplyTo(new TenancyDto
+                        var dto = new TenancyDto
                         {
                             Id = tenancy.Id,
                             ApartmentName = apt.Name,
@@ -176,8 +173,32 @@ namespace RentHub.API.Controllers
                             EndDate = tenancy.EndDate,
                             MonthlyRent = tenancy.MonthlyRent,
                             MaxMembers = tenancy.MaxMembers,
+                            RentDueDay = tenancy.RentDueDay,
+                            EndBehavior = tenancy.EndBehavior,
+                            TerminatedAt = tenancy.TerminatedAt,
+                            Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                             IsOwner = isAdmin || apt.Property!.LandlordId == userId
-                        });
+                        };
+
+                        var periods = tenancyRentPeriods
+                            .Where(period => period.TenancyId == tenancy.Id)
+                            .OrderBy(period => period.PeriodStart)
+                            .ToList();
+
+                        if (periods.Any())
+                        {
+                            return ApplyRentPeriodSnapshot(dto, periods, apt, DateTimeOffset.UtcNow);
+                        }
+
+                        var snapshot = TenancyReminderHelpers.BuildSnapshot(
+                            tenancy,
+                            apt,
+                            tenancyPayments.Where(payment => payment.TenancyId == tenancy.Id),
+                            apt.RentReminderDaysBeforeDue,
+                            apt.LeaseTerminationReminderDaysBeforeEnd,
+                            DateTimeOffset.UtcNow);
+
+                        return snapshot.ApplyTo(dto);
                     })
                     .ToList();
 
@@ -478,6 +499,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
+                    null,
                     requestedRoleName)).User;
 
                 var already = await _context.ApartmentOwners.AnyAsync(o =>
@@ -626,6 +648,51 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private static TenancyDto ApplyRentPeriodSnapshot(
+            TenancyDto dto,
+            IReadOnlyList<RentPeriod> periods,
+            Apartment apartment,
+            DateTimeOffset nowUtc)
+        {
+            var paidThrough = periods
+                .OrderBy(period => period.PeriodStart)
+                .TakeWhile(period => RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+                .LastOrDefault();
+
+            var nextUnpaid = periods
+                .OrderBy(period => period.PeriodStart)
+                .FirstOrDefault(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status));
+
+            dto.PaidThroughDate = paidThrough?.PeriodEnd;
+            dto.NextRentDueDate = nextUnpaid?.DueDate;
+            dto.NextRentReminderDate = nextUnpaid?.DueDate.AddDays(-Math.Max(0, apartment.RentReminderDaysBeforeDue));
+            dto.LeaseTerminationReminderDate = dto.EndDate?.AddDays(-Math.Max(0, apartment.LeaseTerminationReminderDaysBeforeEnd));
+            dto.IsPaidInAdvance = nextUnpaid != null && nextUnpaid.DueDate.Date > nowUtc.Date;
+            return dto;
+        }
+
+        private static string ResolveTenancyStatus(Tenancy tenancy, DateTimeOffset nowUtc)
+        {
+            if (tenancy.TerminatedAt.HasValue)
+            {
+                return "Terminated";
+            }
+
+            if (tenancy.StartDate.Date > nowUtc.Date)
+            {
+                return "Upcoming";
+            }
+
+            if (tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < nowUtc.Date)
+            {
+                return tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth
+                    ? "Month-to-month"
+                    : "Expired";
+            }
+
+            return "Active";
         }
     }
 }

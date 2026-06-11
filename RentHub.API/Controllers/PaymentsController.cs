@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.SqlClient;
 using RentHub.API.Helpers;
+using Common.Helpers;
 
 namespace RentHub.API.Controllers
 {
@@ -218,6 +219,177 @@ namespace RentHub.API.Controllers
                     return BadRequest(new { payment.Id, result.Status, result.ProviderResponse, Duplicate = false });
                 }
                 return Ok(new { payment.Id, result.Status, payment.TransactionId, Duplicate = false });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("rent-periods")]
+        [Authorize]
+        public async Task<IActionResult> PayRentPeriods([FromBody] PayRentPeriodsRequest request)
+        {
+            try
+            {
+                if (request.TenancyId <= 0)
+                {
+                    return BadRequest("TenancyId is required.");
+                }
+
+                if (request.NumberOfPeriods <= 0)
+                {
+                    return BadRequest("NumberOfPeriods must be at least 1.");
+                }
+
+                var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    return Unauthorized();
+                }
+
+                var tenancy = await _context.Tenancies
+                    .Include(t => t.Apartment)
+                    .ThenInclude(a => a.Property)
+                    .Include(t => t.Members)
+                    .Include(t => t.RentPeriods)
+                    .FirstOrDefaultAsync(t => t.Id == request.TenancyId && !t.IsDeleted);
+
+                if (tenancy == null)
+                {
+                    return NotFound("Tenancy not found.");
+                }
+
+                if (tenancy.Apartment?.Property == null)
+                {
+                    return NotFound("Property not found.");
+                }
+
+                var isTenantMember = tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == currentUserId);
+                if (!isTenantMember)
+                {
+                    return Forbid();
+                }
+
+                var payablePeriods = tenancy.RentPeriods
+                    .Where(period =>
+                        !period.IsDeleted &&
+                        !RentPeriodScheduleHelper.IsPaidStatus(period.Status) &&
+                        period.Status != RentPeriodStatusEnum.PendingPayment)
+                    .OrderBy(period => period.PeriodStart)
+                    .Take(request.NumberOfPeriods)
+                    .ToList();
+
+                if (payablePeriods.Count == 0)
+                {
+                    return BadRequest("There is no unpaid rent period to pay.");
+                }
+
+                if (payablePeriods.Count < request.NumberOfPeriods)
+                {
+                    return BadRequest($"Only {payablePeriods.Count} unpaid rent period(s) are available.");
+                }
+
+                var totalAmount = payablePeriods.Sum(period => period.Amount - period.PaidAmount);
+                if (totalAmount <= 0)
+                {
+                    return BadRequest("The selected rent periods do not have a positive amount due.");
+                }
+
+                var paymentRequest = new PaymentRequest
+                {
+                    TenantId = currentUserId,
+                    LandlordId = tenancy.Apartment.Property.LandlordId,
+                    Amount = totalAmount,
+                    Method = request.Method,
+                    NumberOfPeriods = request.NumberOfPeriods,
+                    IdempotencyKey = $"rent-periods:{request.TenancyId}:{string.Join(",", payablePeriods.Select(period => period.Id))}"
+                };
+
+                var requestKey = BuildPaymentRequestKey(paymentRequest, currentUserId, tenancy.Id, totalAmount);
+                var existingPayment = await _context.Payments
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(p => p.RequestKey == requestKey && !p.IsDeleted);
+
+                if (existingPayment != null)
+                {
+                    return Ok(new
+                    {
+                        existingPayment.Id,
+                        Status = existingPayment.Status.ToString(),
+                        existingPayment.TransactionId,
+                        Duplicate = true
+                    });
+                }
+
+                var payment = new Payment
+                {
+                    TenantId = currentUserId,
+                    LandlordId = tenancy.Apartment.Property.LandlordId,
+                    TenancyId = tenancy.Id,
+                    Amount = totalAmount,
+                    Currency = "XAF",
+                    Method = request.Method,
+                    RequestKey = requestKey,
+                    Status = PaymentStatusEnum.Pending,
+                    CreatedBy = currentUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+
+                _context.Payments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                PaymentResult result = request.Method switch
+                {
+                    PaymentMethodEnum.OrangeMoney => await _orangeMoneyService.ProcessPaymentAsync(payment, paymentRequest),
+                    PaymentMethodEnum.Momo => await _momoService.ProcessPaymentAsync(payment, paymentRequest),
+                    PaymentMethodEnum.Card => await _cardPaymentService.ProcessPaymentAsync(payment, paymentRequest),
+                    _ => new PaymentResult { Success = false, Status = "UNKNOWN" }
+                };
+
+                if (Enum.TryParse<PaymentStatusEnum>(result.Status, true, out var statusEnum))
+                {
+                    payment.Status = statusEnum;
+                }
+
+                if (!string.IsNullOrWhiteSpace(result.TransactionId))
+                {
+                    payment.TransactionId = result.TransactionId;
+                }
+
+                payment.UpdatedBy = currentUserId;
+                payment.UpdatedAt = DateTime.UtcNow;
+
+                if (result.Success)
+                {
+                    foreach (var period in payablePeriods)
+                    {
+                        period.Status = RentPeriodStatusEnum.Paid;
+                        period.PaidAmount = period.Amount;
+                        period.PaidDate = DateTimeOffset.UtcNow;
+                        period.PaymentId = payment.Id;
+                        period.PaymentReference = payment.TransactionId;
+                        period.UpdatedBy = currentUserId;
+                        period.UpdatedAt = DateTimeOffset.UtcNow;
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                if (!result.Success)
+                {
+                    return BadRequest(new { payment.Id, result.Status, result.ProviderResponse, Duplicate = false });
+                }
+
+                return Ok(new
+                {
+                    payment.Id,
+                    result.Status,
+                    payment.TransactionId,
+                    CoveredPeriodIds = payablePeriods.Select(period => period.Id).ToList(),
+                    Duplicate = false
+                });
             }
             catch (Exception ex)
             {

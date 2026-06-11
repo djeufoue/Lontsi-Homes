@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Common.Enums;
 
 namespace Common.CommunicationModels
 {
@@ -13,6 +14,8 @@ namespace Common.CommunicationModels
         public List<TenancyMemberDto> Members { get; set; } = new();
 
         public List<DocumentDto> Documents { get; set; } = new();
+
+        public List<RentPeriodDto> RentPeriods { get; set; } = new();
     }
 
     public class TenancyDetailsDto
@@ -30,6 +33,12 @@ namespace Common.CommunicationModels
 
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; }
+        public int RentDueDay { get; set; } = 1;
+        public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public DateTimeOffset? TerminatedAt { get; set; }
+        public TenancyTerminationReasonEnum? TerminationReason { get; set; }
+        public string? TerminationNotes { get; set; }
+        public string Status { get; set; } = string.Empty;
 
         public bool CanWrite { get; set; }
     }

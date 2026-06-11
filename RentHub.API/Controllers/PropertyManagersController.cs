@@ -97,6 +97,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
+                    null,
                     "Manager")).User;
 
                 var existing = await _context.PropertyManagerAssignments

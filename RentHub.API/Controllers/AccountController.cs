@@ -1960,18 +1960,21 @@ namespace RentHub.API.Controllers
                     return emailOtpResult;
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+                var roles = await _userManager.GetRolesAsync(user);
+                var requiresPhoneActivationOtps = roles.Contains("Landlord", StringComparer.OrdinalIgnoreCase);
+
+                if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                 {
-                    var payoutOtpResult = await ValidateOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName, request.PayoutOtp.Trim(), "payout number");
+                    var payoutOtpResult = await ValidateOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName, request.PayoutOtp?.Trim() ?? string.Empty, "payout number");
                     if (payoutOtpResult != null)
                     {
                         return payoutOtpResult;
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                 {
-                    var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp.Trim(), "WhatsApp");
+                    var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp?.Trim() ?? string.Empty, "WhatsApp");
                     if (whatsAppOtpResult != null)
                     {
                         return whatsAppOtpResult;
@@ -1979,13 +1982,13 @@ namespace RentHub.API.Controllers
                 }
 
                 user.EmailConfirmed = true;
-                if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+                if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                 {
                     user.IsPayoutPhoneVerified = true;
                     user.PayoutPhoneVerifiedAt = DateTimeOffset.UtcNow;
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+                if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
                 {
                     if (SamePhone(user.SubscriptionPaymentPhoneNumber, user.PayoutPhoneNumber) && user.IsPayoutPhoneVerified)
                     {
@@ -1994,7 +1997,7 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                 {
                     user.IsWhatsAppPhoneVerified = true;
                     user.WhatsAppPhoneVerifiedAt = DateTimeOffset.UtcNow;
@@ -2191,6 +2194,7 @@ namespace RentHub.API.Controllers
                 var isAdmin = roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                 var isVisitor = roles.Any(r => string.Equals(r, "Visitor", StringComparison.OrdinalIgnoreCase));
                 var isLandlord = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase));
+                var isTenant = roles.Any(r => string.Equals(r, "Tenant", StringComparison.OrdinalIgnoreCase));
 
                 if (isAdmin)
                 {
@@ -2222,7 +2226,9 @@ namespace RentHub.API.Controllers
                         Email = user.Email,
                         Message = isVisitor
                             ? "Visitor account is not activated. Verify the OTP codes sent to your email, phone number, and WhatsApp."
-                            : "Account is not activated. Verify all OTP codes to complete account activation."
+                            : isTenant
+                                ? "Tenant account is not activated. Verify the OTP code sent to your email."
+                                : "Account is not activated. Verify all OTP codes to complete account activation."
                     });
                 }
 
@@ -2240,7 +2246,7 @@ namespace RentHub.API.Controllers
                         });
                     }
                 }
-                else if (!isLandlord)
+                else if (!isLandlord && !isTenant)
                 {
                     var payoutVerificationPending = !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) && !user.IsPayoutPhoneVerified;
                     var whatsAppVerificationPending = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;

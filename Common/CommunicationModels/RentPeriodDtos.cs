@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using Common.Enums;
+
+namespace Common.CommunicationModels
+{
+    public class RentPeriodDto
+    {
+        public int Id { get; set; }
+        public int TenancyId { get; set; }
+        public DateTimeOffset PeriodStart { get; set; }
+        public DateTimeOffset PeriodEnd { get; set; }
+        public DateTimeOffset DueDate { get; set; }
+        public decimal Amount { get; set; }
+        public decimal PaidAmount { get; set; }
+        public DateTimeOffset? PaidDate { get; set; }
+        public int? PaymentId { get; set; }
+        public string PaymentReference { get; set; } = string.Empty;
+        public RentPeriodStatusEnum Status { get; set; }
+        public string StatusLabel { get; set; } = string.Empty;
+        public bool IsPayable { get; set; }
+        public string LockedReason { get; set; } = string.Empty;
+    }
+
+    public class RentPeriodSeedDto
+    {
+        public DateTimeOffset PeriodStart { get; set; }
+        public DateTimeOffset PeriodEnd { get; set; }
+        public DateTimeOffset DueDate { get; set; }
+        public decimal Amount { get; set; }
+        public RentPeriodStatusEnum Status { get; set; }
+        public decimal PaidAmount { get; set; }
+        public DateTimeOffset? PaidDate { get; set; }
+    }
+
+    public class TenantInvitationRequest
+    {
+        public string Email { get; set; } = string.Empty;
+        public string? FullName { get; set; }
+        public string? CountryCode { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? WhatsAppPhoneNumber { get; set; }
+        public TenancyMemberRoleEnum Role { get; set; } = TenancyMemberRoleEnum.MainTenant;
+    }
+
+    public class CreateGuidedTenancyRequest
+    {
+        public int ApartmentId { get; set; }
+        public DateTimeOffset StartDate { get; set; }
+        public DateTimeOffset? EndDate { get; set; }
+        public decimal MonthlyRent { get; set; }
+        public int MaxMembers { get; set; } = 1;
+        public int RentDueDay { get; set; } = 1;
+        public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
+        public TenantInvitationRequest MainTenant { get; set; } = new();
+    }
+
+    public class PayRentPeriodsRequest
+    {
+        public int TenancyId { get; set; }
+        public int NumberOfPeriods { get; set; } = 1;
+        public PaymentMethodEnum Method { get; set; } = PaymentMethodEnum.Card;
+    }
+
+    public class TenantPaymentHistoryDto
+    {
+        public int PaymentId { get; set; }
+        public int? TenancyId { get; set; }
+        public DateTimeOffset PaymentDate { get; set; }
+        public decimal Amount { get; set; }
+        public string Currency { get; set; } = string.Empty;
+        public PaymentMethodEnum Method { get; set; }
+        public PaymentStatusEnum Status { get; set; }
+        public string TransactionId { get; set; } = string.Empty;
+        public string PeriodLabel { get; set; } = string.Empty;
+    }
+
+    public class TenantDashboardTenancyDto
+    {
+        public TenancyDetailsDto Tenancy { get; set; } = new();
+        public string LandlordName { get; set; } = string.Empty;
+        public string LandlordEmail { get; set; } = string.Empty;
+        public decimal OutstandingBalance { get; set; }
+        public DateTimeOffset? NextDueDate { get; set; }
+        public List<RentPeriodDto> RentPeriods { get; set; } = new();
+        public List<TenantPaymentHistoryDto> PaymentHistory { get; set; } = new();
+        public List<DocumentDto> Documents { get; set; } = new();
+    }
+
+    public class TenantDashboardDto
+    {
+        public List<TenantDashboardTenancyDto> Tenancies { get; set; } = new();
+    }
+
+    public class TerminateTenancyRequest
+    {
+        public DateTimeOffset TerminationDate { get; set; }
+        public TenancyTerminationReasonEnum Reason { get; set; } = TenancyTerminationReasonEnum.Other;
+        public FutureRentHandlingEnum FutureRentHandling { get; set; } = FutureRentHandlingEnum.CancelFutureUnpaidPeriods;
+        public string? Notes { get; set; }
+        public List<int> WaivedRentPeriodIds { get; set; } = new();
+    }
+}

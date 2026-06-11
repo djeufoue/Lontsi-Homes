@@ -17,6 +17,9 @@ namespace Common.CommunicationModels
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
         public string? PhoneNumber { get; set; }
 
+        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string? WhatsAppPhoneNumber { get; set; }
+
         [Required]
         public TenancyMemberRoleEnum Role { get; set; }
     }

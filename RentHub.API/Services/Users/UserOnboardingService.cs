@@ -49,6 +49,7 @@ namespace RentHub.API.Services.Users
             string? fullName,
             string? countryCode,
             string? phoneNumber,
+            string? whatsAppPhoneNumber,
             string roleName)
         {
             var normalizedEmail = (email ?? string.Empty).Trim();
@@ -70,6 +71,7 @@ namespace RentHub.API.Services.Users
                     FullName = (fullName ?? string.Empty).Trim(),
                     CountryCode = (countryCode ?? string.Empty).Trim(),
                     PhoneNumber = (phoneNumber ?? string.Empty).Trim(),
+                    WhatsAppPhoneNumber = (whatsAppPhoneNumber ?? string.Empty).Trim(),
                     EmailConfirmed = false
                 };
 
@@ -88,6 +90,7 @@ namespace RentHub.API.Services.Users
                 var trimmedFullName = (fullName ?? string.Empty).Trim();
                 var trimmedCountryCode = (countryCode ?? string.Empty).Trim();
                 var trimmedPhoneNumber = (phoneNumber ?? string.Empty).Trim();
+                var trimmedWhatsAppPhoneNumber = (whatsAppPhoneNumber ?? string.Empty).Trim();
 
                 if (string.IsNullOrWhiteSpace(user.FullName) && !string.IsNullOrWhiteSpace(trimmedFullName))
                 {
@@ -104,6 +107,12 @@ namespace RentHub.API.Services.Users
                 if (string.IsNullOrWhiteSpace(user.PhoneNumber) && !string.IsNullOrWhiteSpace(trimmedPhoneNumber))
                 {
                     user.PhoneNumber = trimmedPhoneNumber;
+                    didUpdate = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !string.IsNullOrWhiteSpace(trimmedWhatsAppPhoneNumber))
+                {
+                    user.WhatsAppPhoneNumber = trimmedWhatsAppPhoneNumber;
                     didUpdate = true;
                 }
 
@@ -329,12 +338,13 @@ namespace RentHub.API.Services.Users
             string? temporaryPassword = null,
             string? welcomeRoleLabel = null)
         {
+            var isTenantActivation = string.Equals(welcomeRoleLabel, "Tenant", StringComparison.OrdinalIgnoreCase);
             var otp = GenerateOtpCode();
             var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
 
             string? payoutOtp = null;
             var plannedSends = new List<PlannedOtpSend>();
-            if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+            if (!isTenantActivation && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
             {
                 plannedSends.Add(new PlannedOtpSend(
                     OtpSendPurposes.RentPayoutPhone,
@@ -346,7 +356,7 @@ namespace RentHub.API.Services.Users
             }
 
             string? subscriptionPaymentOtp = null;
-            if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+            if (!isTenantActivation && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
             {
                 plannedSends.Add(new PlannedOtpSend(
                     OtpSendPurposes.SubscriptionPaymentPhone,
@@ -358,7 +368,7 @@ namespace RentHub.API.Services.Users
             }
 
             string? whatsAppOtp = null;
-            if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+            if (!isTenantActivation && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
             {
                 plannedSends.Add(new PlannedOtpSend(
                     OtpSendPurposes.WhatsAppPhone,
@@ -402,7 +412,11 @@ namespace RentHub.API.Services.Users
                 : "Welcome to RentHub";
 
             var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
-            var verifyUrl = BuildVerifyUrl(user.Email ?? string.Empty, isVisitor: false);
+            var verifyUrl = BuildVerifyUrl(
+                user.Email ?? string.Empty,
+                isVisitor: false,
+                useGeneralAccountPage: isTenantActivation,
+                returnUrl: isTenantActivation ? "/Tenant" : null);
             var lines = new List<string>
             {
                 $"Hello {greetingName},",
@@ -411,31 +425,48 @@ namespace RentHub.API.Services.Users
 
             if (!string.IsNullOrWhiteSpace(temporaryPassword))
             {
-                lines.Add(string.IsNullOrWhiteSpace(welcomeRoleLabel)
-                    ? "A RentHub account has been created for you."
-                    : $"A RentHub account has been created for you and linked to the {welcomeRoleLabel} role.");
-                lines.Add("To activate your account:");
-                lines.Add("1. Open the RentHub account verification page.");
-                if (!string.IsNullOrWhiteSpace(verifyUrl))
+                if (isTenantActivation)
                 {
-                    lines.Add($"   {verifyUrl}");
+                    lines.Add("A RentHub tenant account has been created for you and linked to a tenancy.");
+                    lines.Add("To activate your account:");
+                    lines.Add("1. Open the RentHub account verification page.");
+                    if (!string.IsNullOrWhiteSpace(verifyUrl))
+                    {
+                        lines.Add($"   {verifyUrl}");
+                    }
+                    lines.Add($"2. Enter your email address: {user.Email}");
+                    lines.Add($"3. Enter this email OTP code: {otp}");
+                    lines.Add($"4. Sign in with this temporary password: {temporaryPassword}");
+                    lines.Add("5. After activation, change your password as soon as possible.");
                 }
-                lines.Add($"2. Enter your email address: {user.Email}");
-                lines.Add($"3. Enter this email OTP code: {otp}");
-                if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+                else
                 {
-                    lines.Add($"4. Enter the payout-number OTP sent to {user.PayoutPhoneNumber}.");
+                    lines.Add(string.IsNullOrWhiteSpace(welcomeRoleLabel)
+                        ? "A RentHub account has been created for you."
+                        : $"A RentHub account has been created for you and linked to the {welcomeRoleLabel} role.");
+                    lines.Add("To activate your account:");
+                    lines.Add("1. Open the RentHub account verification page.");
+                    if (!string.IsNullOrWhiteSpace(verifyUrl))
+                    {
+                        lines.Add($"   {verifyUrl}");
+                    }
+                    lines.Add($"2. Enter your email address: {user.Email}");
+                    lines.Add($"3. Enter this email OTP code: {otp}");
+                    if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
+                    {
+                        lines.Add($"4. Enter the payout-number OTP sent to {user.PayoutPhoneNumber}.");
+                    }
+                    if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+                    {
+                        lines.Add($"5. Enter the subscription-payment OTP sent to {user.SubscriptionPaymentPhoneNumber}.");
+                    }
+                    if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
+                    {
+                        lines.Add($"6. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
+                    }
+                    lines.Add($"7. Sign in with this temporary password: {temporaryPassword}");
+                    lines.Add("8. After activation, change your password as soon as possible.");
                 }
-                if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
-                {
-                    lines.Add($"5. Enter the subscription-payment OTP sent to {user.SubscriptionPaymentPhoneNumber}.");
-                }
-                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
-                {
-                    lines.Add($"6. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
-                }
-                lines.Add($"7. Sign in with this temporary password: {temporaryPassword}");
-                lines.Add("8. After activation, change your password as soon as possible.");
                 lines.Add(string.Empty);
             }
             else
@@ -618,7 +649,11 @@ namespace RentHub.API.Services.Users
                 : $"+{countryDigits}{digits}";
         }
 
-        private string? BuildVerifyUrl(string email, bool isVisitor)
+        private string? BuildVerifyUrl(
+            string email,
+            bool isVisitor,
+            bool useGeneralAccountPage = false,
+            string? returnUrl = null)
         {
             var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
             if (string.IsNullOrWhiteSpace(portalBaseUrl))
@@ -626,8 +661,17 @@ namespace RentHub.API.Services.Users
                 return null;
             }
 
-            var path = isVisitor ? "/Auth/VerifyVisitorAccount" : "/Auth/VerifyLandlordEmail";
-            return $"{portalBaseUrl}{path}?email={Uri.EscapeDataString(email)}";
+            var path = useGeneralAccountPage
+                ? "/Auth/VerifyAccount"
+                : isVisitor ? "/Auth/VerifyVisitorAccount" : "/Auth/VerifyLandlordEmail";
+
+            var url = $"{portalBaseUrl}{path}?email={Uri.EscapeDataString(email)}";
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                url += $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
+            }
+
+            return url;
         }
 
         private static string GenerateOtpCode()

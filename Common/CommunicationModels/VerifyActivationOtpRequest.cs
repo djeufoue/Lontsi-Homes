@@ -16,14 +16,12 @@ namespace Common.CommunicationModels
         [StringLength(6, MinimumLength = 4)]
         public string EmailOtp { get; set; } = string.Empty;
 
-        [Required]
         [Display(Name = "Payout OTP")]
         [StringLength(6, MinimumLength = 4)]
-        public string PayoutOtp { get; set; } = string.Empty;
+        public string? PayoutOtp { get; set; }
 
-        [Required]
         [Display(Name = "WhatsApp OTP")]
         [StringLength(6, MinimumLength = 4)]
-        public string WhatsAppOtp { get; set; } = string.Empty;
+        public string? WhatsAppOtp { get; set; }
     }
 }

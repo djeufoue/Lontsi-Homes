@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using Common.Enums;
 
 namespace Common.CommunicationModels
 {
@@ -16,5 +17,10 @@ namespace Common.CommunicationModels
 
         [Range(1, int.MaxValue)]
         public int MaxMembers { get; set; } = 1;
+
+        [Range(1, 31)]
+        public int RentDueDay { get; set; } = 1;
+
+        public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
     }
 }

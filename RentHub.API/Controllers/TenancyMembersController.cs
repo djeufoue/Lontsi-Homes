@@ -60,6 +60,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
+                    request.WhatsAppPhoneNumber,
                     "Tenant")).User;
 
                 if (tenancy.Members.Any(tm => !tm.IsDeleted && tm.MemberId == memberUser.Id))

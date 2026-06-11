@@ -135,6 +135,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
+                    null,
                     "Owner")).User;
                 // Check if assignment already exists
                 var existing = await _context.ApartmentOwners

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Common.Enums;
 
 namespace RentHub.API.Models.Entities
 {
@@ -26,6 +27,16 @@ namespace RentHub.API.Models.Entities
         /// </summary>
         public int MaxMembers { get; set; } = 5;
 
+        [Range(1, 31)]
+        public int RentDueDay { get; set; } = 1;
+
+        public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+
+        public DateTimeOffset? TerminatedAt { get; set; }
+        public TenancyTerminationReasonEnum? TerminationReason { get; set; }
+        public string? TerminationNotes { get; set; }
+        public string? TerminatedBy { get; set; }
+
         // Audit fields
         public bool IsDeleted { get; set; } = false;
         public string? CreatedBy { get; set; }
@@ -37,6 +48,7 @@ namespace RentHub.API.Models.Entities
 
         // Navigation property for members associated with this tenancy
         public ICollection<TenancyMember> Members { get; set; } = new List<TenancyMember>();
+        public ICollection<RentPeriod> RentPeriods { get; set; } = new List<RentPeriod>();
     }
 }
 

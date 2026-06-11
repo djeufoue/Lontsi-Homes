@@ -1,4 +1,5 @@
 using System;
+using Common.Enums;
 
 namespace Common.CommunicationModels
 {
@@ -15,6 +16,10 @@ namespace Common.CommunicationModels
         public DateTimeOffset? EndDate { get; set; }
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; }
+        public int RentDueDay { get; set; } = 1;
+        public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public DateTimeOffset? TerminatedAt { get; set; }
+        public string Status { get; set; } = string.Empty;
         public DateTimeOffset? PaidThroughDate { get; set; }
         public DateTimeOffset? NextRentDueDate { get; set; }
         public DateTimeOffset? NextRentReminderDate { get; set; }
