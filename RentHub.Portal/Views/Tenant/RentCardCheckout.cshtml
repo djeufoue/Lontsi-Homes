@@ -1,0 +1,96 @@
+@model RentHub.Portal.ViewModels.Tenant.RentCardCheckoutVm
+@using System.Globalization
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Secure Rent Payment";
+    var rentAmount = Model.RentAmount.ToString("N0", CultureInfo.InvariantCulture);
+    var chargeAmount = Model.ChargeAmount.ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    var publishableKeyJson = JsonSerializer.Serialize(Model.PublishableKey);
+    var clientSecretJson = JsonSerializer.Serialize(Model.ClientSecret);
+}
+
+<section class="rh-card-checkout-page">
+    <div class="rh-card-checkout-shell">
+        <aside class="rh-card-checkout-summary">
+            <p class="rh-kicker">Rent payment</p>
+            <h1>Complete your rent payment</h1>
+            <p>Stripe securely checks and processes your card. Your rent period is marked paid only after Stripe confirms the payment.</p>
+
+            <div class="rh-card-checkout-plan">
+                <span>Property</span>
+                <strong>@Model.PropertyName</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>Apartment</span>
+                <strong>@Model.ApartmentName</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>Period</span>
+                <strong>@Model.PeriodLabel</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>Rent amount</span>
+                <strong>@rentAmount @Model.RentCurrency.ToUpperInvariant()</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>Card charge</span>
+                <strong>@chargeAmount @Model.ChargeCurrency.ToUpperInvariant()</strong>
+            </div>
+        </aside>
+
+        <div class="rh-card-checkout-panel">
+            <div class="rh-card-checkout-panel-head">
+                <div>
+                    <p class="rh-kicker mb-1">Secure checkout</p>
+                    <h2>Enter card details</h2>
+                </div>
+                <a class="btn rh-btn-subtle" asp-action="Index">Cancel</a>
+            </div>
+
+            <div class="alert alert-danger d-none" data-card-checkout-error></div>
+            <div class="alert alert-warning" role="status">
+                <strong>Payment testing mode:</strong> Do not use real card information. Use fake or test card details only. Any card information entered during this testing period will not be treated as operational payment data when the platform becomes fully operational.
+            </div>
+            <div id="stripe-checkout" class="rh-stripe-checkout-frame" aria-live="polite"></div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        (() => {
+            const publishableKey = @Html.Raw(publishableKeyJson);
+            const clientSecret = @Html.Raw(clientSecretJson);
+            const container = document.getElementById("stripe-checkout");
+            const errorBox = document.querySelector("[data-card-checkout-error]");
+
+            const showError = (message) => {
+                if (!errorBox) return;
+                errorBox.textContent = message || "Unable to load the secure card form. Please try again.";
+                errorBox.classList.remove("d-none");
+            };
+
+            if (!container) return;
+            if (!publishableKey || !clientSecret) {
+                showError("Card checkout is not configured yet. Please try again later.");
+                return;
+            }
+
+            if (!window.Stripe) {
+                showError("Stripe could not be loaded. Check your connection and refresh this page.");
+                return;
+            }
+
+            const stripe = Stripe(publishableKey);
+            stripe
+                .initEmbeddedCheckout({
+                    fetchClientSecret: () => Promise.resolve(clientSecret)
+                })
+                .then((checkout) => checkout.mount("#stripe-checkout"))
+                .catch((error) => {
+                    showError(error?.message || "Unable to load the secure card form. Please refresh and try again.");
+                });
+        })();
+    </script>
+}

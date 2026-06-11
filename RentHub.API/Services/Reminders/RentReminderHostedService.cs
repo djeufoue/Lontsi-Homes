@@ -1,14 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Common.Helpers;
 using RentHub.API.Data;
-using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Sms;
 using Common.Enums;
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,12 +27,17 @@ namespace RentHub.API.Services.Reminders
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<RentReminderHostedService> _logger;
+        private readonly IConfiguration _configuration;
         private readonly TimeSpan _interval;
 
-        public RentReminderHostedService(IServiceProvider serviceProvider, ILogger<RentReminderHostedService> logger)
+        public RentReminderHostedService(
+            IServiceProvider serviceProvider,
+            ILogger<RentReminderHostedService> logger,
+            IConfiguration configuration)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
+            _configuration = configuration;
             // Run once a day by default.  In production, this could be configured.
             _interval = TimeSpan.FromHours(24);
         }
@@ -53,7 +60,12 @@ namespace RentHub.API.Services.Reminders
                             .ThenInclude(m => m.Member)
                             .Include(t => t.Apartment)
                             .ThenInclude(a => a!.Property)
-                            .Where(t => !t.IsDeleted && (!t.EndDate.HasValue || t.EndDate.Value >= nowUtc))
+                            .Include(t => t.RentPeriods)
+                            .Where(t => !t.IsDeleted
+                                && !t.TerminatedAt.HasValue
+                                && (!t.EndDate.HasValue
+                                    || t.EndDate.Value >= nowUtc
+                                    || t.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth))
                             .ToList();
                         foreach (var tenancy in tenancies)
                         {
@@ -67,10 +79,6 @@ namespace RentHub.API.Services.Reminders
                                     .Where(member => !member.IsDeleted)
                                     .Select(member => member.Member)
                                     .FirstOrDefault(member => member != null);
-
-                            var payments = db.Payments
-                                .Where(payment => payment.TenancyId == tenancy.Id && payment.Status == PaymentStatusEnum.Success)
-                                .ToList();
 
                             // Get reminder settings for the property or landlord
                             ReminderSettings? settings = null;
@@ -91,34 +99,37 @@ namespace RentHub.API.Services.Reminders
                                 ? apartment.LeaseTerminationReminderDaysBeforeEnd
                                 : 30;
 
-                            var snapshot = TenancyReminderHelpers.BuildSnapshot(
-                                tenancy,
-                                apartment,
-                                payments,
-                                dueDays,
-                                leaseTerminationReminderDays,
-                                nowUtc);
-
-                            if (!snapshot.NextRentDueDate.HasValue || primaryTenant == null)
+                            var nextRentPeriod = ResolveNextActionableRentPeriod(tenancy, nowUtc);
+                            if (nextRentPeriod == null || primaryTenant == null)
                             {
                                 continue;
                             }
 
-                            var nextDue = snapshot.NextRentDueDate.Value;
+                            var nextDue = nextRentPeriod.DueDate;
+                            var rentReminderContext = new RentReminderContext(
+                                primaryTenant,
+                                tenancy,
+                                apartment,
+                                property,
+                                nextRentPeriod,
+                                ResolveRentPeriodStatus(nextRentPeriod, nowUtc),
+                                CalculateOutstandingBalance(tenancy, nowUtc),
+                                BuildTenantDashboardUrl());
+
                             // Send upcoming due reminder
-                            var daysUntilDue = (nextDue - nowUtc).TotalDays;
+                            var daysUntilDue = (nextDue.Date - nowUtc.Date).TotalDays;
                             if (daysUntilDue > 0 && daysUntilDue <= dueDays)
                             {
-                                await SendReminderAsync(primaryTenant, nextDue, false, emailService, smsService);
+                                await SendReminderAsync(rentReminderContext, false, emailService, smsService);
                             }
 
                             // Send unpaid reminder if payment has not been made X days after due
-                            var daysSinceDue = (nowUtc - nextDue).TotalDays;
+                            var daysSinceDue = (nowUtc.Date - nextDue.Date).TotalDays;
                             if (daysSinceDue > 0 && daysSinceDue >= unpaidDays)
                             {
-                                if (snapshot.NextRentDueDate.Value <= nowUtc)
+                                if (nextDue <= nowUtc)
                                 {
-                                    await SendReminderAsync(primaryTenant, nextDue, true, emailService, smsService);
+                                    await SendReminderAsync(rentReminderContext, true, emailService, smsService);
                                 }
                             }
 
@@ -143,15 +154,17 @@ namespace RentHub.API.Services.Reminders
             }
         }
 
-        private async Task SendReminderAsync(ApplicationUser tenant, DateTimeOffset dueDate, bool isUnpaid, IEmailService emailService, ISmsService smsService)
+        private async Task SendReminderAsync(RentReminderContext context, bool isUnpaid, IEmailService emailService, ISmsService smsService)
         {
             try
             {
-                // Compose message
-                string subject = isUnpaid ? "Rent Payment Overdue" : "Rent Payment Reminder";
-                string message = isUnpaid
-                    ? $"Your rent payment was due on {dueDate:yyyy-MM-dd} and is now overdue. Please settle your rent as soon as possible."
-                    : $"Your rent is due on {dueDate:yyyy-MM-dd}. Please ensure payment is made before the due date.";
+                var tenant = context.Tenant;
+                var subject = isUnpaid
+                    ? $"Rent Payment Overdue - {context.Apartment.Name}"
+                    : $"Rent Payment Reminder - {context.Apartment.Name}";
+                var message = BuildRentReminderMessage(context, isUnpaid);
+                var smsMessage = BuildRentReminderSms(context, isUnpaid);
+
                 // Send email
                 if (!string.IsNullOrEmpty(tenant.Email))
                 {
@@ -160,7 +173,7 @@ namespace RentHub.API.Services.Reminders
                 // Send SMS if tenant has a phone number on record
                 if (!string.IsNullOrEmpty(tenant.PhoneNumber))
                 {
-                    await smsService.SendSmsAsync(tenant.PhoneNumber, message);
+                    await smsService.SendSmsAsync(tenant.PhoneNumber, smsMessage);
                 }
             }
             catch
@@ -190,6 +203,148 @@ namespace RentHub.API.Services.Reminders
             {
                 // Ignore failures; errors will be logged by the caller.
             }
+        }
+
+        private static RentPeriod? ResolveNextActionableRentPeriod(Tenancy tenancy, DateTimeOffset nowUtc)
+        {
+            return tenancy.RentPeriods
+                .Where(period => !period.IsDeleted)
+                .OrderBy(period => period.PeriodStart)
+                .FirstOrDefault(period =>
+                {
+                    var status = ResolveRentPeriodStatus(period, nowUtc);
+                    return !RentPeriodScheduleHelper.IsPaidStatus(status)
+                        && status != RentPeriodStatusEnum.PendingPayment;
+                });
+        }
+
+        private static RentPeriodStatusEnum ResolveRentPeriodStatus(RentPeriod period, DateTimeOffset nowUtc)
+        {
+            if (RentPeriodScheduleHelper.IsPaidStatus(period.Status) ||
+                period.Status == RentPeriodStatusEnum.PendingPayment)
+            {
+                return period.Status;
+            }
+
+            return RentPeriodScheduleHelper.ResolveUnpaidStatus(period.DueDate, nowUtc);
+        }
+
+        private static decimal CalculateOutstandingBalance(Tenancy tenancy, DateTimeOffset nowUtc)
+        {
+            return tenancy.RentPeriods
+                .Where(period => !period.IsDeleted)
+                .Where(period =>
+                {
+                    var status = ResolveRentPeriodStatus(period, nowUtc);
+                    return !RentPeriodScheduleHelper.IsPaidStatus(status)
+                        && status != RentPeriodStatusEnum.PendingPayment;
+                })
+                .Sum(period => period.Amount > period.PaidAmount ? period.Amount - period.PaidAmount : 0);
+        }
+
+        private string BuildTenantDashboardUrl()
+        {
+            var portalBaseUrl = (_configuration["Portal:BaseUrl"] ?? "https://localhost:7059").Trim().TrimEnd('/');
+            return $"{portalBaseUrl}/Tenant";
+        }
+
+        private static string BuildRentReminderMessage(RentReminderContext context, bool isUnpaid)
+        {
+            var greetingName = string.IsNullOrWhiteSpace(context.Tenant.FullName)
+                ? "there"
+                : context.Tenant.FullName.Trim();
+            var statusLine = isUnpaid
+                ? $"Your rent period {FormatPeriod(context.RentPeriod)} is overdue."
+                : $"Your rent period {FormatPeriod(context.RentPeriod)} is due soon.";
+
+            return string.Join(Environment.NewLine, new[]
+            {
+                $"Hello {greetingName},",
+                string.Empty,
+                statusLine,
+                $"Due date: {FormatDate(context.RentPeriod.DueDate)}",
+                $"Property: {context.Property.Name}",
+                $"Apartment: {context.Apartment.Name}",
+                $"Country: {FormatCountry(context.Property)}",
+                $"Amount for this period: {FormatMoney(context.RentPeriod.Amount)}",
+                $"Outstanding balance: {FormatMoney(context.OutstandingBalance)}",
+                string.Empty,
+                "Rent payments must be completed in order. RentHub will start with the oldest unpaid period.",
+                $"Pay here: {context.DashboardUrl}",
+                string.Empty,
+                "Thank you,"
+            });
+        }
+
+        private static string BuildRentReminderSms(RentReminderContext context, bool isUnpaid)
+        {
+            var state = isUnpaid ? "overdue" : "due soon";
+            return $"Lontsi Homes: Rent for {context.Property.Name} - {context.Apartment.Name}, period {FormatPeriod(context.RentPeriod)}, is {state}. Pay: {context.DashboardUrl}";
+        }
+
+        private static string FormatCountry(Property property)
+        {
+            var isoCode = property.CountryIsoCode?.Trim().ToUpperInvariant();
+            var phoneCode = property.CountryCode?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(isoCode) && !string.IsNullOrWhiteSpace(phoneCode))
+            {
+                return $"{isoCode} ({phoneCode})";
+            }
+
+            if (!string.IsNullOrWhiteSpace(isoCode))
+            {
+                return isoCode;
+            }
+
+            return string.IsNullOrWhiteSpace(phoneCode) ? "Not provided" : phoneCode;
+        }
+
+        private static string FormatPeriod(RentPeriod period)
+        {
+            return $"{FormatDate(period.PeriodStart)} - {FormatDate(period.PeriodEnd)}";
+        }
+
+        private static string FormatDate(DateTimeOffset value)
+        {
+            return value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatMoney(decimal value)
+        {
+            return value.ToString("N0", CultureInfo.InvariantCulture);
+        }
+
+        private sealed class RentReminderContext
+        {
+            public RentReminderContext(
+                ApplicationUser tenant,
+                Tenancy tenancy,
+                Apartment apartment,
+                Property property,
+                RentPeriod rentPeriod,
+                RentPeriodStatusEnum rentPeriodStatus,
+                decimal outstandingBalance,
+                string dashboardUrl)
+            {
+                Tenant = tenant;
+                Tenancy = tenancy;
+                Apartment = apartment;
+                Property = property;
+                RentPeriod = rentPeriod;
+                RentPeriodStatus = rentPeriodStatus;
+                OutstandingBalance = outstandingBalance;
+                DashboardUrl = dashboardUrl;
+            }
+
+            public ApplicationUser Tenant { get; }
+            public Tenancy Tenancy { get; }
+            public Apartment Apartment { get; }
+            public Property Property { get; }
+            public RentPeriod RentPeriod { get; }
+            public RentPeriodStatusEnum RentPeriodStatus { get; }
+            public decimal OutstandingBalance { get; }
+            public string DashboardUrl { get; }
         }
     }
 }

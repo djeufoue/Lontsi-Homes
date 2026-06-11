@@ -14,6 +14,14 @@
         RentPeriodStatusEnum.Waived or RentPeriodStatusEnum.Cancelled => "rh-chip-info",
         _ => "rh-chip-info"
     };
+
+    string PaymentMethodLabel(PaymentMethodEnum method) => method switch
+    {
+        PaymentMethodEnum.Momo => "MTN Mobile Money",
+        PaymentMethodEnum.OrangeMoney => "Orange Money",
+        PaymentMethodEnum.Card => "card",
+        _ => method.ToString()
+    };
 }
 
 <section class="rh-overview-shell">
@@ -37,10 +45,16 @@
         {
             var tenancy = item.Tenancy;
             var periods = item.RentPeriods.OrderBy(period => period.PeriodStart).ToList();
-            var payablePeriods = periods
-                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.Status != RentPeriodStatusEnum.PendingPayment)
+            var pendingPaymentPeriod = periods
+                .Where(period => period.Status == RentPeriodStatusEnum.PendingPayment && !string.IsNullOrWhiteSpace(period.PaymentReference))
                 .OrderBy(period => period.PeriodStart)
-                .ToList();
+                .FirstOrDefault();
+            var payablePeriods = pendingPaymentPeriod == null
+                ? periods
+                    .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.Status != RentPeriodStatusEnum.PendingPayment)
+                    .OrderBy(period => period.PeriodStart)
+                    .ToList()
+                : new List<Common.CommunicationModels.RentPeriodDto>();
             var maxPayable = payablePeriods.Count;
 
             <section class="rh-panel rh-panel-elevated mb-3">
@@ -84,32 +98,70 @@
 
                 @if (maxPayable > 0)
                 {
-                    <form asp-action="PayRent" method="post" class="rh-inline-settings-note mb-3">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
-                        <div class="row g-3 align-items-end">
-                            <div class="col-md-8">
-                                <label class="form-label">Pay rent periods in order</label>
-                                <div class="rh-select-wrap">
-                                    <select class="form-select rh-input rh-select" name="numberOfPeriods">
-                                        @for (var count = 1; count <= maxPayable; count++)
-                                        {
-                                            var selectedPeriods = payablePeriods.Take(count).ToList();
-                                            var total = selectedPeriods.Sum(period => period.Amount - period.PaidAmount);
-                                            var first = selectedPeriods.First();
-                                            var last = selectedPeriods.Last();
-                                            <option value="@count">
-                                                Pay @count period@(count > 1 ? "s" : "") - @DateLabel(first.PeriodStart) to @DateLabel(last.PeriodEnd) - @total.ToString("N0")
-                                            </option>
-                                        }
-                                    </select>
+                    if (!item.CanPayRent)
+                    {
+                        <div class="rh-inline-settings-note rh-warning-note mb-3">
+                            @(string.IsNullOrWhiteSpace(item.PaymentUnavailableReason)
+                                ? "Card payment mode is not available right now."
+                                : item.PaymentUnavailableReason)
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="PayRent" method="post" class="rh-inline-settings-note rh-rent-payment-form mb-3">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                            <input type="hidden" name="paymentMethod" value="@item.PaymentMethod" />
+                            <input type="hidden" name="numberOfPeriods" value="0" data-rent-period-count />
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">Pay rent periods in order</label>
+                                    <div class="rh-rent-period-picker" data-rent-period-picker>
+                                        <button class="btn rh-btn-subtle rh-rent-period-picker-toggle" type="button" data-rent-picker-toggle>
+                                            Choose rent periods
+                                        </button>
+                                        <div class="rh-rent-period-picker-menu" data-rent-picker-menu>
+                                            @for (var optionIndex = 0; optionIndex < maxPayable; optionIndex++)
+                                            {
+                                                var period = payablePeriods[optionIndex];
+                                                var selectedPeriods = payablePeriods.Take(optionIndex + 1).ToList();
+                                                var total = selectedPeriods.Sum(selectedPeriod => selectedPeriod.Amount - selectedPeriod.PaidAmount);
+                                                var optionLabel = $"{DateLabel(period.PeriodStart)} - {DateLabel(period.PeriodEnd)}";
+                                                <label class="rh-rent-period-option">
+                                                    <input type="checkbox"
+                                                           data-rent-period-option
+                                                           data-index="@optionIndex"
+                                                           data-total="@total.ToString("N0")"
+                                                           data-label="@optionLabel"
+                                                           disabled="@(optionIndex > 0)" />
+                                                    <span>
+                                                        <strong>@optionLabel</strong>
+                                                        <small>@(period.Amount - period.PaidAmount).ToString("N0") due</small>
+                                                    </span>
+                                                </label>
+                                            }
+                                        </div>
+                                    </div>
+                                    <small class="text-muted" data-rent-picker-help>
+                                        Select the oldest period first. Each selected period unlocks the next one.
+                                    </small>
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="submit" class="btn rh-btn-primary w-100" data-rent-submit disabled>
+                                        Pay selected rent
+                                    </button>
+                                    <small class="text-muted d-block mt-2">Payment method: @PaymentMethodLabel(item.PaymentMethod)</small>
                                 </div>
                             </div>
-                            <div class="col-md-4">
-                                <button type="submit" class="btn rh-btn-primary w-100">Pay selected rent</button>
-                            </div>
-                        </div>
-                    </form>
+                        </form>
+                    }
+                }
+                else if (pendingPaymentPeriod != null)
+                {
+                    <div class="rh-inline-settings-note mb-3 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                        <span>A card payment is already pending for @DateLabel(pendingPaymentPeriod.PeriodStart) - @DateLabel(pendingPaymentPeriod.PeriodEnd). Complete that payment before selecting another period.</span>
+                        <a class="btn rh-btn-primary" asp-action="RentCardCheckout" asp-route-reference="@pendingPaymentPeriod.PaymentReference">Continue card payment</a>
+                    </div>
                 }
                 else
                 {
@@ -138,7 +190,11 @@
                                         {
                                             <span>Available in payment selector</span>
                                         }
-                                        else if (period.PaymentId.HasValue)
+                                        else if (period.Status == RentPeriodStatusEnum.PendingPayment && !string.IsNullOrWhiteSpace(period.PaymentReference))
+                                        {
+                                            <a class="btn btn-sm rh-btn-subtle" asp-action="RentCardCheckout" asp-route-reference="@period.PaymentReference">Continue payment</a>
+                                        }
+                                        else if (period.PaymentId.HasValue && RentPeriodScheduleHelper.IsPaidStatus(period.Status))
                                         {
                                             <div class="d-flex flex-wrap gap-2">
                                                 <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">Receipt</a>

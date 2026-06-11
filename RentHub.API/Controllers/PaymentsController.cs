@@ -24,19 +24,25 @@ namespace RentHub.API.Controllers
         private readonly IPaymentService _orangeMoneyService;
         private readonly MomoService _momoService;
         private readonly CardPaymentService _cardPaymentService;
+        private readonly IStripeCheckoutService _stripeCheckoutService;
         private readonly IRentReceiptService _receiptService;
+        private readonly IConfiguration _configuration;
 
         public PaymentsController(ApplicationDbContext context,
             IPaymentService orangeMoneyService,
             MomoService momoService,
             CardPaymentService cardPaymentService,
-            IRentReceiptService receiptService)
+            IStripeCheckoutService stripeCheckoutService,
+            IRentReceiptService receiptService,
+            IConfiguration configuration)
         {
             _context = context;
             _orangeMoneyService = orangeMoneyService;
             _momoService = momoService;
             _cardPaymentService = cardPaymentService;
+            _stripeCheckoutService = stripeCheckoutService;
             _receiptService = receiptService;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -70,7 +76,9 @@ namespace RentHub.API.Controllers
                 // Determine rent amount from the tenancy, if present
                 // Find the active tenancy between this tenant and landlord
                 var tenancy = await _context.Tenancies
-                    .Include(t => t.Apartment!.Property)
+                    .Include(t => t.Apartment)
+                    .ThenInclude(a => a!.Property)
+                    .ThenInclude(p => p!.Landlord)
                     .Include(t => t.Members)
                      .FirstOrDefaultAsync(t => t.Members.Any(m => !m.IsDeleted && m.MemberId == request.TenantId) && t.Apartment != null && t.Apartment!.Property!.LandlordId == request.LandlordId &&
                         (t.EndDate == null || t.EndDate >= DateTime.UtcNow) && t.StartDate <= DateTime.UtcNow);
@@ -100,6 +108,23 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
+                if (tenancy?.Apartment?.Property?.Landlord != null)
+                {
+                    var paymentAvailability = TenanciesController.ResolveTenantRentPaymentAvailability(
+                        tenancy.Apartment.Property.Landlord,
+                        tenancy.Apartment.Property.CountryIsoCode,
+                        tenancy.Apartment.Property.CountryCode);
+                    if (!paymentAvailability.CanPay)
+                    {
+                        return BadRequest(new { Message = paymentAvailability.Message });
+                    }
+
+                    if (request.Method != paymentAvailability.Method)
+                    {
+                        return BadRequest(new { Message = BuildPaymentMethodMismatchMessage(paymentAvailability.Method) });
+                    }
+                }
+
                 var requestKey = BuildPaymentRequestKey(request, currentUserId, tenancy?.Id, finalAmount);
                 var existingPayment = await _context.Payments
                     .IgnoreQueryFilters()
@@ -107,6 +132,25 @@ namespace RentHub.API.Controllers
 
                 if (existingPayment != null)
                 {
+                    if (request.Method == PaymentMethodEnum.Card &&
+                        existingPayment.Status == PaymentStatusEnum.Pending)
+                    {
+                        var existingPeriods = await _context.RentPeriods
+                            .Where(period => period.PaymentId == existingPayment.Id && !period.IsDeleted)
+                            .OrderBy(period => period.PeriodStart)
+                            .ToListAsync();
+
+                        return Ok(BuildRentCheckoutSessionDto(
+                            existingPayment,
+                            tenancy,
+                            existingPeriods,
+                            chargeAmount: ConvertXafToStripeMinorUnits(existingPayment.Amount) / 100m,
+                            chargeCurrency: ResolveStripeCurrency(),
+                            clientSecret: string.Empty,
+                            publishableKey: ResolveStripePublishableKey(),
+                            providerReference: existingPayment.TransactionId));
+                    }
+
                     return Ok(new
                     {
                         existingPayment.Id,
@@ -256,7 +300,8 @@ namespace RentHub.API.Controllers
 
                 var tenancy = await _context.Tenancies
                     .Include(t => t.Apartment)
-                    .ThenInclude(a => a.Property)
+                    .ThenInclude(a => a!.Property)
+                    .ThenInclude(p => p!.Landlord)
                     .Include(t => t.Members)
                     .Include(t => t.RentPeriods)
                     .FirstOrDefaultAsync(t => t.Id == request.TenancyId && !t.IsDeleted);
@@ -277,12 +322,64 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                var payablePeriods = tenancy.RentPeriods
+                var paymentAvailability = TenanciesController.ResolveTenantRentPaymentAvailability(
+                    tenancy.Apartment.Property.Landlord,
+                    tenancy.Apartment.Property.CountryIsoCode,
+                    tenancy.Apartment.Property.CountryCode);
+                if (!paymentAvailability.CanPay)
+                {
+                    return BadRequest(new { Message = paymentAvailability.Message });
+                }
+
+                if (request.Method != paymentAvailability.Method)
+                {
+                    return BadRequest(new { Message = BuildPaymentMethodMismatchMessage(paymentAvailability.Method) });
+                }
+
+                var openPeriods = tenancy.RentPeriods
                     .Where(period =>
                         !period.IsDeleted &&
-                        !RentPeriodScheduleHelper.IsPaidStatus(period.Status) &&
-                        period.Status != RentPeriodStatusEnum.PendingPayment)
+                        !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
                     .OrderBy(period => period.PeriodStart)
+                    .ToList();
+
+                var firstOpenPeriod = openPeriods.FirstOrDefault();
+                if (firstOpenPeriod?.Status == RentPeriodStatusEnum.PendingPayment)
+                {
+                    if (request.Method == PaymentMethodEnum.Card && firstOpenPeriod.PaymentId.HasValue)
+                    {
+                        var pendingPayment = await _context.Payments
+                            .IgnoreQueryFilters()
+                            .FirstOrDefaultAsync(payment =>
+                                payment.Id == firstOpenPeriod.PaymentId.Value &&
+                                payment.TenantId == currentUserId &&
+                                payment.Status == PaymentStatusEnum.Pending &&
+                                !payment.IsDeleted);
+
+                        if (pendingPayment != null && IsStripeCheckoutSessionId(pendingPayment.TransactionId))
+                        {
+                            var pendingPeriods = openPeriods
+                                .Where(period => period.PaymentId == pendingPayment.Id)
+                                .OrderBy(period => period.PeriodStart)
+                                .ToList();
+
+                            return Ok(BuildRentCheckoutSessionDto(
+                                pendingPayment,
+                                tenancy,
+                                pendingPeriods,
+                                chargeAmount: ConvertXafToStripeMinorUnits(pendingPayment.Amount) / 100m,
+                                chargeCurrency: ResolveStripeCurrency(),
+                                clientSecret: string.Empty,
+                                publishableKey: ResolveStripePublishableKey(),
+                                providerReference: pendingPayment.TransactionId));
+                        }
+                    }
+
+                    return BadRequest(new { Message = "A previous rent payment is still pending. Please complete or retry that payment before paying another period." });
+                }
+
+                var payablePeriods = openPeriods
+                    .Where(period => period.Status != RentPeriodStatusEnum.PendingPayment)
                     .Take(request.NumberOfPeriods)
                     .ToList();
 
@@ -346,11 +443,75 @@ namespace RentHub.API.Controllers
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
+                if (request.Method == PaymentMethodEnum.Card)
+                {
+                    var tenantUser = await _context.Users.FirstOrDefaultAsync(user => user.Id == currentUserId);
+                    var landlord = tenancy.Apartment.Property.Landlord;
+                    if (tenantUser == null || landlord == null)
+                    {
+                        return NotFound("Tenant or landlord not found.");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(landlord.StripeConnectAccountId))
+                    {
+                        return BadRequest(new { Message = "Card payment mode is not available because the landlord Stripe account is not ready." });
+                    }
+
+                    payment.Tenancy = tenancy;
+                    var checkoutCurrency = ResolveStripeCurrency();
+                    var checkoutAmountMinorUnits = ConvertXafToStripeMinorUnits(totalAmount);
+                    StripeCheckoutResult checkout;
+                    try
+                    {
+                        checkout = await _stripeCheckoutService.CreateRentCheckoutAsync(
+                            tenantUser,
+                            landlord,
+                            payment,
+                            payablePeriods,
+                            landlord.StripeConnectAccountId,
+                            checkoutAmountMinorUnits,
+                            checkoutCurrency);
+                    }
+                    catch
+                    {
+                        payment.Status = PaymentStatusEnum.Failed;
+                        payment.UpdatedBy = currentUserId;
+                        payment.UpdatedAt = DateTimeOffset.UtcNow;
+                        await _context.SaveChangesAsync();
+                        throw;
+                    }
+
+                    payment.TransactionId = checkout.SessionId;
+                    payment.UpdatedBy = currentUserId;
+                    payment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                    foreach (var period in payablePeriods)
+                    {
+                        period.Status = RentPeriodStatusEnum.PendingPayment;
+                        period.PaymentId = payment.Id;
+                        period.PaymentReference = checkout.SessionId;
+                        period.UpdatedBy = currentUserId;
+                        period.UpdatedAt = DateTimeOffset.UtcNow;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    return Ok(BuildRentCheckoutSessionDto(
+                        payment,
+                        tenancy,
+                        payablePeriods,
+                        chargeAmount: checkoutAmountMinorUnits / 100m,
+                        chargeCurrency: checkoutCurrency,
+                        clientSecret: checkout.ClientSecret,
+                        publishableKey: ResolveStripePublishableKey(),
+                        providerReference: checkout.SessionId,
+                        returnUrl: checkout.ReturnUrl));
+                }
+
                 PaymentResult result = request.Method switch
                 {
                     PaymentMethodEnum.OrangeMoney => await _orangeMoneyService.ProcessPaymentAsync(payment, paymentRequest),
                     PaymentMethodEnum.Momo => await _momoService.ProcessPaymentAsync(payment, paymentRequest),
-                    PaymentMethodEnum.Card => await _cardPaymentService.ProcessPaymentAsync(payment, paymentRequest),
                     _ => new PaymentResult { Success = false, Status = "UNKNOWN" }
                 };
 
@@ -406,6 +567,147 @@ namespace RentHub.API.Controllers
                     ReceiptNumber = receipt?.ReceiptNumber ?? string.Empty,
                     CoveredPeriodIds = payablePeriods.Select(period => period.Id).ToList(),
                     Duplicate = false
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpGet("rent-periods/checkout-session/{reference}")]
+        [Authorize]
+        public async Task<IActionResult> GetRentCheckoutSession(string reference)
+        {
+            try
+            {
+                var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    return Unauthorized();
+                }
+
+                var payment = await _context.Payments
+                    .Include(p => p.Tenancy)
+                    .ThenInclude(t => t!.Apartment)
+                    .ThenInclude(a => a!.Property)
+                    .ThenInclude(p => p!.Landlord)
+                    .FirstOrDefaultAsync(p =>
+                        p.RequestKey == reference &&
+                        p.TenantId == currentUserId &&
+                        p.Method == PaymentMethodEnum.Card &&
+                        !p.IsDeleted);
+
+                if (payment == null)
+                {
+                    return NotFound("Rent card checkout was not found.");
+                }
+
+                if (payment.Status == PaymentStatusEnum.Success)
+                {
+                    return BadRequest(new { Message = "This rent payment has already been completed." });
+                }
+
+                if (!IsStripeCheckoutSessionId(payment.TransactionId))
+                {
+                    return BadRequest(new { Message = "Card checkout is not ready yet. Please choose the rent periods again." });
+                }
+
+                var periods = await _context.RentPeriods
+                    .Where(period => period.PaymentId == payment.Id && !period.IsDeleted)
+                    .OrderBy(period => period.PeriodStart)
+                    .ToListAsync();
+
+                var remoteStatus = await _stripeCheckoutService.RetrieveSessionAsync(payment.TransactionId);
+                if (remoteStatus == null)
+                {
+                    return BadRequest(new { Message = "Unable to load the secure card form right now. Please try again." });
+                }
+
+                if (!string.IsNullOrWhiteSpace(remoteStatus.PaymentReference) &&
+                    !string.Equals(remoteStatus.PaymentReference, payment.RequestKey, StringComparison.Ordinal))
+                {
+                    return BadRequest(new { Message = "Stripe checkout reference does not match this rent payment." });
+                }
+
+                var providerStatus = ResolveStripeProviderStatus(remoteStatus.PaymentStatus, remoteStatus.Status);
+                if (IsFailedProviderStatus(providerStatus))
+                {
+                    await ApplyRentCheckoutStatusAsync(payment, remoteStatus, currentUserId);
+                    return BadRequest(new { Message = "This card checkout expired or failed. Please choose the rent periods again." });
+                }
+
+                return Ok(BuildRentCheckoutSessionDto(
+                    payment,
+                    payment.Tenancy,
+                    periods,
+                    chargeAmount: ConvertXafToStripeMinorUnits(payment.Amount) / 100m,
+                    chargeCurrency: ResolveStripeCurrency(),
+                    clientSecret: remoteStatus.ClientSecret,
+                    publishableKey: ResolveStripePublishableKey(),
+                    providerReference: remoteStatus.SessionId,
+                    returnUrl: BuildRentPaymentCallbackUrl(payment.RequestKey, remoteStatus.SessionId)));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpGet("rent-periods/checkout-status/{reference}")]
+        [Authorize]
+        public async Task<IActionResult> GetRentCheckoutStatus(string reference)
+        {
+            try
+            {
+                var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    return Unauthorized();
+                }
+
+                var payment = await _context.Payments
+                    .Include(p => p.Tenancy)
+                    .ThenInclude(t => t!.Apartment)
+                    .ThenInclude(a => a!.Property)
+                    .FirstOrDefaultAsync(p =>
+                        p.RequestKey == reference &&
+                        p.TenantId == currentUserId &&
+                        p.Method == PaymentMethodEnum.Card &&
+                        !p.IsDeleted);
+
+                if (payment == null)
+                {
+                    return NotFound("Rent card checkout was not found.");
+                }
+
+                if (payment.Status != PaymentStatusEnum.Success &&
+                    IsStripeCheckoutSessionId(payment.TransactionId))
+                {
+                    var remoteStatus = await _stripeCheckoutService.RetrieveSessionAsync(payment.TransactionId);
+                    if (remoteStatus != null &&
+                        (string.IsNullOrWhiteSpace(remoteStatus.PaymentReference) ||
+                         string.Equals(remoteStatus.PaymentReference, payment.RequestKey, StringComparison.Ordinal)))
+                    {
+                        await ApplyRentCheckoutStatusAsync(payment, remoteStatus, currentUserId);
+                    }
+                }
+
+                var completed = payment.Status == PaymentStatusEnum.Success;
+                return Ok(new RentCheckoutStatusDto
+                {
+                    PaymentId = payment.Id,
+                    TenancyId = payment.TenancyId ?? 0,
+                    PaymentReference = payment.RequestKey,
+                    ProviderReference = payment.TransactionId,
+                    PaymentStatus = payment.Status.ToString(),
+                    PaymentCompleted = completed,
+                    ReceiptNumber = payment.SystemReceiptNumber ?? string.Empty,
+                    Message = completed
+                        ? "Rent payment completed successfully."
+                        : payment.Status == PaymentStatusEnum.Failed
+                            ? "The card payment was not completed. Please choose the rent periods and try again."
+                            : "The card payment is still pending. Please complete the secure card form."
                 });
             }
             catch (Exception ex)
@@ -663,6 +965,25 @@ namespace RentHub.API.Controllers
             return Convert.ToHexString(bytes).ToLowerInvariant();
         }
 
+        private static string BuildPaymentMethodMismatchMessage(PaymentMethodEnum expectedMethod)
+        {
+            return expectedMethod == PaymentMethodEnum.Card
+                ? "Card payment mode is required for this tenancy."
+                : $"This tenancy must be paid with {PaymentMethodLabel(expectedMethod)}.";
+        }
+
+        private static string PaymentMethodLabel(PaymentMethodEnum method)
+        {
+            return method switch
+            {
+                PaymentMethodEnum.Momo => "MTN Mobile Money",
+                PaymentMethodEnum.OrangeMoney => "Orange Money",
+                PaymentMethodEnum.Card => "card payment",
+                PaymentMethodEnum.Cash => "cash",
+                _ => method.ToString()
+            };
+        }
+
         private static bool IsUniqueConstraintViolation(DbUpdateException ex)
         {
             if (ex.GetBaseException() is SqlException sqlException)
@@ -673,6 +994,208 @@ namespace RentHub.API.Controllers
             var message = ex.GetBaseException().Message;
             return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task ApplyRentCheckoutStatusAsync(
+            Payment payment,
+            StripeCheckoutStatus remoteStatus,
+            string actorId)
+        {
+            var providerStatus = ResolveStripeProviderStatus(remoteStatus.PaymentStatus, remoteStatus.Status);
+            var periods = await _context.RentPeriods
+                .Where(period => period.PaymentId == payment.Id && !period.IsDeleted)
+                .OrderBy(period => period.PeriodStart)
+                .ToListAsync();
+
+            if (IsSuccessfulProviderStatus(providerStatus))
+            {
+                var wasAlreadySuccessful = payment.Status == PaymentStatusEnum.Success;
+                payment.Status = PaymentStatusEnum.Success;
+                payment.PaymentDate = DateTimeOffset.UtcNow;
+                payment.ProviderReceiptUrl = string.IsNullOrWhiteSpace(remoteStatus.ProviderReceiptUrl)
+                    ? payment.ProviderReceiptUrl
+                    : remoteStatus.ProviderReceiptUrl;
+                payment.UpdatedBy = actorId;
+                payment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                foreach (var period in periods)
+                {
+                    period.Status = RentPeriodStatusEnum.Paid;
+                    period.PaidAmount = period.Amount;
+                    period.PaidDate = payment.PaymentDate;
+                    period.PaymentReference = string.IsNullOrWhiteSpace(remoteStatus.PaymentIntentId)
+                        ? remoteStatus.SessionId
+                        : remoteStatus.PaymentIntentId;
+                    period.UpdatedBy = actorId;
+                    period.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+
+                await _context.SaveChangesAsync();
+
+                var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, actorId);
+                if (receipt != null && !wasAlreadySuccessful)
+                {
+                    await _receiptService.SendReceiptNotificationsAsync(
+                        receipt,
+                        notifyTenant: true,
+                        notifyLandlord: true);
+                }
+
+                return;
+            }
+
+            if (IsFailedProviderStatus(providerStatus))
+            {
+                payment.Status = PaymentStatusEnum.Failed;
+                payment.ProviderReceiptUrl = string.IsNullOrWhiteSpace(remoteStatus.ProviderReceiptUrl)
+                    ? payment.ProviderReceiptUrl
+                    : remoteStatus.ProviderReceiptUrl;
+                payment.UpdatedBy = actorId;
+                payment.UpdatedAt = DateTimeOffset.UtcNow;
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                foreach (var period in periods.Where(period => period.Status == RentPeriodStatusEnum.PendingPayment))
+                {
+                    period.Status = RentPeriodScheduleHelper.ResolveUnpaidStatus(period.DueDate, nowUtc);
+                    period.PaymentId = null;
+                    period.PaymentReference = string.Empty;
+                    period.UpdatedBy = actorId;
+                    period.UpdatedAt = nowUtc;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private RentCheckoutSessionDto BuildRentCheckoutSessionDto(
+            Payment payment,
+            Tenancy? tenancy,
+            IReadOnlyCollection<RentPeriod> periods,
+            decimal chargeAmount,
+            string chargeCurrency,
+            string clientSecret,
+            string publishableKey,
+            string providerReference,
+            string returnUrl = "")
+        {
+            return new RentCheckoutSessionDto
+            {
+                PaymentId = payment.Id,
+                TenancyId = payment.TenancyId ?? tenancy?.Id ?? 0,
+                RentAmount = payment.Amount,
+                RentCurrency = payment.Currency,
+                ChargeAmount = chargeAmount,
+                ChargeCurrency = string.IsNullOrWhiteSpace(chargeCurrency) ? "USD" : chargeCurrency,
+                PaymentMethod = PaymentMethodEnum.Card,
+                PaymentReference = payment.RequestKey,
+                ProviderReference = providerReference,
+                ClientSecret = clientSecret,
+                PublishableKey = publishableKey,
+                ReturnUrl = string.IsNullOrWhiteSpace(returnUrl)
+                    ? BuildRentPaymentCallbackUrl(payment.RequestKey, providerReference)
+                    : returnUrl,
+                CheckoutUrl = BuildRentCardCheckoutUrl(payment.RequestKey),
+                Provider = "Stripe",
+                PropertyName = tenancy?.Apartment?.Property?.Name ?? string.Empty,
+                ApartmentName = tenancy?.Apartment?.Name ?? string.Empty,
+                PeriodLabel = BuildPeriodLabel(periods),
+                Status = payment.Status.ToString()
+            };
+        }
+
+        private string BuildRentCardCheckoutUrl(string paymentReference)
+        {
+            var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(portalBaseUrl))
+            {
+                throw new InvalidOperationException("Portal base URL is missing.");
+            }
+
+            return $"{portalBaseUrl}/Tenant/RentCardCheckout?reference={Uri.EscapeDataString(paymentReference)}";
+        }
+
+        private string BuildRentPaymentCallbackUrl(string paymentReference, string? providerReference)
+        {
+            var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(portalBaseUrl))
+            {
+                throw new InvalidOperationException("Portal base URL is missing.");
+            }
+
+            var url = $"{portalBaseUrl}/Tenant/RentPaymentCallback?reference={Uri.EscapeDataString(paymentReference)}";
+            return string.IsNullOrWhiteSpace(providerReference)
+                ? url
+                : $"{url}&session_id={Uri.EscapeDataString(providerReference)}";
+        }
+
+        private string ResolveStripePublishableKey()
+        {
+            return _configuration["Stripe:PublishableKey"]?.Trim() ?? string.Empty;
+        }
+
+        private string ResolveStripeCurrency()
+        {
+            var configured = (_configuration["Stripe:Currency"] ?? "usd").Trim();
+            return string.IsNullOrWhiteSpace(configured)
+                ? "USD"
+                : configured.ToUpperInvariant();
+        }
+
+        private long ConvertXafToStripeMinorUnits(decimal xafAmount)
+        {
+            var usdToXafRate = _configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
+            if (usdToXafRate <= 0)
+            {
+                usdToXafRate = 565m;
+            }
+
+            var checkoutAmount = xafAmount / usdToXafRate;
+            var minorUnits = decimal.Round(checkoutAmount * 100m, 0, MidpointRounding.AwayFromZero);
+            return Math.Max(50, decimal.ToInt64(minorUnits));
+        }
+
+        private static bool IsStripeCheckoutSessionId(string? value)
+        {
+            return (value ?? string.Empty).Trim().StartsWith("cs_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ResolveStripeProviderStatus(string? paymentStatus, string? sessionStatus)
+        {
+            var normalizedPaymentStatus = (paymentStatus ?? string.Empty).Trim().ToLowerInvariant();
+            if (!string.IsNullOrWhiteSpace(normalizedPaymentStatus) &&
+                normalizedPaymentStatus != "unpaid")
+            {
+                return normalizedPaymentStatus;
+            }
+
+            return (sessionStatus ?? normalizedPaymentStatus ?? "open").Trim().ToLowerInvariant();
+        }
+
+        private static bool IsSuccessfulProviderStatus(string providerStatus)
+        {
+            var normalizedStatus = (providerStatus ?? string.Empty).Trim().ToLowerInvariant();
+            return normalizedStatus is "complete" or "success" or "successful" or "succeeded" or "paid";
+        }
+
+        private static bool IsFailedProviderStatus(string providerStatus)
+        {
+            var normalizedStatus = (providerStatus ?? string.Empty).Trim().ToLowerInvariant();
+            return normalizedStatus is "failed" or "canceled" or "cancelled" or "expired";
+        }
+
+        private static string BuildPeriodLabel(IReadOnlyCollection<RentPeriod> periods)
+        {
+            if (periods.Count == 0)
+            {
+                return "Rent payment";
+            }
+
+            var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
+            var first = ordered.First();
+            var last = ordered.Last();
+            return ordered.Count == 1
+                ? $"{first.PeriodStart:MMM d, yyyy} - {first.PeriodEnd:MMM d, yyyy}"
+                : $"{first.PeriodStart:MMM d, yyyy} - {last.PeriodEnd:MMM d, yyyy}";
         }
 
         private async Task<bool> CanWriteTenancyAsync(Tenancy tenancy, string userId)

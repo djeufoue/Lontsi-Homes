@@ -15,6 +15,15 @@ namespace RentHub.API.Services.Payments
             long amountInMinorUnits,
             string currency);
 
+        Task<StripeCheckoutResult> CreateRentCheckoutAsync(
+            ApplicationUser tenant,
+            ApplicationUser landlord,
+            Payment payment,
+            IReadOnlyCollection<RentPeriod> periods,
+            string connectedAccountId,
+            long amountInMinorUnits,
+            string currency);
+
         Task<StripeCheckoutStatus?> RetrieveSessionAsync(string sessionId);
 
         Task<StripeAutomaticPaymentResult> CreateAutomaticSubscriptionPaymentAsync(
@@ -38,17 +47,20 @@ namespace RentHub.API.Services.Payments
         public string Status { get; init; } = string.Empty;
         public string CustomerId { get; init; } = string.Empty;
         public string PaymentMethodId { get; init; } = string.Empty;
+        public string ProviderReceiptUrl { get; init; } = string.Empty;
     }
 
     public sealed class StripeCheckoutStatus
     {
         public string SessionId { get; init; } = string.Empty;
+        public string ClientSecret { get; init; } = string.Empty;
         public string PaymentReference { get; init; } = string.Empty;
         public string PaymentIntentId { get; init; } = string.Empty;
         public string PaymentStatus { get; init; } = string.Empty;
         public string Status { get; init; } = string.Empty;
         public string CustomerId { get; init; } = string.Empty;
         public string PaymentMethodId { get; init; } = string.Empty;
+        public string ProviderReceiptUrl { get; init; } = string.Empty;
     }
 
     public sealed class StripeAutomaticPaymentResult
@@ -148,6 +160,91 @@ namespace RentHub.API.Services.Payments
             };
         }
 
+        public async Task<StripeCheckoutResult> CreateRentCheckoutAsync(
+            ApplicationUser tenant,
+            ApplicationUser landlord,
+            Payment payment,
+            IReadOnlyCollection<RentPeriod> periods,
+            string connectedAccountId,
+            long amountInMinorUnits,
+            string currency)
+        {
+            if (string.IsNullOrWhiteSpace(connectedAccountId))
+            {
+                throw new InvalidOperationException("The landlord Stripe payout account is missing.");
+            }
+
+            var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(portalBaseUrl))
+            {
+                throw new InvalidOperationException("Portal base URL is missing.");
+            }
+
+            var tenancy = payment.Tenancy;
+            var propertyName = tenancy?.Apartment?.Property?.Name ?? "Property";
+            var apartmentName = tenancy?.Apartment?.Name ?? "Apartment";
+            var periodLabel = BuildPeriodLabel(periods);
+            var returnUrl = $"{portalBaseUrl}/Tenant/RentPaymentCallback?reference={Uri.EscapeDataString(payment.RequestKey)}&session_id={{CHECKOUT_SESSION_ID}}";
+            var normalizedCurrency = NormalizeCurrency(currency);
+
+            var form = new Dictionary<string, string>
+            {
+                ["mode"] = "payment",
+                ["ui_mode"] = "embedded_page",
+                ["client_reference_id"] = payment.RequestKey,
+                ["return_url"] = returnUrl,
+                ["customer_email"] = tenant.Email ?? string.Empty,
+                ["payment_method_types[0]"] = "card",
+                ["line_items[0][quantity]"] = "1",
+                ["line_items[0][price_data][currency]"] = normalizedCurrency,
+                ["line_items[0][price_data][unit_amount]"] = amountInMinorUnits.ToString(CultureInfo.InvariantCulture),
+                ["line_items[0][price_data][product_data][name]"] = $"Rent payment - {propertyName} / {apartmentName}",
+                ["line_items[0][price_data][product_data][description]"] = periodLabel,
+                ["metadata[kind]"] = "rent",
+                ["metadata[paymentId]"] = payment.Id.ToString(CultureInfo.InvariantCulture),
+                ["metadata[paymentReference]"] = payment.RequestKey,
+                ["metadata[tenancyId]"] = payment.TenancyId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                ["metadata[tenantId]"] = tenant.Id,
+                ["metadata[landlordId]"] = landlord.Id,
+                ["metadata[connectedAccountId]"] = connectedAccountId,
+                ["payment_intent_data[transfer_data][destination]"] = connectedAccountId,
+                ["payment_intent_data[metadata][kind]"] = "rent",
+                ["payment_intent_data[metadata][paymentId]"] = payment.Id.ToString(CultureInfo.InvariantCulture),
+                ["payment_intent_data[metadata][paymentReference]"] = payment.RequestKey,
+                ["payment_intent_data[metadata][tenancyId]"] = payment.TenancyId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                ["payment_intent_data[metadata][tenantId]"] = tenant.Id,
+                ["payment_intent_data[metadata][landlordId]"] = landlord.Id,
+                ["payment_intent_data[metadata][connectedAccountId]"] = connectedAccountId
+            };
+
+            using var response = await SendStripeFormAsync(HttpMethod.Post, "checkout/sessions", form);
+            var raw = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Stripe rent checkout session creation failed with status {StatusCode}: {Payload}", response.StatusCode, raw);
+                throw new InvalidOperationException(ExtractStripeMessage(raw));
+            }
+
+            using var document = JsonDocument.Parse(raw);
+            var sessionId = FindString(document.RootElement, "id");
+            var clientSecret = FindString(document.RootElement, "client_secret");
+            if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(clientSecret))
+            {
+                throw new InvalidOperationException("Stripe did not return a rent checkout session client secret.");
+            }
+
+            return new StripeCheckoutResult
+            {
+                SessionId = sessionId,
+                ClientSecret = clientSecret,
+                ReturnUrl = returnUrl.Replace("{CHECKOUT_SESSION_ID}", sessionId, StringComparison.Ordinal),
+                PaymentStatus = FindString(document.RootElement, "payment_status") ?? "unpaid",
+                Status = FindString(document.RootElement, "status") ?? "open",
+                CustomerId = FindString(document.RootElement, "customer") ?? string.Empty,
+                PaymentMethodId = FindString(document.RootElement, "payment_method") ?? string.Empty
+            };
+        }
+
         public async Task<StripeCheckoutStatus?> RetrieveSessionAsync(string sessionId)
         {
             if (string.IsNullOrWhiteSpace(sessionId))
@@ -160,7 +257,8 @@ namespace RentHub.API.Services.Payments
                 $"checkout/sessions/{Uri.EscapeDataString(sessionId)}",
                 new Dictionary<string, string>
                 {
-                    ["expand[0]"] = "payment_intent"
+                    ["expand[0]"] = "payment_intent",
+                    ["expand[1]"] = "payment_intent.latest_charge"
                 });
 
             var raw = await response.Content.ReadAsStringAsync();
@@ -290,6 +388,7 @@ namespace RentHub.API.Services.Payments
             return new StripeCheckoutStatus
             {
                 SessionId = sessionId,
+                ClientSecret = ReadDirectString(element, "client_secret") ?? string.Empty,
                 PaymentReference = ReadDirectString(element, "client_reference_id")
                     ?? FindString(element, "paymentReference")
                     ?? string.Empty,
@@ -297,8 +396,24 @@ namespace RentHub.API.Services.Payments
                 PaymentStatus = ReadDirectString(element, "payment_status") ?? "unpaid",
                 Status = ReadDirectString(element, "status") ?? string.Empty,
                 CustomerId = customerId,
-                PaymentMethodId = paymentMethodId
+                PaymentMethodId = paymentMethodId,
+                ProviderReceiptUrl = FindString(element, "receipt_url") ?? string.Empty
             };
+        }
+
+        private static string BuildPeriodLabel(IReadOnlyCollection<RentPeriod> periods)
+        {
+            if (periods.Count == 0)
+            {
+                return "Rent payment";
+            }
+
+            var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
+            var first = ordered.First();
+            var last = ordered.Last();
+            return ordered.Count == 1
+                ? $"{first.PeriodStart:MMM d, yyyy} - {first.PeriodEnd:MMM d, yyyy}"
+                : $"{first.PeriodStart:MMM d, yyyy} - {last.PeriodEnd:MMM d, yyyy}";
         }
 
         private async Task<HttpResponseMessage> SendStripeFormAsync(

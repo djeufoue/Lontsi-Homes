@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Mail;
 
@@ -16,6 +20,11 @@ namespace RentHub.API.Services.Email
 
         public async Task SendEmailAsync(string to, string subject, string body)
         {
+            await SendEmailAsync(to, subject, body, Array.Empty<EmailAttachment>());
+        }
+
+        public async Task SendEmailAsync(string to, string subject, string body, IReadOnlyCollection<EmailAttachment> attachments)
+        {
             try
             {
                 var host = _configuration["Email:Smtp:Host"];
@@ -29,6 +38,7 @@ namespace RentHub.API.Services.Email
                 var username = _configuration["Email:Smtp:Username"];
                 var password = _configuration["Email:Smtp:Password"];
                 var from = _configuration["Email:Smtp:From"];
+                var fromName = _configuration["Email:Smtp:FromName"];
                 var useSslRaw = _configuration["Email:Smtp:UseSsl"];
 
                 var port = int.TryParse(portRaw, out var parsedPort) ? parsedPort : 587;
@@ -41,10 +51,24 @@ namespace RentHub.API.Services.Email
                     return;
                 }
 
-                using var message = new MailMessage(fromAddress, to, subject, body)
+                var senderName = string.IsNullOrWhiteSpace(fromName) ? "Lontsi Homes" : fromName;
+                using var message = new MailMessage(new MailAddress(fromAddress, senderName), new MailAddress(to))
                 {
+                    Subject = subject,
+                    Body = body,
                     IsBodyHtml = false
                 };
+
+                foreach (var attachment in attachments.Where(a => a.Content.Length > 0 && !string.IsNullOrWhiteSpace(a.FileName)))
+                {
+                    var stream = new MemoryStream(attachment.Content);
+                    message.Attachments.Add(new Attachment(
+                        stream,
+                        attachment.FileName,
+                        string.IsNullOrWhiteSpace(attachment.ContentType)
+                            ? "application/octet-stream"
+                            : attachment.ContentType));
+                }
 
                 using var client = new SmtpClient(host, port)
                 {

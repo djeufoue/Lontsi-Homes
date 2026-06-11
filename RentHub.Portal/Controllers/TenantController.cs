@@ -3,6 +3,7 @@ using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
+using RentHub.Portal.ViewModels.Tenant;
 using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
@@ -36,7 +37,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> PayRent(int tenancyId, int numberOfPeriods)
+        public async Task<IActionResult> PayRent(int tenancyId, int numberOfPeriods, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
         {
             if (tenancyId <= 0 || numberOfPeriods <= 0)
             {
@@ -44,14 +45,37 @@ namespace RentHub.Portal.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
+            if (paymentMethod == PaymentMethodEnum.Cash)
+            {
+                TempData["Error"] = "Cash payments must be recorded by the landlord.";
+                return RedirectToAction(nameof(Index));
+            }
+
             try
             {
-                await _api.PostAsync<PayRentPeriodsRequest, JsonElement>("payments/rent-periods", new PayRentPeriodsRequest
+                var request = new PayRentPeriodsRequest
                 {
                     TenancyId = tenancyId,
                     NumberOfPeriods = numberOfPeriods,
-                    Method = PaymentMethodEnum.Card
-                });
+                    Method = paymentMethod
+                };
+
+                if (paymentMethod == PaymentMethodEnum.Card)
+                {
+                    var session = await _api.PostAsync<PayRentPeriodsRequest, RentCheckoutSessionDto>(
+                        "payments/rent-periods",
+                        request);
+
+                    if (string.IsNullOrWhiteSpace(session.PaymentReference))
+                    {
+                        TempData["Error"] = "Card checkout could not be started. Please try again.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    return RedirectToAction(nameof(RentCardCheckout), new { reference = session.PaymentReference });
+                }
+
+                await _api.PostAsync<PayRentPeriodsRequest, JsonElement>("payments/rent-periods", request);
 
                 TempData["Success"] = numberOfPeriods == 1
                     ? "Rent payment was processed for the oldest unpaid period."
@@ -61,6 +85,84 @@ namespace RentHub.Portal.Controllers
             {
                 _logger.LogError(ex, "Tenant rent payment failed for tenancy {TenancyId}.", tenancyId);
                 TempData["Error"] = SafeUserMessage(ParseApiMessage(ex.Message), "Unable to process the rent payment right now. Please try again.");
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> RentCardCheckout(string? reference = null)
+        {
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                TempData["Error"] = "Card checkout reference is missing. Please choose the rent periods again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var session = await _api.GetAsync<RentCheckoutSessionDto>(
+                    $"payments/rent-periods/checkout-session/{Uri.EscapeDataString(reference)}");
+
+                if (string.IsNullOrWhiteSpace(session.PublishableKey) ||
+                    string.IsNullOrWhiteSpace(session.ClientSecret))
+                {
+                    TempData["Error"] = "Card checkout is not configured yet. Please try again later.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                return View(new RentCardCheckoutVm
+                {
+                    PaymentId = session.PaymentId,
+                    TenancyId = session.TenancyId,
+                    RentAmount = session.RentAmount,
+                    RentCurrency = session.RentCurrency,
+                    ChargeAmount = session.ChargeAmount,
+                    ChargeCurrency = session.ChargeCurrency,
+                    PaymentReference = session.PaymentReference,
+                    ProviderReference = session.ProviderReference,
+                    PublishableKey = session.PublishableKey,
+                    ClientSecret = session.ClientSecret,
+                    ReturnUrl = session.ReturnUrl,
+                    PropertyName = session.PropertyName,
+                    ApartmentName = session.ApartmentName,
+                    PeriodLabel = session.PeriodLabel
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load rent card checkout for reference {Reference}.", reference);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to load the secure card form right now. Please try again.");
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> RentPaymentCallback(string? reference = null, string? session_id = null)
+        {
+            if (string.IsNullOrWhiteSpace(reference))
+            {
+                TempData["Error"] = "Rent payment reference is missing.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var status = await _api.GetAsync<RentCheckoutStatusDto>(
+                    $"payments/rent-periods/checkout-status/{Uri.EscapeDataString(reference)}");
+
+                TempData[status.PaymentCompleted ? "Success" : "Error"] = string.IsNullOrWhiteSpace(status.Message)
+                    ? (status.PaymentCompleted ? "Rent payment completed successfully." : "The card payment was not completed. Please try again.")
+                    : status.Message;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Rent payment callback lookup failed for reference {Reference}.", reference);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to verify the rent payment right now. Please refresh your rent dashboard in a moment.");
             }
 
             return RedirectToAction(nameof(Index));

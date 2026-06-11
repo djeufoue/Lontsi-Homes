@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.IO;
+using System.Net;
+using System.Text;
 using Common.CommunicationModels;
 using Common.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -117,12 +120,14 @@ namespace RentHub.API.Services.Receipts
             bool notifyLandlord,
             CancellationToken cancellationToken = default)
         {
+            var attachment = BuildReceiptAttachment(receipt);
             if (notifyTenant && !string.IsNullOrWhiteSpace(receipt.TenantEmail))
             {
                 await TrySendEmailAsync(
                     receipt.TenantEmail,
                     $"Rent receipt {receipt.ReceiptNumber}",
                     BuildTenantReceiptEmail(receipt),
+                    attachment,
                     cancellationToken);
             }
 
@@ -132,6 +137,7 @@ namespace RentHub.API.Services.Receipts
                     receipt.LandlordEmail,
                     $"Rent payment received - {receipt.ReceiptNumber}",
                     BuildLandlordPaymentEmail(receipt),
+                    attachment,
                     cancellationToken);
             }
         }
@@ -253,44 +259,170 @@ namespace RentHub.API.Services.Receipts
         private static string BuildTenantReceiptEmail(RentReceiptDto receipt)
         {
             return $"""
-Your rent payment receipt is ready.
+                Your rent payment receipt is ready.
 
-Receipt: {receipt.ReceiptNumber}
-Property: {receipt.PropertyName}
-Apartment: {receipt.ApartmentName}
-Period: {receipt.PeriodLabel}
-Amount: {receipt.Amount:N0} {receipt.Currency}
-Payment date: {receipt.PaymentDate:MMM d, yyyy}
+                Receipt: {receipt.ReceiptNumber}
+                Property: {receipt.PropertyName}
+                Apartment: {receipt.ApartmentName}
+                Period: {receipt.PeriodLabel}
+                Amount: {receipt.Amount:N0} {receipt.Currency}
+                Payment date: {receipt.PaymentDate:MMM d, yyyy}
 
-View and verify your receipt:
-{receipt.VerificationUrl}
-""";
+                View and verify your receipt:
+                {receipt.VerificationUrl}
+                """;
         }
 
         private static string BuildLandlordPaymentEmail(RentReceiptDto receipt)
         {
             return $"""
-A rent payment was recorded.
+                A rent payment was recorded.
 
-Tenant: {receipt.TenantName}
-Property: {receipt.PropertyName}
-Apartment: {receipt.ApartmentName}
-Period: {receipt.PeriodLabel}
-Amount: {receipt.Amount:N0} {receipt.Currency}
-Method: {receipt.Method}
-Receipt: {receipt.ReceiptNumber}
+                Tenant: {receipt.TenantName}
+                Property: {receipt.PropertyName}
+                Apartment: {receipt.ApartmentName}
+                Period: {receipt.PeriodLabel}
+                Amount: {receipt.Amount:N0} {receipt.Currency}
+                Method: {receipt.Method}
+                Receipt: {receipt.ReceiptNumber}
 
-Verification link:
-{receipt.VerificationUrl}
-""";
+                Verification link:
+                {receipt.VerificationUrl}
+                """;
         }
 
-        private async Task TrySendEmailAsync(string to, string subject, string body, CancellationToken cancellationToken)
+        private static IReadOnlyCollection<EmailAttachment> BuildReceiptAttachment(RentReceiptDto receipt)
+        {
+            var html = BuildReceiptAttachmentHtml(receipt);
+            var safeReceiptNumber = string.Join(
+                "-",
+                receipt.ReceiptNumber.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+
+            if (string.IsNullOrWhiteSpace(safeReceiptNumber))
+            {
+                safeReceiptNumber = "rent-receipt";
+            }
+
+            return new[]
+            {
+                new EmailAttachment
+                {
+                    FileName = $"{safeReceiptNumber}.html",
+                    ContentType = "text/html",
+                    Content = Encoding.UTF8.GetBytes(html)
+                }
+            };
+        }
+
+        private static string BuildReceiptAttachmentHtml(RentReceiptDto receipt)
+        {
+            static string E(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
+
+            var providerReceipt = string.IsNullOrWhiteSpace(receipt.ProviderReceiptUrl)
+                ? string.Empty
+                : $"""
+                    <p><strong>Stripe receipt:</strong> <a href="{E(receipt.ProviderReceiptUrl)}">{E(receipt.ProviderReceiptUrl)}</a></p>
+                    """;
+
+            var qrCode = string.IsNullOrWhiteSpace(receipt.QrCodeSvg)
+                ? string.Empty
+                : $"""<div class="qr">{receipt.QrCodeSvg}</div>""";
+
+            return $$"""
+                <!doctype html>
+                <html lang="en">
+                <head>
+                    <meta charset="utf-8">
+                    <title>Rent receipt {{E(receipt.ReceiptNumber)}}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; color: #102033; margin: 32px; }
+                        .receipt { max-width: 820px; margin: 0 auto; border: 1px solid #d9e3ea; padding: 28px; }
+                        .head { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f766e; padding-bottom: 18px; }
+                        h1 { margin: 0; font-size: 30px; letter-spacing: 0; }
+                        .muted { color: #607286; }
+                        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 24px 0; }
+                        .box { background: #f7fafc; border: 1px solid #d9e3ea; padding: 16px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e5edf2; }
+                        th { background: #edf5f5; }
+                        .total { font-size: 22px; font-weight: 700; }
+                        .verify { display: flex; justify-content: space-between; gap: 24px; margin-top: 28px; align-items: flex-end; }
+                        .qr svg { width: 120px; height: 120px; }
+                    </style>
+                </head>
+                <body>
+                    <main class="receipt">
+                        <section class="head">
+                            <div>
+                                <p class="muted">Lontsi Homes rent receipt</p>
+                                <h1>Receipt</h1>
+                            </div>
+                            <div>
+                                <p><strong>No:</strong> {{E(receipt.ReceiptNumber)}}</p>
+                                <p><strong>Issued:</strong> {{receipt.IssuedAt:MMM d, yyyy}}</p>
+                                <p><strong>Paid:</strong> {{receipt.PaymentDate:MMM d, yyyy}}</p>
+                            </div>
+                        </section>
+
+                        <section class="grid">
+                            <div class="box">
+                                <p class="muted">Tenant</p>
+                                <p><strong>{{E(receipt.TenantName)}}</strong></p>
+                                <p>{{E(receipt.TenantEmail)}}</p>
+                            </div>
+                            <div class="box">
+                                <p class="muted">Landlord</p>
+                                <p><strong>{{E(receipt.LandlordName)}}</strong></p>
+                                <p>{{E(receipt.LandlordEmail)}}</p>
+                            </div>
+                        </section>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Apartment</th>
+                                    <th>Period</th>
+                                    <th>Method</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{{E(receipt.PropertyName)}}</td>
+                                    <td>{{E(receipt.ApartmentName)}}</td>
+                                    <td>{{E(receipt.PeriodLabel)}}</td>
+                                    <td>{{E(receipt.Method.ToString())}}</td>
+                                    <td class="total">{{receipt.Amount:N0}} {{E(receipt.Currency)}}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <section class="verify">
+                            <div>
+                                <p><strong>Verification stamp:</strong> {{E(receipt.VerificationCode)}}</p>
+                                <p><strong>Verify online:</strong> <a href="{{E(receipt.VerificationUrl)}}">{{E(receipt.VerificationUrl)}}</a></p>
+                                {{providerReceipt}}
+                            </div>
+                            {{qrCode}}
+                        </section>
+                    </main>
+                </body>
+                </html>
+                """;
+        }
+
+        private async Task TrySendEmailAsync(
+            string to,
+            string subject,
+            string body,
+            IReadOnlyCollection<EmailAttachment> attachments,
+            CancellationToken cancellationToken)
         {
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await _emailService.SendEmailAsync(to, subject, body);
+                await _emailService.SendEmailAsync(to, subject, body, attachments);
             }
             catch (Exception ex)
             {

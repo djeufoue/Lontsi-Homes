@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace RentHub.API.Services.Email
@@ -10,6 +11,12 @@ namespace RentHub.API.Services.Email
     public class StubEmailService : IEmailService
     {
         public async Task SendEmailAsync(string to, string subject, string body)
+        {
+            // Intentionally do nothing.  For demonstration, emails are not sent.
+            await Task.CompletedTask;
+        }
+
+        public async Task SendEmailAsync(string to, string subject, string body, IReadOnlyCollection<EmailAttachment> attachments)
         {
             // Intentionally do nothing.  For demonstration, emails are not sent.
             await Task.CompletedTask;

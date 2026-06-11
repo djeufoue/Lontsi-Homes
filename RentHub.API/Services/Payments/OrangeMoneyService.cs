@@ -19,12 +19,8 @@ namespace RentHub.API.Services.Payments
         public OrangeMoneyService(IConfiguration configuration)
         {
             var settings = configuration.GetSection("OrangeSettings").Get<OrangeSettings>();
-            if (settings == null)
-            {
-                throw new Exception("OrangeSettings configuration section is missing.");
-            }
-            _clientId = settings.ClientId;
-            _clientSecret = settings.ClientSecret;
+            _clientId = settings?.ClientId?.Trim() ?? string.Empty;
+            _clientSecret = settings?.ClientSecret?.Trim() ?? string.Empty;
         }
 
         /// <inheritdoc/>
@@ -36,6 +32,14 @@ namespace RentHub.API.Services.Payments
             };
             try
             {
+                if (string.IsNullOrWhiteSpace(_clientId) || string.IsNullOrWhiteSpace(_clientSecret))
+                {
+                    result.Success = false;
+                    result.Status = "ERROR";
+                    result.ProviderResponse = "Orange Money payment is not configured.";
+                    return result;
+                }
+
                 string token = await GetAccessToken();
                 var client = new RestClient($"{_baseUrl}/orange-money-webpay/dev/v1/transfers");
                 var httpRequest = new RestRequest();
