@@ -30,6 +30,14 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Api__BaseUrl: http://api:8080/api/
       DataProtection__KeysPath: /var/aspnet/data-protection-keys
+      PublicSite__SiteName: ${PUBLIC_SITE_NAME}
+      PublicSite__LegalEntityName: ${PUBLIC_SITE_LEGAL_ENTITY_NAME}
+      PublicSite__SupportEmail: ${PUBLIC_SITE_SUPPORT_EMAIL}
+      PublicSite__RefundEmail: ${PUBLIC_SITE_REFUND_EMAIL}
+      PublicSite__SupportPhone: ${PUBLIC_SITE_SUPPORT_PHONE}
+      PublicSite__SupportWhatsApp: ${PUBLIC_SITE_SUPPORT_WHATSAPP}
+      PublicSite__CompanyAddress: ${PUBLIC_SITE_COMPANY_ADDRESS}
+      Onboarding__SmsVerificationEnabled: ${ONBOARDING_SMS_VERIFICATION_ENABLED}
       Subscriptions__UsdToXafRate: ${SUBSCRIPTIONS_USD_TO_XAF_RATE}
     volumes:
       - portal_keys:/var/aspnet/data-protection-keys
@@ -58,6 +66,7 @@ services:
       AzureStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
       AzureStorage__ContainerName: ${AZURE_STORAGE_CONTAINER}
       Portal__BaseUrl: https://${PORTAL_DOMAIN}
+      Onboarding__SmsVerificationEnabled: ${ONBOARDING_SMS_VERIFICATION_ENABLED}
       Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
       Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
       Twilio__FromNumber: ${TWILIO_FROM_NUMBER}
@@ -67,7 +76,10 @@ services:
       Email__Smtp__Username: ${EMAIL_SMTP_USERNAME}
       Email__Smtp__Password: ${EMAIL_SMTP_PASSWORD}
       Email__Smtp__From: ${EMAIL_SMTP_FROM}
+      Email__Smtp__FromName: ${EMAIL_SMTP_FROM_NAME}
       Email__Smtp__UseSsl: ${EMAIL_SMTP_USE_SSL}
+      Notifications__KycAdminEmail: ${NOTIFICATIONS_KYC_ADMIN_EMAIL}
+      AdminNotifications__KycEmail: ${ADMIN_NOTIFICATIONS_KYC_EMAIL}
       NotchPay__BaseUrl: ${NOTCHPAY_BASE_URL}
       NotchPay__ApiKey: ${NOTCHPAY_API_KEY}
       NotchPay__WebhookSecret: ${NOTCHPAY_WEBHOOK_SECRET}
@@ -81,6 +93,10 @@ services:
       Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY}
       Stripe__SecretKey: ${STRIPE_SECRET_KEY}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      Stripe__Connect__Enabled: ${STRIPE_CONNECT_ENABLED}
+      Stripe__Connect__RequirePayoutSetup: ${STRIPE_CONNECT_REQUIRE_PAYOUT_SETUP}
+      Stripe__Connect__DefaultCountry: ${STRIPE_CONNECT_DEFAULT_COUNTRY}
+      Stripe__Connect__BusinessProfileUrl: ${STRIPE_CONNECT_BUSINESS_PROFILE_URL}
       AdminSeed__Email: ${ADMIN_SEED_EMAIL}
       AdminSeed__Password: ${ADMIN_SEED_PASSWORD}
       AdminSeed__FullName: ${ADMIN_SEED_FULL_NAME}
