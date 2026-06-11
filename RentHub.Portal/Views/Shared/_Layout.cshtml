@@ -23,11 +23,13 @@
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
     var isProfileHome = isProfile && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
     var isProfilePayments = isProfile && string.Equals(currentAction, "Payments", StringComparison.OrdinalIgnoreCase);
+    var isTenantDashboard = string.Equals(currentController, "Tenant", StringComparison.OrdinalIgnoreCase);
 
     var userPrincipal = User;
     var isAuthenticated = userPrincipal?.Identity?.IsAuthenticated == true;
     var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
     var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
+    var canSeeTenantDashboard = userPrincipal?.IsInRole("Tenant") == true;
     var showSidebar = isAuthenticated && !isMarketingPage;
     var canSeeProfile = isAuthenticated && userPrincipal?.IsInRole("Visitor") != true;
     var canSeePaymentCenter = canSeeProfile && userPrincipal?.IsInRole("Landlord") == true;
@@ -38,6 +40,7 @@
         userPrincipal?.IsInRole("Admin") == true ? "Administrator workspace" :
         userPrincipal?.IsInRole("Manager") == true ? "Manager workspace" :
         userPrincipal?.IsInRole("Landlord") == true ? "Landlord workspace" :
+        userPrincipal?.IsInRole("Tenant") == true ? "Tenant workspace" :
         userPrincipal?.IsInRole("Visitor") == true ? "Visitor workspace" :
         "Workspace profile";
 }
@@ -100,6 +103,14 @@
                             <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index">
                                 <span class="rh-nav-icon">&#9993;</span>
                                 <span>Inbox</span>
+                            </a>
+                        }
+
+                        @if (canSeeTenantDashboard)
+                        {
+                            <a class="rh-nav-link @(isTenantDashboard ? "active" : null)" asp-controller="Tenant" asp-action="Index">
+                                <span class="rh-nav-icon">&#9635;</span>
+                                <span>Rent Dashboard</span>
                             </a>
                         }
 
@@ -197,6 +208,11 @@
                         if (canSeeMessages)
                         {
                             <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Conversations" asp-action="Index">Messages</a>
+                        }
+
+                        if (canSeeTenantDashboard)
+                        {
+                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Tenant" asp-action="Index">Rent Dashboard</a>
                         }
 
                         <form asp-controller="Auth" asp-action="Logout" method="post" class="d-inline">

@@ -71,9 +71,9 @@ namespace RentHub.Portal.Controllers
                 {
                     TempData["AuthInfo"] = SafeUserMessage(
                         apiError.Message,
-                        "Your account is not activated yet. Continue your landlord registration.");
+                        "Your account is not activated yet. Enter the OTP code sent to your email.");
 
-                    return RedirectToAction(nameof(VerifyLandlordEmail), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
+                    return RedirectToAction(nameof(VerifyAccount), new { email = apiError.Email ?? vm.Email, returnUrl = vm.ReturnUrl });
                 }
 
                 if (string.Equals(apiError.Code, "VISITOR_ACCOUNT_VERIFICATION_PENDING", StringComparison.OrdinalIgnoreCase))

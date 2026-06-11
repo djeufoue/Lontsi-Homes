@@ -1,0 +1,186 @@
+@model Common.CommunicationModels.TenantDashboardDto
+@using Common.Enums
+@using Common.Helpers
+@{
+    ViewData["Title"] = "Tenant Dashboard";
+
+    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy");
+    string OptionalDateLabel(DateTimeOffset? value) => value.HasValue ? DateLabel(value.Value) : "Not scheduled";
+    string StatusClass(RentPeriodStatusEnum status) => status switch
+    {
+        RentPeriodStatusEnum.Paid or RentPeriodStatusEnum.PaidBeforeRentHub or RentPeriodStatusEnum.PaidInAdvance => "rh-chip-primary",
+        RentPeriodStatusEnum.Due or RentPeriodStatusEnum.Overdue => "rh-chip-warning",
+        RentPeriodStatusEnum.PendingPayment => "rh-chip-info",
+        RentPeriodStatusEnum.Waived or RentPeriodStatusEnum.Cancelled => "rh-chip-info",
+        _ => "rh-chip-info"
+    };
+}
+
+<section class="rh-overview-shell">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            <p class="rh-kicker">Tenant workspace</p>
+            <h1 class="rh-heading-title">My rent dashboard</h1>
+            <p class="rh-heading-subtitle">Review your tenancy, payment history, and rent periods from one place.</p>
+        </div>
+    </section>
+
+    @if (Model.Tenancies.Count == 0)
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-empty">No active tenancy is linked to your account yet.</div>
+        </section>
+    }
+    else
+    {
+        foreach (var item in Model.Tenancies)
+        {
+            var tenancy = item.Tenancy;
+            var periods = item.RentPeriods.OrderBy(period => period.PeriodStart).ToList();
+            var payablePeriods = periods
+                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.Status != RentPeriodStatusEnum.PendingPayment)
+                .OrderBy(period => period.PeriodStart)
+                .ToList();
+            var maxPayable = payablePeriods.Count;
+
+            <section class="rh-panel rh-panel-elevated mb-3">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <p class="rh-kicker">@tenancy.PropertyName</p>
+                        <h2 class="rh-dashboard-panel-title">@tenancy.ApartmentName</h2>
+                        <p class="rh-dashboard-panel-copy">
+                            @DateLabel(tenancy.StartDate) - @(tenancy.EndDate.HasValue ? DateLabel(tenancy.EndDate.Value) : "Open term")
+                        </p>
+                    </div>
+                    <span class="rh-chip rh-chip-info">@tenancy.Status</span>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <div class="rh-stat-box">
+                            <span class="rh-stat-label">Monthly rent</span>
+                            <strong class="rh-stat-value">@tenancy.MonthlyRent.ToString("N0")</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rh-stat-box">
+                            <span class="rh-stat-label">Outstanding</span>
+                            <strong class="rh-stat-value">@item.OutstandingBalance.ToString("N0")</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rh-stat-box">
+                            <span class="rh-stat-label">Next due</span>
+                            <strong class="rh-stat-value">@OptionalDateLabel(item.NextDueDate)</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="rh-stat-box">
+                            <span class="rh-stat-label">Landlord</span>
+                            <strong class="rh-stat-value">@item.LandlordName</strong>
+                        </div>
+                    </div>
+                </div>
+
+                @if (maxPayable > 0)
+                {
+                    <form asp-action="PayRent" method="post" class="rh-inline-settings-note mb-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-8">
+                                <label class="form-label">Pay rent periods in order</label>
+                                <div class="rh-select-wrap">
+                                    <select class="form-select rh-input rh-select" name="numberOfPeriods">
+                                        @for (var count = 1; count <= maxPayable; count++)
+                                        {
+                                            var selectedPeriods = payablePeriods.Take(count).ToList();
+                                            var total = selectedPeriods.Sum(period => period.Amount - period.PaidAmount);
+                                            var first = selectedPeriods.First();
+                                            var last = selectedPeriods.Last();
+                                            <option value="@count">
+                                                Pay @count period@(count > 1 ? "s" : "") - @DateLabel(first.PeriodStart) to @DateLabel(last.PeriodEnd) - @total.ToString("N0")
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn rh-btn-primary w-100">Pay selected rent</button>
+                            </div>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <div class="rh-inline-settings-note mb-3">No unpaid rent period is currently available for payment.</div>
+                }
+
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Period</th>
+                                <th class="text-end">Amount</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var period in periods)
+                            {
+                                <tr>
+                                    <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                    <td class="text-end">@period.Amount.ToString("N0")</td>
+                                    <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
+                                    <td>
+                                        @if (period.IsPayable)
+                                        {
+                                            <span>Available in payment selector</span>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(period.LockedReason))
+                                        {
+                                            <span class="text-muted">@period.LockedReason</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">View</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (item.PaymentHistory.Any())
+                {
+                    <h3 class="rh-section-title mt-4 mb-2">Payment history</h3>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Period</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var payment in item.PaymentHistory.OrderByDescending(payment => payment.PaymentDate))
+                                {
+                                    <tr>
+                                        <td>@DateLabel(payment.PaymentDate)</td>
+                                        <td>@payment.PeriodLabel</td>
+                                        <td class="text-end">@payment.Amount.ToString("N0") @payment.Currency</td>
+                                        <td>@payment.Status</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+    }
+</section>
