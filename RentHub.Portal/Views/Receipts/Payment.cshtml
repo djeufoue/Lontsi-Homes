@@ -5,6 +5,17 @@
 
     string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy");
     string MethodLabel(PaymentMethodEnum method) => method == PaymentMethodEnum.Cash ? "Cash / off-platform" : method.ToString();
+    string PaymentNote()
+    {
+        if (Model.Method == PaymentMethodEnum.Cash)
+        {
+            return "Recorded by landlord";
+        }
+
+        return string.IsNullOrWhiteSpace(Model.ProviderReceiptUrl)
+            ? "Processed by platform"
+            : "Provider receipt available";
+    }
 }
 
 <section class="rh-overview-shell">
@@ -54,7 +65,7 @@
             <div>
                 <span>Payment</span>
                 <strong>@MethodLabel(Model.Method)</strong>
-                <small>@Model.TransactionId</small>
+                <small>@PaymentNote()</small>
             </div>
         </div>
 
