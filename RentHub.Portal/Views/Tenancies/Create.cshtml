@@ -8,6 +8,18 @@
     var step = Model.Step;
     var periods = draft.RentPeriods ?? new List<Common.CommunicationModels.RentPeriodSeedDto>();
     var today = DateTimeOffset.UtcNow.Date;
+    var scheduleErrors = periods.Any()
+        ? RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, draft.StartDate, draft.EndDate, draft.EndBehavior)
+        : new List<string> { "Rent schedule has not been generated yet." };
+    var canContinueFromSchedule = !scheduleErrors.Any();
+    var canSubmit = !Model.ValidationErrors.Any()
+        && canContinueFromSchedule
+        && draft.MonthlyRent > 0
+        && draft.MaxMembers >= 1
+        && draft.RentDueDay is >= 1 and <= 31
+        && !string.IsNullOrWhiteSpace(draft.MainTenant.Email);
+    var periodStarts = string.Join("|", periods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
+    var periodEnds = string.Join("|", periods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
     var oldestOpenPeriod = periods
         .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
         .OrderBy(period => period.PeriodStart)
@@ -76,29 +88,29 @@
                 </div>
             </div>
 
-            <form asp-action="SaveDetails" method="post" enctype="multipart/form-data" class="row g-3">
+            <form asp-action="SaveDetails" method="post" enctype="multipart/form-data" class="row g-3" data-details-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
                 <div class="col-md-6">
                     <label class="form-label">Start date</label>
-                    <input class="form-control rh-input" type="date" name="StartDate" value="@DateValue(draft.StartDate)" required />
+                    <input class="form-control rh-input" type="date" name="StartDate" value="@DateValue(draft.StartDate)" required data-details-start />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">End date</label>
-                    <input class="form-control rh-input" type="date" name="EndDate" value="@DateValue(draft.EndDate)" data-end-date-input />
+                    <input class="form-control rh-input" type="date" name="EndDate" value="@DateValue(draft.EndDate)" data-end-date-input data-details-end />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Monthly rent</label>
-                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@draft.MonthlyRent" required />
+                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@draft.MonthlyRent" required data-details-rent />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Max members</label>
-                    <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@draft.MaxMembers" required />
+                    <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@draft.MaxMembers" required data-details-members />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Rent due day</label>
-                    <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@draft.RentDueDay" required />
+                    <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@draft.RentDueDay" required data-details-due-day />
                 </div>
 
                 <div class="col-12">
@@ -132,7 +144,7 @@
                 </div>
 
                 <div class="col-12 d-flex justify-content-end">
-                    <button type="submit" class="btn rh-btn-primary">Continue to rent schedule</button>
+                    <button type="submit" class="btn rh-btn-primary" data-details-submit disabled>Continue to rent schedule</button>
                 </div>
             </form>
         </section>
@@ -173,9 +185,26 @@
                 </table>
             </div>
 
+            @if (scheduleErrors.Any())
+            {
+                <div class="alert alert-warning">
+                    @foreach (var error in scheduleErrors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
             <div class="d-flex justify-content-between">
                 <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">Back</a>
-                <a class="btn rh-btn-primary" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">Continue to payment history</a>
+                @if (canContinueFromSchedule)
+                {
+                    <a class="btn rh-btn-primary" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">Continue to payment history</a>
+                }
+                else
+                {
+                    <span class="btn rh-btn-primary disabled" aria-disabled="true">Continue to payment history</span>
+                }
             </div>
         </section>
     }
@@ -190,7 +219,7 @@
                 </div>
             </div>
 
-            <form asp-action="SaveImport" method="post" class="row g-3" data-import-form>
+            <form asp-action="SaveImport" method="post" class="row g-3" data-import-form data-period-starts="@periodStarts" data-period-ends="@periodEnds">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
@@ -225,11 +254,11 @@
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Unpaid from</label>
-                                <input class="form-control rh-input" type="date" name="UnpaidFrom" value="@DateValue(draft.UnpaidFrom)" />
+                                <input class="form-control rh-input" type="date" name="UnpaidFrom" value="@DateValue(draft.UnpaidFrom)" data-unpaid-from />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Unpaid to</label>
-                                <input class="form-control rh-input" type="date" name="UnpaidTo" value="@DateValue(draft.UnpaidTo)" />
+                                <input class="form-control rh-input" type="date" name="UnpaidTo" value="@DateValue(draft.UnpaidTo)" data-unpaid-to />
                             </div>
                         </div>
                     </div>
@@ -241,11 +270,11 @@
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
                                 <label class="form-label">Paid in advance from</label>
-                                <input class="form-control rh-input" type="date" name="PaidInAdvanceFrom" value="@DateValue(draft.PaidInAdvanceFrom)" />
+                                <input class="form-control rh-input" type="date" name="PaidInAdvanceFrom" value="@DateValue(draft.PaidInAdvanceFrom)" data-prepaid-from />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Paid in advance to</label>
-                                <input class="form-control rh-input" type="date" name="PaidInAdvanceTo" value="@DateValue(draft.PaidInAdvanceTo)" />
+                                <input class="form-control rh-input" type="date" name="PaidInAdvanceTo" value="@DateValue(draft.PaidInAdvanceTo)" data-prepaid-to />
                             </div>
                         </div>
                     </div>
@@ -279,7 +308,7 @@
 
                 <div class="col-12 d-flex justify-content-between">
                     <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="2">Back</a>
-                    <button type="submit" class="btn rh-btn-primary">Continue to tenant invitation</button>
+                    <button type="submit" class="btn rh-btn-primary" data-import-submit disabled>Continue to tenant invitation</button>
                 </div>
             </form>
         </section>
@@ -295,14 +324,14 @@
                 </div>
             </div>
 
-            <form asp-action="SaveTenant" method="post" class="row g-3">
+            <form asp-action="SaveTenant" method="post" class="row g-3" data-tenant-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
                 <input type="hidden" name="Role" value="@TenancyMemberRoleEnum.MainTenant" />
 
                 <div class="col-md-6">
                     <label class="form-label">Tenant email</label>
-                    <input class="form-control rh-input" type="email" name="Email" value="@draft.MainTenant.Email" required />
+                    <input class="form-control rh-input" type="email" name="Email" value="@draft.MainTenant.Email" required data-tenant-email />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Full name</label>
@@ -310,15 +339,15 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Country code</label>
-                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" placeholder="e.g. +1" />
+                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\+?\d+$" placeholder="e.g. +1" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Phone number optional</label>
-                    <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" />
+                    <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">WhatsApp number optional</label>
-                    <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" />
+                    <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
                 </div>
                 <div class="col-12">
                     <div class="rh-inline-settings-note">
@@ -327,7 +356,7 @@
                 </div>
                 <div class="col-12 d-flex justify-content-between">
                     <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">Back</a>
-                    <button type="submit" class="btn rh-btn-primary">Continue to review</button>
+                    <button type="submit" class="btn rh-btn-primary" data-tenant-submit disabled>Continue to review</button>
                 </div>
             </form>
         </section>
@@ -399,7 +428,7 @@
                 <form asp-action="CompleteCreate" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
-                    <button type="submit" class="btn rh-btn-primary" @(Model.ValidationErrors.Any() ? "disabled" : null)>Create tenancy</button>
+                    <button type="submit" class="btn rh-btn-primary" @(!canSubmit ? "disabled" : null)>Create tenancy</button>
                 </form>
             </div>
         </section>
@@ -413,25 +442,132 @@
             const endBehaviorInputs = Array.from(document.querySelectorAll("[data-end-behavior]"));
             const importModeInputs = Array.from(document.querySelectorAll("[data-import-mode]"));
             const unpaidRange = document.querySelector("[data-unpaid-range]");
+            const detailsForm = document.querySelector("[data-details-form]");
+            const importForm = document.querySelector("[data-import-form]");
+            const tenantForm = document.querySelector("[data-tenant-form]");
+            const expireAutomaticallyValue = "@((int)TenancyEndBehaviorEnum.ExpireAutomatically)";
+            const noEndDateValue = "@((int)TenancyEndBehaviorEnum.NoEndDate)";
+            const somePaidValue = "@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)";
+            const prepaidValue = "@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)";
+
+            const parseDateValue = (value) => {
+                if (!value) return null;
+                const parsed = new Date(`${value}T00:00:00`);
+                return Number.isNaN(parsed.getTime()) ? null : parsed;
+            };
+
+            const setButtonState = (button, enabled) => {
+                if (!button) return;
+                button.disabled = !enabled;
+                button.setAttribute("aria-disabled", enabled ? "false" : "true");
+            };
+
+            const selectedValue = (inputs) => inputs.find(input => input.checked)?.value ?? "";
+
+            const rangeLooksValid = (fromValue, toValue, starts, ends) => {
+                const from = parseDateValue(fromValue);
+                const to = parseDateValue(toValue);
+                if (!from || !to || from > to) return false;
+                return starts.includes(fromValue) && ends.includes(toValue);
+            };
 
             const syncEndDate = () => {
                 if (!endDateInput || !endBehaviorInputs.length) return;
-                const selected = endBehaviorInputs.find(input => input.checked)?.value;
-                const noEndDate = selected === "@((int)TenancyEndBehaviorEnum.NoEndDate)";
+                const selected = selectedValue(endBehaviorInputs);
+                const noEndDate = selected === noEndDateValue;
                 endDateInput.disabled = noEndDate;
                 if (noEndDate) endDateInput.value = "";
+                syncDetailsForm();
             };
 
             const syncImport = () => {
                 if (!unpaidRange || !importModeInputs.length) return;
-                const selected = importModeInputs.find(input => input.checked)?.value;
-                unpaidRange.hidden = selected !== "@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)";
+                const selected = selectedValue(importModeInputs);
+                unpaidRange.hidden = selected !== somePaidValue;
+                syncImportForm();
+            };
+
+            const syncDetailsForm = () => {
+                if (!detailsForm) return;
+                const startInput = detailsForm.querySelector("[data-details-start]");
+                const endInput = detailsForm.querySelector("[data-details-end]");
+                const rentInput = detailsForm.querySelector("[data-details-rent]");
+                const membersInput = detailsForm.querySelector("[data-details-members]");
+                const dueDayInput = detailsForm.querySelector("[data-details-due-day]");
+                const submitButton = detailsForm.querySelector("[data-details-submit]");
+                const selectedBehavior = selectedValue(endBehaviorInputs);
+
+                const start = parseDateValue(startInput?.value);
+                const end = parseDateValue(endInput?.value);
+                const rent = Number.parseFloat(rentInput?.value ?? "");
+                const members = Number.parseInt(membersInput?.value ?? "", 10);
+                const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
+
+                if (startInput && endInput) {
+                    endInput.min = startInput.value || "";
+                }
+
+                const needsEndDate = selectedBehavior === expireAutomaticallyValue;
+                const dateRangeValid = selectedBehavior === noEndDateValue
+                    ? true
+                    : !end || (!!start && end >= start);
+
+                const formValid = !!start
+                    && Number.isFinite(rent) && rent > 0
+                    && Number.isInteger(members) && members >= 1
+                    && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
+                    && !!selectedBehavior
+                    && (!needsEndDate || !!end)
+                    && dateRangeValid
+                    && detailsForm.checkValidity();
+
+                setButtonState(submitButton, formValid);
+            };
+
+            const syncImportForm = () => {
+                if (!importForm) return;
+                const submitButton = importForm.querySelector("[data-import-submit]");
+                const unpaidFrom = importForm.querySelector("[data-unpaid-from]");
+                const unpaidTo = importForm.querySelector("[data-unpaid-to]");
+                const prepaidFrom = importForm.querySelector("[data-prepaid-from]");
+                const prepaidTo = importForm.querySelector("[data-prepaid-to]");
+                const starts = (importForm.dataset.periodStarts || "").split("|").filter(Boolean);
+                const ends = (importForm.dataset.periodEnds || "").split("|").filter(Boolean);
+                const selectedMode = selectedValue(importModeInputs);
+
+                let valid = !!selectedMode && starts.length > 0 && ends.length > 0;
+
+                if (selectedMode === somePaidValue) {
+                    valid = valid && rangeLooksValid(unpaidFrom?.value, unpaidTo?.value, starts, ends);
+                }
+
+                const hasAnyPrepaidDate = !!prepaidFrom?.value || !!prepaidTo?.value;
+                if (selectedMode === prepaidValue || hasAnyPrepaidDate) {
+                    valid = valid && rangeLooksValid(prepaidFrom?.value, prepaidTo?.value, starts, ends);
+                }
+
+                setButtonState(submitButton, valid && importForm.checkValidity());
+            };
+
+            const syncTenantForm = () => {
+                if (!tenantForm) return;
+                const submitButton = tenantForm.querySelector("[data-tenant-submit]");
+                setButtonState(submitButton, tenantForm.checkValidity());
             };
 
             endBehaviorInputs.forEach(input => input.addEventListener("change", syncEndDate));
             importModeInputs.forEach(input => input.addEventListener("change", syncImport));
+            detailsForm?.addEventListener("input", syncDetailsForm);
+            detailsForm?.addEventListener("change", syncDetailsForm);
+            importForm?.addEventListener("input", syncImportForm);
+            importForm?.addEventListener("change", syncImportForm);
+            tenantForm?.addEventListener("input", syncTenantForm);
+            tenantForm?.addEventListener("change", syncTenantForm);
             syncEndDate();
             syncImport();
+            syncDetailsForm();
+            syncImportForm();
+            syncTenantForm();
         })();
     </script>
 }

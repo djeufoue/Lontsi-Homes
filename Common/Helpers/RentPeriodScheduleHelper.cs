@@ -26,22 +26,30 @@ namespace Common.Helpers
             }
 
             var normalizedDueDay = Math.Clamp(rentDueDay, 1, 31);
-            var hardEnd = ResolveGenerationEnd(startDate, endDate, endBehavior, nowUtc, previewMonths);
-            var currentStart = startDate.Date;
+            var normalizedStart = startDate.Date;
+            var hardEnd = ResolveGenerationEnd(startDate, endDate, endBehavior, nowUtc, previewMonths).Date;
+            var currentMonthStart = FirstDayOfMonth(startDate);
 
-            while (currentStart <= hardEnd.Date && periods.Count < 120)
+            while (currentMonthStart.Date <= hardEnd && periods.Count < 120)
             {
-                var nextStart = currentStart.AddMonths(1);
-                var periodEnd = nextStart.AddDays(-1);
-                if (endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && endDate.HasValue && periodEnd > endDate.Value.Date)
+                var monthEnd = LastDayOfMonth(currentMonthStart);
+                var periodStart = currentMonthStart.Date < normalizedStart
+                    ? new DateTimeOffset(normalizedStart, startDate.Offset)
+                    : currentMonthStart;
+                var periodEnd = monthEnd.Date > hardEnd
+                    ? new DateTimeOffset(hardEnd, startDate.Offset)
+                    : monthEnd;
+
+                if (periodEnd.Date < periodStart.Date)
                 {
-                    periodEnd = endDate.Value.Date;
+                    currentMonthStart = currentMonthStart.AddMonths(1);
+                    continue;
                 }
 
-                var dueDate = BuildDueDate(currentStart, normalizedDueDay);
+                var dueDate = ClampDate(BuildDueDate(currentMonthStart, normalizedDueDay), periodStart, periodEnd);
                 periods.Add(new RentPeriodSeedDto
                 {
-                    PeriodStart = currentStart,
+                    PeriodStart = periodStart,
                     PeriodEnd = periodEnd,
                     DueDate = dueDate,
                     Amount = monthlyRent,
@@ -49,7 +57,7 @@ namespace Common.Helpers
                     PaidAmount = 0
                 });
 
-                currentStart = nextStart;
+                currentMonthStart = currentMonthStart.AddMonths(1);
             }
 
             return periods;
@@ -142,19 +150,109 @@ namespace Common.Helpers
                 return errors;
             }
 
-            var expected = matching.First().PeriodStart.Date;
-            foreach (var period in matching)
+            if (matching.First().PeriodStart.Date != rangeStart.Date ||
+                matching.Last().PeriodEnd.Date != rangeEnd.Date)
             {
-                if (period.PeriodStart.Date != expected)
+                errors.Add($"{label} range must start and end on generated rent period boundaries.");
+                return errors;
+            }
+
+            for (var index = 1; index < matching.Count; index++)
+            {
+                var previous = matching[index - 1];
+                var current = matching[index];
+                if (current.PeriodStart.Date != previous.PeriodEnd.Date.AddDays(1))
                 {
-                    errors.Add($"{label} periods must be continuous without skipping a month.");
+                    errors.Add($"{label} periods must be continuous without skipped dates.");
                     break;
                 }
-
-                expected = period.PeriodStart.Date.AddMonths(1);
             }
 
             return errors;
+        }
+
+        public static List<string> ValidateGeneratedSchedule(
+            IReadOnlyCollection<RentPeriodSeedDto> periods,
+            DateTimeOffset tenancyStart,
+            DateTimeOffset? tenancyEnd,
+            TenancyEndBehaviorEnum endBehavior)
+        {
+            var errors = new List<string>();
+            var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
+
+            if (ordered.Count == 0)
+            {
+                errors.Add("At least one rent period must be generated before creating the tenancy.");
+                return errors;
+            }
+
+            if (ordered.Any(period => period.Amount <= 0))
+            {
+                errors.Add("Every rent period must have an amount greater than 0.");
+            }
+
+            if (ordered.First().PeriodStart.Date != tenancyStart.Date)
+            {
+                errors.Add("The first rent period must start on the tenancy start date.");
+            }
+
+            if (endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically)
+            {
+                if (!tenancyEnd.HasValue)
+                {
+                    errors.Add("An automatically expiring tenancy requires an end date.");
+                }
+                else if (ordered.Last().PeriodEnd.Date != tenancyEnd.Value.Date)
+                {
+                    errors.Add("The last rent period must end on the tenancy end date when the tenancy expires automatically.");
+                }
+            }
+
+            for (var index = 0; index < ordered.Count; index++)
+            {
+                var period = ordered[index];
+                var isFirst = index == 0;
+                var isLast = index == ordered.Count - 1;
+                var isPartialFinalExpiry = isLast && endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically;
+
+                if (period.PeriodEnd.Date < period.PeriodStart.Date)
+                {
+                    errors.Add("Rent period end dates cannot be before their start dates.");
+                    break;
+                }
+
+                if (period.DueDate.Date < period.PeriodStart.Date || period.DueDate.Date > period.PeriodEnd.Date)
+                {
+                    errors.Add("Every rent due date must fall inside its rent period.");
+                    break;
+                }
+
+                if (!isFirst && period.PeriodStart.Day != 1)
+                {
+                    errors.Add("After the first rent period, every period must start on the first day of the month.");
+                    break;
+                }
+
+                if (!isPartialFinalExpiry && !IsLastDayOfMonth(period.PeriodEnd))
+                {
+                    errors.Add("Rent periods must end on the last day of the month, except the final period of an expiring tenancy.");
+                    break;
+                }
+
+                if (index == 0)
+                {
+                    continue;
+                }
+
+                var previous = ordered[index - 1];
+                if (period.PeriodStart.Date != previous.PeriodEnd.Date.AddDays(1))
+                {
+                    errors.Add("Rent periods must be continuous without gaps or overlaps.");
+                    break;
+                }
+            }
+
+            return errors.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         public static RentPeriodStatusEnum ResolveUnpaidStatus(DateTimeOffset dueDate, DateTimeOffset nowUtc)
@@ -209,7 +307,8 @@ namespace Common.Helpers
 
             var previewEnd = startDate.AddMonths(previewMonths).AddDays(-1);
             var operationalEnd = nowUtc.AddMonths(previewMonths).AddDays(-1);
-            return previewEnd > operationalEnd ? previewEnd : operationalEnd;
+            var selectedEnd = previewEnd > operationalEnd ? previewEnd : operationalEnd;
+            return LastDayOfMonth(selectedEnd);
         }
 
         private static DateTimeOffset BuildDueDate(DateTimeOffset periodStart, int rentDueDay)
@@ -217,6 +316,37 @@ namespace Common.Helpers
             var daysInMonth = DateTime.DaysInMonth(periodStart.Year, periodStart.Month);
             var day = Math.Min(Math.Max(1, rentDueDay), daysInMonth);
             return new DateTimeOffset(periodStart.Year, periodStart.Month, day, 0, 0, 0, periodStart.Offset);
+        }
+
+        private static DateTimeOffset ClampDate(DateTimeOffset value, DateTimeOffset min, DateTimeOffset max)
+        {
+            if (value.Date < min.Date)
+            {
+                return new DateTimeOffset(min.Date, min.Offset);
+            }
+
+            if (value.Date > max.Date)
+            {
+                return new DateTimeOffset(max.Date, max.Offset);
+            }
+
+            return value;
+        }
+
+        private static DateTimeOffset FirstDayOfMonth(DateTimeOffset value)
+        {
+            return new DateTimeOffset(value.Year, value.Month, 1, 0, 0, 0, value.Offset);
+        }
+
+        private static DateTimeOffset LastDayOfMonth(DateTimeOffset value)
+        {
+            var daysInMonth = DateTime.DaysInMonth(value.Year, value.Month);
+            return new DateTimeOffset(value.Year, value.Month, daysInMonth, 0, 0, 0, value.Offset);
+        }
+
+        private static bool IsLastDayOfMonth(DateTimeOffset value)
+        {
+            return value.Day == DateTime.DaysInMonth(value.Year, value.Month);
         }
 
         private static void MarkPaid(RentPeriodSeedDto period, RentPeriodStatusEnum status, DateTimeOffset paidDate)

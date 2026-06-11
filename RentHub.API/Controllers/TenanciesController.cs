@@ -1062,44 +1062,7 @@ namespace RentHub.API.Controllers
             DateTimeOffset? tenancyEnd,
             TenancyEndBehaviorEnum endBehavior)
         {
-            var errors = new List<string>();
-            var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
-
-            if (ordered.Any(period => period.Amount <= 0))
-            {
-                errors.Add("Every rent period must have an amount greater than 0.");
-            }
-
-            if (ordered.First().PeriodStart.Date != tenancyStart.Date)
-            {
-                errors.Add("The first rent period must start on the tenancy start date.");
-            }
-
-            if (endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically &&
-                tenancyEnd.HasValue &&
-                ordered.Last().PeriodEnd.Date > tenancyEnd.Value.Date)
-            {
-                errors.Add("Rent periods cannot extend beyond the end date when the tenancy expires automatically.");
-            }
-
-            for (var index = 1; index < ordered.Count; index++)
-            {
-                var previous = ordered[index - 1];
-                var current = ordered[index];
-                if (current.PeriodStart.Date != previous.PeriodStart.Date.AddMonths(1))
-                {
-                    errors.Add("Rent periods must be continuous month by month without skipped periods.");
-                    break;
-                }
-
-                if (previous.PeriodEnd.Date >= current.PeriodStart.Date)
-                {
-                    errors.Add("Rent periods cannot overlap.");
-                    break;
-                }
-            }
-
-            return errors;
+            return RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, tenancyStart, tenancyEnd, endBehavior);
         }
 
         private static List<RentPeriodDto> MapRentPeriods(IEnumerable<RentPeriod> periods, DateTimeOffset nowUtc)

@@ -603,6 +603,17 @@ namespace RentHub.Portal.Controllers
                 return errors;
             }
 
+            errors.AddRange(RentPeriodScheduleHelper.ValidateGeneratedSchedule(
+                draft.RentPeriods,
+                draft.StartDate,
+                draft.EndDate,
+                draft.EndBehavior));
+
+            if (errors.Any())
+            {
+                return errors;
+            }
+
             if (draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid)
             {
                 if (!draft.UnpaidFrom.HasValue || !draft.UnpaidTo.HasValue)
@@ -673,6 +684,12 @@ namespace RentHub.Portal.Controllers
             {
                 errors.Add("Please invite the main tenant before creating the tenancy.");
             }
+
+            errors.AddRange(RentPeriodScheduleHelper.ValidateGeneratedSchedule(
+                draft.RentPeriods,
+                draft.StartDate,
+                draft.EndDate,
+                draft.EndBehavior));
 
             errors.AddRange(ValidateImport(draft));
 
