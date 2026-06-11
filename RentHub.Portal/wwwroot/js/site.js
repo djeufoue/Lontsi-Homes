@@ -1,6 +1,9 @@
 (() => {
   const body = document.body;
   const toggle = document.getElementById("rhSidebarToggle");
+  const sidebar = document.getElementById("rhSidebar");
+  const sidebarClose = document.getElementById("rhSidebarClose");
+  const sidebarScrim = document.getElementById("rhSidebarScrim");
   const confirmationModalEl = document.getElementById("confirmationModal");
   const confirmationTitleEl = document.getElementById("confirmationModalTitle");
   const confirmationMessageEl = document.getElementById("confirmationModalMessage");
@@ -16,6 +19,27 @@
     const div = document.createElement("div");
     div.textContent = value ?? "";
     return div.innerHTML;
+  };
+
+  const initCountrySelectors = (root = document) => {
+    root.querySelectorAll("[data-country-selector]").forEach((select) => {
+      if (select.dataset.countrySelectorBound === "true") {
+        return;
+      }
+
+      const form = select.closest("form") || root;
+      const output = form.querySelector("[data-country-code-output]");
+      const syncCountryCode = () => {
+        const selectedOption = select.options[select.selectedIndex];
+        if (output) {
+          output.value = selectedOption?.dataset?.countryCode || "";
+        }
+      };
+
+      select.dataset.countrySelectorBound = "true";
+      select.addEventListener("change", syncCountryCode);
+      syncCountryCode();
+    });
   };
 
   const getBootstrapModal = (element) => {
@@ -99,6 +123,228 @@
       window.setTimeout(() => {
         instance.hide();
       }, autoCloseMs);
+    }
+  };
+
+  const datePickerState = {
+    activeInput: null,
+    activeMonth: null,
+    popover: null
+  };
+
+  const initDatePickers = (root = document) => {
+    const dateInputs = Array.from(root.querySelectorAll("input[type='date']"));
+    if (!dateInputs.length) {
+      return;
+    }
+
+    datePickerState.popover = document.getElementById("rhDatePickerPopover");
+
+    const pad = (value) => String(value).padStart(2, "0");
+    const toIsoDate = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    const parseIsoDate = (value) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+      if (!match) {
+        return null;
+      }
+
+      const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const sameDay = (first, second) =>
+      first && second && first.getFullYear() === second.getFullYear() && first.getMonth() === second.getMonth() && first.getDate() === second.getDate();
+
+    const ensurePopover = () => {
+      if (datePickerState.popover) {
+        return datePickerState.popover;
+      }
+
+      datePickerState.popover = document.createElement("div");
+      datePickerState.popover.id = "rhDatePickerPopover";
+      datePickerState.popover.className = "rh-date-popover";
+      datePickerState.popover.setAttribute("role", "dialog");
+      datePickerState.popover.setAttribute("aria-label", "Choose date");
+      document.body.appendChild(datePickerState.popover);
+      return datePickerState.popover;
+    };
+
+    const closeDatePicker = () => {
+      if (!datePickerState.popover) {
+        return;
+      }
+
+      datePickerState.popover.hidden = true;
+      datePickerState.activeInput = null;
+      datePickerState.activeMonth = null;
+    };
+
+    const positionPopover = () => {
+      if (!datePickerState.activeInput || !datePickerState.popover || datePickerState.popover.hidden) {
+        return;
+      }
+
+      const wrapper = datePickerState.activeInput.closest(".rh-date-field") || datePickerState.activeInput;
+      const rect = wrapper.getBoundingClientRect();
+      const spacing = 8;
+      const popoverWidth = datePickerState.popover.offsetWidth || 330;
+      const left = Math.min(
+        Math.max(window.scrollX + rect.left, window.scrollX + 12),
+        window.scrollX + window.innerWidth - popoverWidth - 12
+      );
+
+      datePickerState.popover.style.left = `${left}px`;
+      datePickerState.popover.style.top = `${window.scrollY + rect.bottom + spacing}px`;
+    };
+
+    const renderDatePicker = () => {
+      if (!datePickerState.activeInput || !datePickerState.activeMonth) {
+        return;
+      }
+
+      const selected = parseIsoDate(datePickerState.activeInput.value);
+      const min = parseIsoDate(datePickerState.activeInput.min);
+      const max = parseIsoDate(datePickerState.activeInput.max);
+      const today = new Date();
+      const monthStart = new Date(datePickerState.activeMonth.getFullYear(), datePickerState.activeMonth.getMonth(), 1);
+      const monthEnd = new Date(datePickerState.activeMonth.getFullYear(), datePickerState.activeMonth.getMonth() + 1, 0);
+      const firstWeekday = monthStart.getDay();
+      const daysInMonth = monthEnd.getDate();
+      const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(monthStart);
+      const days = [];
+
+      for (let index = 0; index < firstWeekday; index += 1) {
+        days.push(`<span class="rh-date-day is-empty" aria-hidden="true"></span>`);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(datePickerState.activeMonth.getFullYear(), datePickerState.activeMonth.getMonth(), day);
+        const iso = toIsoDate(date);
+        const isDisabled = (min && date < min) || (max && date > max);
+        const classes = [
+          "rh-date-day",
+          sameDay(date, selected) ? "is-selected" : "",
+          sameDay(date, today) ? "is-today" : ""
+        ].filter(Boolean).join(" ");
+
+        days.push(`
+          <button type="button" class="${classes}" data-date-value="${iso}" ${isDisabled ? "disabled" : ""}>
+            ${day}
+          </button>`);
+      }
+
+      ensurePopover().innerHTML = `
+        <div class="rh-date-popover-head">
+          <button type="button" class="rh-date-nav" data-date-nav="prev" aria-label="Previous month">&lsaquo;</button>
+          <strong>${monthLabel}</strong>
+          <button type="button" class="rh-date-nav" data-date-nav="next" aria-label="Next month">&rsaquo;</button>
+        </div>
+        <div class="rh-date-weekdays" aria-hidden="true">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div class="rh-date-grid">
+          ${days.join("")}
+        </div>`;
+
+      positionPopover();
+    };
+
+    const openDatePicker = (input) => {
+      if (!input || input.disabled || input.readOnly && input.dataset.rhDatePickerBound !== "true") {
+        return;
+      }
+
+      const selected = parseIsoDate(input.value) || parseIsoDate(input.min) || new Date();
+      datePickerState.activeInput = input;
+      datePickerState.activeMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
+      ensurePopover().hidden = false;
+      renderDatePicker();
+    };
+
+    dateInputs.forEach((input) => {
+      if (input.dataset.rhDatePickerBound === "true") {
+        return;
+      }
+
+      input.dataset.rhDatePickerBound = "true";
+      input.type = "text";
+      input.inputMode = "none";
+      input.autocomplete = "off";
+      input.readOnly = true;
+      input.classList.add("rh-date-input");
+      input.placeholder = input.placeholder || "Select date";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "rh-date-field";
+      input.parentNode.insertBefore(wrapper, input);
+      wrapper.appendChild(input);
+
+      const icon = document.createElement("span");
+      icon.className = "rh-date-icon";
+      icon.setAttribute("aria-hidden", "true");
+      wrapper.prepend(icon);
+
+      const chevron = document.createElement("span");
+      chevron.className = "rh-date-chevron";
+      chevron.setAttribute("aria-hidden", "true");
+      wrapper.appendChild(chevron);
+
+      input.addEventListener("focus", () => openDatePicker(input));
+      input.addEventListener("click", () => openDatePicker(input));
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeDatePicker();
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openDatePicker(input);
+        }
+      });
+    });
+
+    if (document.body.dataset.rhDatePickerGlobalBound !== "true") {
+      document.body.dataset.rhDatePickerGlobalBound = "true";
+
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target.closest?.(".rh-date-field")) {
+          return;
+        }
+
+        if (target.closest?.("#rhDatePickerPopover")) {
+          return;
+        }
+
+        closeDatePicker();
+      });
+
+      document.addEventListener("click", (event) => {
+        const navButton = event.target.closest?.("[data-date-nav]");
+        if (navButton && datePickerState.activeMonth) {
+          datePickerState.activeMonth = new Date(
+            datePickerState.activeMonth.getFullYear(),
+            datePickerState.activeMonth.getMonth() + (navButton.dataset.dateNav === "next" ? 1 : -1),
+            1
+          );
+          renderDatePicker();
+          return;
+        }
+
+        const dayButton = event.target.closest?.("[data-date-value]");
+        if (!dayButton || !datePickerState.activeInput) {
+          return;
+        }
+
+        datePickerState.activeInput.value = dayButton.dataset.dateValue;
+        datePickerState.activeInput.dispatchEvent(new Event("input", { bubbles: true }));
+        datePickerState.activeInput.dispatchEvent(new Event("change", { bubbles: true }));
+        closeDatePicker();
+      });
+
+      window.addEventListener("resize", positionPopover);
+      window.addEventListener("scroll", positionPopover, true);
     }
   };
 
@@ -307,6 +553,10 @@
         }
 
         field.readOnly = !isEditing;
+      });
+
+      propertySettingsForm.querySelectorAll("select[name]").forEach((field) => {
+        field.disabled = !isEditing;
       });
 
       const actionRow = propertySettingsForm.querySelector(".rh-inline-editor-actions");
@@ -591,6 +841,8 @@
     }
 
     bindAutoSearchForms(root);
+    initDatePickers(root);
+    initCountrySelectors(root);
     initPropertyImageUpload(root);
     initPropertyImageLightbox();
     initPropertySettingsEditor(root);
@@ -731,8 +983,96 @@
     }
 
     bindAutoSearchForms(root);
+    initDatePickers(root);
     initApartmentGallery(root);
     initApartmentReminderEditor(root);
+  };
+
+  const initRentPeriodPickers = (root = document) => {
+    root.querySelectorAll("[data-rent-period-picker]").forEach((picker) => {
+      if (picker.dataset.bound === "true") {
+        return;
+      }
+
+      const form = picker.closest("form");
+      const toggleButton = picker.querySelector("[data-rent-picker-toggle]");
+      const countInput = form?.querySelector("[data-rent-period-count]");
+      const submitButton = form?.querySelector("[data-rent-submit]");
+      const helpText = form?.querySelector("[data-rent-picker-help]");
+      const options = Array.from(picker.querySelectorAll("[data-rent-period-option]"));
+
+      if (!form || !toggleButton || !countInput || !submitButton || options.length === 0) {
+        return;
+      }
+
+      const closePicker = () => {
+        picker.classList.remove("is-open");
+      };
+
+      const updatePicker = () => {
+        let selectedCount = 0;
+        let lastSelectedOption = null;
+        let gapFound = false;
+
+        options.forEach((option, index) => {
+          option.disabled = index > 0 && !options[index - 1].checked;
+
+          if (option.disabled || gapFound) {
+            option.checked = false;
+          }
+
+          if (option.checked) {
+            selectedCount = index + 1;
+            lastSelectedOption = option;
+          } else {
+            gapFound = true;
+          }
+        });
+
+        countInput.value = selectedCount.toString();
+        submitButton.disabled = selectedCount === 0;
+
+        if (selectedCount === 0) {
+          toggleButton.textContent = "Choose rent periods";
+          if (helpText) {
+            helpText.textContent = "Select the oldest period first. Each selected period unlocks the next one.";
+          }
+          return;
+        }
+
+        const periodLabel = lastSelectedOption?.dataset.label || "selected period";
+        const total = lastSelectedOption?.dataset.total || "";
+        toggleButton.textContent = `Pay ${selectedCount} period${selectedCount > 1 ? "s" : ""} through ${periodLabel}${total ? ` - ${total}` : ""}`;
+        if (helpText) {
+          helpText.textContent = "Rent periods are selected in order. Unselecting one period clears every period after it.";
+        }
+      };
+
+      toggleButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        picker.classList.toggle("is-open");
+      });
+
+      options.forEach((option) => {
+        option.addEventListener("change", updatePicker);
+      });
+
+      form.addEventListener("submit", (event) => {
+        updatePicker();
+        if (Number.parseInt(countInput.value, 10) <= 0) {
+          event.preventDefault();
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!picker.contains(event.target)) {
+          closePicker();
+        }
+      });
+
+      picker.dataset.bound = "true";
+      updatePicker();
+    });
   };
 
   const initSessionKeepAlive = () => {
@@ -808,11 +1148,41 @@
     }, 60 * 1000);
   };
 
+  const setSidebarOpen = (isOpen) => {
+    body.classList.toggle("sidebar-open", isOpen);
+    toggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  };
+
+  const closeSidebar = () => setSidebarOpen(false);
+
   if (toggle) {
     toggle.addEventListener("click", () => {
-      body.classList.toggle("sidebar-open");
+      setSidebarOpen(!body.classList.contains("sidebar-open"));
     });
   }
+
+  sidebarClose?.addEventListener("click", closeSidebar);
+  sidebarScrim?.addEventListener("click", closeSidebar);
+
+  sidebar?.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (window.matchMedia("(max-width: 992px)").matches) {
+        closeSidebar();
+      }
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && body.classList.contains("sidebar-open")) {
+      closeSidebar();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (!window.matchMedia("(max-width: 992px)").matches) {
+      closeSidebar();
+    }
+  });
 
   if (confirmationModalEl && confirmationProceedEl) {
     const confirmationModal = new bootstrap.Modal(confirmationModalEl);
@@ -866,6 +1236,9 @@
   initPropertyOverview();
   initApartmentOverview();
   bindAutoSearchForms(document);
+  initCountrySelectors(document);
+  initDatePickers(document);
+  initRentPeriodPickers(document);
   initSessionKeepAlive();
 })();
 

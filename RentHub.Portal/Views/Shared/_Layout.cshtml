@@ -74,6 +74,9 @@
                             <small>Operations console</small>
                         </span>
                     </a>
+                    <button type="button" class="rh-sidebar-close" id="rhSidebarClose" aria-label="Close menu">
+                        &times;
+                    </button>
                 </div>
 
                 @if (canSeeProfile)
@@ -180,12 +183,17 @@
             </aside>
         }
 
+        @if (showSidebar)
+        {
+            <button type="button" class="rh-sidebar-scrim" id="rhSidebarScrim" aria-label="Close menu"></button>
+        }
+
         <div class="rh-main @(showSidebar ? null : "is-public")">
             <header class="rh-topbar @(isMarketingPage ? "is-public" : null)">
                 <div class="rh-topbar-left">
                     @if (showSidebar)
                     {
-                        <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle">
+                        <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle" aria-controls="rhSidebar" aria-expanded="false">
                             Menu
                         </button>
                     }
