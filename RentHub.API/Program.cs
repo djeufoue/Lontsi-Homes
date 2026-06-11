@@ -23,6 +23,7 @@ using RentHub.API.Services.Reminders;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
 using RentHub.API.Services.Subscriptions;
+using RentHub.API.Services.Receipts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -152,6 +153,7 @@ builder.Services.AddScoped<IStorageService, AzureStorageService>();
 builder.Services.AddScoped<IKycFileStorageService, BlobKycFileStorageService>();
 builder.Services.AddScoped<RentHub.API.Services.Auth.TokenService>();
 builder.Services.AddScoped<IUserOnboardingService, UserOnboardingService>();
+builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();

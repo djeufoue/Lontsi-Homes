@@ -16,6 +16,9 @@ namespace Common.CommunicationModels
         public DateTimeOffset? PaidDate { get; set; }
         public int? PaymentId { get; set; }
         public string PaymentReference { get; set; } = string.Empty;
+        public string SystemReceiptNumber { get; set; } = string.Empty;
+        public bool HasSystemReceipt { get; set; }
+        public bool HasProviderReceipt { get; set; }
         public RentPeriodStatusEnum Status { get; set; }
         public string StatusLabel { get; set; } = string.Empty;
         public bool IsPayable { get; set; }
@@ -74,6 +77,15 @@ namespace Common.CommunicationModels
         public PaymentStatusEnum Status { get; set; }
         public string TransactionId { get; set; } = string.Empty;
         public string PeriodLabel { get; set; } = string.Empty;
+        public string SystemReceiptNumber { get; set; } = string.Empty;
+        public bool HasSystemReceipt { get; set; }
+        public bool HasProviderReceipt { get; set; }
+    }
+
+    public class MarkRentPeriodPaidRequest
+    {
+        public DateTimeOffset? PaidDate { get; set; }
+        public string? Note { get; set; }
     }
 
     public class TenantDashboardTenancyDto

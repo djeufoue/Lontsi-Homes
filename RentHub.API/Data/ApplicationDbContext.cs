@@ -164,6 +164,15 @@ namespace RentHub.API.Data
                 entity.Property(p => p.TransactionId)
                     .HasMaxLength(128);
 
+                entity.Property(p => p.ProviderReceiptUrl)
+                    .HasMaxLength(2048);
+
+                entity.Property(p => p.SystemReceiptNumber)
+                    .HasMaxLength(64);
+
+                entity.Property(p => p.ReceiptVerificationCode)
+                    .HasMaxLength(64);
+
                 entity.HasIndex(p => p.RequestKey)
                     .IsUnique()
                     .HasFilter("[RequestKey] IS NOT NULL AND [RequestKey] <> N'' AND [IsDeleted] = 0");
@@ -171,6 +180,14 @@ namespace RentHub.API.Data
                 entity.HasIndex(p => p.TransactionId)
                     .IsUnique()
                     .HasFilter("[TransactionId] IS NOT NULL AND [TransactionId] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(p => p.SystemReceiptNumber)
+                    .IsUnique()
+                    .HasFilter("[SystemReceiptNumber] IS NOT NULL AND [SystemReceiptNumber] <> N'' AND [IsDeleted] = 0");
+
+                entity.HasIndex(p => p.ReceiptVerificationCode)
+                    .IsUnique()
+                    .HasFilter("[ReceiptVerificationCode] IS NOT NULL AND [ReceiptVerificationCode] <> N'' AND [IsDeleted] = 0");
 
                 entity.HasIndex(p => new { p.TenancyId, p.Status, p.PaymentDate });
             });

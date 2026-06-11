@@ -12,6 +12,7 @@ using System.Text;
 using Microsoft.Data.SqlClient;
 using RentHub.API.Helpers;
 using Common.Helpers;
+using RentHub.API.Services.Receipts;
 
 namespace RentHub.API.Controllers
 {
@@ -23,16 +24,19 @@ namespace RentHub.API.Controllers
         private readonly IPaymentService _orangeMoneyService;
         private readonly MomoService _momoService;
         private readonly CardPaymentService _cardPaymentService;
+        private readonly IRentReceiptService _receiptService;
 
         public PaymentsController(ApplicationDbContext context,
             IPaymentService orangeMoneyService,
             MomoService momoService,
-            CardPaymentService cardPaymentService)
+            CardPaymentService cardPaymentService,
+            IRentReceiptService receiptService)
         {
             _context = context;
             _orangeMoneyService = orangeMoneyService;
             _momoService = momoService;
             _cardPaymentService = cardPaymentService;
+            _receiptService = receiptService;
         }
 
         /// <summary>
@@ -185,6 +189,8 @@ namespace RentHub.API.Controllers
                 {
                     payment.TransactionId = result.TransactionId;
                 }
+
+                payment.ProviderReceiptUrl = result.ProviderReceiptUrl;
 
                 // Mark update fields
                 payment.UpdatedBy = currentUserId;
@@ -358,6 +364,7 @@ namespace RentHub.API.Controllers
                     payment.TransactionId = result.TransactionId;
                 }
 
+                payment.ProviderReceiptUrl = result.ProviderReceiptUrl;
                 payment.UpdatedBy = currentUserId;
                 payment.UpdatedAt = DateTime.UtcNow;
 
@@ -382,12 +389,172 @@ namespace RentHub.API.Controllers
                     return BadRequest(new { payment.Id, result.Status, result.ProviderResponse, Duplicate = false });
                 }
 
+                var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, currentUserId);
+                if (receipt != null)
+                {
+                    await _receiptService.SendReceiptNotificationsAsync(
+                        receipt,
+                        notifyTenant: true,
+                        notifyLandlord: true);
+                }
+
                 return Ok(new
                 {
                     payment.Id,
                     result.Status,
                     payment.TransactionId,
+                    ReceiptNumber = receipt?.ReceiptNumber ?? string.Empty,
                     CoveredPeriodIds = payablePeriods.Select(period => period.Id).ToList(),
+                    Duplicate = false
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("rent-periods/{rentPeriodId:int}/mark-paid")]
+        [Authorize]
+        public async Task<IActionResult> MarkRentPeriodAsPaid(int rentPeriodId, [FromBody] MarkRentPeriodPaidRequest? request)
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var period = await _context.RentPeriods
+                    .Include(rp => rp.Tenancy)
+                    .ThenInclude(t => t!.Apartment)
+                    .ThenInclude(a => a!.Property)
+                    .Include(rp => rp.Tenancy)
+                    .ThenInclude(t => t!.Members)
+                    .ThenInclude(m => m.Member)
+                    .FirstOrDefaultAsync(rp => rp.Id == rentPeriodId && !rp.IsDeleted);
+
+                if (period == null)
+                {
+                    return NotFound("Rent period not found.");
+                }
+
+                var tenancy = period.Tenancy;
+                if (tenancy?.Apartment?.Property == null)
+                {
+                    return NotFound("Tenancy or property not found.");
+                }
+
+                if (!await CanWriteTenancyAsync(tenancy, userId))
+                {
+                    return Forbid();
+                }
+
+                if (RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+                {
+                    return BadRequest("This rent period is already paid or closed.");
+                }
+
+                if (period.Status == RentPeriodStatusEnum.PendingPayment)
+                {
+                    return BadRequest("This rent period already has a pending payment.");
+                }
+
+                var tenancyPeriods = await _context.RentPeriods
+                    .Where(rp => rp.TenancyId == tenancy.Id && !rp.IsDeleted)
+                    .OrderBy(rp => rp.PeriodStart)
+                    .ToListAsync();
+
+                var firstUnpaid = tenancyPeriods.FirstOrDefault(rp =>
+                    !RentPeriodScheduleHelper.IsPaidStatus(rp.Status) &&
+                    rp.Status != RentPeriodStatusEnum.PendingPayment);
+
+                if (firstUnpaid == null || firstUnpaid.Id != period.Id)
+                {
+                    return BadRequest("Previous unpaid rent periods must be marked paid first.");
+                }
+
+                var mainTenant = tenancy.Members
+                    .Where(member => !member.IsDeleted)
+                    .OrderBy(member => member.Role == TenancyMemberRoleEnum.MainTenant ? 0 : 1)
+                    .ThenBy(member => member.CreatedAt)
+                    .FirstOrDefault();
+
+                if (mainTenant == null)
+                {
+                    return BadRequest("A tenant member is required before recording a cash rent payment.");
+                }
+
+                var amountDue = period.Amount - period.PaidAmount;
+                if (amountDue <= 0)
+                {
+                    amountDue = period.Amount;
+                }
+
+                var requestKey = $"manual-rent-period:{period.Id}";
+                var existingPayment = await _context.Payments
+                    .FirstOrDefaultAsync(payment => payment.RequestKey == requestKey && !payment.IsDeleted);
+
+                if (existingPayment != null)
+                {
+                    var existingReceipt = await _receiptService.EnsureReceiptAsync(existingPayment.Id, userId);
+                    return Ok(new
+                    {
+                        existingPayment.Id,
+                        Status = existingPayment.Status.ToString(),
+                        existingPayment.TransactionId,
+                        ReceiptNumber = existingReceipt?.ReceiptNumber ?? string.Empty,
+                        Duplicate = true
+                    });
+                }
+
+                var paidDate = request?.PaidDate ?? DateTimeOffset.UtcNow;
+                var payment = new Payment
+                {
+                    TenantId = mainTenant.MemberId,
+                    LandlordId = tenancy.Apartment.Property.LandlordId,
+                    TenancyId = tenancy.Id,
+                    Amount = amountDue,
+                    Currency = "XAF",
+                    Method = PaymentMethodEnum.Cash,
+                    RequestKey = requestKey,
+                    TransactionId = $"manual-{Guid.NewGuid():N}",
+                    Status = PaymentStatusEnum.Success,
+                    PaymentDate = paidDate,
+                    CreatedBy = userId,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    IsDeleted = false
+                };
+
+                _context.Payments.Add(payment);
+                await _context.SaveChangesAsync();
+
+                period.Status = RentPeriodStatusEnum.Paid;
+                period.PaidAmount = period.Amount;
+                period.PaidDate = paidDate;
+                period.PaymentId = payment.Id;
+                period.PaymentReference = payment.TransactionId;
+                period.UpdatedBy = userId;
+                period.UpdatedAt = DateTimeOffset.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, userId);
+                if (receipt != null)
+                {
+                    await _receiptService.SendReceiptNotificationsAsync(
+                        receipt,
+                        notifyTenant: true,
+                        notifyLandlord: !string.Equals(payment.LandlordId, userId, StringComparison.Ordinal));
+                }
+
+                return Ok(new
+                {
+                    payment.Id,
+                    Status = payment.Status.ToString(),
+                    payment.TransactionId,
+                    ReceiptNumber = receipt?.ReceiptNumber ?? string.Empty,
                     Duplicate = false
                 });
             }
@@ -446,7 +613,16 @@ namespace RentHub.API.Controllers
                 payment.UpdatedAt = DateTime.UtcNow;
                 _context.Payments.Update(payment);
                 await _context.SaveChangesAsync();
-                return Ok(new { Message = "Payment marked as paid.", PaymentId = payment.Id });
+                var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, userId);
+                if (receipt != null)
+                {
+                    await _receiptService.SendReceiptNotificationsAsync(
+                        receipt,
+                        notifyTenant: true,
+                        notifyLandlord: !string.Equals(payment.LandlordId, userId, StringComparison.Ordinal));
+                }
+
+                return Ok(new { Message = "Payment marked as paid.", PaymentId = payment.Id, ReceiptNumber = receipt?.ReceiptNumber ?? string.Empty });
             }
             catch (Exception ex)
             {
@@ -497,6 +673,36 @@ namespace RentHub.API.Controllers
             var message = ex.GetBaseException().Message;
             return message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("duplicate", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<bool> CanWriteTenancyAsync(Tenancy tenancy, string userId)
+        {
+            if (tenancy.Apartment?.Property == null)
+            {
+                return false;
+            }
+
+            if (tenancy.Apartment.Property.LandlordId == userId)
+            {
+                return true;
+            }
+
+            var ownerWrite = await _context.ApartmentOwners.AnyAsync(o =>
+                !o.IsDeleted &&
+                o.ApartmentId == tenancy.ApartmentId &&
+                o.OwnerId == userId &&
+                o.Permission == PermissionLevelEnum.ReadWrite);
+
+            if (ownerWrite)
+            {
+                return true;
+            }
+
+            return await _context.PropertyManagerAssignments.AnyAsync(m =>
+                !m.IsDeleted &&
+                m.PropertyId == tenancy.Apartment.PropertyId &&
+                m.ManagerId == userId &&
+                m.Permission == PermissionLevelEnum.ReadWrite);
         }
     }
 }

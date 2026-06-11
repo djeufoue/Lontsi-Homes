@@ -474,8 +474,23 @@ namespace RentHub.API.Migrations
                     b.Property<DateTimeOffset>("PaymentDate")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("ProviderReceiptUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<DateTimeOffset?>("ReceiptIssuedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReceiptVerificationCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<string>("SystemReceiptNumber")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<int?>("TenancyId")
                         .HasColumnType("int");
@@ -496,6 +511,14 @@ namespace RentHub.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LandlordId");
+
+                    b.HasIndex("ReceiptVerificationCode")
+                        .IsUnique()
+                        .HasFilter("[ReceiptVerificationCode] IS NOT NULL AND [ReceiptVerificationCode] <> N'' AND [IsDeleted] = 0");
+
+                    b.HasIndex("SystemReceiptNumber")
+                        .IsUnique()
+                        .HasFilter("[SystemReceiptNumber] IS NOT NULL AND [SystemReceiptNumber] <> N'' AND [IsDeleted] = 0");
 
                     b.HasIndex("TenancyId");
 

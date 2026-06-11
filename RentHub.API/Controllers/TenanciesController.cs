@@ -846,6 +846,7 @@ namespace RentHub.API.Controllers
 
                 var docs = await DocumentHelpers.ToDtosAsync(documentEntities, _storageService);
                 var rentPeriods = await _context.RentPeriods
+                    .Include(period => period.Payment)
                     .Where(period => period.TenancyId == tenancy.Id && !period.IsDeleted)
                     .OrderBy(period => period.PeriodStart)
                     .ToListAsync();
@@ -897,6 +898,7 @@ namespace RentHub.API.Controllers
                     .ThenInclude(a => a.Property)
                     .ThenInclude(p => p.Landlord)
                     .Include(t => t.RentPeriods)
+                    .ThenInclude(period => period.Payment)
                     .Include(t => t.Members)
                     .Where(t => t.Members.Any(m => !m.IsDeleted && m.MemberId == userId))
                     .OrderByDescending(t => t.StartDate)
@@ -1127,6 +1129,9 @@ namespace RentHub.API.Controllers
                     PaidDate = period.PaidDate,
                     PaymentId = period.PaymentId,
                     PaymentReference = period.PaymentReference,
+                    SystemReceiptNumber = period.Payment?.SystemReceiptNumber ?? string.Empty,
+                    HasSystemReceipt = !string.IsNullOrWhiteSpace(period.Payment?.SystemReceiptNumber),
+                    HasProviderReceipt = !string.IsNullOrWhiteSpace(period.Payment?.ProviderReceiptUrl),
                     Status = status,
                     StatusLabel = RentPeriodScheduleHelper.StatusLabel(status),
                     IsPayable = isPayable,
@@ -1175,7 +1180,10 @@ namespace RentHub.API.Controllers
                     Method = payment.Method,
                     Status = payment.Status,
                     TransactionId = payment.TransactionId,
-                    PeriodLabel = label
+                    PeriodLabel = label,
+                    SystemReceiptNumber = payment.SystemReceiptNumber ?? string.Empty,
+                    HasSystemReceipt = !string.IsNullOrWhiteSpace(payment.SystemReceiptNumber),
+                    HasProviderReceipt = !string.IsNullOrWhiteSpace(payment.ProviderReceiptUrl)
                 };
             }).ToList();
         }

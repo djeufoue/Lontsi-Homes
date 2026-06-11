@@ -32,6 +32,10 @@ namespace RentHub.API.Models.Entities
         public PaymentMethodEnum Method { get; set; }
         public string RequestKey { get; set; } = string.Empty;
         public string TransactionId { get; set; } = Guid.NewGuid().ToString();
+        public string? ProviderReceiptUrl { get; set; }
+        public string? SystemReceiptNumber { get; set; }
+        public string? ReceiptVerificationCode { get; set; }
+        public DateTimeOffset? ReceiptIssuedAt { get; set; }
         public PaymentStatusEnum Status { get; set; } = PaymentStatusEnum.Pending;
         public DateTimeOffset PaymentDate { get; set; } = DateTimeOffset.UtcNow;
 

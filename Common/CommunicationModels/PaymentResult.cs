@@ -10,5 +10,6 @@ namespace Common.CommunicationModels
         public string TransactionId { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public string? ProviderResponse { get; set; }
+        public string? ProviderReceiptUrl { get; set; }
     }
 }
