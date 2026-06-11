@@ -154,7 +154,9 @@ namespace RentHub.Portal.Controllers
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
                     MonthlyRent = request.MonthlyRent,
-                    MaxMembers = request.MaxMembers
+                    MaxMembers = request.MaxMembers,
+                    RentDueDay = request.RentDueDay,
+                    EndBehavior = request.EndBehavior
                 });
 
                 TempData["Success"] = "Tenancy updated successfully.";

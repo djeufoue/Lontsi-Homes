@@ -15,6 +15,11 @@
 
     string GetTenancyState(Common.CommunicationModels.TenancyDto tenancy)
     {
+        if (!string.IsNullOrWhiteSpace(tenancy.Status))
+        {
+            return tenancy.Status;
+        }
+
         if (tenancy.StartDate.Date > today)
         {
             return "Upcoming";
@@ -31,6 +36,7 @@
     string GetTenancyStateClass(string state) => state switch
     {
         "Active" => "rh-chip-primary",
+        "Month-to-month" => "rh-chip-primary",
         "Upcoming" => "rh-chip-info",
         _ => "rh-chip-warning"
     };
@@ -294,7 +300,7 @@
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addTenancyModal">Add+</button>
+                        <a class="btn btn-sm rh-btn-primary" asp-controller="Tenancies" asp-action="Create" asp-route-apartmentId="@apartment.Id">Add+</a>
                     }
                 </div>
 
@@ -420,55 +426,6 @@
 
 @if (Model.CanWrite)
 {
-    <div class="modal fade" id="addTenancyModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rh-modal-content">
-                <form method="post" asp-action="CreateTenancy" enctype="multipart/form-data">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="ApartmentId" value="@apartment.Id" />
-
-                    <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Tenancy</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-
-                    <div class="modal-body row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Start date</label>
-                            <input class="form-control rh-input" type="date" name="StartDate" required />
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">End date</label>
-                            <input class="form-control rh-input" type="date" name="EndDate" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Monthly rent</label>
-                            <input class="form-control rh-input" type="number" name="MonthlyRent" min="0" step="0.01" value="@apartment.Price" required />
-                            <small class="text-muted">You can set a tenancy-specific amount if the tenant negotiated a different arrangement.</small>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Max members</label>
-                            <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="1" required />
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label">Contract document (optional)</label>
-                            <input class="form-control rh-input" type="file" name="ContractDocument" accept=".pdf,application/pdf" />
-                            <small class="text-muted">If provided, the tenancy contract is uploaded as a PDF right after the tenancy record is created.</small>
-                        </div>
-                    </div>
-
-                    <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Create tenancy</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
     @foreach (var tenancy in sortedTenancies)
     {
         <div class="modal fade" id="editTenancyModal-@tenancy.Id" tabindex="-1" aria-hidden="true">
@@ -504,6 +461,22 @@
                                 <label class="form-label">Max members</label>
                                 <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@tenancy.MaxMembers" required />
                                 <small class="text-muted">The selected dates must not overlap another tenancy for this apartment.</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">Rent due day</label>
+                                <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@tenancy.RentDueDay" required />
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label">After end date</label>
+                                <div class="rh-select-wrap">
+                                    <select class="form-select rh-input rh-select" name="EndBehavior">
+                                        <option value="ExpireAutomatically" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "selected" : null)">Expire automatically</option>
+                                        <option value="ContinueMonthToMonth" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "selected" : null)">Continue month-to-month</option>
+                                        <option value="NoEndDate" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "selected" : null)">No end date</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 

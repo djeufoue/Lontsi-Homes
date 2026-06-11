@@ -1,5 +1,6 @@
 @model RentHub.Portal.ViewModels.Tenancies.TenancyOverviewVm
 @using Common.Enums
+@using Common.Helpers
 @using System
 @{
     ViewData["Title"] = "Tenancy Overview";
@@ -7,19 +8,36 @@
     var tenancy = Model.Tenancy;
     var today = DateTimeOffset.UtcNow.Date;
     var contract = Model.Documents.OrderByDescending(document => document.UploadedAt).FirstOrDefault();
+    var rentPeriods = Model.RentPeriods.OrderBy(period => period.PeriodStart).ToList();
+    var waiveCandidates = rentPeriods
+        .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.PeriodEnd.Date >= today)
+        .ToList();
     var members = Model.Members.OrderBy(member => string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? 0 : 1)
         .ThenBy(member => member.FullName)
         .ToList();
-    var tenancyState = tenancy.StartDate.Date > today
-        ? "Upcoming"
-        : tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < today
-            ? "Closed"
-            : "Active";
+    var tenancyState = !string.IsNullOrWhiteSpace(tenancy.Status)
+        ? tenancy.Status
+        : tenancy.StartDate.Date > today
+            ? "Upcoming"
+            : tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < today
+                ? "Closed"
+                : "Active";
     var stateClass = tenancyState switch
     {
         "Active" => "rh-chip-primary",
+        "Terminated" => "rh-chip-warning",
         "Upcoming" => "rh-chip-info",
         _ => "rh-chip-warning"
+    };
+
+    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy");
+    string StatusClass(RentPeriodStatusEnum status) => status switch
+    {
+        RentPeriodStatusEnum.Paid or RentPeriodStatusEnum.PaidBeforeRentHub or RentPeriodStatusEnum.PaidInAdvance => "rh-chip-primary",
+        RentPeriodStatusEnum.Due or RentPeriodStatusEnum.Overdue => "rh-chip-warning",
+        RentPeriodStatusEnum.PendingPayment => "rh-chip-info",
+        RentPeriodStatusEnum.Waived or RentPeriodStatusEnum.Cancelled => "rh-chip-info",
+        _ => "rh-chip-info"
     };
 }
 
@@ -42,6 +60,10 @@
         <div class="rh-overview-hero-actions">
             <a class="btn rh-btn-subtle" asp-controller="Apartments" asp-action="Overview" asp-route-id="@tenancy.ApartmentId">Apartment Workspace</a>
             <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@tenancy.PropertyId">Property Workspace</a>
+            @if (tenancy.CanWrite && tenancy.TerminatedAt == null)
+            {
+                <button type="button" class="btn rh-btn-outline-danger" data-bs-toggle="modal" data-bs-target="#terminateTenancyModal">Terminate tenancy</button>
+            }
         </div>
     </section>
 
@@ -124,6 +146,46 @@
                     </article>
                 }
             </article>
+
+            <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact mt-3">
+                <div class="rh-overview-panel-head align-start">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">Rent periods</h2>
+                        <p class="rh-dashboard-panel-copy">Month-by-month rent state for this tenancy.</p>
+                    </div>
+                </div>
+
+                @if (!rentPeriods.Any())
+                {
+                    <div class="rh-empty">No rent periods generated yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Period</th>
+                                    <th>Due date</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var period in rentPeriods)
+                                {
+                                    <tr>
+                                        <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                        <td>@DateLabel(period.DueDate)</td>
+                                        <td class="text-end">@period.Amount.ToString("N0")</td>
+                                        <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </article>
         </div>
 
         <div class="rh-overview-sidecolumn rh-overview-sidecolumn-priority">
@@ -189,6 +251,85 @@
 
 @if (tenancy.CanWrite)
 {
+    <div class="modal fade" id="terminateTenancyModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="Terminate">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+
+                    <div class="modal-header border-0 pb-0">
+                        <div>
+                            <h5 class="modal-title">Terminate tenancy</h5>
+                            <p class="text-muted mb-0">Future rent generation stops after the termination date.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+
+                    <div class="modal-body row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Termination date</label>
+                            <input class="form-control rh-input" type="date" name="terminationDate" value="@today.ToString("yyyy-MM-dd")" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Reason</label>
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="reason">
+                                    <option value="TenantMovedOut">Tenant moved out</option>
+                                    <option value="Eviction">Eviction</option>
+                                    <option value="AgreementEnded">Agreement ended</option>
+                                    <option value="LandlordDecision">Landlord decision</option>
+                                    <option value="TenantRequest">Tenant request</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Future rent handling</label>
+                            <div class="rh-select-wrap">
+                                <select class="form-select rh-input rh-select" name="futureRentHandling" data-future-rent-handling>
+                                    <option value="CancelFutureUnpaidPeriods">Cancel future unpaid periods</option>
+                                    <option value="KeepUnpaidBalance">Keep unpaid balance</option>
+                                    <option value="WaiveSelectedPeriods">Waive selected periods</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-12" data-waive-periods hidden>
+                            <div class="rh-inline-settings-note">
+                                <strong>Waive selected future/unpaid periods</strong>
+                                @if (!waiveCandidates.Any())
+                                {
+                                    <div class="mt-2">No unpaid future period is available for waiver.</div>
+                                }
+                                else
+                                {
+                                    <div class="mt-2 d-grid gap-2">
+                                        @foreach (var period in waiveCandidates)
+                                        {
+                                            <label>
+                                                <input type="checkbox" name="waivedRentPeriodIds" value="@period.Id" />
+                                                @DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd) (@period.Amount.ToString("N0"))
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Notes optional</label>
+                            <textarea class="form-control rh-input" name="notes" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn rh-btn-outline-danger">Terminate tenancy</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="uploadTenancyContractModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -247,6 +388,10 @@
                         <div class="col-md-6">
                             <label class="form-label">Phone number</label>
                             <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="e.g. REMOVED_PRIVATE_VALUE" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">WhatsApp number</label>
+                            <input class="form-control rh-input" name="WhatsAppPhoneNumber" inputmode="numeric" placeholder="Optional" />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Role</label>
@@ -314,4 +459,21 @@
             </div>
         </div>
     }
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const select = document.querySelector("[data-future-rent-handling]");
+            const waive = document.querySelector("[data-waive-periods]");
+            if (!select || !waive) return;
+
+            const sync = () => {
+                waive.hidden = select.value !== "WaiveSelectedPeriods";
+            };
+
+            select.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
 }

@@ -106,6 +106,60 @@ body.rh-body {
   box-shadow: var(--rh-shadow-soft);
 }
 
+.rh-tenancy-wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.rh-tenancy-wizard-steps span {
+  border: 1px solid var(--rh-border);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.75rem;
+  color: var(--rh-muted);
+  background: #fff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.rh-tenancy-wizard-steps span.active,
+.rh-tenancy-wizard-steps span.done {
+  color: var(--rh-text);
+  border-color: rgba(12, 111, 99, 0.35);
+  background: var(--rh-accent-soft);
+}
+
+.rh-guided-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.rh-guided-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.65rem;
+  align-items: start;
+  border: 1px solid var(--rh-border);
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: #fff;
+}
+
+.rh-guided-option input {
+  margin-top: 0.2rem;
+}
+
+.rh-guided-option span {
+  font-weight: 800;
+}
+
+.rh-guided-option small {
+  grid-column: 2;
+  color: var(--rh-muted);
+}
+
 .rh-section-title {
   margin: 0;
   font-size: 1rem;
