@@ -138,6 +138,13 @@
                                         {
                                             <span>Available in payment selector</span>
                                         }
+                                        else if (period.PaymentId.HasValue)
+                                        {
+                                            <div class="d-flex flex-wrap gap-2">
+                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">Receipt</a>
+                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">Download</a>
+                                            </div>
+                                        }
                                         else if (!string.IsNullOrWhiteSpace(period.LockedReason))
                                         {
                                             <span class="text-muted">@period.LockedReason</span>
@@ -164,6 +171,7 @@
                                     <th>Period</th>
                                     <th class="text-end">Amount</th>
                                     <th>Status</th>
+                                    <th>Receipt</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -174,6 +182,19 @@
                                         <td>@payment.PeriodLabel</td>
                                         <td class="text-end">@payment.Amount.ToString("N0") @payment.Currency</td>
                                         <td>@payment.Status</td>
+                                        <td>
+                                            @if (payment.Status == PaymentStatusEnum.Success)
+                                            {
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@payment.PaymentId">Receipt</a>
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@payment.PaymentId">Download</a>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">After payment</span>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>

@@ -169,6 +169,7 @@
                                     <th>Due date</th>
                                     <th class="text-end">Amount</th>
                                     <th>Status</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -179,6 +180,32 @@
                                         <td>@DateLabel(period.DueDate)</td>
                                         <td class="text-end">@period.Amount.ToString("N0")</td>
                                         <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
+                                        <td>
+                                            @if (period.PaymentId.HasValue)
+                                            {
+                                                <div class="d-flex flex-wrap gap-2">
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">Receipt</a>
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">Download</a>
+                                                </div>
+                                            }
+                                            else if (tenancy.CanWrite && period.IsPayable)
+                                            {
+                                                <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="Mark rent as paid?" data-confirm-message="Use this only when the tenant paid outside the platform, for example by cash. Stripe will not be used." data-confirm-proceed="Mark paid">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                                    <input type="hidden" name="rentPeriodId" value="@period.Id" />
+                                                    <button type="submit" class="btn btn-sm rh-btn-primary">Mark paid cash</button>
+                                                </form>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(period.LockedReason))
+                                            {
+                                                <span class="text-muted">@period.LockedReason</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No receipt</span>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>

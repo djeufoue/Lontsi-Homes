@@ -468,6 +468,37 @@ namespace RentHub.Portal.Controllers
             return RedirectToAction(nameof(Overview), new { id = tenancyId });
         }
 
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkRentPeriodPaid(int tenancyId, int rentPeriodId)
+        {
+            try
+            {
+                if (rentPeriodId <= 0)
+                {
+                    TempData["Error"] = "Please choose a rent period to mark as paid.";
+                    return RedirectToAction(nameof(Overview), new { id = tenancyId });
+                }
+
+                await _api.PostAsync<MarkRentPeriodPaidRequest, JsonElement>(
+                    $"payments/rent-periods/{rentPeriodId}/mark-paid",
+                    new MarkRentPeriodPaidRequest
+                    {
+                        PaidDate = DateTimeOffset.UtcNow,
+                        Note = "Marked paid by landlord as cash/off-platform rent."
+                    });
+
+                TempData["Success"] = "Rent period marked as paid. A system receipt was generated.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Mark rent period paid failed in portal for tenancy {TenancyId}, rent period {RentPeriodId}.", tenancyId, rentPeriodId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to mark the rent period as paid right now.");
+            }
+
+            return RedirectToAction(nameof(Overview), new { id = tenancyId });
+        }
+
         private async Task<TenancyCreateDraft> LoadOrCreateDraftAsync(int apartmentId)
         {
             var existing = LoadDraft(apartmentId);
