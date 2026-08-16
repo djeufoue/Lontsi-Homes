@@ -286,7 +286,7 @@
 @if (tenancy.CanWrite)
 {
     <div class="modal fade" id="terminateTenancyModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered rh-action-modal-dialog">
             <div class="modal-content rh-modal-content">
                 <form method="post" asp-action="Terminate">
                     @Html.AntiForgeryToken()
