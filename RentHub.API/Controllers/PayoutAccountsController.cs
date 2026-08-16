@@ -41,6 +41,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Stripe payout setup is hidden while automatic payments are disabled."
+                    });
+                }
+
                 var user = await GetCurrentUserAsync();
                 if (user == null)
                 {
@@ -76,6 +85,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Stripe payout setup is unavailable while automatic payments are disabled."
+                    });
+                }
+
                 var user = await GetCurrentUserAsync();
                 if (user == null)
                 {

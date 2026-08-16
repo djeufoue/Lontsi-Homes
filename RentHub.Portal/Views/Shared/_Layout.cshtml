@@ -1,10 +1,15 @@
 @using System
 @using System.Linq
+@using System.Globalization
+@using System.Text.Json
 @using RentHub.Portal.Helpers
 @{
-    var successMessage = TempData["Success"] as string;
-    var infoMessage = TempData["Info"] as string;
-    var errorMessage = TempData["Error"] as string;
+    var rawSuccessMessage = TempData["Success"] as string;
+    var rawInfoMessage = TempData["Info"] as string;
+    var rawErrorMessage = TempData["Error"] as string;
+    var successMessage = string.IsNullOrWhiteSpace(rawSuccessMessage) ? null : T[rawSuccessMessage].Value;
+    var infoMessage = string.IsNullOrWhiteSpace(rawInfoMessage) ? null : T[rawInfoMessage].Value;
+    var errorMessage = string.IsNullOrWhiteSpace(rawErrorMessage) ? null : T[rawErrorMessage].Value;
     var successDialog = SuccessDialogHelper.GetActive(Context.Session);
 
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
@@ -12,6 +17,9 @@
     var isHome = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
     var isMarketingPage = isHome;
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
+    var isApartments = string.Equals(currentController, "Apartments", StringComparison.OrdinalIgnoreCase);
+    var isTenancies = string.Equals(currentController, "Tenancies", StringComparison.OrdinalIgnoreCase);
+    var isMembers = string.Equals(currentController, "Members", StringComparison.OrdinalIgnoreCase);
     var isMessages = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
     var isAdminSubscriptionsController = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
     var isSubscriptionsAdmin = isAdminSubscriptionsController && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
@@ -27,37 +35,84 @@
 
     var userPrincipal = User;
     var isAuthenticated = userPrincipal?.Identity?.IsAuthenticated == true;
-    var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
+    var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true || userPrincipal?.IsInRole("Tenant") == true;
+    var canSeeMembersDirectory = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
     var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
     var canSeeTenantDashboard = userPrincipal?.IsInRole("Tenant") == true;
     var showSidebar = isAuthenticated && !isMarketingPage;
     var canSeeProfile = isAuthenticated && userPrincipal?.IsInRole("Visitor") != true;
-    var canSeePaymentCenter = canSeeProfile && userPrincipal?.IsInRole("Landlord") == true;
+    var hasSubscriptionExemption = string.Equals(
+        userPrincipal?.FindFirst("subscription_exempt")?.Value,
+        "true",
+        StringComparison.OrdinalIgnoreCase);
+    var canSeePaymentCenter = canSeeProfile
+        && userPrincipal?.IsInRole("Landlord") == true
+        && !hasSubscriptionExemption;
 
     var userName = User?.Identity?.Name;
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
     var userRoleName =
-        userPrincipal?.IsInRole("Admin") == true ? "Administrator" :
-        userPrincipal?.IsInRole("Manager") == true ? "Manager" :
-        userPrincipal?.IsInRole("Landlord") == true ? "Landlord" :
-        userPrincipal?.IsInRole("Tenant") == true ? "Tenant" :
-        userPrincipal?.IsInRole("Visitor") == true ? "Visitor" :
-        "Account";
+        userPrincipal?.IsInRole("Admin") == true ? T["Administrator"].Value :
+        userPrincipal?.IsInRole("Manager") == true ? T["Manager"].Value :
+        userPrincipal?.IsInRole("Landlord") == true ? T["Landlord"].Value :
+        userPrincipal?.IsInRole("Tenant") == true ? T["Tenant"].Value :
+        userPrincipal?.IsInRole("Visitor") == true ? T["Visitor"].Value :
+        T["Account"].Value;
     var userRoleLabel =
-        userPrincipal?.IsInRole("Admin") == true ? "Administrator workspace" :
-        userPrincipal?.IsInRole("Manager") == true ? "Manager workspace" :
-        userPrincipal?.IsInRole("Landlord") == true ? "Landlord workspace" :
-        userPrincipal?.IsInRole("Tenant") == true ? "Tenant workspace" :
-        userPrincipal?.IsInRole("Visitor") == true ? "Visitor workspace" :
-        "Workspace profile";
+        userPrincipal?.IsInRole("Admin") == true ? T["Administrator workspace"].Value :
+        userPrincipal?.IsInRole("Manager") == true ? T["Manager workspace"].Value :
+        userPrincipal?.IsInRole("Landlord") == true ? T["Landlord workspace"].Value :
+        userPrincipal?.IsInRole("Tenant") == true ? T["Tenant workspace"].Value :
+        userPrincipal?.IsInRole("Visitor") == true ? T["Visitor workspace"].Value :
+        T["Workspace profile"].Value;
+    var clientTranslations = new Dictionary<string, string>
+    {
+        ["Action completed"] = T["Action completed"].Value,
+        ["Action Completed"] = T["Action Completed"].Value,
+        ["Action Failed"] = T["Action Failed"].Value,
+        ["Close"] = T["Close"].Value,
+        ["Choose date"] = T["Choose date"].Value,
+        ["Previous month"] = T["Previous month"].Value,
+        ["Next month"] = T["Next month"].Value,
+        ["Select date"] = T["Select date"].Value,
+        ["Unable to refresh this section right now."] = T["Unable to refresh this section right now."].Value,
+        ["Please choose an image file."] = T["Please choose an image file."].Value,
+        ["Please choose a landscape image."] = T["Please choose a landscape image."].Value,
+        ["This image could not be validated."] = T["This image could not be validated."].Value,
+        ["Property image"] = T["Property image"].Value,
+        ["Unable to refresh the property workspace right now."] = T["Unable to refresh the property workspace right now."].Value,
+        ["Property workspace content was not returned."] = T["Property workspace content was not returned."].Value,
+        ["Requested property section could not be refreshed."] = T["Requested property section could not be refreshed."].Value,
+        ["Unable to refresh the apartment workspace right now."] = T["Unable to refresh the apartment workspace right now."].Value,
+        ["Apartment workspace content was not returned."] = T["Apartment workspace content was not returned."].Value,
+        ["Requested apartment section could not be refreshed."] = T["Requested apartment section could not be refreshed."].Value,
+        ["Unable to complete this action right now."] = T["Unable to complete this action right now."].Value,
+        ["Action completed successfully."] = T["Action completed successfully."].Value,
+        ["Current apartment image"] = T["Current apartment image"].Value,
+        ["Apartment image"] = T["Apartment image"].Value,
+        ["Apartment image preview"] = T["Apartment image preview"].Value,
+        ["Choose rent periods"] = T["Choose rent periods"].Value,
+        ["Select the oldest period first. Each selected period unlocks the next one."] = T["Select the oldest period first. Each selected period unlocks the next one."].Value,
+        ["selected period"] = T["selected period"].Value,
+        ["Rent periods are selected in order. Unselecting one period clears every period after it."] = T["Rent periods are selected in order. Unselecting one period clears every period after it."].Value,
+        ["Please confirm"] = T["Please confirm"].Value,
+        ["Are you sure you want to continue?"] = T["Are you sure you want to continue?"].Value,
+        ["Proceed"] = T["Proceed"].Value,
+        ["Dark"] = T["Dark"].Value,
+        ["Light"] = T["Light"].Value,
+        ["Device"] = T["Device"].Value,
+        ["Pay {0} period through {1}"] = T["Pay {0} period through {1}"].Value,
+        ["Pay {0} periods through {1}"] = T["Pay {0} periods through {1}"].Value
+    };
 }
 <!DOCTYPE html>
-<html lang="en" class="@(showSidebar ? "rh-app-document" : null)">
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName" class="rh-app-document">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Lontsi Homes</title>
 
+    <script>window.rhI18n = @Html.Raw(JsonSerializer.Serialize(clientTranslations));</script>
     <script src="~/js/theme.js" asp-append-version="true"></script>
     <script type="importmap"></script>
 
@@ -72,6 +127,8 @@
 <body class="rh-body @(isMarketingPage ? "rh-body-public" : null)">
     <svg class="rh-icon-sprite" aria-hidden="true" focusable="false">
         <symbol id="rh-icon-properties" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M8 7h2m4 0h2M8 11h2m4 0h2M8 15h2m4 0h2m-6 6v-3h4v3" /></symbol>
+        <symbol id="rh-icon-apartments" viewBox="0 0 24 24"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 11h2m2 0h2M9 15h2m2 0h2m-4 6v-3h2v3" /></symbol>
+        <symbol id="rh-icon-tenancies" viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5V3Zm9 0v5h5M8 12h8m-8 4h6" /></symbol>
         <symbol id="rh-icon-inbox" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></symbol>
         <symbol id="rh-icon-external" viewBox="0 0 24 24"><path d="M15 3h6v6m0-6L10 14m8-1v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></symbol>
         <symbol id="rh-icon-dashboard" viewBox="0 0 24 24"><path d="M4 5h16v14H4V5Zm3 3h4v3H7V8Zm6 0h4v8h-4V8Zm-6 5h4v3H7v-3Z" /></symbol>
@@ -99,10 +156,10 @@
                         <span class="rh-sidebar-brand-mark">R</span>
                         <span class="rh-sidebar-brand-copy">
                             <strong>Lontsi Homes</strong>
-                            <small>Operations console</small>
+                            <small>@T["Operations console"]</small>
                         </span>
                     </a>
-                    <button type="button" class="rh-sidebar-close" id="rhSidebarClose" aria-label="Close menu">
+                    <button type="button" class="rh-sidebar-close" id="rhSidebarClose" aria-label="@T["Close menu"]">
                         &times;
                     </button>
                 </div>
@@ -112,28 +169,43 @@
                     <a class="rh-sidebar-user rh-sidebar-user-link" asp-controller="Profile" asp-action="Index">
                         <div class="rh-avatar">@userInitial</div>
                         <div>
-                            <p class="rh-sidebar-user-name">@(userName ?? "User")</p>
+                            <p class="rh-sidebar-user-name">@(userName ?? T["User"].Value)</p>
                             <p class="rh-sidebar-user-role">@userRoleLabel</p>
                         </div>
                     </a>
                 }
 
                 <div class="rh-sidebar-section">
-                    <p class="rh-sidebar-section-label">Workspace</p>
+                    <p class="rh-sidebar-section-label">@T["Workspace"]</p>
                     <nav class="rh-nav">
                         @if (canSeeProperties)
                         {
                             <a class="rh-nav-link @(isProperties ? "active" : null)" asp-controller="Properties" asp-action="Index" aria-current="@(isProperties ? "page" : null)">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-properties"></use></svg>
-                                <span>Properties</span>
+                                <span>@T["Properties"]</span>
                             </a>
+                            <a class="rh-nav-link @(isApartments ? "active" : null)" asp-controller="Apartments" asp-action="Index" aria-current="@(isApartments ? "page" : null)">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-apartments"></use></svg>
+                                <span>@T["Apartments"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isTenancies ? "active" : null)" asp-controller="Tenancies" asp-action="Index" aria-current="@(isTenancies ? "page" : null)">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-tenancies"></use></svg>
+                                <span>@T["Tenancies"]</span>
+                            </a>
+                            @if (canSeeMembersDirectory)
+                            {
+                                <a class="rh-nav-link @(isMembers ? "active" : null)" asp-controller="Members" asp-action="Index" aria-current="@(isMembers ? "page" : null)">
+                                    <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-users"></use></svg>
+                                    <span>@T["Members"]</span>
+                                </a>
+                            }
                         }
 
                         @if (canSeeMessages)
                         {
                             <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index" aria-current="@(isMessages ? "page" : null)">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
-                                <span>Inbox</span>
+                                <span>@T["Conversations"]</span>
                             </a>
                         }
 
@@ -141,61 +213,59 @@
                         {
                             <a class="rh-nav-link @(isTenantDashboard ? "active" : null)" asp-controller="Tenant" asp-action="Index" aria-current="@(isTenantDashboard ? "page" : null)">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-dashboard"></use></svg>
-                                <span>Rent Dashboard</span>
+                                <span>@T["Rent Dashboard"]</span>
                             </a>
                         }
 
                         <a class="rh-nav-link @(isHome ? "active" : null)" asp-controller="Home" asp-action="Index" aria-current="@(isHome ? "page" : null)">
                             <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-external"></use></svg>
-                            <span>Public Site</span>
+                            <span>@T["Public Site"]</span>
                         </a>
 
-                        @if (userPrincipal?.IsInRole("Admin") == true)
+                        @if (canSeePaymentCenter)
                         {
-                            <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-settings"></use></svg>
-                                <span>Subscriptions</span>
-                            </a>
-                            <a class="rh-nav-link @(isAdminPaymentAccounts ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-wallet"></use></svg>
-                                <span>Payment Accounts</span>
-                            </a>
-                            <a class="rh-nav-link @(isAdminPaymentActivity ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentActivity">
+                            <a class="rh-nav-link @(isProfilePayments ? "active" : null)" asp-controller="Profile" asp-action="Payments">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-payment"></use></svg>
-                                <span>Payment Activity</span>
-                            </a>
-                            <a class="rh-nav-link @(isUsersAdmin && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-profile"></use></svg>
-                                <span>User Validation</span>
-                            </a>
-                            <a class="rh-nav-link @(isLandlordValidation ? "active" : null)" asp-controller="AdminUsers" asp-action="Landlords">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-users"></use></svg>
-                                <span>Landlord Validation</span>
-                            </a>
-                            <a class="rh-nav-link @(isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="LandlordApprovals">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-shield"></use></svg>
-                                <span>KYC Approvals</span>
+                                <span>@T["Payments"]</span>
                             </a>
                         }
+
                     </nav>
                 </div>
 
-                @if (canSeeProfile)
+                @if (userPrincipal?.IsInRole("Admin") == true)
                 {
-                    <div class="rh-sidebar-section rh-sidebar-section-muted">
-                        <p class="rh-sidebar-section-label">Account</p>
-                        <nav class="rh-nav rh-nav-secondary">
-                            <a class="rh-nav-link @(isProfileHome ? "active" : null)" asp-controller="Profile" asp-action="Index">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-profile"></use></svg>
-                                <span>Profile</span>
+                    <div class="rh-sidebar-section">
+                        <p class="rh-sidebar-section-label">@T["Administration"]</p>
+                        <nav class="rh-nav">
+                            <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index" asp-route-kind="subscription">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
+                                <span>@T["Conversations"]</span>
                             </a>
-                            @if (canSeePaymentCenter)
-                            {
-                                <a class="rh-nav-link @(isProfilePayments ? "active" : null)" asp-controller="Profile" asp-action="Payments">
-                                    <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-payment"></use></svg>
-                                    <span>Payments</span>
-                                </a>
-                            }
+                            <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-settings"></use></svg>
+                                <span>@T["Subscriptions"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isAdminPaymentAccounts ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-wallet"></use></svg>
+                                <span>@T["Payment Accounts"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isAdminPaymentActivity ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="PaymentActivity">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-payment"></use></svg>
+                                <span>@T["Payment Activity"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isUsersAdmin && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : null)" asp-controller="AdminUsers" asp-action="Index">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-profile"></use></svg>
+                                <span>@T["User Validation"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isLandlordValidation ? "active" : null)" asp-controller="AdminUsers" asp-action="Landlords">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-users"></use></svg>
+                                <span>@T["Landlord Validation"]</span>
+                            </a>
+                            <a class="rh-nav-link @(isKycApprovals ? "active" : null)" asp-controller="AdminUsers" asp-action="LandlordApprovals">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-shield"></use></svg>
+                                <span>@T["KYC Approvals"]</span>
+                            </a>
                         </nav>
                     </div>
                 }
@@ -205,46 +275,42 @@
 
         @if (showSidebar)
         {
-            <button type="button" class="rh-sidebar-scrim" id="rhSidebarScrim" aria-label="Close menu"></button>
+            <button type="button" class="rh-sidebar-scrim" id="rhSidebarScrim" aria-label="@T["Close menu"]"></button>
         }
 
         <div class="rh-main @(showSidebar ? null : "is-public")">
             <header class="rh-topbar @(isMarketingPage ? "is-public" : null)">
                 <div class="rh-topbar-left">
-                    @if (showSidebar)
+                    @if (isMarketingPage)
                     {
-                        <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle" aria-controls="rhSidebar" aria-expanded="false">
-                            Menu
-                        </button>
+                        <a class="rh-public-brand" asp-controller="Home" asp-action="Index" aria-label="Lontsi Homes home">
+                            <span class="rh-public-brand-mark">LH</span>
+                            <span class="rh-public-brand-copy">
+                                <strong>Lontsi Homes</strong>
+                                <small>@T["Property operations, simplified"]</small>
+                            </span>
+                        </a>
                     }
-                    <div class="rh-topbar-context">
-                        <p class="rh-topbar-title">@(isMarketingPage ? "Lontsi Homes" : (ViewData["Title"] ?? "Lontsi Homes"))</p>
-                        <small class="rh-topbar-caption">@(isMarketingPage ? "Landlord operations, tenant management, and rent collection" : "Operational workspace")</small>
-                    </div>
+                    else
+                    {
+                        @if (showSidebar)
+                        {
+                            <button type="button" class="btn rh-btn-subtle rh-sidebar-toggle" id="rhSidebarToggle" aria-controls="rhSidebar" aria-expanded="false">
+                                @T["Menu"]
+                            </button>
+                        }
+                        <div class="rh-topbar-context">
+                            <p class="rh-topbar-title">@(ViewData["Title"] ?? "Lontsi Homes")</p>
+                            <small class="rh-topbar-caption">@T["Operational workspace"]</small>
+                        </div>
+                    }
                 </div>
 
                 <div class="rh-topbar-right">
-                    <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Home" asp-action="Index">Home</a>
-
                     @if (isAuthenticated)
                     {
-                        if (canSeeProperties)
-                        {
-                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Properties" asp-action="Index">My Properties</a>
-                        }
-
-                        if (canSeeMessages)
-                        {
-                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Conversations" asp-action="Index">Messages</a>
-                        }
-
-                        if (canSeeTenantDashboard)
-                        {
-                            <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Tenant" asp-action="Index">Rent Dashboard</a>
-                        }
-
                         <div class="dropdown rh-account-menu">
-                            <button class="rh-account-trigger" id="rhAccountMenuButton" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Open account menu for @(userName ?? "current user")">
+                            <button class="rh-account-trigger" id="rhAccountMenuButton" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="@T["Open account menu for {0}", userName ?? T["current user"].Value]">
                                 <span class="rh-account-avatar">@userInitial</span>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end rh-account-dropdown" data-account-dropdown aria-labelledby="rhAccountMenuButton">
@@ -252,7 +318,7 @@
                                     <div class="rh-account-summary">
                                         <span class="rh-account-avatar rh-account-avatar-large">@userInitial</span>
                                         <span class="rh-account-summary-copy">
-                                            <strong>@(userName ?? "Signed-in user")</strong>
+                                            <strong>@(userName ?? T["Signed-in user"].Value)</strong>
                                             <small>@userRoleName</small>
                                         </span>
                                     </div>
@@ -264,28 +330,28 @@
                                             {
                                                 <a class="dropdown-item rh-account-menu-item" asp-controller="Profile" asp-action="Index">
                                                     <svg aria-hidden="true"><use href="#rh-icon-profile"></use></svg>
-                                                    <span>View Profile</span>
+                                                    <span>@T["View Profile"]</span>
                                                 </a>
                                             }
                                             @if (canSeePaymentCenter)
                                             {
                                                 <a class="dropdown-item rh-account-menu-item" asp-controller="Profile" asp-action="Payments">
                                                     <svg aria-hidden="true"><use href="#rh-icon-payment"></use></svg>
-                                                    <span>Payments</span>
+                                                    <span>@T["Payments"]</span>
                                                 </a>
                                             }
                                             @if (canSeeProperties)
                                             {
                                                 <a class="dropdown-item rh-account-menu-item" asp-controller="Properties" asp-action="Index">
                                                     <svg aria-hidden="true"><use href="#rh-icon-properties"></use></svg>
-                                                    <span>My Properties</span>
+                                                    <span>@T["My Properties"]</span>
                                                 </a>
                                             }
                                             @if (canSeeMessages)
                                             {
                                                 <a class="dropdown-item rh-account-menu-item" asp-controller="Conversations" asp-action="Index">
                                                     <svg aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
-                                                    <span>Messages</span>
+                                                    <span>@T["Messages"]</span>
                                                 </a>
                                             }
                                         </div>
@@ -295,19 +361,27 @@
                                         <button class="dropdown-item rh-account-menu-item rh-account-menu-choice" type="button" data-appearance-open aria-haspopup="menu" aria-expanded="false">
                                             <svg aria-hidden="true"><use href="#rh-icon-appearance"></use></svg>
                                             <span class="rh-account-menu-item-copy">
-                                                <span>Appearance</span>
-                                                <small data-theme-current-label>Device</small>
+                                                <span>@T["Appearance"]</span>
+                                                <small data-theme-current-label>@T["Dark"]</small>
                                             </span>
                                             <svg class="rh-account-menu-chevron" aria-hidden="true"><use href="#rh-icon-chevron-right"></use></svg>
                                         </button>
                                     </div>
 
                                     <div class="rh-account-menu-section">
-                                        <form asp-controller="Auth" asp-action="Logout" method="post" class="rh-account-action-form">
+                                        <form asp-controller="Auth"
+                                              asp-action="Logout"
+                                              method="post"
+                                              class="rh-account-action-form"
+                                              data-confirm-modal="true"
+                                              data-confirm-title="@T["Log out?"]"
+                                              data-confirm-message="@T["Are you sure you want to end your current session?"]"
+                                              data-confirm-proceed="@T["Log out"]"
+                                              data-confirm-style="danger">
                                             @Html.AntiForgeryToken()
                                             <button class="dropdown-item rh-account-menu-item rh-account-menu-item-danger" type="submit">
                                                 <svg aria-hidden="true"><use href="#rh-icon-logout"></use></svg>
-                                                <span>Log out</span>
+                                                <span>@T["Log out"]</span>
                                             </button>
                                         </form>
                                     </div>
@@ -315,25 +389,25 @@
 
                                 <div class="rh-appearance-panel" data-appearance-menu-panel hidden>
                                     <div class="rh-appearance-header">
-                                        <button class="rh-appearance-back" type="button" data-appearance-back aria-label="Back to account menu">
+                                        <button class="rh-appearance-back" type="button" data-appearance-back aria-label="@T["Back to account menu"]">
                                             <svg aria-hidden="true"><use href="#rh-icon-arrow-left"></use></svg>
-                                            <span>Appearance</span>
+                                            <span>@T["Appearance"]</span>
                                         </button>
                                     </div>
-                                    <div class="rh-appearance-options" role="radiogroup" aria-label="Theme preference">
+                                    <div class="rh-appearance-options" role="radiogroup" aria-label="@T["Theme preference"]">
                                         <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="system">
                                             <svg aria-hidden="true"><use href="#rh-icon-device"></use></svg>
-                                            <span>Use device theme</span>
+                                            <span>@T["Use device theme"]</span>
                                             <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
                                         </button>
                                         <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="dark">
                                             <svg aria-hidden="true"><use href="#rh-icon-dark"></use></svg>
-                                            <span>Dark theme</span>
+                                            <span>@T["Dark theme"]</span>
                                             <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
                                         </button>
                                         <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="light">
                                             <svg aria-hidden="true"><use href="#rh-icon-light"></use></svg>
-                                            <span>Light theme</span>
+                                            <span>@T["Light theme"]</span>
                                             <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
                                         </button>
                                     </div>
@@ -343,8 +417,8 @@
                     }
                     else
                     {
-                        <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Auth" asp-action="Login">Login</a>
-                        <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">Become a Landlord</a>
+                        <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Auth" asp-action="Login">@T["Login"]</a>
+                        <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">@T["Become a Landlord"]</a>
                     }
                 </div>
             </header>
@@ -357,10 +431,10 @@
                 <footer class="rh-footer @(isMarketingPage ? "is-public" : null)">
                     <div>&copy; 2026 - Lontsi Homes</div>
                     <div class="rh-footer-links">
-                        <a asp-controller="Home" asp-action="Terms">Terms</a>
-                        <a asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        <a asp-controller="Home" asp-action="RefundPolicy">Refund Policy</a>
-                        <a asp-controller="Home" asp-action="Contact">Contact</a>
+                        <a asp-controller="Home" asp-action="Terms">@T["Terms"]</a>
+                        <a asp-controller="Home" asp-action="Privacy">@T["Privacy"]</a>
+                        <a asp-controller="Home" asp-action="RefundPolicy">@T["Refund Policy"]</a>
+                        <a asp-controller="Home" asp-action="Contact">@T["Contact"]</a>
                     </div>
                 </footer>
             </div>
@@ -373,10 +447,10 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rh-success-modal">
                     <div class="modal-header border-0">
-                        <h5 class="modal-title">Action Completed</h5>
+                        <h5 class="modal-title">@T["Action Completed"]</h5>
                         @if (successDialog.ShowCloseButton)
                         {
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                         }
                     </div>
                     <div class="modal-body pt-0">
@@ -385,7 +459,7 @@
                     @if (successDialog.ShowCloseButton)
                     {
                         <div class="modal-footer border-0 pt-0">
-                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Close"]</button>
                         </div>
                     }
                 </div>
@@ -399,10 +473,10 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rh-error-modal">
                     <div class="modal-header border-0">
-                        <h5 class="modal-title">Action Failed</h5>
+                        <h5 class="modal-title">@T["Action Failed"]</h5>
                         @if (successDialog.ShowCloseButton)
                         {
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                         }
                     </div>
                     <div class="modal-body pt-0">
@@ -411,7 +485,7 @@
                     @if (successDialog.ShowCloseButton)
                     {
                         <div class="modal-footer border-0 pt-0">
-                            <button type="button" class="btn rh-btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn rh-btn-outline-danger" data-bs-dismiss="modal">@T["Close"]</button>
                         </div>
                     }
                 </div>
@@ -425,14 +499,14 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rh-success-modal">
                     <div class="modal-header border-0">
-                        <h5 class="modal-title">Action Needed</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Action Needed"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
                     <div class="modal-body pt-0">
                         <p class="mb-0">@infoMessage</p>
                     </div>
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Close"]</button>
                     </div>
                 </div>
             </div>
@@ -443,15 +517,25 @@
         <div class="modal-dialog modal-dialog-centered rh-action-modal-dialog">
             <div class="modal-content rh-confirm-modal">
                 <div class="modal-header border-0 pb-2">
-                    <h5 class="modal-title" id="confirmationModalTitle">Please confirm</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="confirmationModalTitle">@T["Please confirm"]</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
                 <div class="modal-body pt-2">
-                    <p class="mb-0" id="confirmationModalMessage">Are you sure you want to continue?</p>
+                    <p class="mb-0" id="confirmationModalMessage">@T["Are you sure you want to continue?"]</p>
+                    <div class="mt-4 d-none" id="confirmationModalDuration">
+                        <label class="form-label fw-semibold" for="confirmationDurationMonths">@T["Subscription duration"]</label>
+                        <select class="form-select" id="confirmationDurationMonths">
+                            @for (var months = 6; months <= 36; months++)
+                            {
+                                <option value="@months" selected="@(months == 12 ? "selected" : null)">@T["{0} months", months]</option>
+                            }
+                        </select>
+                        <small class="text-muted d-block mt-2">@T["Choose between 6 months and 36 months (3 years)."]</small>
+                    </div>
                 </div>
                 <div class="modal-footer border-0 pt-0">
-                    <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn rh-btn-outline-danger" id="confirmationModalProceed">Proceed</button>
+                    <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <button type="button" class="btn rh-btn-outline-danger" id="confirmationModalProceed">@T["Proceed"]</button>
                 </div>
             </div>
         </div>

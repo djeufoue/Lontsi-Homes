@@ -3,16 +3,16 @@
 @using System.Linq
 @using System.Globalization
 @{
-    ViewData["Title"] = "Property Map";
+    ViewData["Title"] = T["Property Map"];
 
     var property = Model.Property;
     var allUnits = property.Apartments?.ToList() ?? new List<Common.CommunicationModels.ApartmentDto>();
     var onlineUnits = allUnits.Count(unit => !(unit.Status ?? string.Empty).Contains("offline", StringComparison.OrdinalIgnoreCase));
     var offlineUnits = Math.Max(0, allUnits.Count - onlineUnits);
-    var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? "Landlord" : property.LandlordName;
+    var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? T["Landlord"].Value : property.LandlordName;
     var landlordInitial = landlordName.Trim()[0].ToString().ToUpperInvariant();
     var hasCoordinates = property.Latitude.HasValue && property.Longitude.HasValue;
-    var countryLabel = string.IsNullOrWhiteSpace(property.CountryIsoCode) ? "Country not set" : property.CountryIsoCode.Trim().ToUpperInvariant();
+    var countryLabel = string.IsNullOrWhiteSpace(property.CountryIsoCode) ? T["Country not set"].Value : property.CountryIsoCode.Trim().ToUpperInvariant();
 
     var latitude = property.Latitude ?? 4.048300;
     var longitude = property.Longitude ?? 9.704400;
@@ -36,34 +36,34 @@
 <section class="rh-map-shell">
     <section class="rh-map-topbar rh-panel rh-panel-elevated">
         <div>
-            <p class="rh-kicker">Geo Workspace</p>
-            <h1 class="rh-heading-title">@property.Name map</h1>
-            <p class="rh-heading-subtitle">A coordinate-based location board centered on @property.Address, @property.City@(!string.IsNullOrWhiteSpace(property.CountryIsoCode) ? $", {countryLabel}" : string.Empty).</p>
+            <p class="rh-kicker">@T["Geo Workspace"]</p>
+            <h1 class="rh-heading-title">@T["{0} map", property.Name ?? T["Property"].Value]</h1>
+            <p class="rh-heading-subtitle">@T["A coordinate-based location board centered on {0}, {1}{2}.", property.Address, property.City, !string.IsNullOrWhiteSpace(property.CountryIsoCode) ? $", {countryLabel}" : string.Empty]</p>
         </div>
 
         <div class="rh-map-toolbar">
-            <a class="btn rh-btn-subtle" asp-action="Overview" asp-route-id="@property.Id">Back to Overview</a>
+            <a class="btn rh-btn-subtle" asp-action="Overview" asp-route-id="@property.Id">@T["Back to Overview"]</a>
             <a class="btn rh-btn-subtle" href="@openStreetMapUrl" target="_blank" rel="noopener">OpenStreetMap</a>
-            <a class="btn rh-btn-primary" href="@googleMapsUrl" target="_blank" rel="noopener">Open in Maps</a>
+            <a class="btn rh-btn-primary" href="@googleMapsUrl" target="_blank" rel="noopener">@T["Open in Maps"]</a>
         </div>
     </section>
 
     <section class="rh-map-board">
         <aside class="rh-map-summary-card rh-panel rh-panel-elevated">
             <div class="rh-map-summary-head">
-                <span>Total units</span>
-                <button type="button">...</button>
+                <span>@T["Total units"]</span>
+                <button type="button" aria-label="@T["More options"]">...</button>
             </div>
             <strong>@allUnits.Count</strong>
-            <small>Updated from the current property inventory</small>
+            <small>@T["Updated from the current property inventory"]</small>
 
             <div class="rh-map-summary-stats">
                 <div>
-                    <span>Online</span>
+                    <span>@T["Online"]</span>
                     <strong>@onlineUnits</strong>
                 </div>
                 <div>
-                    <span>Offline</span>
+                    <span>@T["Offline"]</span>
                     <strong>@offlineUnits</strong>
                 </div>
             </div>
@@ -72,19 +72,19 @@
         <article class="rh-map-tracking-card rh-panel rh-panel-elevated">
             <div class="rh-map-panel-head">
                 <div>
-                    <h2>Tracking</h2>
-                    <small>Live coordinates and property reach around the saved location.</small>
+                    <h2>@T["Tracking"]</h2>
+                    <small>@T["Live coordinates and property reach around the saved location."]</small>
                 </div>
-                <span class="rh-map-live-indicator">Status: @(hasCoordinates ? "live" : "fallback")</span>
+                <span class="rh-map-live-indicator">@T["Status: {0}", hasCoordinates ? T["live"].Value : T["fallback"].Value]</span>
             </div>
 
             <div class="rh-map-summary-stats">
                 <div>
-                    <span>Latitude</span>
+                    <span>@T["Latitude"]</span>
                     <strong>@latText</strong>
                 </div>
                 <div>
-                    <span>Longitude</span>
+                    <span>@T["Longitude"]</span>
                     <strong>@lonText</strong>
                 </div>
             </div>
@@ -93,15 +93,15 @@
         <aside class="rh-map-devices-card rh-panel rh-panel-elevated">
             <div class="rh-map-panel-head">
                 <div>
-                    <h2>Connected units</h2>
-                    <small>Operational cards based on the first units in this property.</small>
+                    <h2>@T["Connected units"]</h2>
+                    <small>@T["Operational cards based on the first units in this property."]</small>
                 </div>
             </div>
 
             <div class="rh-map-device-list">
                 @if (!allUnits.Any())
                 {
-                    <div class="rh-empty">No units available for the map board yet.</div>
+                    <div class="rh-empty">@T["No units available for the map board yet."]</div>
                 }
                 else
                 {
@@ -113,17 +113,17 @@
                                     <strong>@unit.Name</strong>
                                     <small>@property.City, @countryLabel</small>
                                 </div>
-                                <span>@unit.Status</span>
+                                <span>@T[unit.Status ?? string.Empty]</span>
                             </div>
 
                             <div class="rh-map-device-meta">
                                 <div>
-                                    <span>Price</span>
-                                    <strong>@unit.Price.ToString("N0")</strong>
+                                    <span>@T["Price"]</span>
+                                    <strong>@unit.Price.ToString("N0", CultureInfo.CurrentCulture)</strong>
                                 </div>
                                 <div>
-                                    <span>Area</span>
-                                    <strong>@unit.Area.ToString("N0") sqm</strong>
+                                    <span>@T["Area"]</span>
+                                    <strong>@unit.Area.ToString("N0", CultureInfo.CurrentCulture) @T["sqm"]</strong>
                                 </div>
                             </div>
                         </article>
@@ -135,12 +135,12 @@
         <article class="rh-map-stage-card rh-panel rh-panel-elevated">
             <div class="rh-map-stage-toolbar">
                 <div class="rh-map-stage-coordinates">
-                    <span>Coordinates</span>
+                    <span>@T["Coordinates"]</span>
                     <strong>@latText, @lonText</strong>
                 </div>
                 <div class="rh-map-stage-actions">
-                    <a class="rh-map-utility-btn" href="@openStreetMapUrl" target="_blank" rel="noopener">Refresh</a>
-                    <a class="rh-map-utility-btn" href="@googleMapsUrl" target="_blank" rel="noopener">Share</a>
+                    <a class="rh-map-utility-btn" href="@openStreetMapUrl" target="_blank" rel="noopener">@T["Refresh"]</a>
+                    <a class="rh-map-utility-btn" href="@googleMapsUrl" target="_blank" rel="noopener">@T["Share"]</a>
                 </div>
             </div>
 
@@ -148,12 +148,12 @@
                 <iframe
                     class="rh-map-iframe"
                     src="@embedUrl"
-                    title="@property.Name map"
+                    title="@T["{0} map", property.Name ?? T["Property"].Value]"
                     loading="lazy"
                     referrerpolicy="no-referrer-when-downgrade">
                 </iframe>
                 <div class="rh-map-callout rh-map-callout-real">
-                    <small>@(hasCoordinates ? "Pinned from saved coordinates" : "Fallback position")</small>
+                    <small>@(hasCoordinates ? T["Pinned from saved coordinates"] : T["Fallback position"])</small>
                     <strong>@property.Name</strong>
                     <span>@property.Address</span>
                 </div>
@@ -165,25 +165,25 @@
                 <span class="rh-avatar">@landlordInitial</span>
                 <div>
                     <strong>@landlordName</strong>
-                    <small>Landlord profile</small>
+                    <small>@T["Landlord profile"]</small>
                 </div>
             </div>
 
             <div class="rh-map-profile-lines">
                 <div>
-                    <span>City</span>
+                    <span>@T["City"]</span>
                     <strong>@property.City</strong>
                 </div>
                 <div>
-                    <span>Documents</span>
+                    <span>@T["Documents"]</span>
                     <strong>@Model.Documents.Count</strong>
                 </div>
                 <div>
-                    <span>Managers</span>
+                    <span>@T["Managers"]</span>
                     <strong>@Model.Managers.Count</strong>
                 </div>
                 <div>
-                    <span>Map source</span>
+                    <span>@T["Map source"]</span>
                     <strong>OpenStreetMap</strong>
                 </div>
             </div>

@@ -8,6 +8,8 @@ using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Sms;
+using RentHub.API.Services.Tenancies;
+using RentHub.API.Helpers;
 using Common.Enums;
 using System;
 using System.Globalization;
@@ -53,20 +55,23 @@ namespace RentHub.API.Services.Reminders
                         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                         var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
                         var smsService = scope.ServiceProvider.GetRequiredService<ISmsService>();
+                        var renewalEmailService = scope.ServiceProvider.GetRequiredService<ITenancyRenewalEmailService>();
                         var nowUtc = DateTimeOffset.UtcNow;
+                        var platformAutomaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(db);
                         // Find active tenancies (not ended and not deleted)
-                        var tenancies = db.Tenancies
+                        var tenancies = await db.Tenancies
                             .Include(t => t.Members)
                             .ThenInclude(m => m.Member)
                             .Include(t => t.Apartment)
                             .ThenInclude(a => a!.Property)
                             .Include(t => t.RentPeriods)
+                            .Include(t => t.ExtensionRequests)
                             .Where(t => !t.IsDeleted
                                 && !t.TerminatedAt.HasValue
                                 && (!t.EndDate.HasValue
                                     || t.EndDate.Value >= nowUtc
                                     || t.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth))
-                            .ToList();
+                            .ToListAsync(stoppingToken);
                         foreach (var tenancy in tenancies)
                         {
                             var apartment = tenancy.Apartment!;
@@ -99,8 +104,50 @@ namespace RentHub.API.Services.Reminders
                                 ? apartment.LeaseTerminationReminderDaysBeforeEnd
                                 : 30;
 
+                            if (primaryTenant == null)
+                            {
+                                continue;
+                            }
+
+                            if (tenancy.EndDate.HasValue)
+                            {
+                                var endDate = tenancy.EndDate.Value;
+                                var daysUntilEnd = (endDate.Date - nowUtc.Date).TotalDays;
+                                var alreadySentForCurrentEndDate =
+                                    tenancy.RenewalReminderSentForEndDate.HasValue &&
+                                    tenancy.RenewalReminderSentForEndDate.Value.Date == endDate.Date;
+                                var hasPendingRenewal = tenancy.ExtensionRequests.Any(request =>
+                                    !request.IsDeleted && request.Status == TenancyExtensionStatusEnum.Pending);
+
+                                if (daysUntilEnd > 0 &&
+                                    daysUntilEnd <= leaseTerminationReminderDays &&
+                                    !alreadySentForCurrentEndDate &&
+                                    !hasPendingRenewal &&
+                                    !string.IsNullOrWhiteSpace(primaryTenant.Email))
+                                {
+                                    await renewalEmailService.SendExpiryReminderAsync(primaryTenant, tenancy, stoppingToken);
+                                    if (!string.IsNullOrWhiteSpace(primaryTenant.PhoneNumber))
+                                    {
+                                        var renewalUrl = BuildTenancyRenewalUrl(tenancy.Id);
+                                        var formattedEndDate = endDate.ToString(
+                                            "d",
+                                            CultureInfo.GetCultureInfo(primaryTenant.Language.ToCultureName()));
+                                        var smsMessage = primaryTenant.Language == PlatformLanguage.French
+                                            ? $"Lontsi Homes : votre bail prend fin le {formattedEndDate}. Demandez un renouvellement : {renewalUrl}"
+                                            : $"Lontsi Homes: your tenancy ends on {formattedEndDate}. Request a renewal: {renewalUrl}";
+                                        await smsService.SendSmsAsync(primaryTenant.PhoneNumber, smsMessage);
+                                    }
+
+                                    tenancy.RenewalReminderSentAt = nowUtc;
+                                    tenancy.RenewalReminderSentForEndDate = endDate;
+                                    tenancy.UpdatedBy = "system-renewal-reminder";
+                                    tenancy.UpdatedAt = nowUtc;
+                                    await db.SaveChangesAsync(stoppingToken);
+                                }
+                            }
+
                             var nextRentPeriod = ResolveNextActionableRentPeriod(tenancy, nowUtc);
-                            if (nextRentPeriod == null || primaryTenant == null)
+                            if (nextRentPeriod == null)
                             {
                                 continue;
                             }
@@ -114,7 +161,9 @@ namespace RentHub.API.Services.Reminders
                                 nextRentPeriod,
                                 ResolveRentPeriodStatus(nextRentPeriod, nowUtc),
                                 CalculateOutstandingBalance(tenancy, nowUtc),
-                                BuildTenantDashboardUrl());
+                                BuildTenantDashboardUrl(),
+                                BuildTenantPaymentDetailsUrl(tenancy.Id),
+                                platformAutomaticPaymentsEnabled && property.AutomaticPaymentsEnabled);
 
                             // Send upcoming due reminder
                             var daysUntilDue = (nextDue.Date - nowUtc.Date).TotalDays;
@@ -133,15 +182,6 @@ namespace RentHub.API.Services.Reminders
                                 }
                             }
 
-                            if (tenancy.EndDate.HasValue)
-                            {
-                                var endDate = tenancy.EndDate.Value;
-                                var daysUntilEnd = (endDate - nowUtc).TotalDays;
-                                if (daysUntilEnd > 0 && daysUntilEnd <= leaseTerminationReminderDays)
-                                {
-                                    await SendLeaseTerminationReminderAsync(primaryTenant, endDate, emailService, smsService);
-                                }
-                            }
                         }
                     }
                 }
@@ -174,29 +214,6 @@ namespace RentHub.API.Services.Reminders
                 if (!string.IsNullOrEmpty(tenant.PhoneNumber))
                 {
                     await smsService.SendSmsAsync(tenant.PhoneNumber, smsMessage);
-                }
-            }
-            catch
-            {
-                // Ignore failures; errors will be logged by the caller.
-            }
-        }
-
-        private async Task SendLeaseTerminationReminderAsync(ApplicationUser tenant, DateTimeOffset endDate, IEmailService emailService, ISmsService smsService)
-        {
-            try
-            {
-                const string subject = "Lease Termination Reminder";
-                var message = $"Your lease is scheduled to end on {endDate:yyyy-MM-dd}. Please review renewal or move-out arrangements before that date.";
-
-                if (!string.IsNullOrEmpty(tenant.Email))
-                {
-                    await emailService.SendEmailAsync(tenant.Email, subject, message);
-                }
-
-                if (!string.IsNullOrEmpty(tenant.PhoneNumber))
-                {
-                    await smsService.SendSmsAsync(tenant.PhoneNumber, message);
                 }
             }
             catch
@@ -248,6 +265,18 @@ namespace RentHub.API.Services.Reminders
             return $"{portalBaseUrl}/Tenant";
         }
 
+        private string BuildTenantPaymentDetailsUrl(int tenancyId)
+        {
+            var portalBaseUrl = (_configuration["Portal:BaseUrl"] ?? "https://localhost:7059").Trim().TrimEnd('/');
+            return $"{portalBaseUrl}/Tenant/PaymentDetails?tenancyId={tenancyId}";
+        }
+
+        private string BuildTenancyRenewalUrl(int tenancyId)
+        {
+            var portalBaseUrl = (_configuration["Portal:BaseUrl"] ?? "https://localhost:7059").Trim().TrimEnd('/');
+            return $"{portalBaseUrl}/Tenancies/Renewal?tenancyId={tenancyId}";
+        }
+
         private static string BuildRentReminderMessage(RentReminderContext context, bool isUnpaid)
         {
             var greetingName = string.IsNullOrWhiteSpace(context.Tenant.FullName)
@@ -256,6 +285,10 @@ namespace RentHub.API.Services.Reminders
             var statusLine = isUnpaid
                 ? $"Your rent period {FormatPeriod(context.RentPeriod)} is overdue."
                 : $"Your rent period {FormatPeriod(context.RentPeriod)} is due soon.";
+
+            var paymentAction = context.AutomaticPaymentsEnabled
+                ? $"Pay here: {context.DashboardUrl}"
+                : $"Automatic payment is temporarily unavailable. Review payment details here: {context.PaymentDetailsUrl}";
 
             return string.Join(Environment.NewLine, new[]
             {
@@ -270,7 +303,7 @@ namespace RentHub.API.Services.Reminders
                 $"Outstanding balance: {FormatMoney(context.OutstandingBalance)}",
                 string.Empty,
                 "Rent payments must be completed in order. RentHub will start with the oldest unpaid period.",
-                $"Pay here: {context.DashboardUrl}",
+                paymentAction,
                 string.Empty,
                 "Thank you,"
             });
@@ -279,7 +312,10 @@ namespace RentHub.API.Services.Reminders
         private static string BuildRentReminderSms(RentReminderContext context, bool isUnpaid)
         {
             var state = isUnpaid ? "overdue" : "due soon";
-            return $"Lontsi Homes: Rent for {context.Property.Name} - {context.Apartment.Name}, period {FormatPeriod(context.RentPeriod)}, is {state}. Pay: {context.DashboardUrl}";
+            var action = context.AutomaticPaymentsEnabled
+                ? $"Pay: {context.DashboardUrl}"
+                : $"Details: {context.PaymentDetailsUrl}";
+            return $"Lontsi Homes: Rent for {context.Property.Name} - {context.Apartment.Name}, period {FormatPeriod(context.RentPeriod)}, is {state}. {action}";
         }
 
         private static string FormatCountry(Property property)
@@ -325,7 +361,9 @@ namespace RentHub.API.Services.Reminders
                 RentPeriod rentPeriod,
                 RentPeriodStatusEnum rentPeriodStatus,
                 decimal outstandingBalance,
-                string dashboardUrl)
+                string dashboardUrl,
+                string paymentDetailsUrl,
+                bool automaticPaymentsEnabled)
             {
                 Tenant = tenant;
                 Tenancy = tenancy;
@@ -335,6 +373,8 @@ namespace RentHub.API.Services.Reminders
                 RentPeriodStatus = rentPeriodStatus;
                 OutstandingBalance = outstandingBalance;
                 DashboardUrl = dashboardUrl;
+                PaymentDetailsUrl = paymentDetailsUrl;
+                AutomaticPaymentsEnabled = automaticPaymentsEnabled;
             }
 
             public ApplicationUser Tenant { get; }
@@ -345,6 +385,8 @@ namespace RentHub.API.Services.Reminders
             public RentPeriodStatusEnum RentPeriodStatus { get; }
             public decimal OutstandingBalance { get; }
             public string DashboardUrl { get; }
+            public string PaymentDetailsUrl { get; }
+            public bool AutomaticPaymentsEnabled { get; }
         }
     }
 }

@@ -1,0 +1,173 @@
+@model RentHub.Portal.ViewModels.Tenancies.TenancyOverviewVm
+@using Common.Enums
+@using System.Globalization
+@{
+    var tenancy = Model.Tenancy;
+    var filterAction = Model.IsRentPeriodsPage ? "RentPeriods" : "Overview";
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+}
+
+<div class="rh-overview-panel-head align-start">
+    <div>
+        <h2 class="rh-dashboard-panel-title">@T["Rent periods"]</h2>
+        <p class="rh-dashboard-panel-copy">@T["Month-by-month rent state for this tenancy."]</p>
+    </div>
+    @if (!Model.IsRentPeriodsPage)
+    {
+        <a class="rh-icon-btn"
+           asp-action="RentPeriods"
+           asp-route-tenancyId="@tenancy.Id"
+           title="@T["Open rent periods in a full page"]"
+           aria-label="@T["Open rent periods in a full page"]">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6m0-6-8 8M10 20H4V4h6m10 10v6h-6" /></svg>
+        </a>
+    }
+</div>
+
+<form method="get" asp-action="@filterAction" class="rh-table-filter-grid mb-3">
+    <input type="hidden" name="id" value="@tenancy.Id" />
+    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+    <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
+    <input type="hidden" name="rentPage" value="1" />
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentStatus-@filterAction">@T["Status"]</label>
+        <select class="form-select rh-input rh-select" id="rentStatus-@filterAction" name="rentStatus">
+            <option value="">@T["All statuses"]</option>
+            @foreach (var status in Model.RentStatuses)
+            {
+                <option value="@status" selected="@(string.Equals(Model.RentStatus, status, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T[status]</option>
+            }
+        </select>
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentFrom-@filterAction">@T["From"]</label>
+        <input class="form-control rh-input" id="rentFrom-@filterAction" type="date" name="rentFrom" value="@Model.RentFrom?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentTo-@filterAction">@T["To date"]</label>
+        <input class="form-control rh-input" id="rentTo-@filterAction" type="date" name="rentTo" value="@Model.RentTo?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentSortDirection-@filterAction">@T["Period date"]</label>
+        <select class="form-select rh-input rh-select" id="rentSortDirection-@filterAction" name="rentSortDirection">
+            <option value="asc" selected="@(Model.RentSortDirection == "asc" ? "selected" : null)">@T["Oldest first"]</option>
+            <option value="desc" selected="@(Model.RentSortDirection == "desc" ? "selected" : null)">@T["Newest first"]</option>
+        </select>
+    </div>
+    <div class="rh-table-filter-actions">
+        <button class="btn rh-btn-primary" type="submit">@T["Filter"]</button>
+    </div>
+</form>
+
+@if (!Model.RentPeriods.Any())
+{
+    <div class="rh-empty">@T["No rent periods match these filters."]</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table align-middle rh-table mb-0">
+            <thead>
+                <tr>
+                    <th>@T["Period"]</th>
+                    <th>@T["Due date"]</th>
+                    <th class="text-end">@T["Amount"]</th>
+                    <th class="text-end">@T["Paid"]</th>
+                    <th>@T["Status"]</th>
+                    <th>@T["Reference"]</th>
+                    <th>@T["Action"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var period in Model.RentPeriods)
+                {
+                    <tr>
+                        <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                        <td>@DateLabel(period.DueDate)</td>
+                        <td class="text-end">@period.Amount.ToString("N0")</td>
+                        <td class="text-end">@period.PaidAmount.ToString("N0")</td>
+                        <td><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
+                        <td><small>@(string.IsNullOrWhiteSpace(period.SystemReceiptNumber) ? (string.IsNullOrWhiteSpace(period.PaymentReference) ? "—" : period.PaymentReference) : period.SystemReceiptNumber)</small></td>
+                        <td>
+                            @if (period.PaymentId.HasValue)
+                            {
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">@T["Receipt"]</a>
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">@T["Download"]</a>
+                                </div>
+                            }
+                            else if (tenancy.CanWrite && period.IsPayable)
+                            {
+                                <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="@T["Mark this rent period as paid by cash?"]" data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]" data-confirm-proceed="@T["Mark paid cash"]" data-confirm-style="primary">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                    <input type="hidden" name="rentPeriodId" value="@period.Id" />
+                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                    <button type="submit" class="btn btn-sm rh-btn-primary">@T["Mark paid cash"]</button>
+                                </form>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(period.LockedReason))
+                            {
+                                <span class="text-muted">@T[period.LockedReason]</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">@T["No receipt"]</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<div class="rh-table-footer">
+    <a class="btn btn-sm rh-btn-subtle @(Model.RentPage <= 1 ? "disabled" : null)"
+           asp-action="@filterAction"
+           asp-route-id="@tenancy.Id"
+           asp-route-tenancyId="@tenancy.Id"
+           asp-route-memberSearch="@Model.MemberSearch"
+           asp-route-rentStatus="@Model.RentStatus"
+           asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+           asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+           asp-route-rentSortDirection="@Model.RentSortDirection"
+           asp-route-rentPage="@(Model.RentPage - 1)"
+           asp-route-rentPageSize="@Model.RentPageSize">@T["Previous"]</a>
+    <div class="rh-table-page-size">
+        <label class="form-label mb-0" for="rentPageSize-@filterAction">@T["Rows"]</label>
+        <select class="form-select rh-input rh-select" id="rentPageSize-@filterAction" data-auto-page-size data-page-size-parameter="rentPageSize" data-page-parameter="rentPage">
+            @foreach (var size in new[] { 5, 10, 20, 50 }) { <option value="@size" selected="@(Model.RentPageSize == size ? "selected" : null)">@size</option> }
+        </select>
+        <small class="text-muted">@T["{0} result(s) · Page {1} of {2}", Model.TotalRentPeriods, Model.RentPage, Model.TotalRentPages]</small>
+    </div>
+    <a class="btn btn-sm rh-btn-subtle rh-table-footer-next @(Model.RentPage >= Model.TotalRentPages ? "disabled" : null)"
+           asp-action="@filterAction"
+           asp-route-id="@tenancy.Id"
+           asp-route-tenancyId="@tenancy.Id"
+           asp-route-memberSearch="@Model.MemberSearch"
+           asp-route-rentStatus="@Model.RentStatus"
+           asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+           asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+           asp-route-rentSortDirection="@Model.RentSortDirection"
+           asp-route-rentPage="@(Model.RentPage + 1)"
+           asp-route-rentPageSize="@Model.RentPageSize">@T["Next"]</a>
+</div>
+
+@functions {
+    private static string DateLabel(DateTimeOffset value) => value.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
+
+    private static string StatusClass(RentPeriodStatusEnum status)
+    {
+        return status switch
+        {
+            RentPeriodStatusEnum.Paid => "rh-chip-success",
+            RentPeriodStatusEnum.PaidBeforeRentHub => "rh-chip-success",
+            RentPeriodStatusEnum.PaidInAdvance => "rh-chip-success",
+            RentPeriodStatusEnum.Overdue => "rh-chip-warning",
+            RentPeriodStatusEnum.Waived => "rh-chip-info",
+            RentPeriodStatusEnum.Cancelled => "rh-chip-info",
+            _ => "rh-chip-info"
+        };
+    }
+}

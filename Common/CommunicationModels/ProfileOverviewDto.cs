@@ -29,6 +29,8 @@ namespace Common.CommunicationModels
         public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
         public bool SmsVerificationEnabled { get; set; }
         public List<string> Roles { get; set; } = new();
+        public bool IsSubscriptionExempt { get; set; }
+        public PlatformLanguage Language { get; set; } = PlatformLanguage.English;
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
         public bool IsKycSubmitted { get; set; }
@@ -46,6 +48,7 @@ namespace Common.CommunicationModels
         public bool StripePayoutSetupComplete { get; set; }
         public bool StripeConnectPlatformEnabled { get; set; } = true;
         public bool StripePayoutSetupRequired { get; set; } = true;
+        public bool AutomaticPaymentsEnabled { get; set; }
         public string StripeConnectAccountId { get; set; } = string.Empty;
         public bool StripePayoutDetailsSubmitted { get; set; }
         public bool StripeChargesEnabled { get; set; }

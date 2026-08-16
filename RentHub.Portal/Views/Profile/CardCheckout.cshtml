@@ -2,25 +2,32 @@
 @using System.Globalization
 @using System.Text.Json
 @{
-    ViewData["Title"] = "Secure Card Payment";
-    var amount = Model.Amount.ToString("C", CultureInfo.GetCultureInfo("en-US"));
+    ViewData["Title"] = T["Secure Card Payment"];
+    var amount = Model.Amount.ToString("C", CultureInfo.CurrentCulture);
     var publishableKeyJson = JsonSerializer.Serialize(Model.PublishableKey);
     var clientSecretJson = JsonSerializer.Serialize(Model.ClientSecret);
+    var cardTranslationsJson = JsonSerializer.Serialize(new Dictionary<string, string>
+    {
+        ["loadError"] = T["Unable to load the secure card form. Please try again."],
+        ["notConfigured"] = T["Card checkout is not configured yet. Please try again later."],
+        ["stripeUnavailable"] = T["Stripe could not be loaded. Check your connection and refresh this page."],
+        ["refreshError"] = T["Unable to load the secure card form. Please refresh and try again."]
+    });
 }
 
 <section class="rh-card-checkout-page">
     <div class="rh-card-checkout-shell">
         <aside class="rh-card-checkout-summary">
-            <p class="rh-kicker">Card payment</p>
-            <h1>Complete your subscription</h1>
-            <p>Stripe securely checks and processes your card. Your subscription is activated only after the payment succeeds.</p>
+            <p class="rh-kicker">@T["Card payment"]</p>
+            <h1>@T["Complete your subscription"]</h1>
+            <p>@T["Stripe securely checks and processes your card. Your subscription is activated only after the payment succeeds."]</p>
 
             <div class="rh-card-checkout-plan">
-                <span>Selected plan</span>
+                <span>@T["Selected plan"]</span>
                 <strong>@Model.PlanName</strong>
             </div>
             <div class="rh-card-checkout-plan">
-                <span>Amount</span>
+                <span>@T["Amount"]</span>
                 <strong>@amount @Model.Currency.ToUpperInvariant()</strong>
             </div>
         </aside>
@@ -28,16 +35,13 @@
         <div class="rh-card-checkout-panel">
             <div class="rh-card-checkout-panel-head">
                 <div>
-                    <p class="rh-kicker mb-1">Secure checkout</p>
-                    <h2>Enter card details</h2>
+                    <p class="rh-kicker mb-1">@T["Secure checkout"]</p>
+                    <h2>@T["Enter card details"]</h2>
                 </div>
-                <a class="btn rh-btn-subtle" asp-action="Payments">Cancel</a>
+                <a class="btn rh-btn-subtle" asp-action="Payments">@T["Cancel"]</a>
             </div>
 
             <div class="alert alert-danger d-none" data-card-checkout-error></div>
-            <div class="alert alert-warning" role="status">
-                <strong>Payment testing mode:</strong> Do not use real card information. Use fake or test card details only. Any card information entered during this testing period will not be treated as operational payment data when the platform becomes fully operational.
-            </div>
             <div id="stripe-checkout" class="rh-stripe-checkout-frame" aria-live="polite"></div>
         </div>
     </div>
@@ -49,23 +53,24 @@
         (() => {
             const publishableKey = @Html.Raw(publishableKeyJson);
             const clientSecret = @Html.Raw(clientSecretJson);
+            const messages = @Html.Raw(cardTranslationsJson);
             const container = document.getElementById("stripe-checkout");
             const errorBox = document.querySelector("[data-card-checkout-error]");
 
             const showError = (message) => {
                 if (!errorBox) return;
-                errorBox.textContent = message || "Unable to load the secure card form. Please try again.";
+                errorBox.textContent = message || messages.loadError;
                 errorBox.classList.remove("d-none");
             };
 
             if (!container) return;
             if (!publishableKey || !clientSecret) {
-                showError("Card checkout is not configured yet. Please try again later.");
+                showError(messages.notConfigured);
                 return;
             }
 
             if (!window.Stripe) {
-                showError("Stripe could not be loaded. Check your connection and refresh this page.");
+                showError(messages.stripeUnavailable);
                 return;
             }
 
@@ -76,7 +81,7 @@
                 })
                 .then((checkout) => checkout.mount("#stripe-checkout"))
                 .catch((error) => {
-                    showError(error?.message || "Unable to load the secure card form. Please refresh and try again.");
+                    showError(error?.message || messages.refreshError);
                 });
         })();
     </script>

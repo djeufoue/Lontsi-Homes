@@ -18,16 +18,30 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? search = null)
         {
             var plans = await _api.GetAsync<List<SubscriptionPlanDto>>("Subscriptions/plans");
-            var pending = await _api.GetAsync<List<PendingSubscriptionDto>>("Subscriptions/pending");
+            var endpoint = "Subscriptions/admin";
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                endpoint += $"?search={Uri.EscapeDataString(search.Trim())}";
+            }
+            var subscriptions = await _api.GetAsync<List<PendingSubscriptionDto>>(endpoint);
 
             return View(new AdminSubscriptionsIndexVm
             {
                 Plans = plans,
-                PendingSubscriptions = pending
+                Subscriptions = subscriptions,
+                Search = search?.Trim() ?? string.Empty
             });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> History(int subscriptionId)
+        {
+            var model = await _api.GetAsync<AdminSubscriptionHistoryDto>(
+                $"Subscriptions/admin/{subscriptionId}/history");
+            return View(model);
         }
 
         [HttpGet]
@@ -74,7 +88,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Approve(int subscriptionId)
+        public async Task<IActionResult> Approve(int subscriptionId, string? search = null)
         {
             try
             {
@@ -86,7 +100,46 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = ExtractMessage(ex.Message);
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Index), new { search });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Reject(int subscriptionId, string? search = null)
+        {
+            try
+            {
+                await _api.PostAsync($"Subscriptions/reject/{subscriptionId}", new { });
+                TempData["Success"] = "Subscription request rejected.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            return RedirectToAction(nameof(Index), new { search });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateAutomaticPayments(bool enabled)
+        {
+            try
+            {
+                await _api.PutAsync("PaymentSettings/platform", new UpdateAutomaticPaymentAvailabilityRequest
+                {
+                    Enabled = enabled
+                });
+                TempData["Success"] = enabled
+                    ? "Automatic payments are enabled for the platform. Properties can now be enabled individually."
+                    : "Automatic payments are disabled across the platform and automatic renewals were turned off.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            return RedirectToAction(nameof(PaymentActivity));
         }
 
         [HttpPost]
@@ -153,7 +206,7 @@ namespace RentHub.Portal.Controllers
         {
             if (!ModelState.IsValid)
             {
-                TempData["Error"] = "Please provide a valid receiving account name, number, and country code.";
+                TempData["Error"] = "Please provide a valid receiving account name and check any optional phone details.";
                 return RedirectToAction(nameof(PaymentAccounts));
             }
 

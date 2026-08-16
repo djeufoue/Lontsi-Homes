@@ -15,7 +15,7 @@
     if (smsVerificationUnavailable)
     {
         phoneOtpButtonDisabled = true;
-        phoneOtpButtonText = "SMS verification unavailable";
+        phoneOtpButtonText = "Continue without phone verification";
     }
     var selectedCountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode;
     var selectedCountryIsoCode = string.IsNullOrWhiteSpace(Model.Status?.CountryIsoCode) ? "CA" : Model.Status.CountryIsoCode.Trim().ToUpperInvariant();
@@ -49,11 +49,11 @@
     <div class="rh-auth-shell rh-auth-shell-register">
         <aside class="rh-auth-hero">
             <partial name="_LandlordOnboardingKicker" model="progress" />
-            <h1>@(smsVerificationUnavailable ? "Phone SMS verification is waiting on Twilio." : "Confirm your main phone.")</h1>
-            <p>@(smsVerificationUnavailable ? "Phone number verification by SMS is not available yet. Choose your country and continue with the remaining registration steps." : "This number identifies you in support logs and confirms that you can receive account security messages.")</p>
+            <h1>@(smsVerificationUnavailable ? "Continue your registration." : "Confirm your main phone.")</h1>
+            <p>@(smsVerificationUnavailable ? "Keep your country selected and continue with the remaining registration steps." : "This number identifies you in support logs and confirms that you can receive account security messages.")</p>
             <ul class="rh-auth-points">
-                <li>@(smsVerificationUnavailable ? "Twilio platform approval is still pending" : "Save your phone number first")</li>
-                <li>@(smsVerificationUnavailable ? "Phone and OTP fields are visible but locked" : "Then enter the SMS OTP")</li>
+                <li>@(smsVerificationUnavailable ? "No phone details are required" : "Save your phone number first")</li>
+                <li>@(smsVerificationUnavailable ? "Continue to identity verification" : "Then enter the verification code")</li>
                 <li>@(smsVerificationUnavailable ? "Country selection remains available" : isCameroon ? "Cameroon accounts can reuse this number for Mobile Money later" : "Card subscriptions are used for this country")</li>
             </ul>
         </aside>
@@ -63,7 +63,7 @@
 
             <div class="rh-auth-card-header">
                 <h2>Phone verification</h2>
-                <p>@(smsVerificationUnavailable ? "SMS verification is paused until Twilio approves the platform number." : "Confirm the phone number that belongs to you.")</p>
+                <p>@(smsVerificationUnavailable ? "Phone verification is not part of the current onboarding flow." : "Confirm the phone number that belongs to you.")</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -79,7 +79,7 @@
             @if (smsVerificationUnavailable)
             {
                 <div class="alert alert-warning py-2">
-                    We are waiting for Twilio platform approval before enabling SMS phone verification. Please keep your country selected and continue with the next registration steps.
+                    Keep your country selected and continue with the next registration steps.
                 </div>
 
                 <form asp-action="LandlordCountry" method="post" class="rh-auth-form mb-3">
@@ -194,7 +194,7 @@
                 if (smsUnavailable) {
                     button.dataset.externalDisabled = "true";
                     button.disabled = true;
-                    button.textContent = "SMS verification unavailable";
+                    button.textContent = "Continue without phone verification";
                     return false;
                 }
 

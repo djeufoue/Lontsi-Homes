@@ -279,21 +279,21 @@ namespace RentHub.API.Services.Users
 
         public async Task SendVisitorActivationOtpAsync(ApplicationUser user)
         {
-            var phoneRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.PhoneNumber);
-            var whatsAppRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.WhatsAppPhoneNumber);
-            await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorPhone, phoneRecipient);
-            await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorWhatsApp, whatsAppRecipient);
-            await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorPhone, "SMS", phoneRecipient);
-            await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorWhatsApp, "WhatsApp", whatsAppRecipient);
-
             var otp = GenerateOtpCode();
-            var phoneOtp = GenerateOtpCode();
-            var whatsAppOtp = GenerateOtpCode();
+            var phoneOtp = string.IsNullOrWhiteSpace(user.PhoneNumber) ? null : GenerateOtpCode();
+            var whatsAppOtp = string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) ? null : GenerateOtpCode();
             var expiry = DateTimeOffset.UtcNow.AddMinutes(10);
 
             await StoreOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, otp, expiry);
-            await StoreOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, phoneOtp, expiry);
-            await StoreOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, whatsAppOtp, expiry);
+            if (phoneOtp != null)
+            {
+                await StoreOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, phoneOtp, expiry);
+            }
+
+            if (whatsAppOtp != null)
+            {
+                await StoreOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, whatsAppOtp, expiry);
+            }
 
             var verifyUrl = BuildVerifyUrl(user.Email ?? string.Empty, isVisitor: true);
             var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
@@ -302,12 +302,21 @@ namespace RentHub.API.Services.Users
                 $"Hello {greetingName},",
                 string.Empty,
                 $"Your RentHub visitor email OTP is: {otp}",
-                $"Your RentHub visitor phone OTP is: {phoneOtp}",
-                $"Your RentHub visitor WhatsApp OTP is: {whatsAppOtp}",
-                "Use all three codes to activate your visitor account and start private conversations with landlords.",
-                string.Empty,
-                "Verification page:"
             };
+
+            if (phoneOtp != null)
+            {
+                lines.Add($"Your RentHub visitor phone OTP is: {phoneOtp}");
+            }
+
+            if (whatsAppOtp != null)
+            {
+                lines.Add($"Your RentHub visitor WhatsApp OTP is: {whatsAppOtp}");
+            }
+
+            lines.Add("Use the verification codes shown above to activate your visitor account.");
+            lines.Add(string.Empty);
+            lines.Add("Verification page:");
 
             if (!string.IsNullOrWhiteSpace(verifyUrl))
             {
@@ -324,13 +333,25 @@ namespace RentHub.API.Services.Users
                 "RentHub Visitor Account Verification",
                 string.Join(Environment.NewLine, lines));
 
-            await _smsService.SendSmsAsync(
-                phoneRecipient,
-                $"RentHub visitor phone OTP: {phoneOtp}. This code expires in 10 minutes.");
+            if (phoneOtp != null)
+            {
+                var phoneRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.PhoneNumber);
+                await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorPhone, phoneRecipient);
+                await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorPhone, "SMS", phoneRecipient);
+                await _smsService.SendSmsAsync(
+                    phoneRecipient,
+                    $"RentHub visitor phone OTP: {phoneOtp}. This code expires in 10 minutes.");
+            }
 
-            await _smsService.SendWhatsAppAsync(
-                whatsAppRecipient,
-                $"RentHub visitor WhatsApp OTP: {whatsAppOtp}. This code expires in 10 minutes.");
+            if (whatsAppOtp != null)
+            {
+                var whatsAppRecipient = BuildInternationalPhoneNumber(user.CountryCode, user.WhatsAppPhoneNumber);
+                await AssertTwilioOtpSendAllowedAsync(user, OtpSendPurposes.VisitorWhatsApp, whatsAppRecipient);
+                await RecordTwilioOtpSendAsync(user, OtpSendPurposes.VisitorWhatsApp, "WhatsApp", whatsAppRecipient);
+                await _smsService.SendWhatsAppAsync(
+                    whatsAppRecipient,
+                    $"RentHub visitor WhatsApp OTP: {whatsAppOtp}. This code expires in 10 minutes.");
+            }
         }
 
         private async Task SendLandlordActivationOtpInternalAsync(

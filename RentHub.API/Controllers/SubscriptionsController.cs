@@ -13,6 +13,7 @@ using RentHub.API.Data;
 using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Payments;
+using RentHub.API.Services.Email;
 
 namespace RentHub.API.Controllers
 {
@@ -26,12 +27,14 @@ namespace RentHub.API.Controllers
         private readonly IStripeCheckoutService _stripeCheckoutService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<SubscriptionsController> _logger;
+        private readonly IEmailService _emailService;
 
         public SubscriptionsController(
             ApplicationDbContext context,
             INotchPayService notchPayService,
             ICamPayService camPayService,
             IStripeCheckoutService stripeCheckoutService,
+            IEmailService emailService,
             IConfiguration configuration,
             ILogger<SubscriptionsController> logger)
         {
@@ -39,6 +42,7 @@ namespace RentHub.API.Controllers
             _notchPayService = notchPayService;
             _camPayService = camPayService;
             _stripeCheckoutService = stripeCheckoutService;
+            _emailService = emailService;
             _configuration = configuration;
             _logger = logger;
         }
@@ -56,7 +60,36 @@ namespace RentHub.API.Controllers
                     return NotFound("Subscription not found.");
                 }
 
-                await ActivateSubscriptionAsync(subscription, UserHelpers.GetUserId(User), markPaymentAsSuccess: false);
+                if (subscription.PaymentMethod != PaymentMethodEnum.Cash &&
+                    subscription.PaymentStatus != PaymentStatusEnum.Success)
+                {
+                    return Conflict(new
+                    {
+                        Code = "SUBSCRIPTION_PAYMENT_NOT_CONFIRMED",
+                        Message = "The provider payment must be confirmed before this subscription can be approved."
+                    });
+                }
+
+                await ActivateSubscriptionAsync(
+                    subscription,
+                    UserHelpers.GetUserId(User),
+                    markPaymentAsSuccess: subscription.PaymentMethod == PaymentMethodEnum.Cash);
+
+                var subscriberEmail = await ResolveSubscriptionUserEmailAsync(subscription.UserId);
+                if (!string.IsNullOrWhiteSpace(subscriberEmail))
+                {
+                    try
+                    {
+                        await _emailService.SendEmailAsync(
+                            subscriberEmail,
+                            "Subscription activated",
+                            $"Your {subscription.PlanNameSnapshot} subscription has been approved and is now active until {subscription.EndDate:dd MMM yyyy}.");
+                    }
+                    catch (Exception emailException)
+                    {
+                        _logger.LogWarning(emailException, "Subscription approval email failed for subscription {SubscriptionId}", subscription.Id);
+                    }
+                }
 
                 return Ok(new
                 {
@@ -257,6 +290,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Automatic checkout is unavailable. Submit a manual subscription request instead."
+                    });
+                }
+
                 request ??= new StartSubscriptionCheckoutRequest();
 
                 if (!ModelState.IsValid)
@@ -647,12 +689,223 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("manual-request/{planId:int}")]
+        [Authorize(Roles = "Landlord")]
+        public async Task<IActionResult> RequestManualActivation(
+            int planId,
+            [FromBody] ManualSubscriptionActivationRequest activationRequest)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            if (!ModelState.IsValid || activationRequest.DurationMonths is < 6 or > 36)
+            {
+                return BadRequest(new
+                {
+                    Message = "Choose a subscription duration between 6 and 36 months."
+                });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(item => item.Id == userId);
+            var plan = await _context.SubscriptionPlans.FirstOrDefaultAsync(item => item.Id == planId);
+            if (user == null) return Unauthorized();
+            if (plan == null) return NotFound("Plan not found.");
+            if (plan.IsContactSales || plan.Price <= 0)
+            {
+                return BadRequest(new { Message = "This plan requires a custom sales agreement." });
+            }
+
+            if (User.IsInRole("Landlord"))
+            {
+                var kycProfile = await _context.LandlordKycProfiles
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(profile => profile.UserId == userId);
+
+                if (kycProfile?.Status != LandlordKycStatusEnum.Approved)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "KYC_APPROVAL_REQUIRED",
+                        Message = kycProfile == null
+                            ? "Submit identity verification before requesting a subscription."
+                            : kycProfile.Status == LandlordKycStatusEnum.Rejected
+                                ? "Identity verification was rejected. Submit corrected documents before requesting a subscription."
+                                : "Identity verification is waiting for admin approval before subscriptions are unlocked."
+                    });
+                }
+
+                if (!user.PlatformTermsAccepted)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Code = "PLATFORM_TERMS_REQUIRED",
+                        Message = "Sign the platform contract before requesting a subscription."
+                    });
+                }
+            }
+
+            var automaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
+            if (automaticPaymentsEnabled)
+            {
+                return Conflict(new
+                {
+                    Code = "MANUAL_REQUEST_NOT_AVAILABLE",
+                    Message = "Automatic payments are enabled. Use the normal checkout flow."
+                });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var active = await _context.UserSubscriptions.AnyAsync(subscription =>
+                subscription.UserId == userId && subscription.IsApproved &&
+                subscription.PaymentStatus == PaymentStatusEnum.Success && subscription.EndDate > now);
+            if (active)
+            {
+                return Conflict(new { Message = "An active subscription already exists for this account." });
+            }
+
+            var pendingRequests = await _context.UserSubscriptions
+                .Where(subscription =>
+                    subscription.UserId == userId &&
+                    !subscription.IsDeleted &&
+                    !subscription.IsApproved &&
+                    subscription.PaymentStatus != PaymentStatusEnum.Success)
+                .OrderByDescending(subscription => subscription.UpdatedAt ?? subscription.CreatedAt)
+                .ToListAsync();
+            var currentRequest = pendingRequests.FirstOrDefault();
+            var requestedEndDate = now.AddMonths(activationRequest.DurationMonths);
+            var requestedDurationInDays = Math.Max(1, (int)Math.Ceiling((requestedEndDate - now).TotalDays));
+            var currentDurationMonths = currentRequest == null
+                ? 0
+                : Math.Clamp((int)Math.Round(currentRequest.PlanDurationInDaysSnapshot / 30.4375m), 1, 120);
+
+            if (currentRequest?.SubscriptionPlanId == plan.Id && currentDurationMonths == activationRequest.DurationMonths)
+            {
+                return Conflict(new
+                {
+                    Code = "SUBSCRIPTION_REQUEST_ALREADY_PENDING",
+                    Message = $"{plan.Name} for {activationRequest.DurationMonths} months is already waiting for administrator approval."
+                });
+            }
+
+            var previousPlanName = currentRequest?.PlanNameSnapshot;
+            var isPlanChange = currentRequest != null;
+            if (pendingRequests.Count > 0)
+            {
+                foreach (var obsoleteRequest in pendingRequests)
+                {
+                    obsoleteRequest.IsDeleted = true;
+                    obsoleteRequest.DeletedBy = userId;
+                    obsoleteRequest.DeletedAt = now;
+                    obsoleteRequest.UpdatedBy = userId;
+                    obsoleteRequest.UpdatedAt = now;
+                }
+
+                // Preserve the previous request in the administrator history while
+                // releasing the filtered unique index before creating its replacement.
+                await _context.SaveChangesAsync();
+            }
+
+            var request = new UserSubscription
+            {
+                UserId = userId,
+                SubscriptionPlanId = plan.Id,
+                StartDate = now,
+                EndDate = requestedEndDate,
+                PlanNameSnapshot = plan.Name,
+                PlanPriceSnapshot = CalculateSubscriptionPrice(plan, activationRequest.DurationMonths),
+                PlanDurationInDaysSnapshot = requestedDurationInDays,
+                PlanMaxPropertiesSnapshot = plan.MaxProperties,
+                PlanMaxApartmentsPerPropertySnapshot = plan.MaxApartmentsPerProperty,
+                PaymentMethod = PaymentMethodEnum.Cash,
+                PaymentStatus = PaymentStatusEnum.Pending,
+                AllowAutomaticCardPayments = false,
+                IsApproved = false,
+                PaymentAttemptCount = 1,
+                PaymentReference = $"MANUAL-SUB-TEMP-{Guid.NewGuid():N}",
+                CreatedBy = userId,
+                CreatedAt = now,
+                UpdatedBy = userId,
+                UpdatedAt = now
+            };
+            _context.UserSubscriptions.Add(request);
+            await _context.SaveChangesAsync();
+
+            request.PaymentReference = $"MANUAL-SUB-{request.Id}-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
+            await _context.SaveChangesAsync();
+
+            var adminEmails = await _context.UserRoles
+                .Join(_context.Roles.Where(role => role.Name == "Admin"), ur => ur.RoleId, role => role.Id, (ur, role) => ur.UserId)
+                .Join(_context.Users, adminId => adminId, admin => admin.Id, (adminId, admin) => admin.Email)
+                .Where(email => email != null && email != string.Empty)
+                .Distinct()
+                .ToListAsync();
+
+            var adminUrl = $"{(_configuration["Portal:BaseUrl"] ?? "https://localhost:7059").TrimEnd('/')}/AdminSubscriptions";
+            var emailLines = new List<string>
+            {
+                isPlanChange
+                    ? "A landlord changed a pending manual subscription request."
+                    : "A new manual subscription activation request is waiting for review.",
+                $"Landlord: {user.FullName ?? user.Email}",
+                $"Email: {user.Email}",
+            };
+            if (isPlanChange && !string.IsNullOrWhiteSpace(previousPlanName))
+            {
+                emailLines.Add($"Previous plan: {previousPlanName}");
+            }
+            emailLines.AddRange(new[]
+            {
+                $"Selected plan: {plan.Name}",
+                $"Duration: {activationRequest.DurationMonths} months",
+                $"Amount: {request.PlanPriceSnapshot:N0} XAF",
+                $"Reference: {request.PaymentReference}",
+                $"Review: {adminUrl}"
+            });
+            var emailBody = string.Join(Environment.NewLine, emailLines);
+            foreach (var email in adminEmails)
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        email!,
+                        isPlanChange ? "Manual subscription request changed" : "New manual subscription request",
+                        emailBody);
+                }
+                catch (Exception emailException)
+                {
+                    _logger.LogWarning(
+                        emailException,
+                        "Manual subscription request email failed for admin {AdminEmail} and subscription {SubscriptionId}",
+                        email,
+                        request.Id);
+                }
+            }
+
+            return Ok(new
+            {
+                Message = isPlanChange
+                    ? $"Your pending request was changed to {plan.Name} for {activationRequest.DurationMonths} months. An administrator was notified."
+                    : "Your request was sent. An administrator will activate the subscription after confirming the cash payment.",
+                SubscriptionId = request.Id,
+                request.PaymentReference
+            });
+        }
+
         [HttpGet("checkout-session/{reference}")]
         [Authorize]
         public async Task<IActionResult> GetCheckoutSession(string reference)
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Automatic card checkout is currently disabled."
+                    });
+                }
+
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrWhiteSpace(userId))
                 {
@@ -1153,7 +1406,9 @@ namespace RentHub.API.Controllers
                         PlanDurationInDays = us.PlanDurationInDaysSnapshot,
                         StartDate = us.StartDate,
                         EndDate = us.EndDate,
-                        IsApproved = us.IsApproved
+                        IsApproved = us.IsApproved,
+                        PaymentMethod = us.PaymentMethod.HasValue ? us.PaymentMethod.Value.ToString() : "Manual",
+                        PaymentReference = us.PaymentReference ?? string.Empty
                     })
                     .ToListAsync();
 
@@ -1168,6 +1423,110 @@ namespace RentHub.API.Controllers
                     Message = "Unable to load pending subscriptions right now."
                 });
             }
+        }
+
+        [HttpGet("admin")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAdminSubscriptions([FromQuery] string? search = null)
+        {
+            var normalizedSearch = search?.Trim();
+            var query = _context.UserSubscriptions
+                .IgnoreQueryFilters()
+                .Include(subscription => subscription.User)
+                .Include(subscription => subscription.SubscriptionPlan)
+                .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(normalizedSearch))
+            {
+                query = query.Where(subscription =>
+                    (subscription.User != null &&
+                        ((subscription.User.FullName ?? string.Empty).Contains(normalizedSearch) ||
+                         (subscription.User.Email ?? string.Empty).Contains(normalizedSearch))) ||
+                    subscription.PlanNameSnapshot.Contains(normalizedSearch) ||
+                    subscription.PaymentReference.Contains(normalizedSearch));
+            }
+
+            var subscriptions = await query
+                .OrderBy(subscription =>
+                    !subscription.IsDeleted &&
+                    !subscription.IsApproved &&
+                    subscription.PaymentStatus != PaymentStatusEnum.Success &&
+                    subscription.PaymentStatus != PaymentStatusEnum.Failed
+                        ? 0
+                        : 1)
+                .ThenByDescending(subscription => subscription.CreatedAt)
+                .ThenByDescending(subscription => subscription.Id)
+                .ToListAsync();
+
+            return Ok(subscriptions.Select(ToAdminSubscriptionDto).ToList());
+        }
+
+        [HttpGet("admin/{subscriptionId:int}/history")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAdminSubscriptionHistory(int subscriptionId)
+        {
+            var selected = await _context.UserSubscriptions
+                .IgnoreQueryFilters()
+                .Include(subscription => subscription.User)
+                .Include(subscription => subscription.SubscriptionPlan)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(subscription => subscription.Id == subscriptionId);
+
+            if (selected == null)
+            {
+                return NotFound("Subscription not found.");
+            }
+
+            var history = await _context.UserSubscriptions
+                .IgnoreQueryFilters()
+                .Include(subscription => subscription.User)
+                .Include(subscription => subscription.SubscriptionPlan)
+                .AsNoTracking()
+                .Where(subscription => subscription.UserId == selected.UserId)
+                .OrderByDescending(subscription => subscription.CreatedAt)
+                .ThenByDescending(subscription => subscription.Id)
+                .ToListAsync();
+
+            return Ok(new AdminSubscriptionHistoryDto
+            {
+                Subscription = ToAdminSubscriptionDto(selected),
+                History = history.Select(ToAdminSubscriptionDto).ToList()
+            });
+        }
+
+        [HttpPost("reject/{subscriptionId:int}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> RejectSubscription(int subscriptionId)
+        {
+            var subscription = await _context.UserSubscriptions
+                .Include(item => item.User)
+                .FirstOrDefaultAsync(item => item.Id == subscriptionId && !item.IsApproved && !item.IsDeleted);
+            if (subscription == null) return NotFound("Pending subscription not found.");
+
+            subscription.PaymentStatus = PaymentStatusEnum.Failed;
+            subscription.IsDeleted = true;
+            subscription.DeletedBy = UserHelpers.GetUserId(User);
+            subscription.DeletedAt = DateTimeOffset.UtcNow;
+            subscription.UpdatedBy = subscription.DeletedBy;
+            subscription.UpdatedAt = subscription.DeletedAt;
+            await _context.SaveChangesAsync();
+
+            if (!string.IsNullOrWhiteSpace(subscription.User?.Email))
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(
+                        subscription.User.Email,
+                        "Subscription request update",
+                        $"Your manual request for the {subscription.PlanNameSnapshot} plan was not approved. Contact the platform administrator if you need more information.");
+                }
+                catch (Exception emailException)
+                {
+                    _logger.LogWarning(emailException, "Subscription rejection email failed for subscription {SubscriptionId}", subscription.Id);
+                }
+            }
+
+            return Ok(new { Message = "Subscription request rejected." });
         }
 
         [HttpGet("payment-activity")]
@@ -1292,6 +1651,7 @@ namespace RentHub.API.Controllers
                 var successfulTotalXaf = summaryRows
                     .Where(row => row.PaymentStatus == PaymentStatusEnum.Success)
                     .Sum(row => row.PlanPriceSnapshot);
+                var automaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
 
                 return Ok(new SubscriptionPaymentActivityResponseDto
                 {
@@ -1302,6 +1662,7 @@ namespace RentHub.API.Controllers
                     TotalPages = totalCount == 0 ? 1 : (int)Math.Ceiling(totalCount / (decimal)pageSize),
                     Search = normalizedSearch,
                     Status = normalizedStatus,
+                    AutomaticPaymentsEnabled = automaticPaymentsEnabled,
                     Summary = new SubscriptionPaymentActivitySummaryDto
                     {
                         TotalTransactions = summaryRows.Count,
@@ -1403,6 +1764,12 @@ namespace RentHub.API.Controllers
             {
                 subscription.PaymentStatus = PaymentStatusEnum.Success;
                 subscription.PaymentCompletedAt = now;
+            }
+
+            if (!subscription.IsApproved)
+            {
+                subscription.StartDate = now;
+                subscription.EndDate = now.AddDays(Math.Max(1, subscription.PlanDurationInDaysSnapshot));
             }
 
             subscription.IsApproved = true;
@@ -1579,6 +1946,56 @@ namespace RentHub.API.Controllers
             return string.IsNullOrWhiteSpace(configured)
                 ? "USD"
                 : configured.ToUpperInvariant();
+        }
+
+        private static decimal CalculateSubscriptionPrice(SubscriptionPlan plan, int durationMonths)
+        {
+            var fullYears = durationMonths / 12;
+            var remainingMonths = durationMonths % 12;
+            var annualAmount = plan.AnnualPrice ?? plan.Price * 12m;
+            return fullYears * annualAmount + remainingMonths * plan.Price;
+        }
+
+        private static PendingSubscriptionDto ToAdminSubscriptionDto(UserSubscription subscription)
+        {
+            var status = subscription.IsDeleted
+                ? subscription.PaymentStatus == PaymentStatusEnum.Failed
+                    ? "Rejected"
+                    : "Replaced"
+                : subscription.IsApproved && subscription.EndDate > DateTimeOffset.UtcNow
+                    ? "Active"
+                    : subscription.IsApproved
+                        ? "Expired"
+                        : subscription.PaymentStatus == PaymentStatusEnum.Failed
+                            ? "Failed"
+                            : subscription.PaymentStatus == PaymentStatusEnum.Success
+                                ? "Paid"
+                                : "Pending approval";
+
+            return new PendingSubscriptionDto
+            {
+                Id = subscription.Id,
+                UserId = subscription.UserId,
+                UserEmail = subscription.User?.Email ?? string.Empty,
+                UserFullName = subscription.User?.FullName ?? string.Empty,
+                SubscriptionPlanId = subscription.SubscriptionPlanId,
+                PlanName = !string.IsNullOrWhiteSpace(subscription.PlanNameSnapshot)
+                    ? subscription.PlanNameSnapshot
+                    : subscription.SubscriptionPlan?.Name ?? string.Empty,
+                PlanPrice = subscription.PlanPriceSnapshot,
+                PlanDurationInDays = subscription.PlanDurationInDaysSnapshot,
+                DurationMonths = Math.Max(1, (int)Math.Round(subscription.PlanDurationInDaysSnapshot / 30.4375m)),
+                StartDate = subscription.StartDate,
+                EndDate = subscription.EndDate,
+                CreatedAt = subscription.CreatedAt,
+                UpdatedAt = subscription.UpdatedAt,
+                IsApproved = subscription.IsApproved,
+                IsDeleted = subscription.IsDeleted,
+                Status = status,
+                PaymentStatus = subscription.PaymentStatus.ToString(),
+                PaymentMethod = subscription.PaymentMethod?.ToString() ?? "Manual",
+                PaymentReference = subscription.PaymentReference ?? string.Empty
+            };
         }
 
         private decimal ConvertXafToUsd(decimal xafAmount)

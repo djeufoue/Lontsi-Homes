@@ -10,15 +10,13 @@ namespace RentHub.Portal.ViewModels.Auth
         [Display(Name = "Full name (optional)")]
         public string? FullName { get; set; }
 
-        [Required]
-        [Display(Name = "Phone number")]
+        [Display(Name = "Phone number (optional)")]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
 
-        [Required]
-        [Display(Name = "WhatsApp number")]
+        [Display(Name = "WhatsApp number (optional)")]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string WhatsAppPhoneNumber { get; set; } = string.Empty;
+        public string? WhatsAppPhoneNumber { get; set; }
 
         [Required]
         public string Password { get; set; } = string.Empty;

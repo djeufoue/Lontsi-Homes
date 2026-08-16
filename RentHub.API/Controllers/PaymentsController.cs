@@ -85,6 +85,15 @@ namespace RentHub.API.Controllers
                 decimal finalAmount;
                 if (tenancy != null)
                 {
+                    if (!await PaymentAvailabilityHelper.IsAutomaticPaymentEnabledForPropertyAsync(_context, tenancy.Apartment!.PropertyId))
+                    {
+                        return StatusCode(StatusCodes.Status409Conflict, new
+                        {
+                            Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                            Message = PaymentAvailabilityHelper.AutomaticPaymentsUnavailableMessage
+                        });
+                    }
+
                     finalAmount = tenancy.MonthlyRent * request.NumberOfPeriods;
                 }
                 else
@@ -314,6 +323,17 @@ namespace RentHub.API.Controllers
                 if (tenancy.Apartment?.Property == null)
                 {
                     return NotFound("Property not found.");
+                }
+
+                if (!await PaymentAvailabilityHelper.IsAutomaticPaymentEnabledForPropertyAsync(
+                        _context,
+                        tenancy.Apartment.PropertyId))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = PaymentAvailabilityHelper.AutomaticPaymentsUnavailableMessage
+                    });
                 }
 
                 var isTenantMember = tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == currentUserId);
@@ -601,6 +621,17 @@ namespace RentHub.API.Controllers
                 if (payment == null)
                 {
                     return NotFound("Rent card checkout was not found.");
+                }
+
+                var propertyId = payment.Tenancy?.Apartment?.PropertyId;
+                if (!propertyId.HasValue ||
+                    !await PaymentAvailabilityHelper.IsAutomaticPaymentEnabledForPropertyAsync(_context, propertyId.Value))
+                {
+                    return StatusCode(StatusCodes.Status409Conflict, new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = PaymentAvailabilityHelper.AutomaticPaymentsUnavailableMessage
+                    });
                 }
 
                 if (payment.Status == PaymentStatusEnum.Success)

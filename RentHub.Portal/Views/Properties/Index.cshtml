@@ -2,13 +2,13 @@
 @using System.Linq
 @model RentHub.Portal.ViewModels.Properties.PropertyIndexVm
 @{
-    ViewData["Title"] = "Properties";
+    ViewData["Title"] = T["Properties"].Value;
     var allowScopeSelection = string.Equals(Model.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) || Model.CreationScopes.Count > 1;
     var firstScope = Model.CreationScopes.FirstOrDefault(s => s.CanCreate);
-    var payoutSetupButtonText = Model.PayoutSetupStarted ? "Continue Stripe setup" : "Set up payout account";
+    var payoutSetupButtonText = Model.PayoutSetupStarted ? T["Continue Stripe setup"].Value : T["Set up payout account"].Value;
     var payoutSetupHeading = Model.PayoutSetupStarted
-        ? "Continue your payout setup before adding properties"
-        : "Connect your payout account before adding properties";
+        ? T["Continue your payout setup before adding properties"].Value
+        : T["Connect your payout account before adding properties"].Value;
     var countries = new[]
     {
         new { Iso = "CA", Code = "+1", Label = "Canada (+1)" },
@@ -28,35 +28,31 @@
 }
 
 <div class="rh-properties-page">
-    <section class="alert alert-info rh-test-mode-banner" role="status">
-        <strong>Testing mode:</strong> You can keep exploring properties while phone-number SMS verification is paused for Twilio approval. Please test the workflow and share any feedback you find useful.
-    </section>
-
     <section class="rh-properties-hero">
         <div class="rh-properties-overview-head">
             <div>
-                <p class="rh-kicker rh-kicker-ghost">Portfolio operations</p>
-                <h1 class="rh-heading-title rh-properties-overview-title">Properties</h1>
+                <p class="rh-kicker rh-kicker-ghost">@T["Portfolio operations"]</p>
+                <h1 class="rh-heading-title rh-properties-overview-title">@T["Properties"]</h1>
             </div>
         </div>
 
         <div class="rh-properties-overview-grid">
             <article class="rh-properties-stat-card">
-                <span>Total Properties</span>
+                <span>@T["Total Properties"]</span>
                 <strong>@Model.TotalCount</strong>
-                <small>Across your accessible scope</small>
+                <small>@T["Across your accessible scope"]</small>
             </article>
 
             <article class="rh-properties-stat-card">
-                <span>Current Role</span>
-                <strong>@Model.UserRole</strong>
-                <small>Role-based visibility enabled</small>
+                <span>@T["Current Role"]</span>
+                <strong>@T[Model.UserRole]</strong>
+                <small>@T["Role-based visibility enabled"]</small>
             </article>
 
             <article class="rh-properties-stat-card">
-                <span>Create Access</span>
-                <strong>@(Model.CanCreateProperty ? "Enabled" : "Restricted")</strong>
-                <small>Subscription and rights controlled</small>
+                <span>@T["Create Access"]</span>
+                <strong>@(Model.CanCreateProperty ? T["Enabled"].Value : T["Restricted"].Value)</strong>
+                <small>@T["Subscription and rights controlled"]</small>
             </article>
         </div>
     </section>
@@ -64,43 +60,32 @@
     <section class="rh-properties-filter-shell">
         <div class="rh-properties-filter-head">
             <div>
-                <p class="rh-kicker rh-kicker-ghost mb-1">Smart filters</p>
-                <h2 class="rh-section-title mb-0">Refine your portfolio table</h2>
+                <p class="rh-kicker rh-kicker-ghost mb-1">@T["Smart filters"]</p>
+                <h2 class="rh-section-title mb-0">@T["Refine your portfolio table"]</h2>
             </div>
-            <small>Filter by search, city, access scope, and page size.</small>
+            <small>@T["Filter by search, city, access scope, and page size."]</small>
         </div>
 
         <form method="get" asp-action="Index" class="rh-properties-filter-grid">
             <div class="rh-properties-filter-field rh-properties-filter-field-wide">
-                <label class="form-label mb-1">Search</label>
-                <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="Name, address, city, or country" />
+                <label class="form-label mb-1">@T["Search"]</label>
+                <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="@T["Name, address, city, or country"]" />
             </div>
 
             <div class="rh-properties-filter-field">
-                <label class="form-label mb-1">City</label>
-                <input class="form-control rh-input" type="text" name="city" value="@Model.City" placeholder="Filter by city" />
+                <label class="form-label mb-1">@T["City"]</label>
+                <input class="form-control rh-input" type="text" name="city" value="@Model.City" placeholder="@T["Filter by city"]" />
             </div>
 
             <div class="rh-properties-filter-field">
-                <label class="form-label mb-1">Access Scope</label>
+                <label class="form-label mb-1">@T["Access Scope"]</label>
                 <div class="rh-select-wrap">
                     <select class="form-select rh-input rh-select" name="access">
-                        <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Access) ? "selected" : null)">All access</option>
-                        <option value="owned" selected="@(Model.Access == "owned" ? "selected" : null)">Owned</option>
-                        <option value="managed" selected="@(Model.Access == "managed" ? "selected" : null)">Managed</option>
-                        <option value="owner" selected="@(Model.Access == "owner" ? "selected" : null)">Owner</option>
-                        <option value="tenant" selected="@(Model.Access == "tenant" ? "selected" : null)">Tenant</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="rh-properties-filter-field">
-                <label class="form-label mb-1">Page Size</label>
-                <div class="rh-select-wrap">
-                    <select class="form-select rh-input rh-select" name="pageSize">
-                        <option value="6" selected="@(Model.PageSize == 6 ? "selected" : null)">6 rows</option>
-                        <option value="12" selected="@(Model.PageSize == 12 ? "selected" : null)">12 rows</option>
-                        <option value="24" selected="@(Model.PageSize == 24 ? "selected" : null)">24 rows</option>
+                        <option value="" selected="@(string.IsNullOrWhiteSpace(Model.Access) ? "selected" : null)">@T["All access"]</option>
+                        <option value="owned" selected="@(Model.Access == "owned" ? "selected" : null)">@T["Owned"]</option>
+                        <option value="managed" selected="@(Model.Access == "managed" ? "selected" : null)">@T["Managed"]</option>
+                        <option value="owner" selected="@(Model.Access == "owner" ? "selected" : null)">@T["Owner"]</option>
+                        <option value="tenant" selected="@(Model.Access == "tenant" ? "selected" : null)">@T["Tenant"]</option>
                     </select>
                 </div>
             </div>
@@ -108,7 +93,8 @@
             <input type="hidden" name="page" value="1" />
 
             <div class="rh-properties-filter-actions">
-                <button type="submit" class="btn rh-btn-primary">Apply Filters</button>
+                <button type="submit" class="btn rh-btn-primary">@T["Apply Filters"]</button>
+                <a asp-action="Index" class="btn rh-btn-subtle">@T["Clear"]</a>
             </div>
         </form>
     </section>
@@ -117,20 +103,20 @@
     {
         <section class="rh-compliance-callout">
             <div>
-                <p class="rh-kicker rh-kicker-ghost mb-1">Compliance required</p>
-                <h2 class="rh-section-title mb-1">Finish identity review before adding properties</h2>
-                <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.ComplianceMessage) ? Model.ComplianceMessage : "Complete identity verification, admin approval, and the platform contract before subscription payments and property creation are unlocked.")</p>
+                <p class="rh-kicker rh-kicker-ghost mb-1">@T["Compliance required"]</p>
+                <h2 class="rh-section-title mb-1">@T["Finish identity review before adding properties"]</h2>
+                <p class="mb-0">@T[!string.IsNullOrWhiteSpace(Model.ComplianceMessage) ? Model.ComplianceMessage : "Complete identity verification, admin approval, and the platform contract before subscription payments and property creation are unlocked."]</p>
             </div>
-            <a asp-controller="Profile" asp-action="Index" class="btn rh-btn-primary">Open Profile Checklist</a>
+            <a asp-controller="Profile" asp-action="Index" class="btn rh-btn-primary">@T["Open Profile Checklist"]</a>
         </section>
     }
     else if (Model.RequiresPayoutSetup)
     {
         <section class="rh-compliance-callout">
             <div>
-                <p class="rh-kicker rh-kicker-ghost mb-1">Payout setup required</p>
+                <p class="rh-kicker rh-kicker-ghost mb-1">@T["Payout setup required"]</p>
                 <h2 class="rh-section-title mb-1">@payoutSetupHeading</h2>
-                <p class="mb-0">@(!string.IsNullOrWhiteSpace(Model.PayoutSetupMessage) ? Model.PayoutSetupMessage : "Set up Stripe so tenant card rent payments can be routed to you later.")</p>
+                <p class="mb-0">@T[!string.IsNullOrWhiteSpace(Model.PayoutSetupMessage) ? Model.PayoutSetupMessage : "Set up Stripe so tenant card rent payments can be routed to you later."]</p>
             </div>
             <a asp-controller="Profile" asp-action="PayoutSetup" class="btn rh-btn-primary">@payoutSetupButtonText</a>
         </section>
@@ -145,21 +131,21 @@
         <section class="rh-properties-scope-shell">
             <div class="rh-properties-filter-head">
                 <div>
-                    <p class="rh-kicker rh-kicker-ghost mb-1">Scope controls</p>
-                    <h2 class="rh-section-title mb-0">Creation scope and limits</h2>
+                    <p class="rh-kicker rh-kicker-ghost mb-1">@T["Scope controls"]</p>
+                    <h2 class="rh-section-title mb-0">@T["Creation scope and limits"]</h2>
                 </div>
-                <small>Plan limits and approval state for each landlord scope.</small>
+                <small>@T["Plan limits and approval state for each landlord scope."]</small>
             </div>
 
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0 rh-table rh-smart-meta-table">
                     <thead>
                         <tr>
-                            <th>Landlord</th>
-                            <th>Current</th>
-                            <th>Limit</th>
-                            <th>Subscription</th>
-                            <th>Status</th>
+                            <th>@T["Landlord"]</th>
+                            <th>@T["Current"]</th>
+                            <th>@T["Limit"]</th>
+                            <th>@T["Subscription"]</th>
+                            <th>@T["Status"]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -168,9 +154,9 @@
                             <tr>
                                 <td>@scope.LandlordName</td>
                                 <td>@scope.CurrentProperties</td>
-                                <td>@(scope.MaxProperties.HasValue ? scope.MaxProperties.Value : "Unlimited")</td>
-                                <td>@(scope.SubscriptionApproved ? "Approved" : "Pending/Inactive")</td>
-                                <td>@scope.StatusMessage</td>
+                                <td>@(scope.MaxProperties.HasValue ? scope.MaxProperties.Value : T["Unlimited"].Value)</td>
+                                <td>@(scope.SubscriptionApproved ? T["Approved"].Value : T["Pending/Inactive"].Value)</td>
+                                <td>@T[scope.StatusMessage]</td>
                             </tr>
                         }
                     </tbody>
@@ -190,10 +176,10 @@
 
                     <div class="modal-header border-0 pb-0">
                         <div>
-                            <h5 class="modal-title" id="createPropertyModalLabel">Add New Property</h5>
-                            <small class="text-muted">Create a property within an allowed scope.</small>
+                            <h5 class="modal-title" id="createPropertyModalLabel">@T["Add New Property"]</h5>
+                            <small class="text-muted">@T["Create a property within an allowed scope."]</small>
                         </div>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body">
@@ -207,7 +193,7 @@
                             @if (allowScopeSelection)
                             {
                                 <div class="col-12">
-                                    <label class="form-label">Create For Landlord</label>
+                                    <label class="form-label">@T["Create For Landlord"]</label>
                                     <div class="rh-select-wrap">
                                         <select class="form-select rh-input rh-select" name="LandlordId" required>
                                             @foreach (var scope in Model.CreationScopes)
@@ -226,54 +212,54 @@
                             }
 
                             <div class="col-md-6">
-                                <label class="form-label">Property Name</label>
+                                <label class="form-label">@T["Property Name"]</label>
                                 <input class="form-control rh-input" name="Name" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">City</label>
+                                <label class="form-label">@T["City"]</label>
                                 <input class="form-control rh-input" name="City" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Country</label>
+                                <label class="form-label">@T["Country"]</label>
                                 <input type="hidden" name="CountryCode" value="@Model.DefaultPropertyCountryCode" data-country-code-output />
                                 <div class="rh-select-wrap">
                                     <select class="form-select rh-input rh-select" name="CountryIsoCode" autocomplete="country" required data-country-selector>
-                                        <option value="">Choose a country</option>
+                                        <option value="">@T["Choose a country"]</option>
                                         @foreach (var country in countries)
                                         {
-                                            <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, Model.DefaultPropertyCountryIsoCode, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Label</option>
+                                            <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, Model.DefaultPropertyCountryIsoCode, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T[country.Label]</option>
                                         }
                                     </select>
                                 </div>
                             </div>
 
                             <div class="col-12">
-                                <label class="form-label">Address</label>
+                                <label class="form-label">@T["Address"]</label>
                                 <input class="form-control rh-input" name="Address" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Latitude (Optional)</label>
+                                <label class="form-label">@T["Latitude (Optional)"]</label>
                                 <input class="form-control rh-input" name="Latitude" type="number" step="0.000001" min="-90" max="90" placeholder="e.g. 4.051056" />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Longitude (Optional)</label>
+                                <label class="form-label">@T["Longitude (Optional)"]</label>
                                 <input class="form-control rh-input" name="Longitude" type="number" step="0.000001" min="-180" max="180" placeholder="e.g. 9.767868" />
                             </div>
 
                             <div class="col-12">
-                                <label class="form-label">Description (Optional)</label>
+                                <label class="form-label">@T["Description (Optional)"]</label>
                                 <textarea class="form-control rh-input" name="Description" rows="3"></textarea>
                             </div>
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Create Property</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Create Property"]</button>
                     </div>
                 </form>
             </div>

@@ -1,0 +1,1319 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Profile" xml:space="preserve"><value>Profil</value></data>
+  <data name="Profile Center" xml:space="preserve"><value>Centre du profil</value></data>
+  <data name="Review your account identity, verified contact channels, accessible properties, and subscription lifecycle in one place." xml:space="preserve"><value>Consultez au même endroit votre identité de compte, vos coordonnées vérifiées, les propriétés accessibles et le cycle de vie de votre abonnement.</value></data>
+  <data name="No role assigned" xml:space="preserve"><value>Aucun rôle attribué</value></data>
+  <data name="Payment Center" xml:space="preserve"><value>Centre de paiement</value></data>
+  <data name="Payment Accounts" xml:space="preserve"><value>Comptes de paiement</value></data>
+  <data name="Accessible Properties" xml:space="preserve"><value>Propriétés accessibles</value></data>
+  <data name="Total properties you can access" xml:space="preserve"><value>Nombre total de propriétés auxquelles vous avez accès</value></data>
+  <data name="Visible Units" xml:space="preserve"><value>Unités visibles</value></data>
+  <data name="Total apartments across your properties" xml:space="preserve"><value>Nombre total d'appartements dans vos propriétés</value></data>
+  <data name="Current Subscription" xml:space="preserve"><value>Abonnement actuel</value></data>
+  <data name="None" xml:space="preserve"><value>Aucun</value></data>
+  <data name="Ends on {0:D}" xml:space="preserve"><value>Se termine le {0:D}</value></data>
+  <data name="No active subscription detected" xml:space="preserve"><value>Aucun abonnement actif détecté</value></data>
+  <data name="Approval Status" xml:space="preserve"><value>État de l'approbation</value></data>
+  <data name="Approved" xml:space="preserve"><value>Approuvé</value></data>
+  <data name="Pending" xml:space="preserve"><value>En attente</value></data>
+  <data name="1 day remaining" xml:space="preserve"><value>1 jour restant</value></data>
+  <data name="{0} days remaining" xml:space="preserve"><value>{0} jours restants</value></data>
+  <data name="Activate a plan to unlock property limits" xml:space="preserve"><value>Activez un forfait pour débloquer les limites de propriétés</value></data>
+  <data name="Landlord readiness" xml:space="preserve"><value>Préparation du propriétaire</value></data>
+  <data name="Verification checklist" xml:space="preserve"><value>Liste de vérification</value></data>
+  <data name="Complete these items before subscription payments and property creation are unlocked." xml:space="preserve"><value>Effectuez ces étapes avant de pouvoir payer un abonnement et créer des propriétés.</value></data>
+  <data name="Ready for subscription" xml:space="preserve"><value>Prêt pour l'abonnement</value></data>
+  <data name="Identity files submitted" xml:space="preserve"><value>Pièces d'identité soumises</value></data>
+  <data name="Three face photos and government ID document files." xml:space="preserve"><value>Trois photos du visage et les fichiers d'une pièce d'identité officielle.</value></data>
+  <data name="Status: {0}" xml:space="preserve"><value>État : {0}</value></data>
+  <data name="Submit KYC" xml:space="preserve"><value>Soumettre les documents de vérification</value></data>
+  <data name="Admin identity approval" xml:space="preserve"><value>Approbation de l'identité par l'administrateur</value></data>
+  <data name="Only the system admin can approve submitted KYC files." xml:space="preserve"><value>Seul l'administrateur du système peut approuver les documents de vérification soumis.</value></data>
+  <data name="Manual review status: {0}" xml:space="preserve"><value>État de la vérification manuelle : {0}</value></data>
+  <data name="Review note: {0}" xml:space="preserve"><value>Note de vérification : {0}</value></data>
+  <data name="Platform contract signed" xml:space="preserve"><value>Contrat de la plateforme signé</value></data>
+  <data name="Accept the landlord terms with your full legal name." xml:space="preserve"><value>Acceptez les conditions du propriétaire en inscrivant votre nom légal complet.</value></data>
+  <data name="Signed by {0} on {1:D}" xml:space="preserve"><value>Signé par {0} le {1:D}</value></data>
+  <data name="Sign contract" xml:space="preserve"><value>Signer le contrat</value></data>
+  <data name="Payout account setup" xml:space="preserve"><value>Configuration du compte de versement</value></data>
+  <data name="Connect Stripe after KYC approval so tenant card rent payments can be routed to you." xml:space="preserve"><value>Connectez Stripe après l'approbation de votre identité afin que les loyers payés par carte puissent vous être versés.</value></data>
+  <data name="Stripe Connect setup is paused while platform activation is pending. Continue testing the other workflows." xml:space="preserve"><value>La configuration de Stripe Connect est suspendue pendant l'activation de la plateforme. Vous pouvez continuer à tester les autres processus.</value></data>
+  <data name="Available after admin KYC approval." xml:space="preserve"><value>Disponible après l'approbation de l'identité par un administrateur.</value></data>
+  <data name="Continue Stripe setup" xml:space="preserve"><value>Poursuivre la configuration de Stripe</value></data>
+  <data name="Set up payout account" xml:space="preserve"><value>Configurer le compte de versement</value></data>
+  <data name="Connected" xml:space="preserve"><value>Connecté</value></data>
+  <data name="Temporarily skipped" xml:space="preserve"><value>Temporairement ignoré</value></data>
+  <data name="Needs Stripe details" xml:space="preserve"><value>Renseignements Stripe requis</value></data>
+  <data name="Not started" xml:space="preserve"><value>Non commencé</value></data>
+  <data name="Account Information" xml:space="preserve"><value>Renseignements du compte</value></data>
+  <data name="Email" xml:space="preserve"><value>Adresse courriel</value></data>
+  <data name="Phone" xml:space="preserve"><value>Téléphone</value></data>
+  <data name="Not provided" xml:space="preserve"><value>Non fourni</value></data>
+  <data name="WhatsApp Number" xml:space="preserve"><value>Numéro WhatsApp</value></data>
+  <data name="WhatsApp Verification" xml:space="preserve"><value>Vérification WhatsApp</value></data>
+  <data name="Verified" xml:space="preserve"><value>Vérifié</value></data>
+  <data name="Language" xml:space="preserve"><value>Langue</value></data>
+  <data name="Choose the language used throughout Lontsi Homes." xml:space="preserve"><value>Choisissez la langue utilisée dans l'ensemble de Lontsi Homes.</value></data>
+  <data name="Your selection is saved to your account and restored whenever you sign in." xml:space="preserve"><value>Votre choix est enregistré dans votre compte et rétabli à chaque connexion.</value></data>
+  <data name="Save language" xml:space="preserve"><value>Enregistrer la langue</value></data>
+  <data name="Your language preference has been updated." xml:space="preserve"><value>Votre préférence linguistique a été mise à jour.</value></data>
+  <data name="Unable to update your language preference right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour votre préférence linguistique pour le moment. Veuillez réessayer.</value></data>
+  <data name="Select a supported language." xml:space="preserve"><value>Sélectionnez une langue prise en charge.</value></data>
+  <data name="Payments and Subscriptions" xml:space="preserve"><value>Paiements et abonnements</value></data>
+  <data name="Payment numbers, payout routing, subscription status, and plan actions now live in their own workspace." xml:space="preserve"><value>Les numéros de paiement, l'acheminement des versements, l'état de l'abonnement et les actions liées au forfait se trouvent maintenant dans un espace dédié.</value></data>
+  <data name="Open Payment Center" xml:space="preserve"><value>Ouvrir le centre de paiement</value></data>
+  <data name="Manage Payment Accounts" xml:space="preserve"><value>Gérer les comptes de paiement</value></data>
+  <data name="Properties You Can Access" xml:space="preserve"><value>Propriétés auxquelles vous avez accès</value></data>
+  <data name="No properties available yet." xml:space="preserve"><value>Aucune propriété n'est disponible pour le moment.</value></data>
+  <data name="{0} apartments" xml:space="preserve"><value>{0} appartements</value></data>
+  <data name="Administrator" xml:space="preserve"><value>Administrateur</value></data>
+  <data name="Manager" xml:space="preserve"><value>Gestionnaire</value></data>
+  <data name="Landlord" xml:space="preserve"><value>Propriétaire</value></data>
+  <data name="Tenant" xml:space="preserve"><value>Locataire</value></data>
+  <data name="Visitor" xml:space="preserve"><value>Visiteur</value></data>
+  <data name="Account" xml:space="preserve"><value>Compte</value></data>
+  <data name="Administrator workspace" xml:space="preserve"><value>Espace administrateur</value></data>
+  <data name="Manager workspace" xml:space="preserve"><value>Espace gestionnaire</value></data>
+  <data name="Landlord workspace" xml:space="preserve"><value>Espace propriétaire</value></data>
+  <data name="Tenant workspace" xml:space="preserve"><value>Espace locataire</value></data>
+  <data name="Visitor workspace" xml:space="preserve"><value>Espace visiteur</value></data>
+  <data name="Workspace profile" xml:space="preserve"><value>Profil de l'espace de travail</value></data>
+  <data name="Operations console" xml:space="preserve"><value>Console des opérations</value></data>
+  <data name="Close menu" xml:space="preserve"><value>Fermer le menu</value></data>
+  <data name="User" xml:space="preserve"><value>Utilisateur</value></data>
+  <data name="Workspace" xml:space="preserve"><value>Espace de travail</value></data>
+  <data name="Properties" xml:space="preserve"><value>Propriétés</value></data>
+  <data name="Property" xml:space="preserve"><value>Propriété</value></data>
+  <data name="Apartments" xml:space="preserve"><value>Appartements</value></data>
+  <data name="Apartment" xml:space="preserve"><value>Appartement</value></data>
+  <data name="Units" xml:space="preserve"><value>Unités</value></data>
+  <data name="Unit" xml:space="preserve"><value>Unité</value></data>
+  <data name="Tenancies" xml:space="preserve"><value>Locations</value></data>
+  <data name="Tenancy" xml:space="preserve"><value>Location</value></data>
+  <data name="Members" xml:space="preserve"><value>Membres</value></data>
+  <data name="Conversations" xml:space="preserve"><value>Conversations</value></data>
+  <data name="Rent Dashboard" xml:space="preserve"><value>Tableau de bord des loyers</value></data>
+  <data name="Public Site" xml:space="preserve"><value>Site public</value></data>
+  <data name="Payments" xml:space="preserve"><value>Paiements</value></data>
+  <data name="Payment" xml:space="preserve"><value>Paiement</value></data>
+  <data name="Administration" xml:space="preserve"><value>Administration</value></data>
+  <data name="Subscriptions" xml:space="preserve"><value>Abonnements</value></data>
+  <data name="Subscription" xml:space="preserve"><value>Abonnement</value></data>
+  <data name="Payment Activity" xml:space="preserve"><value>Activité de paiement</value></data>
+  <data name="User Validation" xml:space="preserve"><value>Validation des utilisateurs</value></data>
+  <data name="Landlord Validation" xml:space="preserve"><value>Validation des propriétaires</value></data>
+  <data name="KYC Approvals" xml:space="preserve"><value>Approbations de vérification d'identité</value></data>
+  <data name="Property operations, simplified" xml:space="preserve"><value>La gestion immobilière simplifiée</value></data>
+  <data name="Menu" xml:space="preserve"><value>Menu</value></data>
+  <data name="Operational workspace" xml:space="preserve"><value>Espace de travail opérationnel</value></data>
+  <data name="Open account menu for {0}" xml:space="preserve"><value>Ouvrir le menu du compte de {0}</value></data>
+  <data name="current user" xml:space="preserve"><value>l'utilisateur actuel</value></data>
+  <data name="Signed-in user" xml:space="preserve"><value>Utilisateur connecté</value></data>
+  <data name="View Profile" xml:space="preserve"><value>Voir le profil</value></data>
+  <data name="My Properties" xml:space="preserve"><value>Mes propriétés</value></data>
+  <data name="Messages" xml:space="preserve"><value>Messages</value></data>
+  <data name="Appearance" xml:space="preserve"><value>Apparence</value></data>
+  <data name="Dark" xml:space="preserve"><value>Sombre</value></data>
+  <data name="Light" xml:space="preserve"><value>Clair</value></data>
+  <data name="Device" xml:space="preserve"><value>Appareil</value></data>
+  <data name="Log out?" xml:space="preserve"><value>Se déconnecter?</value></data>
+  <data name="Are you sure you want to end your current session?" xml:space="preserve"><value>Voulez-vous vraiment mettre fin à votre session actuelle?</value></data>
+  <data name="Log out" xml:space="preserve"><value>Se déconnecter</value></data>
+  <data name="Back to account menu" xml:space="preserve"><value>Retour au menu du compte</value></data>
+  <data name="Theme preference" xml:space="preserve"><value>Préférence de thème</value></data>
+  <data name="Use device theme" xml:space="preserve"><value>Utiliser le thème de l'appareil</value></data>
+  <data name="Dark theme" xml:space="preserve"><value>Thème sombre</value></data>
+  <data name="Light theme" xml:space="preserve"><value>Thème clair</value></data>
+  <data name="Login" xml:space="preserve"><value>Connexion</value></data>
+  <data name="Become a Landlord" xml:space="preserve"><value>Devenir propriétaire</value></data>
+  <data name="Terms" xml:space="preserve"><value>Conditions</value></data>
+  <data name="Privacy" xml:space="preserve"><value>Confidentialité</value></data>
+  <data name="Refund Policy" xml:space="preserve"><value>Politique de remboursement</value></data>
+  <data name="Contact" xml:space="preserve"><value>Nous joindre</value></data>
+  <data name="Action Completed" xml:space="preserve"><value>Action terminée</value></data>
+  <data name="Action Failed" xml:space="preserve"><value>Échec de l'action</value></data>
+  <data name="Action Needed" xml:space="preserve"><value>Action requise</value></data>
+  <data name="Close" xml:space="preserve"><value>Fermer</value></data>
+  <data name="Please confirm" xml:space="preserve"><value>Veuillez confirmer</value></data>
+  <data name="Are you sure you want to continue?" xml:space="preserve"><value>Voulez-vous vraiment continuer?</value></data>
+  <data name="Subscription duration" xml:space="preserve"><value>Durée de l'abonnement</value></data>
+  <data name="{0} months" xml:space="preserve"><value>{0} mois</value></data>
+  <data name="Choose between 6 months and 36 months (3 years)." xml:space="preserve"><value>Choisissez une durée de 6 à 36 mois (3 ans).</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Proceed" xml:space="preserve"><value>Continuer</value></data>
+  <data name="Choose date" xml:space="preserve"><value>Choisir une date</value></data>
+  <data name="Previous month" xml:space="preserve"><value>Mois précédent</value></data>
+  <data name="Next month" xml:space="preserve"><value>Mois suivant</value></data>
+  <data name="Select date" xml:space="preserve"><value>Sélectionner une date</value></data>
+  <data name="Unable to refresh this section right now." xml:space="preserve"><value>Impossible d'actualiser cette section pour le moment.</value></data>
+  <data name="Please choose an image file." xml:space="preserve"><value>Veuillez choisir un fichier image.</value></data>
+  <data name="Please choose a landscape image." xml:space="preserve"><value>Veuillez choisir une image en format paysage.</value></data>
+  <data name="This image could not be validated." xml:space="preserve"><value>Cette image n'a pas pu être validée.</value></data>
+  <data name="Property image" xml:space="preserve"><value>Image de la propriété</value></data>
+  <data name="Unable to refresh the property workspace right now." xml:space="preserve"><value>Impossible d'actualiser l'espace de la propriété pour le moment.</value></data>
+  <data name="Property workspace content was not returned." xml:space="preserve"><value>Le contenu de l'espace de la propriété n'a pas été retourné.</value></data>
+  <data name="Requested property section could not be refreshed." xml:space="preserve"><value>La section demandée de la propriété n'a pas pu être actualisée.</value></data>
+  <data name="Unable to refresh the apartment workspace right now." xml:space="preserve"><value>Impossible d'actualiser l'espace de l'appartement pour le moment.</value></data>
+  <data name="Apartment workspace content was not returned." xml:space="preserve"><value>Le contenu de l'espace de l'appartement n'a pas été retourné.</value></data>
+  <data name="Requested apartment section could not be refreshed." xml:space="preserve"><value>La section demandée de l'appartement n'a pas pu être actualisée.</value></data>
+  <data name="Unable to complete this action right now." xml:space="preserve"><value>Impossible d'effectuer cette action pour le moment.</value></data>
+  <data name="Action completed successfully." xml:space="preserve"><value>L'action a été effectuée avec succès.</value></data>
+  <data name="Current apartment image" xml:space="preserve"><value>Image actuelle de l'appartement</value></data>
+  <data name="Apartment image" xml:space="preserve"><value>Image de l'appartement</value></data>
+  <data name="Apartment image preview" xml:space="preserve"><value>Aperçu de l'image de l'appartement</value></data>
+  <data name="Choose rent periods" xml:space="preserve"><value>Choisir les périodes de loyer</value></data>
+  <data name="Select the oldest period first. Each selected period unlocks the next one." xml:space="preserve"><value>Sélectionnez d'abord la période la plus ancienne. Chaque période sélectionnée déverrouille la suivante.</value></data>
+  <data name="selected period" xml:space="preserve"><value>période sélectionnée</value></data>
+  <data name="Rent periods are selected in order. Unselecting one period clears every period after it." xml:space="preserve"><value>Les périodes de loyer sont sélectionnées dans l'ordre. Désélectionner une période efface toutes les périodes suivantes.</value></data>
+  <data name="Pay {0} period through {1}" xml:space="preserve"><value>Payer {0} période jusqu'à {1}</value></data>
+  <data name="Pay {0} periods through {1}" xml:space="preserve"><value>Payer {0} périodes jusqu'à {1}</value></data>
+  <data name="NotStarted" xml:space="preserve"><value>Non commencé</value></data>
+  <data name="Submitted" xml:space="preserve"><value>Soumis</value></data>
+  <data name="Rejected" xml:space="preserve"><value>Refusé</value></data>
+  <data name="Active" xml:space="preserve"><value>Actif</value></data>
+  <data name="Inactive" xml:space="preserve"><value>Inactif</value></data>
+  <data name="Terminated" xml:space="preserve"><value>Résilié</value></data>
+  <data name="Owned" xml:space="preserve"><value>Détenue</value></data>
+  <data name="Managed" xml:space="preserve"><value>Gérée</value></data>
+  <data name="Owner" xml:space="preserve"><value>Propriétaire</value></data>
+  <data name="Shared" xml:space="preserve"><value>Partagée</value></data>
+  <data name="Workspace directory" xml:space="preserve"><value>Répertoire de l'espace de travail</value></data>
+  <data name="Review units across every property available to you." xml:space="preserve"><value>Consultez les unités de toutes les propriétés auxquelles vous avez accès.</value></data>
+  <data name="In scope" xml:space="preserve"><value>Dans la portée</value></data>
+  <data name="Total accessible apartments" xml:space="preserve"><value>Nombre total d'appartements accessibles</value></data>
+  <data name="Matching" xml:space="preserve"><value>Correspondances</value></data>
+  <data name="Results after filters" xml:space="preserve"><value>Résultats après filtrage</value></data>
+  <data name="Current page" xml:space="preserve"><value>Page actuelle</value></data>
+  <data name="{0} rows per page" xml:space="preserve"><value>{0} lignes par page</value></data>
+  <data name="Essential filters" xml:space="preserve"><value>Filtres essentiels</value></data>
+  <data name="Find an apartment" xml:space="preserve"><value>Trouver un appartement</value></data>
+  <data name="Search by apartment, property, landlord, or type." xml:space="preserve"><value>Recherchez par appartement, propriété, propriétaire ou type.</value></data>
+  <data name="Search" xml:space="preserve"><value>Rechercher</value></data>
+  <data name="Apartment, property, landlord, or type" xml:space="preserve"><value>Appartement, propriété, propriétaire ou type</value></data>
+  <data name="All properties" xml:space="preserve"><value>Toutes les propriétés</value></data>
+  <data name="Status" xml:space="preserve"><value>État</value></data>
+  <data name="All statuses" xml:space="preserve"><value>Tous les états</value></data>
+  <data name="Apply filters" xml:space="preserve"><value>Appliquer les filtres</value></data>
+  <data name="Clear" xml:space="preserve"><value>Effacer</value></data>
+  <data name="Apartment register" xml:space="preserve"><value>Registre des appartements</value></data>
+  <data name="Accessible apartments" xml:space="preserve"><value>Appartements accessibles</value></data>
+  <data name="{0} results" xml:space="preserve"><value>{0} résultats</value></data>
+  <data name="No apartments match these filters." xml:space="preserve"><value>Aucun appartement ne correspond à ces filtres.</value></data>
+  <data name="Rent" xml:space="preserve"><value>Loyer</value></data>
+  <data name="Action" xml:space="preserve"><value>Action</value></data>
+  <data name="{0:N0} m²" xml:space="preserve"><value>{0:N0} m²</value></data>
+  <data name="{0} active" xml:space="preserve"><value>{0} actives</value></data>
+  <data name="Open" xml:space="preserve"><value>Ouvrir</value></data>
+  <data name="Previous" xml:space="preserve"><value>Précédent</value></data>
+  <data name="Rows" xml:space="preserve"><value>Lignes</value></data>
+  <data name="Page {0} of {1}" xml:space="preserve"><value>Page {0} sur {1}</value></data>
+  <data name="Next" xml:space="preserve"><value>Suivant</value></data>
+  <data name="Track tenancy records across your accessible portfolio." xml:space="preserve"><value>Suivez les dossiers de location dans l'ensemble de votre portefeuille accessible.</value></data>
+  <data name="Total accessible tenancies" xml:space="preserve"><value>Nombre total de locations accessibles</value></data>
+  <data name="Find a tenancy" xml:space="preserve"><value>Trouver une location</value></data>
+  <data name="Search by property, apartment, or landlord." xml:space="preserve"><value>Recherchez par propriété, appartement ou propriétaire.</value></data>
+  <data name="Property, apartment, or landlord" xml:space="preserve"><value>Propriété, appartement ou propriétaire</value></data>
+  <data name="Tenancy register" xml:space="preserve"><value>Registre des locations</value></data>
+  <data name="Accessible tenancies" xml:space="preserve"><value>Locations accessibles</value></data>
+  <data name="No tenancies match these filters." xml:space="preserve"><value>Aucune location ne correspond à ces filtres.</value></data>
+  <data name="Period" xml:space="preserve"><value>Période</value></data>
+  <data name="Tenancy #{0}" xml:space="preserve"><value>Location no {0}</value></data>
+  <data name="to {0}" xml:space="preserve"><value>au {0}</value></data>
+  <data name="Open term" xml:space="preserve"><value>Durée indéterminée</value></data>
+  <data name="Rent periods" xml:space="preserve"><value>Périodes de loyer</value></data>
+  <data name="See people and access assignments across your portfolio." xml:space="preserve"><value>Consultez les personnes et les attributions d'accès dans l'ensemble de votre portefeuille.</value></data>
+  <data name="Assignments" xml:space="preserve"><value>Attributions</value></data>
+  <data name="Total accessible assignments" xml:space="preserve"><value>Nombre total d'attributions accessibles</value></data>
+  <data name="Find a member" xml:space="preserve"><value>Trouver un membre</value></data>
+  <data name="Search by name, email, role, or assigned workspace." xml:space="preserve"><value>Recherchez par nom, adresse courriel, rôle ou espace attribué.</value></data>
+  <data name="Name, email, role, property, or apartment" xml:space="preserve"><value>Nom, adresse courriel, rôle, propriété ou appartement</value></data>
+  <data name="Role" xml:space="preserve"><value>Rôle</value></data>
+  <data name="All roles" xml:space="preserve"><value>Tous les rôles</value></data>
+  <data name="Member register" xml:space="preserve"><value>Registre des membres</value></data>
+  <data name="Accessible assignments" xml:space="preserve"><value>Attributions accessibles</value></data>
+  <data name="No members match these filters." xml:space="preserve"><value>Aucun membre ne correspond à ces filtres.</value></data>
+  <data name="Member" xml:space="preserve"><value>Membre</value></data>
+  <data name="Level" xml:space="preserve"><value>Niveau</value></data>
+  <data name="Assigned area" xml:space="preserve"><value>Espace attribué</value></data>
+  <data name="Permission" xml:space="preserve"><value>Autorisation</value></data>
+  <data name="User overview" xml:space="preserve"><value>Aperçu de l'utilisateur</value></data>
+  <data name="Plan inquiries" xml:space="preserve"><value>Demandes de forfait</value></data>
+  <data name="Your apartment chats" xml:space="preserve"><value>Vos conversations sur les appartements</value></data>
+  <data name="Inbox" xml:space="preserve"><value>Boîte de réception</value></data>
+  <data name="Plan requests" xml:space="preserve"><value>Demandes de forfait</value></data>
+  <data name="Apartment inquiries" xml:space="preserve"><value>Demandes concernant les appartements</value></data>
+  <data name="No conversations yet." xml:space="preserve"><value>Aucune conversation pour le moment.</value></data>
+  <data name="Plan request" xml:space="preserve"><value>Demande de forfait</value></data>
+  <data name="{0:N2} / month" xml:space="preserve"><value>{0:N2} / mois</value></data>
+  <data name="{0} properties · {1} apartments · {2} tenants" xml:space="preserve"><value>{0} propriétés · {1} appartements · {2} locataires</value></data>
+  <data name="Reply" xml:space="preserve"><value>Réponse</value></data>
+  <data name="Write your reply" xml:space="preserve"><value>Rédigez votre réponse</value></data>
+  <data name="Send Reply" xml:space="preserve"><value>Envoyer la réponse</value></data>
+  <data name="Select a conversation to read and reply." xml:space="preserve"><value>Sélectionnez une conversation pour la lire et y répondre.</value></data>
+  <data name="Continue your payout setup before adding properties" xml:space="preserve"><value>Poursuivez la configuration de vos versements avant d'ajouter des propriétés</value></data>
+  <data name="Connect your payout account before adding properties" xml:space="preserve"><value>Connectez votre compte de versement avant d'ajouter des propriétés</value></data>
+  <data name="Portfolio operations" xml:space="preserve"><value>Gestion du portefeuille</value></data>
+  <data name="Total Properties" xml:space="preserve"><value>Nombre total de propriétés</value></data>
+  <data name="Across your accessible scope" xml:space="preserve"><value>Dans l'ensemble de votre portée accessible</value></data>
+  <data name="Current Role" xml:space="preserve"><value>Rôle actuel</value></data>
+  <data name="Role-based visibility enabled" xml:space="preserve"><value>Visibilité fondée sur le rôle activée</value></data>
+  <data name="Create Access" xml:space="preserve"><value>Accès à la création</value></data>
+  <data name="Enabled" xml:space="preserve"><value>Activé</value></data>
+  <data name="Disabled" xml:space="preserve"><value>Désactivé</value></data>
+  <data name="Restricted" xml:space="preserve"><value>Restreint</value></data>
+  <data name="Subscription and rights controlled" xml:space="preserve"><value>Contrôlé par l'abonnement et les droits d'accès</value></data>
+  <data name="Smart filters" xml:space="preserve"><value>Filtres intelligents</value></data>
+  <data name="Refine your portfolio table" xml:space="preserve"><value>Affiner le tableau de votre portefeuille</value></data>
+  <data name="Filter by search, city, access scope, and page size." xml:space="preserve"><value>Filtrez par recherche, ville, portée d'accès et taille de page.</value></data>
+  <data name="Name, address, city, or country" xml:space="preserve"><value>Nom, adresse, ville ou pays</value></data>
+  <data name="City" xml:space="preserve"><value>Ville</value></data>
+  <data name="Filter by city" xml:space="preserve"><value>Filtrer par ville</value></data>
+  <data name="Access Scope" xml:space="preserve"><value>Portée d'accès</value></data>
+  <data name="All access" xml:space="preserve"><value>Tous les accès</value></data>
+  <data name="Compliance required" xml:space="preserve"><value>Conformité requise</value></data>
+  <data name="Finish identity review before adding properties" xml:space="preserve"><value>Terminez la vérification de votre identité avant d'ajouter des propriétés</value></data>
+  <data name="Complete identity verification, admin approval, and the platform contract before subscription payments and property creation are unlocked." xml:space="preserve"><value>Terminez la vérification d'identité, obtenez l'approbation d'un administrateur et signez le contrat de la plateforme avant de pouvoir payer un abonnement et créer des propriétés.</value></data>
+  <data name="Open Profile Checklist" xml:space="preserve"><value>Ouvrir la liste de vérification du profil</value></data>
+  <data name="Payout setup required" xml:space="preserve"><value>Configuration des versements requise</value></data>
+  <data name="Set up Stripe so tenant card rent payments can be routed to you later." xml:space="preserve"><value>Configurez Stripe afin que les loyers payés par carte puissent vous être versés ultérieurement.</value></data>
+  <data name="Scope controls" xml:space="preserve"><value>Contrôles de portée</value></data>
+  <data name="Creation scope and limits" xml:space="preserve"><value>Portée et limites de création</value></data>
+  <data name="Plan limits and approval state for each landlord scope." xml:space="preserve"><value>Limites du forfait et état de l'approbation pour chaque portée de propriétaire.</value></data>
+  <data name="Current" xml:space="preserve"><value>Actuel</value></data>
+  <data name="Limit" xml:space="preserve"><value>Limite</value></data>
+  <data name="Unlimited" xml:space="preserve"><value>Illimité</value></data>
+  <data name="Pending/Inactive" xml:space="preserve"><value>En attente ou inactif</value></data>
+  <data name="Add New Property" xml:space="preserve"><value>Ajouter une propriété</value></data>
+  <data name="Create a property within an allowed scope." xml:space="preserve"><value>Créez une propriété dans une portée autorisée.</value></data>
+  <data name="Create For Landlord" xml:space="preserve"><value>Créer pour le propriétaire</value></data>
+  <data name="Property Name" xml:space="preserve"><value>Nom de la propriété</value></data>
+  <data name="Country" xml:space="preserve"><value>Pays</value></data>
+  <data name="Choose a country" xml:space="preserve"><value>Choisir un pays</value></data>
+  <data name="Address" xml:space="preserve"><value>Adresse</value></data>
+  <data name="Latitude (Optional)" xml:space="preserve"><value>Latitude (facultatif)</value></data>
+  <data name="Longitude (Optional)" xml:space="preserve"><value>Longitude (facultatif)</value></data>
+  <data name="Description (Optional)" xml:space="preserve"><value>Description (facultatif)</value></data>
+  <data name="Create Property" xml:space="preserve"><value>Créer la propriété</value></data>
+  <data name="Canada (+1)" xml:space="preserve"><value>Canada (+1)</value></data>
+  <data name="United States (+1)" xml:space="preserve"><value>États-Unis (+1)</value></data>
+  <data name="Cameroon (+237)" xml:space="preserve"><value>Cameroun (+237)</value></data>
+  <data name="United Kingdom (+44)" xml:space="preserve"><value>Royaume-Uni (+44)</value></data>
+  <data name="France (+33)" xml:space="preserve"><value>France (+33)</value></data>
+  <data name="Belgium (+32)" xml:space="preserve"><value>Belgique (+32)</value></data>
+  <data name="Germany (+49)" xml:space="preserve"><value>Allemagne (+49)</value></data>
+  <data name="Nigeria (+234)" xml:space="preserve"><value>Nigéria (+234)</value></data>
+  <data name="Cote d'Ivoire (+225)" xml:space="preserve"><value>Côte d'Ivoire (+225)</value></data>
+  <data name="Ghana (+233)" xml:space="preserve"><value>Ghana (+233)</value></data>
+  <data name="South Africa (+27)" xml:space="preserve"><value>Afrique du Sud (+27)</value></data>
+  <data name="Kenya (+254)" xml:space="preserve"><value>Kenya (+254)</value></data>
+  <data name="United Arab Emirates (+971)" xml:space="preserve"><value>Émirats arabes unis (+971)</value></data>
+  <data name="Property register" xml:space="preserve"><value>Registre des propriétés</value></data>
+  <data name="properties in scope" xml:space="preserve"><value>propriétés dans la portée</value></data>
+  <data name="No properties found with the selected filters." xml:space="preserve"><value>Aucune propriété ne correspond aux filtres sélectionnés.</value></data>
+  <data name="Select all visible properties" xml:space="preserve"><value>Sélectionner toutes les propriétés visibles</value></data>
+  <data name="Code" xml:space="preserve"><value>Code</value></data>
+  <data name="Access" xml:space="preserve"><value>Accès</value></data>
+  <data name="Automatic payments" xml:space="preserve"><value>Paiements automatiques</value></data>
+  <data name="Not assigned" xml:space="preserve"><value>Non attribué</value></data>
+  <data name="Select {0}" xml:space="preserve"><value>Sélectionner {0}</value></data>
+  <data name="ID {0}" xml:space="preserve"><value>ID {0}</value></data>
+  <data name="Not set" xml:space="preserve"><value>Non défini</value></data>
+  <data name="registered units" xml:space="preserve"><value>unités enregistrées</value></data>
+  <data name="portfolio owner" xml:space="preserve"><value>propriétaire du portefeuille</value></data>
+  <data name="Write Access" xml:space="preserve"><value>Accès en écriture</value></data>
+  <data name="Read Access" xml:space="preserve"><value>Accès en lecture</value></data>
+  <data name="Property pages" xml:space="preserve"><value>Pages de propriétés</value></data>
+  <data name="Subscription required" xml:space="preserve"><value>Abonnement requis</value></data>
+  <data name="Pay your subscription to continue" xml:space="preserve"><value>Payez votre abonnement pour continuer</value></data>
+  <data name="Your subscription must be paid and approved before you can add a property, unit, tenancy, member, user, image, document, or other new item." xml:space="preserve"><value>Votre abonnement doit être payé et approuvé avant que vous puissiez ajouter une propriété, une unité, une location, un membre, un utilisateur, une image, un document ou tout autre élément.</value></data>
+  <data name="Not now" xml:space="preserve"><value>Pas maintenant</value></data>
+  <data name="Admin payment control" xml:space="preserve"><value>Contrôle des paiements par l'administrateur</value></data>
+  <data name="Change automatic payment mode?" xml:space="preserve"><value>Modifier le mode de paiement automatique?</value></data>
+  <data name="Confirm" xml:space="preserve"><value>Confirmer</value></data>
+  <data name="this property" xml:space="preserve"><value>cette propriété</value></data>
+  <data name="Enable card, Orange Money and MTN automatic payment flows for {0}?" xml:space="preserve"><value>Activer les paiements automatiques par carte, Orange Money et MTN pour {0}?</value></data>
+  <data name="Disable all automatic payment flows for {0}? Tenants will see manual payment instructions instead." xml:space="preserve"><value>Désactiver tous les paiements automatiques pour {0}? Les locataires verront plutôt les instructions de paiement manuel.</value></data>
+  <data name="Enable payments" xml:space="preserve"><value>Activer les paiements</value></data>
+  <data name="Disable payments" xml:space="preserve"><value>Désactiver les paiements</value></data>
+  <data name="Payment Details" xml:space="preserve"><value>Détails du paiement</value></data>
+  <data name="Rent payment information" xml:space="preserve"><value>Renseignements sur le paiement du loyer</value></data>
+  <data name="Review what is due and contact your landlord to arrange an offline payment." xml:space="preserve"><value>Consultez les sommes dues et communiquez avec votre propriétaire pour organiser un paiement hors ligne.</value></data>
+  <data name="Back to rent dashboard" xml:space="preserve"><value>Retour au tableau de bord des loyers</value></data>
+  <data name="Automatic card, Orange Money and MTN payments are temporarily unavailable for this property. Do not enter payment credentials on another page." xml:space="preserve"><value>Les paiements automatiques par carte, Orange Money et MTN sont temporairement indisponibles pour cette propriété. Ne saisissez pas vos données de paiement sur une autre page.</value></data>
+  <data name="Outstanding balance" xml:space="preserve"><value>Solde impayé</value></data>
+  <data name="Across unpaid rent periods" xml:space="preserve"><value>Pour l'ensemble des périodes de loyer impayées</value></data>
+  <data name="Next due date" xml:space="preserve"><value>Prochaine échéance</value></data>
+  <data name="Not scheduled" xml:space="preserve"><value>Non planifiée</value></data>
+  <data name="Oldest unpaid period" xml:space="preserve"><value>Période impayée la plus ancienne</value></data>
+  <data name="How to continue" xml:space="preserve"><value>Comment continuer</value></data>
+  <data name="Contact the landlord using the email shown above." xml:space="preserve"><value>Communiquez avec le propriétaire à l'adresse courriel indiquée ci-dessus.</value></data>
+  <data name="Agree on the accepted offline payment method." xml:space="preserve"><value>Convenez d'un mode de paiement hors ligne accepté.</value></data>
+  <data name="Ask the landlord to record the cash payment in Lontsi Homes and provide your receipt." xml:space="preserve"><value>Demandez au propriétaire d'enregistrer le paiement en espèces dans Lontsi Homes et de vous remettre votre reçu.</value></data>
+  <data name="Unpaid periods" xml:space="preserve"><value>Périodes impayées</value></data>
+  <data name="No unpaid rent period is currently recorded." xml:space="preserve"><value>Aucune période de loyer impayée n'est actuellement enregistrée.</value></data>
+  <data name="Due date" xml:space="preserve"><value>Date d'échéance</value></data>
+  <data name="Balance" xml:space="preserve"><value>Solde</value></data>
+  <data name="Secure Rent Payment" xml:space="preserve"><value>Paiement sécurisé du loyer</value></data>
+  <data name="Rent payment" xml:space="preserve"><value>Paiement du loyer</value></data>
+  <data name="Complete your rent payment" xml:space="preserve"><value>Effectuez votre paiement de loyer</value></data>
+  <data name="Stripe securely checks and processes your card. Your rent period is marked paid only after Stripe confirms the payment." xml:space="preserve"><value>Stripe vérifie et traite votre carte de façon sécurisée. Votre période de loyer n'est marquée comme payée qu'après la confirmation du paiement par Stripe.</value></data>
+  <data name="Rent amount" xml:space="preserve"><value>Montant du loyer</value></data>
+  <data name="Card charge" xml:space="preserve"><value>Montant débité sur la carte</value></data>
+  <data name="Secure checkout" xml:space="preserve"><value>Paiement sécurisé</value></data>
+  <data name="Enter card details" xml:space="preserve"><value>Saisir les renseignements de la carte</value></data>
+  <data name="Unable to load the secure card form. Please try again." xml:space="preserve"><value>Impossible de charger le formulaire de carte sécurisé. Veuillez réessayer.</value></data>
+  <data name="Card checkout is not configured yet. Please try again later." xml:space="preserve"><value>Le paiement par carte n'est pas encore configuré. Veuillez réessayer plus tard.</value></data>
+  <data name="Stripe could not be loaded. Check your connection and refresh this page." xml:space="preserve"><value>Impossible de charger Stripe. Vérifiez votre connexion et actualisez cette page.</value></data>
+  <data name="Unable to load the secure card form. Please refresh and try again." xml:space="preserve"><value>Impossible de charger le formulaire de carte sécurisé. Actualisez la page et réessayez.</value></data>
+  <data name="Tenant Dashboard" xml:space="preserve"><value>Tableau de bord du locataire</value></data>
+  <data name="My rent dashboard" xml:space="preserve"><value>Mon tableau de bord des loyers</value></data>
+  <data name="Review your tenancy, payment history, and rent periods from one place." xml:space="preserve"><value>Consultez au même endroit votre location, votre historique de paiement et vos périodes de loyer.</value></data>
+  <data name="No active tenancy is linked to your account yet." xml:space="preserve"><value>Aucune location active n'est encore liée à votre compte.</value></data>
+  <data name="Monthly rent" xml:space="preserve"><value>Loyer mensuel</value></data>
+  <data name="Outstanding" xml:space="preserve"><value>Montant impayé</value></data>
+  <data name="Next due" xml:space="preserve"><value>Prochaine échéance</value></data>
+  <data name="Card payment mode is not available right now." xml:space="preserve"><value>Le paiement par carte n'est pas disponible pour le moment.</value></data>
+  <data name="View payment details" xml:space="preserve"><value>Voir les détails du paiement</value></data>
+  <data name="Pay rent periods in order" xml:space="preserve"><value>Payer les périodes de loyer dans l'ordre</value></data>
+  <data name="{0:N0} due" xml:space="preserve"><value>{0:N0} à payer</value></data>
+  <data name="Pay selected rent" xml:space="preserve"><value>Payer les loyers sélectionnés</value></data>
+  <data name="Payment method: {0}" xml:space="preserve"><value>Mode de paiement : {0}</value></data>
+  <data name="A card payment is already pending for {0} - {1}. Complete that payment before selecting another period." xml:space="preserve"><value>Un paiement par carte est déjà en attente pour la période du {0} au {1}. Terminez ce paiement avant de sélectionner une autre période.</value></data>
+  <data name="Continue card payment" xml:space="preserve"><value>Poursuivre le paiement par carte</value></data>
+  <data name="Automatic payment is currently unavailable. Contact the landlord to arrange payment for this pending period." xml:space="preserve"><value>Le paiement automatique est actuellement indisponible. Communiquez avec le propriétaire pour organiser le paiement de cette période en attente.</value></data>
+  <data name="No unpaid rent period is currently available for payment." xml:space="preserve"><value>Aucune période de loyer impayée n'est actuellement disponible pour paiement.</value></data>
+  <data name="Amount" xml:space="preserve"><value>Montant</value></data>
+  <data name="Available in payment selector" xml:space="preserve"><value>Disponible dans le sélecteur de paiement</value></data>
+  <data name="Continue payment" xml:space="preserve"><value>Poursuivre le paiement</value></data>
+  <data name="Receipt" xml:space="preserve"><value>Reçu</value></data>
+  <data name="Download" xml:space="preserve"><value>Télécharger</value></data>
+  <data name="View" xml:space="preserve"><value>Voir</value></data>
+  <data name="Payment history" xml:space="preserve"><value>Historique des paiements</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="After payment" xml:space="preserve"><value>Après le paiement</value></data>
+  <data name="Success" xml:space="preserve"><value>Réussi</value></data>
+  <data name="Due" xml:space="preserve"><value>À payer</value></data>
+  <data name="Overdue" xml:space="preserve"><value>En retard</value></data>
+  <data name="PendingPayment" xml:space="preserve"><value>Paiement en attente</value></data>
+  <data name="Waived" xml:space="preserve"><value>Dispensé</value></data>
+  <data name="Cancelled" xml:space="preserve"><value>Annulé</value></data>
+  <data name="Paid" xml:space="preserve"><value>Payé</value></data>
+  <data name="PaidBeforeRentHub" xml:space="preserve"><value>Payé avant Lontsi Homes</value></data>
+  <data name="PaidInAdvance" xml:space="preserve"><value>Payé d'avance</value></data>
+  <data name="Tenancy Overview" xml:space="preserve"><value>Aperçu de la location</value></data>
+  <data name="Back to apartment overview" xml:space="preserve"><value>Retour à l'aperçu de l'appartement</value></data>
+  <data name="Tenancy Workspace" xml:space="preserve"><value>Espace de la location</value></data>
+  <data name="Upcoming" xml:space="preserve"><value>À venir</value></data>
+  <data name="Closed" xml:space="preserve"><value>Fermée</value></data>
+  <data name="{0:N0} rent" xml:space="preserve"><value>Loyer de {0:N0}</value></data>
+  <data name="{0} / {1} members" xml:space="preserve"><value>{0} membres sur {1}</value></data>
+  <data name="Apartment Workspace" xml:space="preserve"><value>Espace de l'appartement</value></data>
+  <data name="Property Workspace" xml:space="preserve"><value>Espace de la propriété</value></data>
+  <data name="Terminate tenancy" xml:space="preserve"><value>Résilier la location</value></data>
+  <data name="Keep the tenancy contract and member structure clear in one focused workspace." xml:space="preserve"><value>Gérez clairement le contrat et les membres de la location dans un espace de travail dédié.</value></data>
+  <data name="Live tenancy view" xml:space="preserve"><value>Vue en direct de la location</value></data>
+  <data name="Start date" xml:space="preserve"><value>Date de début</value></data>
+  <data name="Lease commencement" xml:space="preserve"><value>Début du bail</value></data>
+  <data name="End date" xml:space="preserve"><value>Date de fin</value></data>
+  <data name="Lease completion window" xml:space="preserve"><value>Période de fin du bail</value></data>
+  <data name="Main rent" xml:space="preserve"><value>Loyer principal</value></data>
+  <data name="Monthly tenancy arrangement" xml:space="preserve"><value>Entente de location mensuelle</value></data>
+  <data name="Tenancy occupants and guests" xml:space="preserve"><value>Occupants et invités de la location</value></data>
+  <data name="Tenancy lifecycle state" xml:space="preserve"><value>État du cycle de vie de la location</value></data>
+  <data name="Tenancy contract" xml:space="preserve"><value>Contrat de location</value></data>
+  <data name="Maintain a single contract document for this tenancy." xml:space="preserve"><value>Conservez un seul contrat pour cette location.</value></data>
+  <data name="Add+" xml:space="preserve"><value>Ajouter+</value></data>
+  <data name="Replace" xml:space="preserve"><value>Remplacer</value></data>
+  <data name="No tenancy contract uploaded yet." xml:space="preserve"><value>Aucun contrat de location n'a encore été téléversé.</value></data>
+  <data name="Preview" xml:space="preserve"><value>Aperçu</value></data>
+  <data name="Delete tenancy contract?" xml:space="preserve"><value>Supprimer le contrat de location?</value></data>
+  <data name="This will remove the current tenancy contract." xml:space="preserve"><value>Cette action supprimera le contrat de location actuel.</value></data>
+  <data name="Delete contract" xml:space="preserve"><value>Supprimer le contrat</value></data>
+  <data name="Delete" xml:space="preserve"><value>Supprimer</value></data>
+  <data name="Open the complete rent ledger to filter periods, change the page size, sort by date, and manage payments." xml:space="preserve"><value>Ouvrez le registre complet des loyers pour filtrer les périodes, modifier le nombre de lignes, trier par date et gérer les paiements.</value></data>
+  <data name="Open rent ledger" xml:space="preserve"><value>Ouvrir le registre des loyers</value></data>
+  <data name="Tenancy members" xml:space="preserve"><value>Membres de la location</value></data>
+  <data name="Manage the main tenant, co-tenants, children, and visitors." xml:space="preserve"><value>Gérez le locataire principal, les colocataires, les enfants et les visiteurs.</value></data>
+  <data name="Search tenancy members" xml:space="preserve"><value>Rechercher des membres de la location</value></data>
+  <data name="No tenancy members added yet." xml:space="preserve"><value>Aucun membre n'a encore été ajouté à cette location.</value></data>
+  <data name="Open profile for {0}" xml:space="preserve"><value>Ouvrir le profil de {0}</value></data>
+  <data name="No email saved" xml:space="preserve"><value>Aucune adresse courriel enregistrée</value></data>
+  <data name="Email confirmed" xml:space="preserve"><value>Adresse courriel confirmée</value></data>
+  <data name="Email activation pending" xml:space="preserve"><value>Activation de l'adresse courriel en attente</value></data>
+  <data name="Edit" xml:space="preserve"><value>Modifier</value></data>
+  <data name="Remove this tenancy member?" xml:space="preserve"><value>Retirer ce membre de la location?</value></data>
+  <data name="This will remove the member from this tenancy and revoke their access to this tenancy workspace. Existing rent periods, payments, and generated receipts will stay in the system." xml:space="preserve"><value>Cette action retirera le membre de la location et révoquera son accès à cet espace. Les périodes de loyer, les paiements et les reçus déjà générés resteront dans le système.</value></data>
+  <data name="Remove member" xml:space="preserve"><value>Retirer le membre</value></data>
+  <data name="Remove" xml:space="preserve"><value>Retirer</value></data>
+  <data name="Confirm the date and future rent handling before ending this tenancy." xml:space="preserve"><value>Confirmez la date et le traitement des loyers futurs avant de mettre fin à cette location.</value></data>
+  <data name="Termination date" xml:space="preserve"><value>Date de résiliation</value></data>
+  <data name="Reason" xml:space="preserve"><value>Motif</value></data>
+  <data name="Tenant moved out" xml:space="preserve"><value>Départ du locataire</value></data>
+  <data name="Eviction" xml:space="preserve"><value>Expulsion</value></data>
+  <data name="Agreement ended" xml:space="preserve"><value>Fin de l'entente</value></data>
+  <data name="Landlord decision" xml:space="preserve"><value>Décision du propriétaire</value></data>
+  <data name="Tenant request" xml:space="preserve"><value>Demande du locataire</value></data>
+  <data name="Other" xml:space="preserve"><value>Autre</value></data>
+  <data name="Future rent handling" xml:space="preserve"><value>Traitement des loyers futurs</value></data>
+  <data name="Cancel future unpaid periods" xml:space="preserve"><value>Annuler les périodes futures impayées</value></data>
+  <data name="Keep unpaid balance" xml:space="preserve"><value>Conserver le solde impayé</value></data>
+  <data name="Waive selected periods" xml:space="preserve"><value>Annuler les périodes sélectionnées</value></data>
+  <data name="Waive selected future/unpaid periods" xml:space="preserve"><value>Annuler certaines périodes futures ou impayées</value></data>
+  <data name="No unpaid future period is available for waiver." xml:space="preserve"><value>Aucune période future impayée ne peut être annulée.</value></data>
+  <data name="Notes optional" xml:space="preserve"><value>Notes (facultatif)</value></data>
+  <data name="Upload Tenancy Contract" xml:space="preserve"><value>Téléverser le contrat de location</value></data>
+  <data name="Replace Tenancy Contract" xml:space="preserve"><value>Remplacer le contrat de location</value></data>
+  <data name="Contract PDF" xml:space="preserve"><value>Contrat en PDF</value></data>
+  <data name="Only PDF files are allowed. Uploading a new file replaces the current contract." xml:space="preserve"><value>Seuls les fichiers PDF sont acceptés. Le téléversement d'un nouveau fichier remplace le contrat actuel.</value></data>
+  <data name="Save contract" xml:space="preserve"><value>Enregistrer le contrat</value></data>
+  <data name="Add Tenancy Member" xml:space="preserve"><value>Ajouter un membre à la location</value></data>
+  <data name="Full name" xml:space="preserve"><value>Nom complet</value></data>
+  <data name="Country code" xml:space="preserve"><value>Indicatif du pays</value></data>
+  <data name="Phone number" xml:space="preserve"><value>Numéro de téléphone</value></data>
+  <data name="Optional" xml:space="preserve"><value>Facultatif</value></data>
+  <data name="MainTenant" xml:space="preserve"><value>Locataire principal</value></data>
+  <data name="CoTenant" xml:space="preserve"><value>Colocataire</value></data>
+  <data name="Children" xml:space="preserve"><value>Enfant</value></data>
+  <data name="Add member" xml:space="preserve"><value>Ajouter le membre</value></data>
+  <data name="Edit Tenancy Member" xml:space="preserve"><value>Modifier le membre de la location</value></data>
+  <data name="Set the tenancy role for this member." xml:space="preserve"><value>Définissez le rôle de ce membre dans la location.</value></data>
+  <data name="Save member" xml:space="preserve"><value>Enregistrer le membre</value></data>
+  <data name="Up to {0} properties" xml:space="preserve"><value>Jusqu'à {0} propriétés</value></data>
+  <data name="Up to {0} apartments / property" xml:space="preserve"><value>Jusqu'à {0} appartements par propriété</value></data>
+  <data name="Up to {0} apartments total" xml:space="preserve"><value>Jusqu'à {0} appartements au total</value></data>
+  <data name="Not configured" xml:space="preserve"><value>Non configuré</value></data>
+  <data name="Continue your Stripe payout setup" xml:space="preserve"><value>Poursuivre la configuration des versements Stripe</value></data>
+  <data name="Set up your Stripe payout account" xml:space="preserve"><value>Configurer votre compte de versement Stripe</value></data>
+  <data name="Stripe saved your payout account, but still needs a few details before tenant rent payments can be routed to you." xml:space="preserve"><value>Stripe a enregistré votre compte de versement, mais il manque encore quelques renseignements avant que les loyers des locataires puissent vous être versés.</value></data>
+  <data name="Required before subscription so tenant rent payments can be routed to you later." xml:space="preserve"><value>Requis avant l'abonnement afin que les loyers des locataires puissent vous être versés ultérieurement.</value></data>
+  <data name="Ready" xml:space="preserve"><value>Prêt</value></data>
+  <data name="Testing bypass" xml:space="preserve"><value>Contournement pour les essais</value></data>
+  <data name="Incomplete" xml:space="preserve"><value>Incomplet</value></data>
+  <data name="Not set up" xml:space="preserve"><value>Non configuré</value></data>
+  <data name="Tenant rent payouts enabled" xml:space="preserve"><value>Versements des loyers activés</value></data>
+  <data name="Stripe Connect activation pending" xml:space="preserve"><value>Activation de Stripe Connect en attente</value></data>
+  <data name="Continue Stripe onboarding" xml:space="preserve"><value>Poursuivre l'inscription à Stripe</value></data>
+  <data name="Required before subscription" xml:space="preserve"><value>Requis avant l'abonnement</value></data>
+  <data name="MTN Mobile Money and Orange Money payments are not available yet. Please use card payment for this release." xml:space="preserve"><value>Les paiements MTN Mobile Money et Orange Money ne sont pas encore disponibles. Veuillez utiliser une carte pour cette version.</value></data>
+  <data name="not required for this account" xml:space="preserve"><value>non requis pour ce compte</value></data>
+  <data name="your verified phone" xml:space="preserve"><value>votre téléphone vérifié</value></data>
+  <data name="Review your subscription status, payment options, and available landlord plans." xml:space="preserve"><value>Consultez l'état de votre abonnement, vos options de paiement et les forfaits offerts aux propriétaires.</value></data>
+  <data name="Back to Profile" xml:space="preserve"><value>Retour au profil</value></data>
+  <data name="Update Mobile Money" xml:space="preserve"><value>Mettre à jour Mobile Money</value></data>
+  <data name="Landlord payment workspace" xml:space="preserve"><value>Espace de paiement du propriétaire</value></data>
+  <data name="This page is used for landlord subscription payment setup. Admin payment settings are managed in Subscription Control." xml:space="preserve"><value>Cette page sert à configurer le paiement de l'abonnement du propriétaire. Les paramètres administratifs sont gérés dans le contrôle des abonnements.</value></data>
+  <data name="Subscription Status" xml:space="preserve"><value>État de l'abonnement</value></data>
+  <data name="Current plan: {0}" xml:space="preserve"><value>Forfait actuel : {0}</value></data>
+  <data name="Choose a plan when your account is ready" xml:space="preserve"><value>Choisissez un forfait lorsque votre compte est prêt</value></data>
+  <data name="Payment Method" xml:space="preserve"><value>Mode de paiement</value></data>
+  <data name="Card testing" xml:space="preserve"><value>Essai du paiement par carte</value></data>
+  <data name="Phone verification is not required" xml:space="preserve"><value>La vérification du téléphone n'est pas requise</value></data>
+  <data name="Card payment available" xml:space="preserve"><value>Paiement par carte disponible</value></data>
+  <data name="Mobile Money Payout" xml:space="preserve"><value>Versement Mobile Money</value></data>
+  <data name="Card" xml:space="preserve"><value>Carte</value></data>
+  <data name="Manual" xml:space="preserve"><value>Manuel</value></data>
+  <data name="Stripe checkout" xml:space="preserve"><value>Paiement Stripe</value></data>
+  <data name="Cash activation after admin review" xml:space="preserve"><value>Activation après paiement en espèces et vérification administrative</value></data>
+  <data name="Stripe Payout Account" xml:space="preserve"><value>Compte de versement Stripe</value></data>
+  <data name="Subscription Access" xml:space="preserve"><value>Accès à l'abonnement</value></data>
+  <data name="Unlocked" xml:space="preserve"><value>Déverrouillé</value></data>
+  <data name="Blocked" xml:space="preserve"><value>Bloqué</value></data>
+  <data name="Ready for checkout" xml:space="preserve"><value>Prêt pour le paiement</value></data>
+  <data name="Ready to request manual activation" xml:space="preserve"><value>Prêt à demander une activation manuelle</value></data>
+  <data name="Manual subscription mode" xml:space="preserve"><value>Mode d'abonnement manuel</value></data>
+  <data name="Automatic payments are temporarily unavailable" xml:space="preserve"><value>Les paiements automatiques sont temporairement indisponibles</value></data>
+  <data name="Choose a plan below and send an activation request. An administrator will approve it after confirming that the cash payment was received." xml:space="preserve"><value>Choisissez un forfait ci-dessous et envoyez une demande d'activation. Un administrateur l'approuvera après avoir confirmé la réception du paiement en espèces.</value></data>
+  <data name="Choose a plan" xml:space="preserve"><value>Choisir un forfait</value></data>
+  <data name="Payout setup" xml:space="preserve"><value>Configuration des versements</value></data>
+  <data name="KYC approval required before Stripe setup" xml:space="preserve"><value>Approbation de l'identité requise avant la configuration de Stripe</value></data>
+  <data name="An administrator must approve your KYC before you can connect a Stripe payout account." xml:space="preserve"><value>Un administrateur doit approuver votre identité avant que vous puissiez connecter un compte de versement Stripe.</value></data>
+  <data name="Check KYC status" xml:space="preserve"><value>Vérifier l'état de l'identité</value></data>
+  <data name="Payout account setup is temporarily skipped. Continue testing checkout with fake card information only." xml:space="preserve"><value>La configuration du compte de versement est temporairement ignorée. Continuez à tester le paiement uniquement avec de fausses données de carte.</value></data>
+  <data name="Test subscription checkout" xml:space="preserve"><value>Tester le paiement de l'abonnement</value></data>
+  <data name="Payout account ready" xml:space="preserve"><value>Compte de versement prêt</value></data>
+  <data name="Choose a subscription plan when your KYC approval is complete." xml:space="preserve"><value>Choisissez un forfait d'abonnement lorsque la vérification de votre identité est approuvée.</value></data>
+  <data name="Choose subscription" xml:space="preserve"><value>Choisir un abonnement</value></data>
+  <data name="Mobile Money Accounts" xml:space="preserve"><value>Comptes Mobile Money</value></data>
+  <data name="Edit setup" xml:space="preserve"><value>Modifier la configuration</value></data>
+  <data name="Finish OTP validation for the pending number before changing Mobile Money setup again." xml:space="preserve"><value>Terminez la validation du code à usage unique pour le numéro en attente avant de modifier de nouveau la configuration Mobile Money.</value></data>
+  <data name="Subscription Payment Number" xml:space="preserve"><value>Numéro de paiement de l'abonnement</value></data>
+  <data name="Pending OTP verification. This number is not usable for subscription checkout yet." xml:space="preserve"><value>Vérification du code à usage unique en attente. Ce numéro ne peut pas encore servir au paiement de l'abonnement.</value></data>
+  <data name="OTP code" xml:space="preserve"><value>Code à usage unique</value></data>
+  <data name="Enter OTP" xml:space="preserve"><value>Saisir le code</value></data>
+  <data name="Verify" xml:space="preserve"><value>Vérifier</value></data>
+  <data name="Resend OTP" xml:space="preserve"><value>Renvoyer le code</value></data>
+  <data name="You have reached today's OTP request limit. Please try again after the daily reset." xml:space="preserve"><value>Vous avez atteint la limite quotidienne de demandes de codes. Veuillez réessayer après la réinitialisation quotidienne.</value></data>
+  <data name="Subscription Payment Network" xml:space="preserve"><value>Réseau de paiement de l'abonnement</value></data>
+  <data name="Subscription Payment Verification" xml:space="preserve"><value>Vérification du paiement de l'abonnement</value></data>
+  <data name="Rent Payout Number" xml:space="preserve"><value>Numéro de versement du loyer</value></data>
+  <data name="Pending OTP verification. This number cannot be used for rent payouts yet." xml:space="preserve"><value>Vérification du code à usage unique en attente. Ce numéro ne peut pas encore recevoir les versements de loyer.</value></data>
+  <data name="This payout uses the same pending number as subscription payments. Verify the subscription payment number first." xml:space="preserve"><value>Ce versement utilise le même numéro en attente que les paiements d'abonnement. Vérifiez d'abord le numéro de paiement de l'abonnement.</value></data>
+  <data name="Rent Payout Network" xml:space="preserve"><value>Réseau de versement du loyer</value></data>
+  <data name="Rent Payout Verification" xml:space="preserve"><value>Vérification du versement du loyer</value></data>
+  <data name="WhatsApp Alerts Number" xml:space="preserve"><value>Numéro pour les alertes WhatsApp</value></data>
+  <data name="Pending OTP verification. WhatsApp alerts will use this number after confirmation." xml:space="preserve"><value>Vérification du code à usage unique en attente. Les alertes WhatsApp utiliseront ce numéro après sa confirmation.</value></data>
+  <data name="WhatsApp Alerts Verification" xml:space="preserve"><value>Vérification des alertes WhatsApp</value></data>
+  <data name="Not required" xml:space="preserve"><value>Non requis</value></data>
+  <data name="Use card checkout to pay your landlord subscription." xml:space="preserve"><value>Utilisez le paiement par carte pour régler votre abonnement de propriétaire.</value></data>
+  <data name="Request activation after arranging the cash payment with the platform administrator." xml:space="preserve"><value>Demandez l'activation après avoir organisé le paiement en espèces avec l'administrateur de la plateforme.</value></data>
+  <data name="No plans available right now." xml:space="preserve"><value>Aucun forfait n'est disponible pour le moment.</value></data>
+  <data name="Recommended" xml:space="preserve"><value>Recommandé</value></data>
+  <data name="Custom" xml:space="preserve"><value>Personnalisé</value></data>
+  <data name="Monthly" xml:space="preserve"><value>Mensuel</value></data>
+  <data name="Custom pricing" xml:space="preserve"><value>Tarification personnalisée</value></data>
+  <data name="Contact sales" xml:space="preserve"><value>Communiquer avec les ventes</value></data>
+  <data name="per month" xml:space="preserve"><value>par mois</value></data>
+  <data name="Yearly: {0}" xml:space="preserve"><value>Annuel : {0}</value></data>
+  <data name="View FCFA estimate" xml:space="preserve"><value>Voir l'estimation en FCFA</value></data>
+  <data name="Describe your needs" xml:space="preserve"><value>Décrire vos besoins</value></data>
+  <data name="{0} pending for {1}." xml:space="preserve"><value>{0} en attente pour {1}.</value></data>
+  <data name="{0} plan" xml:space="preserve"><value>Forfait {0}</value></data>
+  <data name="Action needed now:" xml:space="preserve"><value>Action requise maintenant :</value></data>
+  <data name="Activation:" xml:space="preserve"><value>Activation :</value></data>
+  <data name="Amount:" xml:space="preserve"><value>Montant :</value></data>
+  <data name="Approval Pending" xml:space="preserve"><value>Approbation en attente</value></data>
+  <data name="Approx. {0} XAF" xml:space="preserve"><value>Environ {0} XAF</value></data>
+  <data name="Back to Payment Center" xml:space="preserve"><value>Retour au centre de paiement</value></data>
+  <data name="Card checkout" xml:space="preserve"><value>Paiement par carte</value></data>
+  <data name="Card payment" xml:space="preserve"><value>Paiement par carte</value></data>
+  <data name="Card via Stripe" xml:space="preserve"><value>Carte par Stripe</value></data>
+  <data name="Change one number at a time. A changed number must be confirmed by OTP before it becomes usable." xml:space="preserve"><value>Modifiez un seul numéro à la fois. Un numéro modifié doit être confirmé par un code à usage unique avant de pouvoir être utilisé.</value></data>
+  <data name="Change pending subscription?" xml:space="preserve"><value>Modifier l'abonnement en attente?</value></data>
+  <data name="Change plan" xml:space="preserve"><value>Changer de forfait</value></data>
+  <data name="Change to this plan" xml:space="preserve"><value>Choisir ce forfait</value></data>
+  <data name="Charges" xml:space="preserve"><value>Paiements</value></data>
+  <data name="Choose operator" xml:space="preserve"><value>Choisir un opérateur</value></data>
+  <data name="complete the Stripe identity/liveness check" xml:space="preserve"><value>effectuer la vérification d'identité et de présence de Stripe</value></data>
+  <data name="Complete your subscription" xml:space="preserve"><value>Finaliser votre abonnement</value></data>
+  <data name="Confirm OTP" xml:space="preserve"><value>Confirmer le code</value></data>
+  <data name="Confirming..." xml:space="preserve"><value>Confirmation...</value></data>
+  <data name="Connect your payout account" xml:space="preserve"><value>Connecter votre compte de versement</value></data>
+  <data name="Continue testing payments" xml:space="preserve"><value>Continuer à tester les paiements</value></data>
+  <data name="Created" xml:space="preserve"><value>Créé</value></data>
+  <data name="Currency estimate" xml:space="preserve"><value>Estimation de devise</value></data>
+  <data name="Current number" xml:space="preserve"><value>Numéro actuel</value></data>
+  <data name="Current Plan" xml:space="preserve"><value>Forfait actuel</value></data>
+  <data name="Details" xml:space="preserve"><value>Renseignements</value></data>
+  <data name="Discard" xml:space="preserve"><value>Annuler la modification</value></data>
+  <data name="Discarding..." xml:space="preserve"><value>Annulation...</value></data>
+  <data name="Do this later" xml:space="preserve"><value>Le faire plus tard</value></data>
+  <data name="Enter the 6-digit OTP" xml:space="preserve"><value>Entrer le code à 6 chiffres</value></data>
+  <data name="Enter the 9-digit Cameroon number after +237, for example 696389202." xml:space="preserve"><value>Entrez les 9 chiffres du numéro camerounais après +237, par exemple 696389202.</value></data>
+  <data name="Enter the OTP sent to the new number to finish the update." xml:space="preserve"><value>Entrez le code envoyé au nouveau numéro pour terminer la modification.</value></data>
+  <data name="Estimate uses {0:N0} XAF per USD. Stripe charges the USD amount shown on the plan." xml:space="preserve"><value>L'estimation utilise {0:N0} XAF par USD. Stripe facture le montant en USD indiqué pour le forfait.</value></data>
+  <data name="Estimated FCFA value" xml:space="preserve"><value>Valeur estimée en FCFA</value></data>
+  <data name="Estimated yearly FCFA value" xml:space="preserve"><value>Valeur annuelle estimée en FCFA</value></data>
+  <data name="KYC approval required" xml:space="preserve"><value>Approbation de la vérification d'identité requise</value></data>
+  <data name="KYC status: {0}. An administrator must approve your KYC before Stripe payout setup is available." xml:space="preserve"><value>État de la vérification d'identité : {0}. Un administrateur doit l'approuver avant que la configuration des versements Stripe soit disponible.</value></data>
+  <data name="Loading..." xml:space="preserve"><value>Chargement...</value></data>
+  <data name="Manual approval after cash payment" xml:space="preserve"><value>Approbation manuelle après le paiement en espèces</value></data>
+  <data name="Missing" xml:space="preserve"><value>Manquant</value></data>
+  <data name="Mobile Money operator" xml:space="preserve"><value>Opérateur Mobile Money</value></data>
+  <data name="Monthly amount" xml:space="preserve"><value>Montant mensuel</value></data>
+  <data name="Needs details" xml:space="preserve"><value>Renseignements requis</value></data>
+  <data name="New number" xml:space="preserve"><value>Nouveau numéro</value></data>
+  <data name="Next action" xml:space="preserve"><value>Prochaine étape</value></data>
+  <data name="No active subscription. Choose a plan below to subscribe." xml:space="preserve"><value>Aucun abonnement actif. Choisissez un forfait ci-dessous pour vous abonner.</value></data>
+  <data name="Not available" xml:space="preserve"><value>Non disponible</value></data>
+  <data name="Number to update" xml:space="preserve"><value>Numéro à modifier</value></data>
+  <data name="Number verified successfully." xml:space="preserve"><value>Numéro vérifié avec succès.</value></data>
+  <data name="Orange / MTN unavailable" xml:space="preserve"><value>Orange / MTN indisponible</value></data>
+  <data name="OTP sent to the new number. Enter it below to confirm the update." xml:space="preserve"><value>Le code a été envoyé au nouveau numéro. Entrez-le ci-dessous pour confirmer la modification.</value></data>
+  <data name="OTP sent. You can request another code after the cooldown." xml:space="preserve"><value>Code envoyé. Vous pourrez en demander un autre après le délai d'attente.</value></data>
+  <data name="Overdue:" xml:space="preserve"><value>En retard :</value></data>
+  <data name="Pay with card" xml:space="preserve"><value>Payer par carte</value></data>
+  <data name="Payment for {0} was not completed. You can try again below." xml:space="preserve"><value>Le paiement pour {0} n'a pas été effectué. Vous pouvez réessayer ci-dessous.</value></data>
+  <data name="Payment settings" xml:space="preserve"><value>Paramètres de paiement</value></data>
+  <data name="Payout country:" xml:space="preserve"><value>Pays de versement :</value></data>
+  <data name="Payout readiness" xml:space="preserve"><value>État de préparation des versements</value></data>
+  <data name="Payouts" xml:space="preserve"><value>Versements</value></data>
+  <data name="Payouts are waiting:" xml:space="preserve"><value>Versements en attente :</value></data>
+  <data name="Pending review:" xml:space="preserve"><value>Examen en attente :</value></data>
+  <data name="Pending verification" xml:space="preserve"><value>Vérification en attente</value></data>
+  <data name="Plan exists but restricted actions stay blocked until the payment is confirmed." xml:space="preserve"><value>Le forfait existe, mais les actions restreintes demeurent bloquées jusqu'à la confirmation du paiement.</value></data>
+  <data name="Plan is approved and active." xml:space="preserve"><value>Le forfait est approuvé et actif.</value></data>
+  <data name="Platform activation pending" xml:space="preserve"><value>Activation de la plateforme en attente</value></data>
+  <data name="Price" xml:space="preserve"><value>Prix</value></data>
+  <data name="Renew this plan automatically by card" xml:space="preserve"><value>Renouveler automatiquement ce forfait par carte</value></data>
+  <data name="Replace the pending {0} request with {1}? The administrator will review only the new choice." xml:space="preserve"><value>Remplacer la demande {0} en attente par {1}? L'administrateur examinera uniquement le nouveau choix.</value></data>
+  <data name="Request {0} for manual activation after your cash payment is verified?" xml:space="preserve"><value>Demander l'activation manuelle de {0} après la vérification de votre paiement en espèces?</value></data>
+  <data name="Request manual activation" xml:space="preserve"><value>Demander l'activation manuelle</value></data>
+  <data name="Request this subscription?" xml:space="preserve"><value>Demander cet abonnement?</value></data>
+  <data name="Required" xml:space="preserve"><value>Requis</value></data>
+  <data name="Resend available in {0}." xml:space="preserve"><value>Nouvel envoi disponible dans {0}.</value></data>
+  <data name="Reviewing" xml:space="preserve"><value>En cours d'examen</value></data>
+  <data name="Secure Card Payment" xml:space="preserve"><value>Paiement sécurisé par carte</value></data>
+  <data name="Selected plan" xml:space="preserve"><value>Forfait sélectionné</value></data>
+  <data name="Send OTP" xml:space="preserve"><value>Envoyer le code</value></data>
+  <data name="Send OTP first, then enter the code here." xml:space="preserve"><value>Envoyez d'abord le code, puis entrez-le ici.</value></data>
+  <data name="Send request" xml:space="preserve"><value>Envoyer la demande</value></data>
+  <data name="Sending..." xml:space="preserve"><value>Envoi...</value></data>
+  <data name="Set up Stripe so tenant card rent payments can be routed to you after rent payments are enabled." xml:space="preserve"><value>Configurez Stripe afin que les loyers payés par carte puissent vous être versés lorsque les paiements de loyer seront activés.</value></data>
+  <data name="Start Stripe setup" xml:space="preserve"><value>Commencer la configuration Stripe</value></data>
+  <data name="Started: {0} | Ends: {1}" xml:space="preserve"><value>Début : {0} | Fin : {1}</value></data>
+  <data name="Stripe Connect account setup is paused while the platform activation is completed. You can keep testing subscriptions, profiles, and property workflows." xml:space="preserve"><value>La configuration du compte Stripe Connect est suspendue pendant l'activation de la plateforme. Vous pouvez continuer à tester les abonnements, les profils et les propriétés.</value></data>
+  <data name="Stripe Connect cannot create a payout account for this country in the current configuration. Use an alternate payout path until this country is supported." xml:space="preserve"><value>Dans la configuration actuelle, Stripe Connect ne peut pas créer de compte de versement pour ce pays. Utilisez une autre méthode jusqu'à ce que ce pays soit pris en charge.</value></data>
+  <data name="Stripe is reviewing the submitted payout account details" xml:space="preserve"><value>Stripe examine les renseignements soumis pour le compte de versement</value></data>
+  <data name="Stripe needs overdue verification details before payouts can be enabled" xml:space="preserve"><value>Stripe exige les renseignements de vérification en retard avant d'activer les versements</value></data>
+  <data name="Stripe securely checks and processes your card. Your subscription is activated only after the payment succeeds." xml:space="preserve"><value>Stripe vérifie et traite votre carte de façon sécurisée. Votre abonnement est activé seulement lorsque le paiement réussit.</value></data>
+  <data name="Stripe still needs attention:" xml:space="preserve"><value>Stripe nécessite encore votre attention :</value></data>
+  <data name="Stripe will ask for the business and payout details needed to receive tenant rent payments later." xml:space="preserve"><value>Stripe demandera les renseignements sur l'entreprise et le versement nécessaires pour recevoir ultérieurement les loyers des locataires.</value></data>
+  <data name="Subscription Details" xml:space="preserve"><value>Détails de l'abonnement</value></data>
+  <data name="Switch with card" xml:space="preserve"><value>Changer par carte</value></data>
+  <data name="The administrator will be notified and will approve or reject the request after verifying the cash payment." xml:space="preserve"><value>L'administrateur sera avisé et approuvera ou refusera la demande après avoir vérifié le paiement en espèces.</value></data>
+  <data name="This request is waiting for administrator review. You may choose another plan below until it is approved." xml:space="preserve"><value>Cette demande attend l'examen d'un administrateur. Vous pouvez choisir un autre forfait ci-dessous jusqu'à son approbation.</value></data>
+  <data name="Unable to discard this update right now. Please try again." xml:space="preserve"><value>Impossible d'annuler cette modification pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to refresh subscription details." xml:space="preserve"><value>Impossible d'actualiser les détails de l'abonnement.</value></data>
+  <data name="Unable to reload the latest Mobile Money setup. Showing the last loaded values." xml:space="preserve"><value>Impossible de recharger la dernière configuration Mobile Money. Les dernières valeurs chargées sont affichées.</value></data>
+  <data name="Unable to resend the OTP right now. Please try again." xml:space="preserve"><value>Impossible de renvoyer le code pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to send the OTP right now. Please try again." xml:space="preserve"><value>Impossible d'envoyer le code pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to verify this OTP. Please try again." xml:space="preserve"><value>Impossible de vérifier ce code. Veuillez réessayer.</value></data>
+  <data name="Unsupported country" xml:space="preserve"><value>Pays non pris en charge</value></data>
+  <data name="Update Mobile Money setup" xml:space="preserve"><value>Modifier la configuration Mobile Money</value></data>
+  <data name="upload an additional identity document" xml:space="preserve"><value>téléverser un document d'identité supplémentaire</value></data>
+  <data name="upload an identity document" xml:space="preserve"><value>téléverser un document d'identité</value></data>
+  <data name="Verification required" xml:space="preserve"><value>Vérification requise</value></data>
+  <data name="Verified main phone:" xml:space="preserve"><value>Téléphone principal vérifié :</value></data>
+  <data name="Verifying..." xml:space="preserve"><value>Vérification...</value></data>
+  <data name="Wait for the administrator to approve your submitted KYC before connecting Stripe. You can review your current verification status from the profile checklist." xml:space="preserve"><value>Attendez l'approbation de votre vérification d'identité par l'administrateur avant de connecter Stripe. Vous pouvez consulter son état dans la liste de vérification du profil.</value></data>
+  <data name="Waiting" xml:space="preserve"><value>En attente</value></data>
+  <data name="We are checking automatically. This section will update when the payment is confirmed." xml:space="preserve"><value>Nous effectuons une vérification automatique. Cette section sera mise à jour lorsque le paiement sera confirmé.</value></data>
+  <data name="Working..." xml:space="preserve"><value>Traitement...</value></data>
+  <data name="Yearly card value" xml:space="preserve"><value>Valeur annuelle par carte</value></data>
+  <data name="Yearly value:" xml:space="preserve"><value>Valeur annuelle :</value></data>
+  <data name="You have reached today's OTP request limit. Please try again later." xml:space="preserve"><value>Vous avez atteint la limite de demandes de codes pour aujourd'hui. Veuillez réessayer plus tard.</value></data>
+  <data name="Your payout account is ready. The next setup step is choosing a landlord subscription." xml:space="preserve"><value>Votre compte de versement est prêt. La prochaine étape consiste à choisir un abonnement de propriétaire.</value></data>
+  <data name="{0} available" xml:space="preserve"><value>{0} disponible(s)</value></data>
+  <data name="{0} documents" xml:space="preserve"><value>{0} document(s)</value></data>
+  <data name="{0} image" xml:space="preserve"><value>Image de {0}</value></data>
+  <data name="{0} image(s)" xml:space="preserve"><value>{0} image(s)</value></data>
+  <data name="{0} location preview" xml:space="preserve"><value>Aperçu de l'emplacement de {0}</value></data>
+  <data name="{0} property image" xml:space="preserve"><value>Image de la propriété {0}</value></data>
+  <data name="{0} rent" xml:space="preserve"><value>Loyer : {0}</value></data>
+  <data name="{0} sqm" xml:space="preserve"><value>{0} m²</value></data>
+  <data name="{0} total" xml:space="preserve"><value>{0} au total</value></data>
+  <data name="1. Details" xml:space="preserve"><value>1. Détails</value></data>
+  <data name="2. Schedule" xml:space="preserve"><value>2. Calendrier</value></data>
+  <data name="3. Payment history" xml:space="preserve"><value>3. Historique des paiements</value></data>
+  <data name="4. Tenant" xml:space="preserve"><value>4. Locataire</value></data>
+  <data name="5. Review" xml:space="preserve"><value>5. Vérification</value></data>
+  <data name="A refined workspace for apartments, members, location, and documents." xml:space="preserve"><value>Un espace de travail complet pour les appartements, les membres, l'emplacement et les documents.</value></data>
+  <data name="Active tenancies" xml:space="preserve"><value>Locations actives</value></data>
+  <data name="Actively assigned apartments" xml:space="preserve"><value>Appartements actuellement attribués</value></data>
+  <data name="Add Apartment" xml:space="preserve"><value>Ajouter un appartement</value></data>
+  <data name="Add Apartment Document" xml:space="preserve"><value>Ajouter un document d'appartement</value></data>
+  <data name="Add Apartment Images" xml:space="preserve"><value>Ajouter des images d'appartement</value></data>
+  <data name="Add Apartment Member" xml:space="preserve"><value>Ajouter un membre à l'appartement</value></data>
+  <data name="Add images" xml:space="preserve"><value>Ajouter des images</value></data>
+  <data name="Add one or more landscape images so this apartment has a proper visual gallery." xml:space="preserve"><value>Ajoutez une ou plusieurs images en format paysage pour créer une galerie complète de cet appartement.</value></data>
+  <data name="Add Property Document" xml:space="preserve"><value>Ajouter un document de propriété</value></data>
+  <data name="Add Property Member" xml:space="preserve"><value>Ajouter un membre à la propriété</value></data>
+  <data name="Adjust the apartment role and permission for this member." xml:space="preserve"><value>Modifiez le rôle et l'autorisation de ce membre pour l'appartement.</value></data>
+  <data name="After end date" xml:space="preserve"><value>Après la date de fin</value></data>
+  <data name="After end date behavior" xml:space="preserve"><value>Comportement après la date de fin</value></data>
+  <data name="All generated periods are unpaid" xml:space="preserve"><value>Toutes les périodes générées sont impayées</value></data>
+  <data name="All past periods were paid before RentHub" xml:space="preserve"><value>Toutes les périodes antérieures ont été payées avant RentHub</value></data>
+  <data name="Allowed Access" xml:space="preserve"><value>Accès autorisé</value></data>
+  <data name="Apartment documents" xml:space="preserve"><value>Documents de l'appartement</value></data>
+  <data name="Apartment images" xml:space="preserve"><value>Images de l'appartement</value></data>
+  <data name="Apartment members" xml:space="preserve"><value>Membres de l'appartement</value></data>
+  <data name="Apartment name" xml:space="preserve"><value>Nom de l'appartement</value></data>
+  <data name="Apartment Overview" xml:space="preserve"><value>Aperçu de l'appartement</value></data>
+  <data name="Apartment reminder settings" xml:space="preserve"><value>Paramètres des rappels de l'appartement</value></data>
+  <data name="Area" xml:space="preserve"><value>Superficie</value></data>
+  <data name="Area (sqm)" xml:space="preserve"><value>Superficie (m²)</value></data>
+  <data name="Assigned {0}" xml:space="preserve"><value>Attribué le {0}</value></data>
+  <data name="Available now" xml:space="preserve"><value>Disponible maintenant</value></data>
+  <data name="Average rent" xml:space="preserve"><value>Loyer moyen</value></data>
+  <data name="Average tenancy rent" xml:space="preserve"><value>Loyer moyen des locations</value></data>
+  <data name="Back" xml:space="preserve"><value>Retour</value></data>
+  <data name="Back to apartment" xml:space="preserve"><value>Retour à l'appartement</value></data>
+  <data name="Back to properties" xml:space="preserve"><value>Retour aux propriétés</value></data>
+  <data name="Back to property overview" xml:space="preserve"><value>Retour à l'aperçu de la propriété</value></data>
+  <data name="Belgium" xml:space="preserve"><value>Belgique</value></data>
+  <data name="Cameroon" xml:space="preserve"><value>Cameroun</value></data>
+  <data name="Canada" xml:space="preserve"><value>Canada</value></data>
+  <data name="Cancel setup" xml:space="preserve"><value>Annuler la configuration</value></data>
+  <data name="Choose one continuous unpaid range; earlier periods become paid before RentHub." xml:space="preserve"><value>Choisissez une plage continue de périodes impayées; les périodes précédentes seront considérées comme payées avant RentHub.</value></data>
+  <data name="Continue month-to-month" xml:space="preserve"><value>Continuer au mois</value></data>
+  <data name="Continue to payment history" xml:space="preserve"><value>Continuer vers l'historique des paiements</value></data>
+  <data name="Continue to rent schedule" xml:space="preserve"><value>Continuer vers le calendrier des loyers</value></data>
+  <data name="Continue to review" xml:space="preserve"><value>Continuer vers la vérification</value></data>
+  <data name="Continue to tenant invitation" xml:space="preserve"><value>Continuer vers l'invitation du locataire</value></data>
+  <data name="Continuous unpaid range" xml:space="preserve"><value>Plage continue impayée</value></data>
+  <data name="Contract PDF optional" xml:space="preserve"><value>Contrat PDF (facultatif)</value></data>
+  <data name="Control how early tenants are reminded about rent due dates and lease termination." xml:space="preserve"><value>Définissez le délai d'envoi des rappels aux locataires pour les loyers et la fin du bail.</value></data>
+  <data name="Cote d'Ivoire" xml:space="preserve"><value>Côte d'Ivoire</value></data>
+  <data name="Country not set" xml:space="preserve"><value>Pays non défini</value></data>
+  <data name="Create Tenancy" xml:space="preserve"><value>Créer une location</value></data>
+  <data name="Current apartment occupancy records" xml:space="preserve"><value>Dossiers d'occupation actuels de l'appartement</value></data>
+  <data name="Current draft file: {0}" xml:space="preserve"><value>Fichier actuel du brouillon : {0}</value></data>
+  <data name="Delete apartment document?" xml:space="preserve"><value>Supprimer le document de l'appartement?</value></data>
+  <data name="Delete apartment image?" xml:space="preserve"><value>Supprimer l'image de l'appartement?</value></data>
+  <data name="Delete current image" xml:space="preserve"><value>Supprimer l'image actuelle</value></data>
+  <data name="Delete document" xml:space="preserve"><value>Supprimer le document</value></data>
+  <data name="Delete document?" xml:space="preserve"><value>Supprimer le document?</value></data>
+  <data name="Delete image" xml:space="preserve"><value>Supprimer l'image</value></data>
+  <data name="Document file" xml:space="preserve"><value>Fichier du document</value></data>
+  <data name="Document type" xml:space="preserve"><value>Type de document</value></data>
+  <data name="e.g. +1" xml:space="preserve"><value>p. ex. +1</value></data>
+  <data name="e.g. +237" xml:space="preserve"><value>p. ex. +237</value></data>
+  <data name="e.g. REMOVED_PRIVATE_VALUE" xml:space="preserve"><value>p. ex. REMOVED_PRIVATE_VALUE</value></data>
+  <data name="Edit Apartment Member" xml:space="preserve"><value>Modifier le membre de l'appartement</value></data>
+  <data name="Edit apartment reminder settings" xml:space="preserve"><value>Modifier les paramètres de rappel de l'appartement</value></data>
+  <data name="Edit details" xml:space="preserve"><value>Modifier les détails</value></data>
+  <data name="Edit Tenancy #{0}" xml:space="preserve"><value>Modifier la location no {0}</value></data>
+  <data name="Example: 10 means the main tenant is reminded 10 days before the next unpaid due date." xml:space="preserve"><value>Exemple : 10 signifie que le locataire principal reçoit un rappel 10 jours avant la prochaine échéance impayée.</value></data>
+  <data name="Expire automatically" xml:space="preserve"><value>Expirer automatiquement</value></data>
+  <data name="France" xml:space="preserve"><value>France</value></data>
+  <data name="Future prepaid rent optional" xml:space="preserve"><value>Loyer futur payé d'avance (facultatif)</value></data>
+  <data name="Germany" xml:space="preserve"><value>Allemagne</value></data>
+  <data name="Ghana" xml:space="preserve"><value>Ghana</value></data>
+  <data name="Guided tenancy setup" xml:space="preserve"><value>Configuration guidée de la location</value></data>
+  <data name="If the tenancy has an end date, the tenant will be notified this many days before the lease ends." xml:space="preserve"><value>Si la location a une date de fin, le locataire sera avisé ce nombre de jours avant la fin du bail.</value></data>
+  <data name="Inventory inside this property" xml:space="preserve"><value>Inventaire de cette propriété</value></data>
+  <data name="Invite the main tenant and store phone/WhatsApp contact details for reminders." xml:space="preserve"><value>Invitez le locataire principal et enregistrez ses coordonnées téléphoniques et WhatsApp pour les rappels.</value></data>
+  <data name="Keep the gallery close at hand and manage the image currently in view." xml:space="preserve"><value>Consultez facilement la galerie et gérez l'image actuellement affichée.</value></data>
+  <data name="Kenya" xml:space="preserve"><value>Kenya</value></data>
+  <data name="Landlord and managers assigned to this property." xml:space="preserve"><value>Propriétaire et gestionnaires attribués à cette propriété.</value></data>
+  <data name="Landlord plus property team" xml:space="preserve"><value>Propriétaire et équipe de la propriété</value></data>
+  <data name="Landscape cover for this property. Max 2 MB." xml:space="preserve"><value>Image de couverture en format paysage pour cette propriété. Maximum de 2 Mo.</value></data>
+  <data name="Latest tenancy billing snapshot" xml:space="preserve"><value>Aperçu récent de la facturation des locations</value></data>
+  <data name="Lead time before the next due date" xml:space="preserve"><value>Délai avant la prochaine échéance</value></data>
+  <data name="Lease alert" xml:space="preserve"><value>Alerte de fin de bail</value></data>
+  <data name="Lease termination lead days" xml:space="preserve"><value>Délai de rappel avant la fin du bail</value></data>
+  <data name="Live apartment view" xml:space="preserve"><value>Vue en direct de l'appartement</value></data>
+  <data name="Live tenancy, member, reminder, and occupancy signals in one apartment board." xml:space="preserve"><value>Locations, membres, rappels et occupation réunis dans un seul tableau de bord.</value></data>
+  <data name="Manage Apartment Image" xml:space="preserve"><value>Gérer l'image de l'appartement</value></data>
+  <data name="Manage the apartments in this property." xml:space="preserve"><value>Gérez les appartements de cette propriété.</value></data>
+  <data name="Mark future periods as paid in advance." xml:space="preserve"><value>Marquez les périodes futures comme payées d'avance.</value></data>
+  <data name="Max members" xml:space="preserve"><value>Nombre maximal de membres</value></data>
+  <data name="Next image" xml:space="preserve"><value>Image suivante</value></data>
+  <data name="Next property image" xml:space="preserve"><value>Image suivante de la propriété</value></data>
+  <data name="Nigeria" xml:space="preserve"><value>Nigéria</value></data>
+  <data name="No additional members assigned yet." xml:space="preserve"><value>Aucun membre supplémentaire n'est encore attribué.</value></data>
+  <data name="No apartment documents uploaded yet." xml:space="preserve"><value>Aucun document d'appartement n'a encore été téléversé.</value></data>
+  <data name="No apartment images yet" xml:space="preserve"><value>Aucune image d'appartement pour le moment</value></data>
+  <data name="No apartment members assigned yet." xml:space="preserve"><value>Aucun membre n'est encore attribué à cet appartement.</value></data>
+  <data name="No apartments found for this property." xml:space="preserve"><value>Aucun appartement trouvé pour cette propriété.</value></data>
+  <data name="No end date" xml:space="preserve"><value>Aucune date de fin</value></data>
+  <data name="No image selected yet" xml:space="preserve"><value>Aucune image sélectionnée</value></data>
+  <data name="No lease end" xml:space="preserve"><value>Aucune fin de bail</value></data>
+  <data name="No new rent is generated after the end date." xml:space="preserve"><value>Aucun nouveau loyer n'est généré après la date de fin.</value></data>
+  <data name="No property documents uploaded yet." xml:space="preserve"><value>Aucun document de propriété n'a encore été téléversé.</value></data>
+  <data name="No property image yet" xml:space="preserve"><value>Aucune image de propriété pour le moment</value></data>
+  <data name="No tenancy records linked to this apartment yet." xml:space="preserve"><value>Aucun dossier de location n'est encore lié à cet appartement.</value></data>
+  <data name="Not yet covered" xml:space="preserve"><value>Pas encore couvert</value></data>
+  <data name="Nothing is saved permanently until you create the tenancy." xml:space="preserve"><value>Rien n'est enregistré définitivement avant la création de la location.</value></data>
+  <data name="Occupied" xml:space="preserve"><value>Occupé</value></data>
+  <data name="Oldest payable period after creation:" xml:space="preserve"><value>Première période payable après la création :</value></data>
+  <data name="Only PDF files are allowed in this section." xml:space="preserve"><value>Seuls les fichiers PDF sont autorisés dans cette section.</value></data>
+  <data name="Open full map" xml:space="preserve"><value>Ouvrir la carte complète</value></data>
+  <data name="Open Map" xml:space="preserve"><value>Ouvrir la carte</value></data>
+  <data name="Open property image" xml:space="preserve"><value>Ouvrir l'image de la propriété</value></data>
+  <data name="Operational apartment state" xml:space="preserve"><value>État opérationnel de l'appartement</value></data>
+  <data name="Operations overview" xml:space="preserve"><value>Aperçu des opérations</value></data>
+  <data name="Owners and apartment collaborators" xml:space="preserve"><value>Propriétaires et collaborateurs de l'appartement</value></data>
+  <data name="Owners and collaborators with apartment-level access." xml:space="preserve"><value>Propriétaires et collaborateurs ayant accès à cet appartement.</value></data>
+  <data name="Page {0} / {1}" xml:space="preserve"><value>Page {0} / {1}</value></data>
+  <data name="Paid in advance from" xml:space="preserve"><value>Payé d'avance du</value></data>
+  <data name="Paid in advance to" xml:space="preserve"><value>Payé d'avance au</value></data>
+  <data name="Paid through" xml:space="preserve"><value>Payé jusqu'au</value></data>
+  <data name="Past months are recorded as already paid outside the platform." xml:space="preserve"><value>Les mois antérieurs sont enregistrés comme déjà payés à l'extérieur de la plateforme.</value></data>
+  <data name="Payment history import" xml:space="preserve"><value>Importation de l'historique des paiements</value></data>
+  <data name="Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted." xml:space="preserve"><value>Les rappels de paiement utilisent le loyer de chaque location, et non le prix de référence de l'appartement. Si un locataire paie plusieurs périodes d'avance, les rappels reprennent lorsque cette couverture est presque épuisée.</value></data>
+  <data name="Pending setup" xml:space="preserve"><value>Configuration en attente</value></data>
+  <data name="Phone number optional" xml:space="preserve"><value>Numéro de téléphone (facultatif)</value></data>
+  <data name="Previous image" xml:space="preserve"><value>Image précédente</value></data>
+  <data name="Previous property image" xml:space="preserve"><value>Image précédente de la propriété</value></data>
+  <data name="Property Command Center" xml:space="preserve"><value>Centre de gestion de la propriété</value></data>
+  <data name="Property documents" xml:space="preserve"><value>Documents de la propriété</value></data>
+  <data name="Property Map" xml:space="preserve"><value>Carte de la propriété</value></data>
+  <data name="Property members" xml:space="preserve"><value>Membres de la propriété</value></data>
+  <data name="Property Overview" xml:space="preserve"><value>Aperçu de la propriété</value></data>
+  <data name="Property Portfolio" xml:space="preserve"><value>Portefeuille de propriétés</value></data>
+  <data name="Property Settings" xml:space="preserve"><value>Paramètres de la propriété</value></data>
+  <data name="ReadOnly" xml:space="preserve"><value>Lecture seule</value></data>
+  <data name="ReadWrite" xml:space="preserve"><value>Lecture et écriture</value></data>
+  <data name="Ready for the next tenant" xml:space="preserve"><value>Prêt pour le prochain locataire</value></data>
+  <data name="Reference files and operational records for this apartment." xml:space="preserve"><value>Fichiers de référence et dossiers opérationnels de cet appartement.</value></data>
+  <data name="Reminder" xml:space="preserve"><value>Rappel</value></data>
+  <data name="Remove apartment member?" xml:space="preserve"><value>Retirer le membre de l'appartement?</value></data>
+  <data name="Remove property member?" xml:space="preserve"><value>Retirer le membre de la propriété?</value></data>
+  <data name="Rent and reminders continue after the end date." xml:space="preserve"><value>Le loyer et les rappels se poursuivent après la date de fin.</value></data>
+  <data name="Rent due day" xml:space="preserve"><value>Jour d'échéance du loyer</value></data>
+  <data name="Rent reminder" xml:space="preserve"><value>Rappel de loyer</value></data>
+  <data name="Rent reminder lead days" xml:space="preserve"><value>Délai de rappel avant le loyer</value></data>
+  <data name="Rent schedule" xml:space="preserve"><value>Calendrier des loyers</value></data>
+  <data name="Replace current image" xml:space="preserve"><value>Remplacer l'image actuelle</value></data>
+  <data name="Replace or remove the image currently shown in the gallery." xml:space="preserve"><value>Remplacez ou supprimez l'image actuellement affichée dans la galerie.</value></data>
+  <data name="Replace property image" xml:space="preserve"><value>Remplacer l'image de la propriété</value></data>
+  <data name="Review and create" xml:space="preserve"><value>Vérifier et créer</value></data>
+  <data name="Rules, guides, and reference files linked to this property." xml:space="preserve"><value>Règles, guides et fichiers de référence liés à cette propriété.</value></data>
+  <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Save current image" xml:space="preserve"><value>Enregistrer l'image actuelle</value></data>
+  <data name="Save reminder settings" xml:space="preserve"><value>Enregistrer les paramètres de rappel</value></data>
+  <data name="Save tenancy" xml:space="preserve"><value>Enregistrer la location</value></data>
+  <data name="Search apartment members" xml:space="preserve"><value>Rechercher des membres de l'appartement</value></data>
+  <data name="Search apartments by name, type, or status" xml:space="preserve"><value>Rechercher des appartements par nom, type ou état</value></data>
+  <data name="Search members by name or access" xml:space="preserve"><value>Rechercher des membres par nom ou accès</value></data>
+  <data name="Search tenancy records" xml:space="preserve"><value>Rechercher des dossiers de location</value></data>
+  <data name="See More" xml:space="preserve"><value>Voir plus</value></data>
+  <data name="Select image files" xml:space="preserve"><value>Sélectionner les fichiers image</value></data>
+  <data name="Set the contract dates, rent amount, reminder day, and end behavior." xml:space="preserve"><value>Définissez les dates du contrat, le montant du loyer, le jour de rappel et le comportement à la fin.</value></data>
+  <data name="Snapshot across apartments" xml:space="preserve"><value>Aperçu de tous les appartements</value></data>
+  <data name="Some periods were already paid" xml:space="preserve"><value>Certaines périodes ont déjà été payées</value></data>
+  <data name="South Africa" xml:space="preserve"><value>Afrique du Sud</value></data>
+  <data name="sqm" xml:space="preserve"><value>m²</value></data>
+  <data name="Start" xml:space="preserve"><value>Début</value></data>
+  <data name="Status after import" xml:space="preserve"><value>État après l'importation</value></data>
+  <data name="Tell RentHub which generated periods are unpaid, paid before RentHub, or already prepaid." xml:space="preserve"><value>Indiquez à RentHub quelles périodes générées sont impayées, ont été payées avant RentHub ou ont déjà été payées d'avance.</value></data>
+  <data name="Tenancy details" xml:space="preserve"><value>Détails de la location</value></data>
+  <data name="Tenant email" xml:space="preserve"><value>Courriel du locataire</value></data>
+  <data name="Tenant identity photos, KYC, and landlord payout setup are not required here. The tenant will confirm their email before opening rent payment pages." xml:space="preserve"><value>Les photos d'identité du locataire, la vérification d'identité et la configuration des versements du propriétaire ne sont pas requises ici. Le locataire confirmera son courriel avant d'accéder aux pages de paiement du loyer.</value></data>
+  <data name="Tenant invitation" xml:space="preserve"><value>Invitation du locataire</value></data>
+  <data name="Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished." xml:space="preserve"><value>Le locataire est actuellement couvert par un paiement anticipé. Les prochains rappels de loyer attendront que cette couverture soit presque terminée.</value></data>
+  <data name="Tenant paid in advance" xml:space="preserve"><value>Le locataire a payé d'avance</value></data>
+  <data name="Tenant payments will always start there first." xml:space="preserve"><value>Les paiements du locataire commenceront toujours par cette période.</value></data>
+  <data name="The selected dates must not overlap another tenancy for this apartment." xml:space="preserve"><value>Les dates sélectionnées ne doivent pas chevaucher une autre location de cet appartement.</value></data>
+  <data name="The system generated continuous monthly periods from the tenancy details." xml:space="preserve"><value>Le système a généré des périodes mensuelles continues à partir des détails de la location.</value></data>
+  <data name="The tenancy stays active until it is terminated." xml:space="preserve"><value>La location demeure active jusqu'à sa résiliation.</value></data>
+  <data name="This document will be removed from the apartment." xml:space="preserve"><value>Ce document sera retiré de l'appartement.</value></data>
+  <data name="This document will be removed from this property." xml:space="preserve"><value>Ce document sera retiré de cette propriété.</value></data>
+  <data name="This member will lose access to this property." xml:space="preserve"><value>Ce membre perdra l'accès à cette propriété.</value></data>
+  <data name="This member will lose apartment access." xml:space="preserve"><value>Ce membre perdra l'accès à l'appartement.</value></data>
+  <data name="This will remove the image currently shown in the gallery." xml:space="preserve"><value>L'image actuellement affichée dans la galerie sera supprimée.</value></data>
+  <data name="Total apartments" xml:space="preserve"><value>Nombre total d'appartements</value></data>
+  <data name="Track tenancy records linked to this apartment." xml:space="preserve"><value>Suivez les dossiers de location liés à cet appartement.</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="United Arab Emirates" xml:space="preserve"><value>Émirats arabes unis</value></data>
+  <data name="United Kingdom" xml:space="preserve"><value>Royaume-Uni</value></data>
+  <data name="United States" xml:space="preserve"><value>États-Unis</value></data>
+  <data name="Unpaid from" xml:space="preserve"><value>Impayé du</value></data>
+  <data name="Unpaid to" xml:space="preserve"><value>Impayé au</value></data>
+  <data name="Updated today" xml:space="preserve"><value>Mis à jour aujourd'hui</value></data>
+  <data name="Upload a landscape image so this overview feels complete." xml:space="preserve"><value>Téléversez une image en format paysage pour compléter cet aperçu.</value></data>
+  <data name="Upload document" xml:space="preserve"><value>Téléverser le document</value></data>
+  <data name="Upload images" xml:space="preserve"><value>Téléverser les images</value></data>
+  <data name="Uploading here replaces only the image currently displayed in the gallery." xml:space="preserve"><value>Le téléversement ici remplace uniquement l'image actuellement affichée dans la galerie.</value></data>
+  <data name="Use a landscape image under 2 MB for the best result." xml:space="preserve"><value>Utilisez une image en format paysage de moins de 2 Mo pour un résultat optimal.</value></data>
+  <data name="Use this when nothing was paid before entering the system." xml:space="preserve"><value>Utilisez cette option si aucun paiement n'a été effectué avant l'ajout au système.</value></data>
+  <data name="WhatsApp number optional" xml:space="preserve"><value>Numéro WhatsApp (facultatif)</value></data>
+  <data name="You can choose multiple images at once. Landscape images work best for the apartment gallery." xml:space="preserve"><value>Vous pouvez sélectionner plusieurs images à la fois. Les images en format paysage conviennent le mieux à la galerie de l'appartement.</value></data>
+  <data name="Your saved latitude and longitude now pin the property on the map." xml:space="preserve"><value>La latitude et la longitude enregistrées indiquent maintenant la propriété sur la carte.</value></data>
+  <data name="Choose a valid country code." xml:space="preserve"><value>Choisissez un indicatif de pays valide.</value></data>
+  <data name="Choose a valid country." xml:space="preserve"><value>Choisissez un pays valide.</value></data>
+  <data name="Country code must contain only digits and may start with +." xml:space="preserve"><value>L'indicatif de pays doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="Country must be a valid 2-letter ISO code." xml:space="preserve"><value>Le pays doit être un code ISO valide à 2 lettres.</value></data>
+  <data name="Enter a valid phone number for the selected country." xml:space="preserve"><value>Entrez un numéro de téléphone valide pour le pays sélectionné.</value></data>
+  <data name="Password and Confirm Password must match." xml:space="preserve"><value>Le mot de passe et sa confirmation doivent correspondre.</value></data>
+  <data name="Payout number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro de versement doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="Phone number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro de téléphone doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="Receiving number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro de réception doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="Rent payout number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro de versement du loyer doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="Saved card information is missing." xml:space="preserve"><value>Les renseignements de la carte enregistrée sont manquants.</value></data>
+  <data name="Subscription payment number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro de paiement de l'abonnement doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="WhatsApp number must contain only digits and may start with +." xml:space="preserve"><value>Le numéro WhatsApp doit contenir uniquement des chiffres et peut commencer par +.</value></data>
+  <data name="A new email OTP has been sent. If mobile numbers are already configured, their pending OTPs may also be refreshed." xml:space="preserve"><value>Un nouveau code a été envoyé par courriel. Si des numéros mobiles sont déjà configurés, leurs codes en attente peuvent aussi être renouvelés.</value></data>
+  <data name="Apartment added successfully." xml:space="preserve"><value>Appartement ajouté avec succès.</value></data>
+  <data name="Apartment document deleted." xml:space="preserve"><value>Document de l'appartement supprimé.</value></data>
+  <data name="Apartment document uploaded." xml:space="preserve"><value>Document de l'appartement téléversé.</value></data>
+  <data name="Apartment image deleted." xml:space="preserve"><value>Image de l'appartement supprimée.</value></data>
+  <data name="Apartment member added successfully." xml:space="preserve"><value>Membre ajouté à l'appartement avec succès.</value></data>
+  <data name="Apartment member removed." xml:space="preserve"><value>Membre retiré de l'appartement.</value></data>
+  <data name="Apartment member updated." xml:space="preserve"><value>Membre de l'appartement mis à jour.</value></data>
+  <data name="Apartment reminder settings updated." xml:space="preserve"><value>Paramètres de rappel de l'appartement mis à jour.</value></data>
+  <data name="Card checkout could not be started. Please try again." xml:space="preserve"><value>Le paiement par carte n'a pas pu démarrer. Veuillez réessayer.</value></data>
+  <data name="Card checkout is not configured yet. Please contact support or try again later." xml:space="preserve"><value>Le paiement par carte n'est pas encore configuré. Communiquez avec le soutien ou réessayez plus tard.</value></data>
+  <data name="Card checkout reference is missing. Please choose a subscription plan again." xml:space="preserve"><value>La référence du paiement par carte est manquante. Choisissez de nouveau un forfait d'abonnement.</value></data>
+  <data name="Card checkout reference is missing. Please choose the rent periods again." xml:space="preserve"><value>La référence du paiement par carte est manquante. Choisissez de nouveau les périodes de loyer.</value></data>
+  <data name="Cash payments must be recorded by the landlord." xml:space="preserve"><value>Les paiements en espèces doivent être enregistrés par le propriétaire.</value></data>
+  <data name="Choose a subscription duration between 6 and 36 months." xml:space="preserve"><value>Choisissez une durée d'abonnement entre 6 et 36 mois.</value></data>
+  <data name="Document deleted." xml:space="preserve"><value>Document supprimé.</value></data>
+  <data name="Email is required to resend OTP." xml:space="preserve"><value>Le courriel est requis pour renvoyer le code.</value></data>
+  <data name="Email is required to resend visitor OTP." xml:space="preserve"><value>Le courriel est requis pour renvoyer le code du visiteur.</value></data>
+  <data name="Email OTP verification failed. Please try again." xml:space="preserve"><value>La vérification du code reçu par courriel a échoué. Veuillez réessayer.</value></data>
+  <data name="Max apartments per property must be 0 or greater, or select unlimited." xml:space="preserve"><value>Le nombre maximal d'appartements par propriété doit être égal ou supérieur à 0, ou sélectionnez illimité.</value></data>
+  <data name="Max properties must be 0 or greater, or select unlimited." xml:space="preserve"><value>Le nombre maximal de propriétés doit être égal ou supérieur à 0, ou sélectionnez illimité.</value></data>
+  <data name="Max total apartments must be 0 or greater, or select unlimited." xml:space="preserve"><value>Le nombre maximal total d'appartements doit être égal ou supérieur à 0, ou sélectionnez illimité.</value></data>
+  <data name="Member access updated." xml:space="preserve"><value>Accès du membre mis à jour.</value></data>
+  <data name="Message sent." xml:space="preserve"><value>Message envoyé.</value></data>
+  <data name="Mobile payment OTP verification failed. Please try again." xml:space="preserve"><value>La vérification du code de paiement mobile a échoué. Veuillez réessayer.</value></data>
+  <data name="New OTP codes have been sent to your email, phone number, and WhatsApp." xml:space="preserve"><value>De nouveaux codes ont été envoyés à votre courriel, votre numéro de téléphone et WhatsApp.</value></data>
+  <data name="Only image files are allowed in the apartment image gallery." xml:space="preserve"><value>Seuls les fichiers image sont autorisés dans la galerie de l'appartement.</value></data>
+  <data name="Only MTN Money and Orange Money are supported in the admin transfer section." xml:space="preserve"><value>Seuls MTN Money et Orange Money sont pris en charge dans la section des transferts administratifs.</value></data>
+  <data name="Only PDF files are allowed for the tenancy contract." xml:space="preserve"><value>Seuls les fichiers PDF sont autorisés pour le contrat de location.</value></data>
+  <data name="Only PDF files are allowed in the apartment document section." xml:space="preserve"><value>Seuls les fichiers PDF sont autorisés dans la section des documents de l'appartement.</value></data>
+  <data name="OTP verification failed. Please try again." xml:space="preserve"><value>La vérification du code a échoué. Veuillez réessayer.</value></data>
+  <data name="Payout account setup is complete. You can now choose a subscription." xml:space="preserve"><value>La configuration du compte de versement est terminée. Vous pouvez maintenant choisir un abonnement.</value></data>
+  <data name="Payout account setup was saved, but Stripe still needs a few details before payouts are enabled. Use Continue Stripe setup to finish the remaining requirements." xml:space="preserve"><value>La configuration du compte de versement a été enregistrée, mais Stripe exige encore certains renseignements avant d'activer les versements. Utilisez Continuer la configuration Stripe pour terminer.</value></data>
+  <data name="Phone OTP verification failed. Please try again." xml:space="preserve"><value>La vérification du code reçu par téléphone a échoué. Veuillez réessayer.</value></data>
+  <data name="Please choose a PDF file to upload." xml:space="preserve"><value>Choisissez un fichier PDF à téléverser.</value></data>
+  <data name="Please choose a rent period to mark as paid." xml:space="preserve"><value>Choisissez une période de loyer à marquer comme payée.</value></data>
+  <data name="Please choose a tenancy contract PDF to upload." xml:space="preserve"><value>Choisissez un contrat de location PDF à téléverser.</value></data>
+  <data name="Please choose a valid subscription plan." xml:space="preserve"><value>Choisissez un forfait d'abonnement valide.</value></data>
+  <data name="Please choose an image file to upload." xml:space="preserve"><value>Choisissez un fichier image à téléverser.</value></data>
+  <data name="Please choose one or more image files to upload." xml:space="preserve"><value>Choisissez un ou plusieurs fichiers image à téléverser.</value></data>
+  <data name="Please choose the rent periods to pay." xml:space="preserve"><value>Choisissez les périodes de loyer à payer.</value></data>
+  <data name="Please complete the apartment member details before saving." xml:space="preserve"><value>Remplissez les renseignements du membre de l'appartement avant d'enregistrer.</value></data>
+  <data name="Please complete the tenancy details before saving." xml:space="preserve"><value>Remplissez les détails de la location avant d'enregistrer.</value></data>
+  <data name="Please complete the tenancy member details before saving." xml:space="preserve"><value>Remplissez les renseignements du membre de la location avant d'enregistrer.</value></data>
+  <data name="Please provide a termination date." xml:space="preserve"><value>Indiquez une date de résiliation.</value></data>
+  <data name="Please provide a valid receiving account name and check any optional phone details." xml:space="preserve"><value>Indiquez un nom de compte destinataire valide et vérifiez les renseignements téléphoniques facultatifs.</value></data>
+  <data name="Please provide valid plan values before saving." xml:space="preserve"><value>Indiquez des valeurs de forfait valides avant d'enregistrer.</value></data>
+  <data name="Please provide valid reminder settings for this apartment." xml:space="preserve"><value>Indiquez des paramètres de rappel valides pour cet appartement.</value></data>
+  <data name="Private conversation started." xml:space="preserve"><value>Conversation privée démarrée.</value></data>
+  <data name="Property created successfully." xml:space="preserve"><value>Propriété créée avec succès.</value></data>
+  <data name="Property member added successfully." xml:space="preserve"><value>Membre ajouté à la propriété avec succès.</value></data>
+  <data name="Property member removed." xml:space="preserve"><value>Membre retiré de la propriété.</value></data>
+  <data name="Property settings updated." xml:space="preserve"><value>Paramètres de la propriété mis à jour.</value></data>
+  <data name="Rent payment reference is missing." xml:space="preserve"><value>La référence du paiement du loyer est manquante.</value></data>
+  <data name="Rent period marked as paid. A system receipt was generated." xml:space="preserve"><value>Période de loyer marquée comme payée. Un reçu système a été généré.</value></data>
+  <data name="Reply sent." xml:space="preserve"><value>Réponse envoyée.</value></data>
+  <data name="Stripe Connect setup is temporarily unavailable. Please continue testing the rest of the platform for now." xml:space="preserve"><value>La configuration de Stripe Connect est temporairement indisponible. Vous pouvez continuer à tester le reste de la plateforme.</value></data>
+  <data name="Stripe did not return an onboarding link. Please try again." xml:space="preserve"><value>Stripe n'a pas retourné de lien de configuration. Veuillez réessayer.</value></data>
+  <data name="Stripe setup is skipped while automatic payments are disabled." xml:space="preserve"><value>La configuration Stripe est ignorée lorsque les paiements automatiques sont désactivés.</value></data>
+  <data name="Subscription approved successfully." xml:space="preserve"><value>Abonnement approuvé avec succès.</value></data>
+  <data name="Subscription payment reference is missing." xml:space="preserve"><value>La référence du paiement de l'abonnement est manquante.</value></data>
+  <data name="Subscription request rejected." xml:space="preserve"><value>Demande d'abonnement refusée.</value></data>
+  <data name="Subscription updated successfully." xml:space="preserve"><value>Abonnement mis à jour avec succès.</value></data>
+  <data name="Success dialog settings updated for this property." xml:space="preserve"><value>Paramètres de la boîte de dialogue de réussite mis à jour pour cette propriété.</value></data>
+  <data name="Tenancy contract deleted." xml:space="preserve"><value>Contrat de location supprimé.</value></data>
+  <data name="Tenancy created and contract uploaded successfully." xml:space="preserve"><value>Location créée et contrat téléversé avec succès.</value></data>
+  <data name="Tenancy created successfully." xml:space="preserve"><value>Location créée avec succès.</value></data>
+  <data name="Tenancy created. The tenant invitation was sent by email." xml:space="preserve"><value>Location créée. L'invitation du locataire a été envoyée par courriel.</value></data>
+  <data name="Tenancy creation was cancelled." xml:space="preserve"><value>La création de la location a été annulée.</value></data>
+  <data name="Tenancy member added." xml:space="preserve"><value>Membre ajouté à la location.</value></data>
+  <data name="Tenancy member removed." xml:space="preserve"><value>Membre retiré de la location.</value></data>
+  <data name="Tenancy member updated." xml:space="preserve"><value>Membre de la location mis à jour.</value></data>
+  <data name="Tenancy member was not found." xml:space="preserve"><value>Le membre de la location est introuvable.</value></data>
+  <data name="Tenancy updated successfully." xml:space="preserve"><value>Location mise à jour avec succès.</value></data>
+  <data name="Tenancy was created, but the contract PDF could not be uploaded." xml:space="preserve"><value>La location a été créée, mais le contrat PDF n'a pas pu être téléversé.</value></data>
+  <data name="Tenancy was terminated. Existing unpaid rent remains payable unless it was waived." xml:space="preserve"><value>La location a été résiliée. Les loyers impayés existants restent exigibles, sauf s'ils ont été annulés.</value></data>
+  <data name="The public apartment detail page is temporarily hidden while we focus on the first release." xml:space="preserve"><value>La page publique des détails de l'appartement est temporairement masquée pendant la préparation de la première version.</value></data>
+  <data name="The requested tenancy could not be found." xml:space="preserve"><value>La location demandée est introuvable.</value></data>
+  <data name="The tenancy contract must be a PDF file." xml:space="preserve"><value>Le contrat de location doit être un fichier PDF.</value></data>
+  <data name="The tenancy draft expired. Please start again." xml:space="preserve"><value>Le brouillon de la location a expiré. Veuillez recommencer.</value></data>
+  <data name="Unable to add the apartment member right now. Please try again." xml:space="preserve"><value>Impossible d'ajouter le membre à l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to add the apartment right now. Please try again." xml:space="preserve"><value>Impossible d'ajouter l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to add the property member right now. Please try again." xml:space="preserve"><value>Impossible d'ajouter le membre à la propriété pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to add the tenancy member right now. Please try again." xml:space="preserve"><value>Impossible d'ajouter le membre à la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to create property right now. Please try again." xml:space="preserve"><value>Impossible de créer la propriété pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to create the tenancy right now. Please review the setup and try again." xml:space="preserve"><value>Impossible de créer la location pour le moment. Vérifiez la configuration et réessayez.</value></data>
+  <data name="Unable to create the tenancy right now. Please try again." xml:space="preserve"><value>Impossible de créer la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to create your account right now. Please try again in a few minutes." xml:space="preserve"><value>Impossible de créer votre compte pour le moment. Veuillez réessayer dans quelques minutes.</value></data>
+  <data name="Unable to create your visitor account right now. Please try again." xml:space="preserve"><value>Impossible de créer votre compte visiteur pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to delete the apartment document right now. Please try again." xml:space="preserve"><value>Impossible de supprimer le document de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to delete the apartment image right now. Please try again." xml:space="preserve"><value>Impossible de supprimer l'image de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to delete the property document right now. Please try again." xml:space="preserve"><value>Impossible de supprimer le document de la propriété pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to delete the tenancy contract right now. Please try again." xml:space="preserve"><value>Impossible de supprimer le contrat de location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to download the receipt right now." xml:space="preserve"><value>Impossible de télécharger le reçu pour le moment.</value></data>
+  <data name="Unable to initialize the subscription payment right now. Please try again." xml:space="preserve"><value>Impossible d'initialiser le paiement de l'abonnement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load members right now. Please try again." xml:space="preserve"><value>Impossible de charger les membres pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load payment details right now." xml:space="preserve"><value>Impossible de charger les détails du paiement pour le moment.</value></data>
+  <data name="Unable to load payout setup right now. Please try again." xml:space="preserve"><value>Impossible de charger la configuration des versements pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load properties right now. Please try again." xml:space="preserve"><value>Impossible de charger les propriétés pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load the apartment workspace right now. Please try again." xml:space="preserve"><value>Impossible de charger l'espace de travail de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load the secure card form right now. Please try again." xml:space="preserve"><value>Impossible de charger le formulaire de carte sécurisé pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load the tenancy workspace right now. Please try again." xml:space="preserve"><value>Impossible de charger l'espace de travail de la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load your payment center right now. Please try again." xml:space="preserve"><value>Impossible de charger votre centre de paiement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load your profile right now. Please try again." xml:space="preserve"><value>Impossible de charger votre profil pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to load your registration progress. Please sign in again to continue." xml:space="preserve"><value>Impossible de charger votre progression d'inscription. Reconnectez-vous pour continuer.</value></data>
+  <data name="Unable to load your tenant dashboard right now. Please try again." xml:space="preserve"><value>Impossible de charger votre tableau de bord de locataire pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to mark the rent period as paid right now." xml:space="preserve"><value>Impossible de marquer la période de loyer comme payée pour le moment.</value></data>
+  <data name="Unable to open the receipt right now." xml:space="preserve"><value>Impossible d'ouvrir le reçu pour le moment.</value></data>
+  <data name="Unable to process the rent payment right now. Please try again." xml:space="preserve"><value>Impossible de traiter le paiement du loyer pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to remove the apartment member right now. Please try again." xml:space="preserve"><value>Impossible de retirer le membre de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to remove the property member right now. Please try again." xml:space="preserve"><value>Impossible de retirer le membre de la propriété pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to remove the tenancy member right now. Please try again." xml:space="preserve"><value>Impossible de retirer le membre de la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to resend OTP right now. Please try again." xml:space="preserve"><value>Impossible de renvoyer le code pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to resend visitor OTP right now. Please try again." xml:space="preserve"><value>Impossible de renvoyer le code du visiteur pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to save mobile payment details right now." xml:space="preserve"><value>Impossible d'enregistrer les détails du paiement mobile pour le moment.</value></data>
+  <data name="Unable to save your contract signature right now." xml:space="preserve"><value>Impossible d'enregistrer votre signature du contrat pour le moment.</value></data>
+  <data name="Unable to save your country right now." xml:space="preserve"><value>Impossible d'enregistrer votre pays pour le moment.</value></data>
+  <data name="Unable to save your phone number right now." xml:space="preserve"><value>Impossible d'enregistrer votre numéro de téléphone pour le moment.</value></data>
+  <data name="Unable to sign in right now. Please try again." xml:space="preserve"><value>Impossible de vous connecter pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to start payout setup right now. Please try again." xml:space="preserve"><value>Impossible de démarrer la configuration des versements pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to submit identity verification right now." xml:space="preserve"><value>Impossible de soumettre la vérification d'identité pour le moment.</value></data>
+  <data name="Unable to submit the manual subscription request right now." xml:space="preserve"><value>Impossible de soumettre la demande d'abonnement manuel pour le moment.</value></data>
+  <data name="Unable to terminate the tenancy right now. Please try again." xml:space="preserve"><value>Impossible de résilier la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update automatic payments right now." xml:space="preserve"><value>Impossible de mettre à jour les paiements automatiques pour le moment.</value></data>
+  <data name="Unable to update member access right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour l'accès du membre pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update property settings right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour les paramètres de la propriété pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update the apartment image right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour l'image de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update the apartment member right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour le membre de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update the apartment reminder settings right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour les paramètres de rappel de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update the tenancy member right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour le membre de la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update the tenancy right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour la location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to update your subscription right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour votre abonnement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to upload apartment images right now. Please try again." xml:space="preserve"><value>Impossible de téléverser les images de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to upload the apartment document right now. Please try again." xml:space="preserve"><value>Impossible de téléverser le document de l'appartement pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to upload the tenancy contract right now. Please try again." xml:space="preserve"><value>Impossible de téléverser le contrat de location pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to verify payout setup right now. Please refresh in a moment." xml:space="preserve"><value>Impossible de vérifier la configuration des versements pour le moment. Actualisez la page dans un instant.</value></data>
+  <data name="Unable to verify the rent payment right now. Please refresh your rent dashboard in a moment." xml:space="preserve"><value>Impossible de vérifier le paiement du loyer pour le moment. Actualisez votre tableau de bord des loyers dans un instant.</value></data>
+  <data name="Unable to verify the subscription payment right now. Please refresh your profile in a moment." xml:space="preserve"><value>Impossible de vérifier le paiement de l'abonnement pour le moment. Actualisez votre profil dans un instant.</value></data>
+  <data name="User and related records were deleted." xml:space="preserve"><value>L'utilisateur et les dossiers associés ont été supprimés.</value></data>
+  <data name="User id is required." xml:space="preserve"><value>L'identifiant de l'utilisateur est requis.</value></data>
+  <data name="Validation restarted for the selected user." xml:space="preserve"><value>La validation a été redémarrée pour l'utilisateur sélectionné.</value></data>
+  <data name="Visitor account verified. Please log in." xml:space="preserve"><value>Compte visiteur vérifié. Veuillez vous connecter.</value></data>
+  <data name="Visitor messaging is temporarily hidden while we focus on the first release." xml:space="preserve"><value>La messagerie des visiteurs est temporairement masquée pendant la préparation de la première version.</value></data>
+  <data name="Visitor OTP verification failed. Please try again." xml:space="preserve"><value>La vérification du code du visiteur a échoué. Veuillez réessayer.</value></data>
+  <data name="We couldn't load the landlord onboarding information right now. Please refresh in a moment." xml:space="preserve"><value>Impossible de charger les renseignements d'intégration du propriétaire pour le moment. Actualisez la page dans un instant.</value></data>
+  <data name="We couldn't load your conversations right now." xml:space="preserve"><value>Impossible de charger vos conversations pour le moment.</value></data>
+  <data name="Your account has been activated successfully." xml:space="preserve"><value>Votre compte a été activé avec succès.</value></data>
+  <data name="Your account is not activated yet. Enter the OTP code sent to your email." xml:space="preserve"><value>Votre compte n'est pas encore activé. Entrez le code envoyé à votre courriel.</value></data>
+  <data name="Your activation request was sent. The administrator will review it after receiving your cash payment." xml:space="preserve"><value>Votre demande d'activation a été envoyée. L'administrateur l'examinera après réception de votre paiement en espèces.</value></data>
+  <data name="Your KYC must be approved by an administrator before you can set up a Stripe payout account." xml:space="preserve"><value>Votre vérification d'identité doit être approuvée par un administrateur avant de configurer un compte de versement Stripe.</value></data>
+  <data name="Your landlord account has a subscription exemption, so no payment plan is required." xml:space="preserve"><value>Votre compte de propriétaire est exempté d'abonnement; aucun forfait payant n'est requis.</value></data>
+  <data name="Your landlord account has a subscription exemption, so payout setup is not required." xml:space="preserve"><value>Votre compte de propriétaire est exempté d'abonnement; la configuration des versements n'est pas requise.</value></data>
+  <data name="Your landlord registration is not complete yet. Continue from the saved step." xml:space="preserve"><value>Votre inscription de propriétaire n'est pas terminée. Reprenez à l'étape enregistrée.</value></data>
+  <data name="Your plan request was sent. An administrator will reply in Conversations and by email." xml:space="preserve"><value>Votre demande de forfait a été envoyée. Un administrateur répondra dans Conversations et par courriel.</value></data>
+  <data name="Your session expired. Please sign in again." xml:space="preserve"><value>Votre session a expiré. Veuillez vous reconnecter.</value></data>
+  <data name="Your visitor account has been activated successfully." xml:space="preserve"><value>Votre compte visiteur a été activé avec succès.</value></data>
+  <data name="Your visitor account is not activated yet. Enter the OTP codes sent to your email, phone number, and WhatsApp." xml:space="preserve"><value>Votre compte visiteur n'est pas encore activé. Entrez les codes envoyés à votre courriel, votre téléphone et WhatsApp.</value></data>
+  <data name="{0} map" xml:space="preserve"><value>Carte de {0}</value></data>
+  <data name="A coordinate-based location board centered on {0}, {1}{2}." xml:space="preserve"><value>Un tableau de localisation fondé sur les coordonnées et centré sur {0}, {1}{2}.</value></data>
+  <data name="Back to Overview" xml:space="preserve"><value>Retour à l'aperçu</value></data>
+  <data name="Connected units" xml:space="preserve"><value>Appartements associés</value></data>
+  <data name="Coordinates" xml:space="preserve"><value>Coordonnées</value></data>
+  <data name="Documents" xml:space="preserve"><value>Documents</value></data>
+  <data name="fallback" xml:space="preserve"><value>par défaut</value></data>
+  <data name="Fallback position" xml:space="preserve"><value>Position par défaut</value></data>
+  <data name="Geo Workspace" xml:space="preserve"><value>Espace géographique</value></data>
+  <data name="Landlord profile" xml:space="preserve"><value>Profil du propriétaire</value></data>
+  <data name="Latitude" xml:space="preserve"><value>Latitude</value></data>
+  <data name="live" xml:space="preserve"><value>en direct</value></data>
+  <data name="Live coordinates and property reach around the saved location." xml:space="preserve"><value>Coordonnées en direct et portée de la propriété autour de l'emplacement enregistré.</value></data>
+  <data name="Longitude" xml:space="preserve"><value>Longitude</value></data>
+  <data name="Managers" xml:space="preserve"><value>Gestionnaires</value></data>
+  <data name="Map source" xml:space="preserve"><value>Source de la carte</value></data>
+  <data name="More options" xml:space="preserve"><value>Plus d'options</value></data>
+  <data name="No units available for the map board yet." xml:space="preserve"><value>Aucun appartement n'est encore disponible sur la carte.</value></data>
+  <data name="Offline" xml:space="preserve"><value>Hors ligne</value></data>
+  <data name="Online" xml:space="preserve"><value>En ligne</value></data>
+  <data name="Open in Maps" xml:space="preserve"><value>Ouvrir dans Maps</value></data>
+  <data name="Operational cards based on the first units in this property." xml:space="preserve"><value>Fiches opérationnelles fondées sur les premiers appartements de cette propriété.</value></data>
+  <data name="Pinned from saved coordinates" xml:space="preserve"><value>Épinglé à partir des coordonnées enregistrées</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Actualiser</value></data>
+  <data name="Share" xml:space="preserve"><value>Partager</value></data>
+  <data name="Total units" xml:space="preserve"><value>Nombre total d'appartements</value></data>
+  <data name="Tracking" xml:space="preserve"><value>Suivi</value></data>
+  <data name="Updated from the current property inventory" xml:space="preserve"><value>Mis à jour à partir de l'inventaire actuel de la propriété</value></data>
+  <data name="{0} matching period(s)" xml:space="preserve"><value>{0} période(s) correspondante(s)</value></data>
+  <data name="{0} result(s) · Page {1} of {2}" xml:space="preserve"><value>{0} résultat(s) · Page {1} sur {2}</value></data>
+  <data name="{0}% complete" xml:space="preserve"><value>Terminé à {0} %</value></data>
+  <data name="Admin reviews the uploaded selfies and identity documents." xml:space="preserve"><value>L’administrateur examine les égoportraits et les pièces d’identité téléversés.</value></data>
+  <data name="Admin Workspace" xml:space="preserve"><value>Espace d’administration</value></data>
+  <data name="Approve KYC" xml:space="preserve"><value>Approuver la vérification d’identité</value></data>
+  <data name="Back to members" xml:space="preserve"><value>Retour aux membres</value></data>
+  <data name="Back to tenancy overview" xml:space="preserve"><value>Retour à l’aperçu de la location</value></data>
+  <data name="Back to validation monitor" xml:space="preserve"><value>Retour au suivi des validations</value></data>
+  <data name="Complete" xml:space="preserve"><value>Terminé</value></data>
+  <data name="Copied" xml:space="preserve"><value>Copié</value></data>
+  <data name="Copy {0}" xml:space="preserve"><value>Copier {0}</value></data>
+  <data name="Copy failed" xml:space="preserve"><value>Échec de la copie</value></data>
+  <data name="Copy OTP" xml:space="preserve"><value>Copier le code OTP</value></data>
+  <data name="Current step:" xml:space="preserve"><value>Étape actuelle :</value></data>
+  <data name="Current verification codes" xml:space="preserve"><value>Codes de vérification actuels</value></data>
+  <data name="document back" xml:space="preserve"><value>verso du document</value></data>
+  <data name="document front" xml:space="preserve"><value>recto du document</value></data>
+  <data name="Email verification OTP" xml:space="preserve"><value>Code OTP de vérification du courriel</value></data>
+  <data name="Expired" xml:space="preserve"><value>Expiré</value></data>
+  <data name="Expired without being used" xml:space="preserve"><value>Expiré sans avoir été utilisé</value></data>
+  <data name="Expires {0}" xml:space="preserve"><value>Expire le {0}</value></data>
+  <data name="Expires in {0}" xml:space="preserve"><value>Expire dans {0}</value></data>
+  <data name="Filter" xml:space="preserve"><value>Filtrer</value></data>
+  <data name="From" xml:space="preserve"><value>Du</value></data>
+  <data name="front selfie" xml:space="preserve"><value>égoportrait de face</value></data>
+  <data name="Identity" xml:space="preserve"><value>Identité</value></data>
+  <data name="Identity Review" xml:space="preserve"><value>Vérification de l’identité</value></data>
+  <data name="Inspect registration progress, verification status, and administrative details." xml:space="preserve"><value>Consultez la progression de l’inscription, l’état des vérifications et les renseignements administratifs.</value></data>
+  <data name="KYC documents and face photos" xml:space="preserve"><value>Documents d’identité et photos du visage</value></data>
+  <data name="KYC image" xml:space="preserve"><value>Image de vérification d’identité</value></data>
+  <data name="left selfie" xml:space="preserve"><value>égoportrait de profil gauche</value></data>
+  <data name="Manual Review" xml:space="preserve"><value>Examen manuel</value></data>
+  <data name="Mark paid cash" xml:space="preserve"><value>Marquer comme payé en espèces</value></data>
+  <data name="Mark this rent period as paid by cash?" xml:space="preserve"><value>Marquer cette période de loyer comme payée en espèces?</value></data>
+  <data name="Month-by-month rent state for this tenancy." xml:space="preserve"><value>État mensuel du loyer pour cette location.</value></data>
+  <data name="Newest first" xml:space="preserve"><value>Plus récent d’abord</value></data>
+  <data name="No active OTP" xml:space="preserve"><value>Aucun code OTP actif</value></data>
+  <data name="no destination" xml:space="preserve"><value>aucun destinataire</value></data>
+  <data name="No email" xml:space="preserve"><value>Aucun courriel</value></data>
+  <data name="No KYC profile submitted" xml:space="preserve"><value>Aucun profil de vérification d’identité soumis</value></data>
+  <data name="No OTP has been generated yet" xml:space="preserve"><value>Aucun code OTP n’a encore été généré</value></data>
+  <data name="No OTP records were found for this user." xml:space="preserve"><value>Aucun code OTP n’a été trouvé pour cet utilisateur.</value></data>
+  <data name="No PIN required" xml:space="preserve"><value>Aucun NIP requis</value></data>
+  <data name="No receipt" xml:space="preserve"><value>Aucun reçu</value></data>
+  <data name="No rent periods match these filters." xml:space="preserve"><value>Aucune période de loyer ne correspond à ces filtres.</value></data>
+  <data name="No reviewer yet" xml:space="preserve"><value>Aucun responsable de l’examen pour le moment</value></data>
+  <data name="Not generated" xml:space="preserve"><value>Non généré</value></data>
+  <data name="Not submitted" xml:space="preserve"><value>Non soumis</value></data>
+  <data name="Oldest first" xml:space="preserve"><value>Plus ancien d’abord</value></data>
+  <data name="Open file" xml:space="preserve"><value>Ouvrir le fichier</value></data>
+  <data name="Open rent periods in a full page" xml:space="preserve"><value>Ouvrir les périodes de loyer dans une page complète</value></data>
+  <data name="OTP status refresh failed" xml:space="preserve"><value>Échec de l’actualisation de l’état des codes OTP</value></data>
+  <data name="OTP status updated {0}" xml:space="preserve"><value>État des codes OTP actualisé à {0}</value></data>
+  <data name="Payment management" xml:space="preserve"><value>Gestion des paiements</value></data>
+  <data name="Period date" xml:space="preserve"><value>Date de la période</value></data>
+  <data name="PIN already used" xml:space="preserve"><value>NIP déjà utilisé</value></data>
+  <data name="PIN has already been used" xml:space="preserve"><value>Le NIP a déjà été utilisé</value></data>
+  <data name="Primary Phone" xml:space="preserve"><value>Téléphone principal</value></data>
+  <data name="Primary phone OTP" xml:space="preserve"><value>Code OTP du téléphone principal</value></data>
+  <data name="Progress" xml:space="preserve"><value>Progression</value></data>
+  <data name="Property Member" xml:space="preserve"><value>Membre de la propriété</value></data>
+  <data name="Reference" xml:space="preserve"><value>Référence</value></data>
+  <data name="Registration progress" xml:space="preserve"><value>Progression de l’inscription</value></data>
+  <data name="Registration Timeline" xml:space="preserve"><value>Parcours d’inscription</value></data>
+  <data name="Reject KYC" xml:space="preserve"><value>Refuser la vérification d’identité</value></data>
+  <data name="Rejected files:" xml:space="preserve"><value>Fichiers refusés :</value></data>
+  <data name="Rent Ledger" xml:space="preserve"><value>Registre des loyers</value></data>
+  <data name="Rent Payout" xml:space="preserve"><value>Versement des loyers</value></data>
+  <data name="Rent payout OTP" xml:space="preserve"><value>Code OTP du versement des loyers</value></data>
+  <data name="Review" xml:space="preserve"><value>Examen</value></data>
+  <data name="Review the profile and contact status for a user assigned to your properties." xml:space="preserve"><value>Consultez le profil et l’état des coordonnées d’un utilisateur associé à vos propriétés.</value></data>
+  <data name="Review the submitted identity files before unlocking subscription payments and property creation." xml:space="preserve"><value>Examinez les pièces d’identité soumises avant de débloquer les paiements d’abonnement et la création de propriétés.</value></data>
+  <data name="Reviewed" xml:space="preserve"><value>Examiné</value></data>
+  <data name="right selfie" xml:space="preserve"><value>égoportrait de profil droit</value></data>
+  <data name="SMS" xml:space="preserve"><value>SMS</value></data>
+  <data name="Step completion" xml:space="preserve"><value>Progression des étapes</value></data>
+  <data name="Submitted:" xml:space="preserve"><value>Soumis :</value></data>
+  <data name="Subscription Payment" xml:space="preserve"><value>Paiement de l’abonnement</value></data>
+  <data name="Subscription payment OTP" xml:space="preserve"><value>Code OTP du paiement de l’abonnement</value></data>
+  <data name="Tenancy #{0} rent periods" xml:space="preserve"><value>Périodes de loyer de la location no {0}</value></data>
+  <data name="Testing OTPs" xml:space="preserve"><value>Codes OTP de test</value></data>
+  <data name="The landlord has not uploaded identity documents yet." xml:space="preserve"><value>Le propriétaire n’a pas encore téléversé ses pièces d’identité.</value></data>
+  <data name="This verification is not required for this user" xml:space="preserve"><value>Cette vérification n’est pas requise pour cet utilisateur</value></data>
+  <data name="This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method." xml:space="preserve"><value>Cette action marquera la plus ancienne période de loyer déverrouillée comme payée hors du fournisseur de paiement automatique, créera un paiement dans le système, générera un reçu Lontsi Homes et déverrouillera la période suivante. Utilisez-la seulement si le locataire vous a déjà payé en espèces ou par un autre moyen hors plateforme.</value></data>
+  <data name="to" xml:space="preserve"><value>à</value></data>
+  <data name="Unnamed user" xml:space="preserve"><value>Utilisateur sans nom</value></data>
+  <data name="Uploaded file" xml:space="preserve"><value>Fichier téléversé</value></data>
+  <data name="Used" xml:space="preserve"><value>Utilisé</value></data>
+  <data name="Used {0}" xml:space="preserve"><value>Utilisé le {0}</value></data>
+  <data name="User id:" xml:space="preserve"><value>Identifiant utilisateur :</value></data>
+  <data name="Verification Method" xml:space="preserve"><value>Méthode de vérification</value></data>
+  <data name="Verification OTP" xml:space="preserve"><value>Code OTP de vérification</value></data>
+  <data name="Verified {0}" xml:space="preserve"><value>Vérifié le {0}</value></data>
+  <data name="Visible only to admins" xml:space="preserve"><value>Visible seulement par les administrateurs</value></data>
+  <data name="WhatsApp" xml:space="preserve"><value>WhatsApp</value></data>
+  <data name="WhatsApp OTP" xml:space="preserve"><value>Code OTP WhatsApp</value></data>
+  <data name="Admin account" xml:space="preserve"><value>Compte administrateur</value></data>
+  <data name="The admin account exists and can access the system." xml:space="preserve"><value>Le compte administrateur existe et peut accéder au système.</value></data>
+  <data name="Validation bypassed" xml:space="preserve"><value>Validation contournée</value></data>
+  <data name="System administrators are excluded from landlord verification." xml:space="preserve"><value>Les administrateurs du système sont exemptés de la vérification des propriétaires.</value></data>
+  <data name="No OTP validation required." xml:space="preserve"><value>Aucune validation par code OTP n’est requise.</value></data>
+  <data name="Account created" xml:space="preserve"><value>Compte créé</value></data>
+  <data name="The user record exists in the system." xml:space="preserve"><value>Le dossier de l’utilisateur existe dans le système.</value></data>
+  <data name="Email verified" xml:space="preserve"><value>Courriel vérifié</value></data>
+  <data name="The user confirms the email OTP." xml:space="preserve"><value>L’utilisateur confirme le code OTP envoyé par courriel.</value></data>
+  <data name="Email confirmed." xml:space="preserve"><value>Courriel confirmé.</value></data>
+  <data name="Waiting for email OTP." xml:space="preserve"><value>En attente du code OTP envoyé par courriel.</value></data>
+  <data name="Non-landlord account validation state." xml:space="preserve"><value>État de validation d’un compte qui n’est pas propriétaire.</value></data>
+  <data name="Account can continue." xml:space="preserve"><value>Le compte peut continuer.</value></data>
+  <data name="Account is still pending." xml:space="preserve"><value>Le compte est toujours en attente.</value></data>
+  <data name="Name, email, and landlord role are registered." xml:space="preserve"><value>Le nom, le courriel et le rôle de propriétaire sont enregistrés.</value></data>
+  <data name="The landlord confirms the email OTP." xml:space="preserve"><value>Le propriétaire confirme le code OTP envoyé par courriel.</value></data>
+  <data name="Country selected" xml:space="preserve"><value>Pays sélectionné</value></data>
+  <data name="The landlord chooses the country for payment setup rules." xml:space="preserve"><value>Le propriétaire choisit le pays qui détermine les règles de configuration des paiements.</value></data>
+  <data name="Primary phone paused" xml:space="preserve"><value>Vérification du téléphone principal suspendue</value></data>
+  <data name="Primary phone verified" xml:space="preserve"><value>Téléphone principal vérifié</value></data>
+  <data name="Phone verification is not required for this onboarding flow." xml:space="preserve"><value>La vérification du téléphone n’est pas requise pour ce parcours d’inscription.</value></data>
+  <data name="The landlord confirms the verification code for the primary phone." xml:space="preserve"><value>Le propriétaire confirme le code de vérification de son téléphone principal.</value></data>
+  <data name="Temporarily skipped." xml:space="preserve"><value>Étape temporairement ignorée.</value></data>
+  <data name="Waiting for primary phone OTP." xml:space="preserve"><value>En attente du code OTP du téléphone principal.</value></data>
+  <data name="Mobile money configured" xml:space="preserve"><value>Paiement mobile configuré</value></data>
+  <data name="Subscription and rent payout numbers are selected with MTN or Orange Money." xml:space="preserve"><value>Les numéros de paiement de l’abonnement et de versement des loyers sont configurés avec MTN ou Orange Money.</value></data>
+  <data name="Payment numbers verified" xml:space="preserve"><value>Numéros de paiement vérifiés</value></data>
+  <data name="Every distinct mobile transaction number is validated by OTP." xml:space="preserve"><value>Chaque numéro distinct utilisé pour les transactions mobiles est validé par code OTP.</value></data>
+  <data name="Identity documents submitted" xml:space="preserve"><value>Pièces d’identité soumises</value></data>
+  <data name="The landlord uploads three face photos and ID document images for admin review." xml:space="preserve"><value>Le propriétaire téléverse trois photos du visage et des images de sa pièce d’identité aux fins d’examen.</value></data>
+  <data name="Identity review approved" xml:space="preserve"><value>Vérification d’identité approuvée</value></data>
+  <data name="An admin approves the submitted identity information before payments are unlocked." xml:space="preserve"><value>Un administrateur approuve les renseignements d’identité soumis avant le déblocage des paiements.</value></data>
+  <data name="KYC approved." xml:space="preserve"><value>Vérification d’identité approuvée.</value></data>
+  <data name="The landlord accepts the platform terms and signs with their full name." xml:space="preserve"><value>Le propriétaire accepte les conditions de la plateforme et signe de son nom complet.</value></data>
+  <data name="Waiting for signature." xml:space="preserve"><value>En attente de la signature.</value></data>
+  <data name="Registration ready" xml:space="preserve"><value>Inscription prête</value></data>
+  <data name="The landlord can continue into the authenticated workspace." xml:space="preserve"><value>Le propriétaire peut accéder à l’espace de travail authentifié.</value></data>
+  <data name="All required steps are complete." xml:space="preserve"><value>Toutes les étapes requises sont terminées.</value></data>
+  <data name="Some verification work remains." xml:space="preserve"><value>Certaines vérifications restent à terminer.</value></data>
+  <data name="Waiting for country selection." xml:space="preserve"><value>En attente de la sélection du pays.</value></data>
+  <data name="Waiting for KYC upload." xml:space="preserve"><value>En attente du téléversement des pièces d’identité.</value></data>
+  <data name="Face - front" xml:space="preserve"><value>Visage – de face</value></data>
+  <data name="Face - looking right" xml:space="preserve"><value>Visage – profil droit</value></data>
+  <data name="Face - looking left" xml:space="preserve"><value>Visage – profil gauche</value></data>
+  <data name="NationalId" xml:space="preserve"><value>Carte d’identité nationale</value></data>
+  <data name="Passport" xml:space="preserve"><value>Passeport</value></data>
+  <data name="DriverLicense" xml:space="preserve"><value>Permis de conduire</value></data>
+  <data name="ResidencePermit" xml:space="preserve"><value>Titre de séjour</value></data>
+  <data name="Not due yet" xml:space="preserve"><value>Pas encore exigible</value></data>
+  <data name="Pending payment" xml:space="preserve"><value>Paiement en attente</value></data>
+  <data name="Paid before RentHub" xml:space="preserve"><value>Payé avant Lontsi Homes</value></data>
+  <data name="Paid in advance" xml:space="preserve"><value>Payé d’avance</value></data>
+  <data name="Pay previous periods first" xml:space="preserve"><value>Payez d’abord les périodes précédentes</value></data>
+  <data name="Unknown" xml:space="preserve"><value>Inconnu</value></data>
+  <data name="Admin" xml:space="preserve"><value>Administrateur</value></data>
+  <data name="Document front file" xml:space="preserve"><value>Recto du document</value></data>
+  <data name="Document back file" xml:space="preserve"><value>Verso du document</value></data>
+  <data name="To date" xml:space="preserve"><value>Au</value></data>
+  <data name="Mobile payments" xml:space="preserve"><value>Paiements mobiles</value></data>
+  <data name="Payment number verification" xml:space="preserve"><value>Vérification des numéros de paiement</value></data>
+  <data name="Identity verification" xml:space="preserve"><value>Vérification de l’identité</value></data>
+  <data name="Contract" xml:space="preserve"><value>Contrat</value></data>
+  <data name="KYC status: {0}. Manual admin review required." xml:space="preserve"><value>État de la vérification d’identité : {0}. Un examen manuel par un administrateur est requis.</value></data>
+  <data name="KYC status: {0}." xml:space="preserve"><value>État de la vérification d’identité : {0}.</value></data>
+  <data name="Signed by {0}" xml:space="preserve"><value>Signé par {0}</value></data>
+  <data name="Renewal" xml:space="preserve"><value>Renouvellement</value></data>
+  <data name="Renewal requests" xml:space="preserve"><value>Demandes de renouvellement</value></data>
+  <data name="Tenancy renewal" xml:space="preserve"><value>Renouvellement du bail</value></data>
+  <data name="Renewal workflow" xml:space="preserve"><value>PROCESSUS DE RENOUVELLEMENT</value></data>
+  <data name="Request a renewal" xml:space="preserve"><value>Demander un renouvellement</value></data>
+  <data name="Propose a future end date. The landlord or an authorized manager must approve it before your tenancy changes." xml:space="preserve"><value>Proposez une date de fin future. Le propriétaire ou un responsable autorisé doit l’approuver avant toute modification du bail.</value></data>
+  <data name="Proposed new end date" xml:space="preserve"><value>Nouvelle date de fin proposée</value></data>
+  <data name="Submit renewal request" xml:space="preserve"><value>Envoyer la demande de renouvellement</value></data>
+  <data name="Renewal pending" xml:space="preserve"><value>Renouvellement en attente</value></data>
+  <data name="Awaiting review" xml:space="preserve"><value>En attente d’examen</value></data>
+  <data name="Approve to update the tenancy and rent schedule, or reject without changing the tenancy." xml:space="preserve"><value>Approuvez pour mettre à jour le bail et l’échéancier des loyers, ou refusez sans modifier le bail.</value></data>
+  <data name="Requested by" xml:space="preserve"><value>Demandé par</value></data>
+  <data name="Previous end date" xml:space="preserve"><value>Date de fin précédente</value></data>
+  <data name="Proposed end date" xml:space="preserve"><value>Date de fin proposée</value></data>
+  <data name="Approve renewal" xml:space="preserve"><value>Approuver le renouvellement</value></data>
+  <data name="The tenancy end date and rent schedule will be extended to the proposed date." xml:space="preserve"><value>La date de fin du bail et l’échéancier des loyers seront prolongés jusqu’à la date proposée.</value></data>
+  <data name="Approve this renewal request?" xml:space="preserve"><value>Approuver cette demande de renouvellement ?</value></data>
+  <data name="Approve" xml:space="preserve"><value>Approuver</value></data>
+  <data name="Reject" xml:space="preserve"><value>Refuser</value></data>
+  <data name="Rejection reason optional" xml:space="preserve"><value>Raison du refus (facultative)</value></data>
+  <data name="Renewal history" xml:space="preserve"><value>Historique des renouvellements</value></data>
+  <data name="Every submitted request and decision remains recorded here." xml:space="preserve"><value>Chaque demande soumise et chaque décision restent consignées ici.</value></data>
+  <data name="No renewal request has been submitted for this tenancy." xml:space="preserve"><value>Aucune demande de renouvellement n’a été soumise pour ce bail.</value></data>
+  <data name="Decision" xml:space="preserve"><value>Décision</value></data>
+  <data name="Pending review" xml:space="preserve"><value>Examen en attente</value></data>
+  <data name="Not recorded" xml:space="preserve"><value>Non enregistrée</value></data>
+  <data name="Reason:" xml:space="preserve"><value>Raison :</value></data>
+  <data name="Only a main tenant or co-tenant can request a renewal." xml:space="preserve"><value>Seul un locataire principal ou un colocataire peut demander un renouvellement.</value></data>
+  <data name="A terminated tenancy cannot be renewed." xml:space="preserve"><value>Un bail résilié ne peut pas être renouvelé.</value></data>
+  <data name="A tenancy without an end date cannot be renewed." xml:space="preserve"><value>Un bail sans date de fin ne peut pas être renouvelé.</value></data>
+  <data name="An expired tenancy cannot be renewed." xml:space="preserve"><value>Un bail déjà expiré ne peut pas être renouvelé.</value></data>
+  <data name="A renewal request is already pending for this tenancy." xml:space="preserve"><value>Une demande de renouvellement est déjà en attente pour ce bail.</value></data>
+  <data name="Renewal request submitted." xml:space="preserve"><value>Demande de renouvellement envoyée.</value></data>
+  <data name="Renewal request approved." xml:space="preserve"><value>Demande de renouvellement approuvée.</value></data>
+  <data name="Renewal request rejected." xml:space="preserve"><value>Demande de renouvellement refusée.</value></data>
+  <data name="Choose a proposed end date." xml:space="preserve"><value>Choisissez une date de fin proposée.</value></data>
+  <data name="The rejection reason cannot exceed 512 characters." xml:space="preserve"><value>La raison du refus ne peut pas dépasser 512 caractères.</value></data>
+  <data name="The proposed end date must be later than the current tenancy end date." xml:space="preserve"><value>La date de fin proposée doit être postérieure à la date de fin actuelle du bail.</value></data>
+  <data name="The proposed end date must be in the future." xml:space="preserve"><value>La date de fin proposée doit être future.</value></data>
+  <data name="A matching renewal request is already pending for this tenancy." xml:space="preserve"><value>Une demande de renouvellement correspondante est déjà en attente pour ce bail.</value></data>
+  <data name="This renewal request has already been reviewed." xml:space="preserve"><value>Cette demande de renouvellement a déjà été examinée.</value></data>
+  <data name="The proposed end date is no longer later than the current tenancy end date." xml:space="preserve"><value>La date proposée n’est plus postérieure à la date de fin actuelle du bail.</value></data>
+  <data name="The proposed end date is no longer in the future." xml:space="preserve"><value>La date proposée n’est plus future.</value></data>
+  <data name="The renewal would overlap another tenancy for this apartment." xml:space="preserve"><value>Le renouvellement chevaucherait un autre bail pour cet appartement.</value></data>
+  <data name="Unable to submit the renewal request right now." xml:space="preserve"><value>Impossible d’envoyer la demande de renouvellement pour le moment.</value></data>
+  <data name="Unable to approve the renewal request right now." xml:space="preserve"><value>Impossible d’approuver la demande de renouvellement pour le moment.</value></data>
+  <data name="Unable to reject the renewal request right now." xml:space="preserve"><value>Impossible de refuser la demande de renouvellement pour le moment.</value></data>
+  <data name="Current end date: {0}" xml:space="preserve"><value>Date de fin actuelle : {0}</value></data>
+  <data name="Requested on {0}" xml:space="preserve"><value>Demandée le {0}</value></data>
+  <data name="Proposed end date: {0}" xml:space="preserve"><value>Date de fin proposée : {0}</value></data>
+</root>

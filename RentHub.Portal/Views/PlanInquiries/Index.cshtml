@@ -1,0 +1,26 @@
+@model RentHub.Portal.ViewModels.PlanInquiries.PlanInquiryVm
+@{ ViewData["Title"] = "Request a custom plan"; }
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div><p class="rh-kicker">Plan consultation</p><h1 class="rh-heading-title">Build a plan around your portfolio</h1><p class="rh-heading-subtitle">Tell us what you need and the price you propose. An administrator will review your request and continue the conversation with you.</p></div>
+</section>
+<section class="rh-panel rh-panel-elevated mx-auto" style="max-width:960px">
+    <form asp-action="Submit" method="post" class="row g-3">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="col-12"><label asp-for="PlanName" class="form-label">Plan</label><select asp-for="PlanName" class="form-select rh-input rh-select"><option>Starter</option><option>Growth</option><option>Manager</option><option>Agency</option><option>Portfolio</option><option>Enterprise Unlimited</option></select></div>
+        @if (!Model.IsAuthenticated)
+        {
+            <div class="col-md-6"><label asp-for="RequesterName" class="form-label">Name</label><input asp-for="RequesterName" class="form-control rh-input" /></div>
+            <div class="col-md-6"><label asp-for="RequesterEmail" class="form-label">Email</label><input asp-for="RequesterEmail" type="email" class="form-control rh-input" required /><span asp-validation-for="RequesterEmail" class="text-danger"></span></div>
+        }
+        <div class="col-md-4"><label asp-for="PropertyCount" class="form-label">Properties to manage</label><input asp-for="PropertyCount" class="form-control rh-input" min="1" /></div>
+        <div class="col-md-4"><label asp-for="ApartmentCount" class="form-label">Apartments to manage</label><input asp-for="ApartmentCount" class="form-control rh-input" min="1" /></div>
+        <div class="col-md-4"><label asp-for="TenantCount" class="form-label">Tenants to manage</label><input asp-for="TenantCount" class="form-control rh-input" min="1" /></div>
+        <div class="col-12"><label asp-for="ProposedMonthlyPrice" class="form-label">Proposed monthly price</label><input asp-for="ProposedMonthlyPrice" class="form-control rh-input" min="0.01" step="0.01" /><span asp-validation-for="ProposedMonthlyPrice" class="text-danger"></span></div>
+        <div class="col-12"><label asp-for="Message" class="form-label">Your requirements</label><textarea asp-for="Message" class="form-control rh-input" rows="6" placeholder="Describe your portfolio, workflow and support requirements."></textarea><span asp-validation-for="Message" class="text-danger"></span></div>
+        <div class="col-12 d-flex justify-content-end"><button class="btn rh-btn-primary" type="submit">Send plan request</button></div>
+    </form>
+</section>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -24,10 +24,6 @@
 }
 
 <section class="rh-landing-home">
-    <section class="alert alert-warning rh-test-mode-banner" role="status">
-        <strong>Testing mode:</strong> Lontsi Homes is currently open for testing while SMS verification and payment operations are being finalized. Please explore the platform and share feedback; phone-number verification is temporarily skipped while Twilio approval is pending.
-    </section>
-
     <section class="rh-landing-hero-block">
         <div class="rh-landing-hero-surface">
             <div class="rh-landing-hero-topline">
@@ -327,8 +323,11 @@
                             }
                         </ul>
 
-                        <a class="btn @(isFeatured ? "rh-btn-primary" : "rh-btn-subtle") w-100" asp-controller="Auth" asp-action="Register">
-                            @(plan.IsContactSales ? "Contact Sales" : $"Choose {plan.Name}")
+                        <a class="btn @(isFeatured ? "rh-btn-primary" : "rh-btn-subtle") w-100"
+                           asp-controller="PlanInquiries"
+                           asp-action="Index"
+                           asp-route-plan="@plan.Name">
+                            @(plan.IsContactSales ? "Describe your needs" : $"Ask about {plan.Name}")
                         </a>
                     </article>
                 }

@@ -104,7 +104,14 @@ namespace RentHub.API.Services.Receipts
                 PaymentDate = payment.PaymentDate,
                 Amount = payment.Amount,
                 Currency = payment.Currency,
-                PaymentMethod = payment.Method == PaymentMethodEnum.Cash ? "Cash / off-platform" : payment.Method.ToString(),
+                PaymentMethod = payment.Method switch
+                {
+                    PaymentMethodEnum.Cash => "Cash / off-platform (recorded by landlord)",
+                    PaymentMethodEnum.Momo => "MTN Mobile Money",
+                    PaymentMethodEnum.OrangeMoney => "Orange Money",
+                    PaymentMethodEnum.Card => "Card",
+                    _ => payment.Method.ToString()
+                },
                 TenantName = payment.Tenant?.FullName ?? payment.Tenant?.Email ?? "Tenant",
                 LandlordName = payment.Landlord?.FullName ?? payment.Landlord?.Email ?? "Landlord",
                 PropertyName = payment.Tenancy?.Apartment?.Property?.Name ?? string.Empty,

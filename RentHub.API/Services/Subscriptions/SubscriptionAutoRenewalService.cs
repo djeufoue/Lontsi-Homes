@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Payments;
+using RentHub.API.Helpers;
 
 namespace RentHub.API.Services.Subscriptions
 {
@@ -32,6 +33,12 @@ namespace RentHub.API.Services.Subscriptions
 
         public async Task<int> ProcessDueRenewalsAsync()
         {
+            if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+            {
+                _logger.LogInformation("Automatic subscription renewal skipped because platform automatic payments are disabled.");
+                return 0;
+            }
+
             var now = DateTimeOffset.UtcNow;
             var retryAfterHours = Math.Max(1, _configuration.GetValue<int?>("Subscriptions:AutoRenewalRetryHours") ?? 12);
             var retryCutoff = now.AddHours(-retryAfterHours);

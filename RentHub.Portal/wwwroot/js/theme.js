@@ -1,18 +1,20 @@
 (() => {
   "use strict";
 
+  const t = (key) => window.rhI18n?.[key] || key;
+
   const storageKey = "renthub-theme";
   const supportedPreferences = new Set(["system", "dark", "light"]);
   const root = document.documentElement;
   const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
-  let currentPreference = "system";
+  let currentPreference = "dark";
 
   const getSavedTheme = () => {
     try {
       const savedTheme = window.localStorage.getItem(storageKey);
-      return supportedPreferences.has(savedTheme) ? savedTheme : "system";
+      return supportedPreferences.has(savedTheme) ? savedTheme : "dark";
     } catch {
-      return "system";
+      return "dark";
     }
   };
 
@@ -26,14 +28,14 @@
 
   const getPreferenceLabel = (preference) => {
     if (preference === "dark") {
-      return "Dark";
+      return t("Dark");
     }
 
     if (preference === "light") {
-      return "Light";
+      return t("Light");
     }
 
-    return "Device";
+    return t("Device");
   };
 
   const updateThemeMenu = () => {
@@ -50,7 +52,7 @@
   };
 
   const applyTheme = (preference, options = {}) => {
-    const nextPreference = supportedPreferences.has(preference) ? preference : "system";
+    const nextPreference = supportedPreferences.has(preference) ? preference : "dark";
     const shouldPersist = options.persist !== false;
     const effectiveTheme = resolveEffectiveTheme(nextPreference);
 

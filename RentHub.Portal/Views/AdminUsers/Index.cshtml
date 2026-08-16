@@ -17,13 +17,56 @@
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" class="row g-2 align-items-end">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <p class="rh-kicker mb-1">Landlord onboarding</p>
+            <h2 class="rh-section-title mb-1">Phone-number verification</h2>
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                <span class="rh-chip @(Model.SkipLandlordPhoneVerification ? "rh-chip-success" : "rh-chip-warning")">
+                    @(Model.SkipLandlordPhoneVerification ? "Bypass enabled" : "Verification required")
+                </span>
+                <strong>@(Model.SkipLandlordPhoneVerification ? "Phone steps are currently skipped." : "Phone steps are currently active.")</strong>
+            </div>
+            <p class="text-muted mb-0">@(Model.SkipLandlordPhoneVerification
+                ? "Landlords go directly from country selection to identity and contract steps. Phone, SMS, mobile-payment-number, and WhatsApp verification steps are omitted."
+                : "Landlords must complete the configured phone, SMS, mobile-payment-number, and WhatsApp verification steps.")</p>
+        </div>
+        <form asp-action="UpdateLandlordPhoneVerificationBypass"
+              method="post"
+              class="rh-setting-toggle-form"
+              data-confirm-modal="true"
+              data-confirm-title="Update landlord phone onboarding?"
+              data-confirm-message="@(Model.SkipLandlordPhoneVerification ? "Require every phone-number onboarding and verification step again?" : "Skip every phone-number onboarding and verification step for all landlords?")"
+              data-confirm-proceed="Confirm">
+            @Html.AntiForgeryToken()
+            <input id="landlordPhoneVerificationRequired"
+                   type="hidden"
+                   name="verificationRequired"
+                   value="@(!Model.SkipLandlordPhoneVerification)" />
+            <input type="hidden" name="search" value="@Model.Search" />
+            <div class="rh-form-switch-row">
+                <div class="form-check form-switch rh-form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           checked="@(!Model.SkipLandlordPhoneVerification ? "checked" : null)"
+                           onchange="document.getElementById('landlordPhoneVerificationRequired').value = this.checked ? 'true' : 'false'; this.form.requestSubmit()"
+                           aria-label="Toggle required phone verification for landlords" />
+                    <label class="form-check-label">Verification required</label>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form">
         <div class="col-md-9">
             <label class="form-label rh-auth-label" for="search">Search</label>
-            <input id="search" name="search" class="form-control rh-input" value="@Model.Search" placeholder="Email, name, or phone number" />
+            <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
         </div>
-        <div class="col-md-3 d-grid">
-            <button type="submit" class="btn rh-btn-primary">Apply Filter</button>
+        <div class="col-md-3 rh-filter-action-group">
+            <button type="submit" class="btn rh-btn-primary flex-grow-1">Apply Filter</button>
         </div>
     </form>
 </section>

@@ -1,198 +1,318 @@
+using System.Data;
+using Common.CommunicationModels;
+using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
-using Common.CommunicationModels;
-using RentHub.API.Models.Entities;
-using Common.Enums;
-using System.Security.Claims;
-
 using RentHub.API.Helpers;
+using RentHub.API.Models.Entities;
+using RentHub.API.Services.Tenancies;
 
 namespace RentHub.API.Controllers
 {
-    /// <summary>
-    /// Provides endpoints for tenants to request tenancy extensions and for landlords/managers
-    /// to approve or reject these requests.
-    /// </summary>
     [ApiController]
     [Route("api/tenancies/{tenancyId}/extension-requests")]
     public class TenancyExtensionRequestsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly ITenancyRenewalEmailService _renewalEmailService;
+        private readonly ILogger<TenancyExtensionRequestsController> _logger;
 
-        public TenancyExtensionRequestsController(ApplicationDbContext context)
+        public TenancyExtensionRequestsController(
+            ApplicationDbContext context,
+            ITenancyRenewalEmailService renewalEmailService,
+            ILogger<TenancyExtensionRequestsController> logger)
         {
             _context = context;
+            _renewalEmailService = renewalEmailService;
+            _logger = logger;
         }
 
-        /// <summary>
-        /// Submits a request to extend a tenancy.  Only the tenant associated with the tenancy
-        /// may submit an extension request.
-        /// </summary>
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> GetRequests(int tenancyId, CancellationToken cancellationToken)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var tenancy = await _context.Tenancies
+                .AsNoTracking()
+                .Include(entity => entity.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(entity => entity.Id == tenancyId, cancellationToken);
+            if (tenancy?.Apartment?.Property == null) return NotFound("Tenancy not found.");
+
+            var isAdmin = User.IsInRole("Admin");
+            var canAccess = await PropertyHelpers.CanAccessTenancyAsync(
+                _context, tenancy.Id, tenancy.ApartmentId, tenancy.Apartment.PropertyId, userId, isAdmin);
+            if (!canAccess) return Forbid();
+
+            var membership = await _context.TenancyMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(member =>
+                    member.TenancyId == tenancyId && !member.IsDeleted && member.MemberId == userId,
+                    cancellationToken);
+            var isRequestingTenant = membership?.Role is TenancyMemberRoleEnum.MainTenant or TenancyMemberRoleEnum.CoTenant;
+            var canReview = await PropertyHelpers.CanWriteTenancyAsync(
+                _context, tenancy.ApartmentId, tenancy.Apartment.PropertyId, userId, isAdmin);
+            var requests = await _context.TenancyExtensionRequests
+                .AsNoTracking()
+                .Include(request => request.RequestedBy)
+                .Include(request => request.ApprovedBy)
+                .Where(request => request.TenancyId == tenancyId)
+                .OrderByDescending(request => request.CreatedAt)
+                .ToListAsync(cancellationToken);
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            var hasPendingRequest = requests.Any(request => request.Status == TenancyExtensionStatusEnum.Pending);
+            var unavailableReason = ResolveRequestUnavailableReason(tenancy, isRequestingTenant, hasPendingRequest, nowUtc);
+
+            return Ok(new TenancyRenewalWorkspaceDto
+            {
+                TenancyId = tenancy.Id,
+                PropertyName = tenancy.Apartment.Property.Name,
+                ApartmentName = tenancy.Apartment.Name,
+                StartDate = tenancy.StartDate,
+                CurrentEndDate = tenancy.EndDate,
+                IsTerminated = tenancy.TerminatedAt.HasValue,
+                IsExpired = tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < nowUtc.Date,
+                CanRequest = string.IsNullOrEmpty(unavailableReason),
+                CanReview = canReview,
+                RequestUnavailableReason = unavailableReason,
+                MinimumProposedEndDate = tenancy.EndDate?.Date.AddDays(1),
+                Requests = requests.Select(MapRequest).ToList()
+            });
+        }
+
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreateRequest(int tenancyId, [FromBody] ExtendTenancyRequest request)
+        public async Task<IActionResult> CreateRequest(
+            int tenancyId,
+            [FromBody] ExtendTenancyRequest request,
+            CancellationToken cancellationToken)
         {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var tenancy = await _context.Tenancies
+                .Include(entity => entity.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(entity => entity.Id == tenancyId, cancellationToken);
+            if (tenancy?.Apartment?.Property == null) return NotFound("Tenancy not found.");
+
+            var membership = await _context.TenancyMembers
+                .Include(member => member.Member)
+                .FirstOrDefaultAsync(member =>
+                    member.TenancyId == tenancyId && !member.IsDeleted && member.MemberId == userId,
+                    cancellationToken);
+            if (membership?.Role is not (TenancyMemberRoleEnum.MainTenant or TenancyMemberRoleEnum.CoTenant))
+                return Forbid();
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            var hasPendingRequest = await _context.TenancyExtensionRequests.AnyAsync(existing =>
+                existing.TenancyId == tenancyId && existing.Status == TenancyExtensionStatusEnum.Pending,
+                cancellationToken);
+            var unavailableReason = ResolveRequestUnavailableReason(tenancy, true, hasPendingRequest, nowUtc);
+            if (!string.IsNullOrEmpty(unavailableReason))
+                return Conflict(new { Message = unavailableReason });
+
+            if (!tenancy.EndDate.HasValue)
+                return BadRequest(new { Message = "A tenancy without an end date cannot be renewed." });
+            if (request.NewEndDate.Date <= tenancy.EndDate.Value.Date)
+                return BadRequest(new { Message = "The proposed end date must be later than the current tenancy end date." });
+            if (request.NewEndDate.Date <= nowUtc.Date)
+                return BadRequest(new { Message = "The proposed end date must be in the future." });
+
+            var extensionRequest = new TenancyExtensionRequest
+            {
+                TenancyId = tenancyId,
+                Tenancy = tenancy,
+                RequestedById = userId,
+                RequestedBy = membership.Member,
+                OriginalEndDate = tenancy.EndDate,
+                ProposedEndDate = request.NewEndDate.Date,
+                Status = TenancyExtensionStatusEnum.Pending,
+                CreatedBy = userId,
+                CreatedAt = nowUtc,
+                IsDeleted = false
+            };
+
             try
             {
-                var tenancy = await _context.Tenancies
-                    .Include(t => t.Apartment)
-                    .FirstOrDefaultAsync(t => t.Id == tenancyId);
-                if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Only a tenancy member may request an extension.
-                var isTenancyMember = await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
-
-                if (!isTenancyMember)
-                {
-                    return Forbid();
-                }
-                // Validate proposed date
-                if (request.NewEndDate <= tenancy.StartDate)
-                {
-                    return BadRequest("Proposed end date must be after tenancy start date.");
-                }
-                var extensionRequest = new TenancyExtensionRequest
-                {
-                    TenancyId = tenancyId,
-                    RequestedById = userId,
-                    ProposedEndDate = request.NewEndDate,
-                    Status = TenancyExtensionStatusEnum.Pending,
-                    CreatedBy = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
                 _context.TenancyExtensionRequests.Add(extensionRequest);
-                await _context.SaveChangesAsync();
-                return Ok(new { Message = "Extension request submitted.", RequestId = extensionRequest.Id });
+                await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (Exception ex)
+            catch (DbUpdateException ex)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                _logger.LogWarning(ex, "Duplicate tenancy renewal request blocked for tenancy {TenancyId}.", tenancyId);
+                return Conflict(new { Message = "A renewal request is already pending for this tenancy." });
             }
+
+            await _renewalEmailService.SendRequestSubmittedAsync(extensionRequest, cancellationToken);
+            return Ok(new { Message = "Renewal request submitted.", RequestId = extensionRequest.Id });
         }
 
-        /// <summary>
-        /// Approves an extension request.  Only the landlord or an authorized manager with
-        /// write permission may approve.  Approval updates the tenancy end date.
-        /// </summary>
         [HttpPut("{requestId}/approve")]
         [Authorize]
-        public async Task<IActionResult> ApproveRequest(int tenancyId, int requestId)
+        public async Task<IActionResult> ApproveRequest(
+            int tenancyId,
+            int requestId,
+            CancellationToken cancellationToken)
         {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
             try
             {
-                var request = await _context.TenancyExtensionRequests
-                    .Include(er => er.Tenancy)
-                    .ThenInclude(t => t.Apartment!.Property)
-                    .FirstOrDefaultAsync(er => er.Id == requestId && er.TenancyId == tenancyId);
-                if (request == null) return NotFound("Extension request not found.");
+                var request = await LoadRequestForDecisionAsync(tenancyId, requestId, cancellationToken);
+                if (request == null) return NotFound("Renewal request not found.");
                 if (request.Status != TenancyExtensionStatusEnum.Pending)
-                {
-                    return BadRequest("Extension request is not in pending state.");
-                }
-                var tenancy = request.Tenancy;
-                if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Determine if user can approve: landlord or manager/owner with write permission
-                bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;
-                bool canWrite = false;
-                if (isLandlord)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    canWrite = ownerWrite || managerWrite;
-                }
-                if (!canWrite)
-                {
-                    return Forbid();
-                }
-                // Approve: update tenancy end date and request status
+                    return Conflict(new { Message = "This renewal request has already been reviewed." });
+
+                var tenancy = request.Tenancy!;
+                var property = tenancy.Apartment!.Property!;
+                var canWrite = await PropertyHelpers.CanWriteTenancyAsync(
+                    _context, tenancy.ApartmentId, property.Id, userId, User.IsInRole("Admin"));
+                if (!canWrite) return Forbid();
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                if (tenancy.TerminatedAt.HasValue)
+                    return Conflict(new { Message = "A terminated tenancy cannot be renewed." });
+                if (!tenancy.EndDate.HasValue)
+                    return Conflict(new { Message = "A tenancy without an end date cannot be renewed." });
+                if (tenancy.EndDate.Value.Date < nowUtc.Date)
+                    return Conflict(new { Message = "An expired tenancy cannot be renewed." });
+                if (request.ProposedEndDate.Date <= tenancy.EndDate.Value.Date)
+                    return Conflict(new { Message = "The proposed end date is no longer later than the current tenancy end date." });
+                if (request.ProposedEndDate.Date <= nowUtc.Date)
+                    return Conflict(new { Message = "The proposed end date is no longer in the future." });
+
+                var overlaps = await TenancyLifecycleHelper.HasOverlappingTenancyAsync(
+                    _context, tenancy.ApartmentId, tenancy.StartDate, request.ProposedEndDate, tenancy.Id, cancellationToken);
+                if (overlaps)
+                    return Conflict(new { Message = "The renewal would overlap another tenancy for this apartment." });
+
+                await TenancyLifecycleHelper.SynchronizeRentPeriodsForExtensionAsync(
+                    _context, tenancy, request.ProposedEndDate, userId, nowUtc, cancellationToken);
+
                 tenancy.EndDate = request.ProposedEndDate;
+                tenancy.RenewalReminderSentAt = null;
+                tenancy.RenewalReminderSentForEndDate = null;
                 tenancy.UpdatedBy = userId;
-                tenancy.UpdatedAt = DateTime.UtcNow;
+                tenancy.UpdatedAt = nowUtc;
                 request.Status = TenancyExtensionStatusEnum.Approved;
                 request.ApprovedById = userId;
-                request.ApprovedAt = DateTime.UtcNow;
+                request.ApprovedAt = nowUtc;
+                request.RejectionReason = null;
                 request.UpdatedBy = userId;
-                request.UpdatedAt = DateTime.UtcNow;
-                _context.Tenancies.Update(tenancy);
-                _context.TenancyExtensionRequests.Update(request);
-                await _context.SaveChangesAsync();
-                return Ok(new { Message = "Extension request approved.", TenancyId = tenancy.Id, NewEndDate = tenancy.EndDate });
+                request.UpdatedAt = nowUtc;
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                await _renewalEmailService.SendDecisionAsync(request, cancellationToken);
+
+                return Ok(new { Message = "Renewal request approved.", TenancyId = tenancy.Id, NewEndDate = tenancy.EndDate });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Failed to approve renewal request {RequestId} for tenancy {TenancyId}.", requestId, tenancyId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "Unable to approve the renewal request right now." });
             }
         }
 
-        /// <summary>
-        /// Rejects an extension request.  Only the landlord or an authorized manager with write
-        /// permission may reject.  The tenancy end date is not modified.
-        /// </summary>
         [HttpPut("{requestId}/reject")]
         [Authorize]
-        public async Task<IActionResult> RejectRequest(int tenancyId, int requestId)
+        public async Task<IActionResult> RejectRequest(
+            int tenancyId,
+            int requestId,
+            [FromBody] RejectTenancyExtensionRequest decision,
+            CancellationToken cancellationToken)
         {
+            if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
             try
             {
-                var request = await _context.TenancyExtensionRequests
-                    .Include(er => er.Tenancy)
-                    .ThenInclude(t => t.Apartment!.Property)
-                    .FirstOrDefaultAsync(er => er.Id == requestId && er.TenancyId == tenancyId);
-                if (request == null) return NotFound("Extension request not found.");
+                var request = await LoadRequestForDecisionAsync(tenancyId, requestId, cancellationToken);
+                if (request == null) return NotFound("Renewal request not found.");
                 if (request.Status != TenancyExtensionStatusEnum.Pending)
-                {
-                    return BadRequest("Extension request is not in pending state.");
-                }
-                var tenancy = request.Tenancy;
-                if (tenancy == null) return NotFound("Tenancy not found.");
-                var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                // Determine if user can reject: landlord or manager/owner with write permission
-                bool isLandlord = tenancy.Apartment!.Property!.LandlordId == userId;
-                bool canWrite = false;
-                if (isLandlord)
-                {
-                    canWrite = true;
-                }
-                else
-                {
-                    var ownerWrite = await _context.ApartmentOwners
-                        .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    canWrite = ownerWrite || managerWrite;
-                }
-                if (!canWrite)
-                {
-                    return Forbid();
-                }
+                    return Conflict(new { Message = "This renewal request has already been reviewed." });
+
+                var tenancy = request.Tenancy!;
+                var canWrite = await PropertyHelpers.CanWriteTenancyAsync(
+                    _context, tenancy.ApartmentId, tenancy.Apartment!.PropertyId, userId, User.IsInRole("Admin"));
+                if (!canWrite) return Forbid();
+
+                var nowUtc = DateTimeOffset.UtcNow;
                 request.Status = TenancyExtensionStatusEnum.Rejected;
                 request.ApprovedById = userId;
-                request.ApprovedAt = DateTime.UtcNow;
+                request.ApprovedAt = nowUtc;
+                request.RejectionReason = string.IsNullOrWhiteSpace(decision.Reason) ? null : decision.Reason.Trim();
                 request.UpdatedBy = userId;
-                request.UpdatedAt = DateTime.UtcNow;
-                _context.TenancyExtensionRequests.Update(request);
-                await _context.SaveChangesAsync();
-                return Ok(new { Message = "Extension request rejected." });
+                request.UpdatedAt = nowUtc;
+
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                await _renewalEmailService.SendDecisionAsync(request, cancellationToken);
+                return Ok(new { Message = "Renewal request rejected." });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Message = ex.Message });
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Failed to reject renewal request {RequestId} for tenancy {TenancyId}.", requestId, tenancyId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "Unable to reject the renewal request right now." });
             }
+        }
+
+        private Task<TenancyExtensionRequest?> LoadRequestForDecisionAsync(
+            int tenancyId,
+            int requestId,
+            CancellationToken cancellationToken)
+        {
+            return _context.TenancyExtensionRequests
+                .Include(request => request.RequestedBy)
+                .Include(request => request.Tenancy)
+                .ThenInclude(tenancy => tenancy!.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(request => request.Id == requestId && request.TenancyId == tenancyId, cancellationToken);
+        }
+
+        private static string ResolveRequestUnavailableReason(
+            Tenancy tenancy,
+            bool isRequestingTenant,
+            bool hasPendingRequest,
+            DateTimeOffset nowUtc)
+        {
+            if (!isRequestingTenant) return "Only a main tenant or co-tenant can request a renewal.";
+            if (tenancy.TerminatedAt.HasValue) return "A terminated tenancy cannot be renewed.";
+            if (!tenancy.EndDate.HasValue) return "A tenancy without an end date cannot be renewed.";
+            if (tenancy.EndDate.Value.Date < nowUtc.Date) return "An expired tenancy cannot be renewed.";
+            if (hasPendingRequest) return "A renewal request is already pending for this tenancy.";
+            return string.Empty;
+        }
+
+        private static TenancyExtensionRequestDto MapRequest(TenancyExtensionRequest request)
+        {
+            return new TenancyExtensionRequestDto
+            {
+                Id = request.Id,
+                TenancyId = request.TenancyId,
+                RequestedById = request.RequestedById,
+                RequestedByName = request.RequestedBy?.FullName ?? request.RequestedBy?.Email ?? "Tenant",
+                OriginalEndDate = request.OriginalEndDate,
+                ProposedEndDate = request.ProposedEndDate,
+                Status = request.Status,
+                ReviewedByName = request.ApprovedBy?.FullName ?? request.ApprovedBy?.Email,
+                ReviewedAt = request.ApprovedAt,
+                RejectionReason = request.RejectionReason,
+                CreatedAt = request.CreatedAt
+            };
         }
     }
 }
-
-

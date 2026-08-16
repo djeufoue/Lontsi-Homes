@@ -20,6 +20,7 @@ using RentHub.API.Services.Storage;
 using RentHub.API.Services.Sms;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Reminders;
+using RentHub.API.Services.Tenancies;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
 using RentHub.API.Services.Subscriptions;
@@ -154,6 +155,7 @@ builder.Services.AddScoped<IKycFileStorageService, BlobKycFileStorageService>();
 builder.Services.AddScoped<RentHub.API.Services.Auth.TokenService>();
 builder.Services.AddScoped<IUserOnboardingService, UserOnboardingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
+builder.Services.AddScoped<ITenancyRenewalEmailService, TenancyRenewalEmailService>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();

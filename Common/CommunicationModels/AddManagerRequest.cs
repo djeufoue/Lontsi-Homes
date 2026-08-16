@@ -18,10 +18,10 @@ namespace Common.CommunicationModels
         public string FullName { get; set; } = string.Empty;
 
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string CountryCode { get; set; } = string.Empty;
+        public string? CountryCode { get; set; }
 
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
 
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
     }

@@ -1,9 +1,11 @@
 @model RentHub.Portal.ViewModels.Apartments.ApartmentOverviewVm
 @using Common.Enums
 @using System
+@using System.Globalization
 @using System.Linq
 @{
-    ViewData["Title"] = "Apartment Overview";
+    ViewData["Title"] = T["Apartment Overview"];
+    var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
 
     var apartment = Model.Apartment;
     var documents = Model.Documents?.OrderByDescending(doc => doc.UploadedAt).ToList() ?? new List<Common.CommunicationModels.DocumentDto>();
@@ -65,58 +67,58 @@
          data-overview-content-url="@Url.Action("OverviewContent", "Apartments", new { id = apartment.Id })">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
-            <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">&#8592; Back to property overview</a>
-            <p class="rh-kicker">Apartment Workspace</p>
+            <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">&#8592; @T["Back to property overview"]</a>
+            <p class="rh-kicker">@T["Apartment Workspace"]</p>
             <h1 class="rh-heading-title">@apartment.Name</h1>
-            <p class="rh-heading-subtitle">@apartment.PropertyName - @apartment.Type - @apartment.Status</p>
+            <p class="rh-heading-subtitle">@apartment.PropertyName - @T[apartment.Type.ToString()] - @T[apartment.Status ?? string.Empty]</p>
 
             <div class="rh-overview-badges">
-                <span class="rh-chip rh-chip-primary">@apartment.Price.ToString("N0") rent</span>
-                <span class="rh-chip rh-chip-info">@(apartment.Area?.ToString("N0") ?? "0") sqm</span>
-                <span class="rh-chip @(Model.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(Model.CanWrite ? "Write access" : "Read access")</span>
+                <span class="rh-chip rh-chip-primary">@T["{0} rent", apartment.Price.ToString("N0", CultureInfo.CurrentCulture)]</span>
+                <span class="rh-chip rh-chip-info">@T["{0} sqm", apartment.Area?.ToString("N0", CultureInfo.CurrentCulture) ?? "0"]</span>
+                <span class="rh-chip @(Model.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(Model.CanWrite ? T["Write access"] : T["Read access"])</span>
             </div>
         </div>
 
         <div class="rh-overview-hero-actions">
-            <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Map" asp-route-id="@apartment.PropertyId">Property Map</a>
-            <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">Property Workspace</a>
+            <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Map" asp-route-id="@apartment.PropertyId">@T["Property Map"]</a>
+            <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">@T["Property Workspace"]</a>
         </div>
     </section>
 
     <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
         <div class="rh-overview-panel-head">
             <div>
-                <h2 class="rh-dashboard-panel-title">Apartment overview</h2>
-                <p class="rh-dashboard-panel-copy">Live tenancy, member, reminder, and occupancy signals in one apartment board.</p>
+                <h2 class="rh-dashboard-panel-title">@T["Apartment overview"]</h2>
+                <p class="rh-dashboard-panel-copy">@T["Live tenancy, member, reminder, and occupancy signals in one apartment board."]</p>
             </div>
-            <div class="rh-dashboard-range-chip">Live apartment view</div>
+            <div class="rh-dashboard-range-chip">@T["Live apartment view"]</div>
         </div>
 
         <div class="rh-apartment-commanddeck-grid">
             <div class="rh-overview-bigstat">
-                <span>Active tenancies</span>
+                <span>@T["Active tenancies"]</span>
                 <strong>@activeTenancies</strong>
-                <small>Current apartment occupancy records</small>
+                <small>@T["Current apartment occupancy records"]</small>
             </div>
             <div class="rh-overview-bigstat alt">
-                <span>Average tenancy rent</span>
-                <strong>@averageRent.ToString("N0")</strong>
-                <small>Latest tenancy billing snapshot</small>
+                <span>@T["Average tenancy rent"]</span>
+                <strong>@averageRent.ToString("N0", CultureInfo.CurrentCulture)</strong>
+                <small>@T["Latest tenancy billing snapshot"]</small>
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>Members</span>
+                <span>@T["Members"]</span>
                 <strong>@memberCount</strong>
-                <small>Owners and apartment collaborators</small>
+                <small>@T["Owners and apartment collaborators"]</small>
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>Status</span>
-                <strong>@apartment.Status</strong>
-                <small>Operational apartment state</small>
+                <span>@T["Status"]</span>
+                <strong>@T[apartment.Status ?? string.Empty]</strong>
+                <small>@T["Operational apartment state"]</small>
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>Rent reminder</span>
+                <span>@T["Rent reminder"]</span>
                 <strong>@apartment.RentReminderDaysBeforeDue day(s)</strong>
-                <small>Lead time before the next due date</small>
+                <small>@T["Lead time before the next due date"]</small>
             </div>
         </div>
     </section>
@@ -126,14 +128,14 @@
             <article class="rh-overview-image-card rh-panel rh-panel-elevated" data-apartment-section="images">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment images</h2>
-                        <p class="rh-dashboard-panel-copy">Keep the gallery close at hand and manage the image currently in view.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Apartment images"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Keep the gallery close at hand and manage the image currently in view."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
                         <div class="rh-overview-inline-actions">
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add+</button>
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">@T["Add+"]</button>
                             <button type="button" class="rh-icon-btn" data-bs-toggle="modal" data-bs-target="#manageApartmentImageModal" data-apartment-image-manage-open="true" title="Manage current apartment image" aria-label="Manage current apartment image">
                                 <span class="rh-icon-pencil"></span>
                             </button>
@@ -144,11 +146,11 @@
                 @if (!apartmentImages.Any())
                 {
                     <div class="rh-property-image-placeholder rh-apartment-image-placeholder">
-                        <strong>No apartment images yet</strong>
-                        <span>Add one or more landscape images so this apartment has a proper visual gallery.</span>
+                        <strong>@T["No apartment images yet"]</strong>
+                        <span>@T["Add one or more landscape images so this apartment has a proper visual gallery."]</span>
                         @if (Model.CanWrite)
                         {
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">Add images</button>
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentImagesModal">@T["Add images"]</button>
                         }
                     </div>
                 }
@@ -172,15 +174,15 @@
 
                             @if (apartmentImages.Count > 1)
                             {
-                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="Previous image">&#8592;</button>
-                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="Next image">&#8594;</button>
+                                <button type="button" class="rh-gallery-nav prev" data-gallery-nav="prev" aria-label="@T["Previous image"]">&#8592;</button>
+                                <button type="button" class="rh-gallery-nav next" data-gallery-nav="next" aria-label="@T["Next image"]">&#8594;</button>
                             }
                         </div>
 
                         <div class="rh-apartment-gallery-footer">
                             <div>
                                 <strong data-gallery-current-name>@currentApartmentImage?.FileName</strong>
-                                <small><span data-gallery-current-index>1</span> / @apartmentImages.Count image(s)</small>
+                                <small><span data-gallery-current-index>1</span> / @T["{0} image(s)", apartmentImages.Count]</small>
                             </div>
                         </div>
                     </div>
@@ -190,12 +192,12 @@
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment reminder settings</h2>
-                        <p class="rh-dashboard-panel-copy">Control how early tenants are reminded about rent due dates and lease termination.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Apartment reminder settings"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Control how early tenants are reminded about rent due dates and lease termination."]</p>
                     </div>
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="Edit apartment reminder settings" aria-label="Edit apartment reminder settings">
+                        <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="@T["Edit apartment reminder settings"]" aria-label="@T["Edit apartment reminder settings"]">
                             <span class="rh-icon-pencil"></span>
                         </button>
                     }
@@ -206,27 +208,27 @@
                     <input type="hidden" name="apartmentId" value="@apartment.Id" />
 
                     <div>
-                        <label class="form-label">Rent reminder lead days</label>
+                        <label class="form-label">@T["Rent reminder lead days"]</label>
                         <input class="form-control rh-input" type="number" min="0" max="365" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" @(Model.CanWrite ? "readonly" : "disabled") required />
-                        <small class="text-muted">Example: 10 means the main tenant is reminded 10 days before the next unpaid due date.</small>
+                        <small class="text-muted">@T["Example: 10 means the main tenant is reminded 10 days before the next unpaid due date."]</small>
                     </div>
 
                     <div>
-                        <label class="form-label">Lease termination lead days</label>
+                        <label class="form-label">@T["Lease termination lead days"]</label>
                         <input class="form-control rh-input" type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" @(Model.CanWrite ? "readonly" : "disabled") required />
-                        <small class="text-muted">If the tenancy has an end date, the tenant will be notified this many days before the lease ends.</small>
+                        <small class="text-muted">@T["If the tenancy has an end date, the tenant will be notified this many days before the lease ends."]</small>
                     </div>
 
                     <div class="rh-inline-settings-note">
-                        Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted.
+                        @T["Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted."]
                     </div>
 
                     @if (Model.CanWrite)
                     {
                         <div class="col-12 rh-inline-editor-actions" hidden>
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <button class="btn rh-btn-subtle" type="button" id="apartmentReminderCancel">Cancel</button>
-                                <button class="btn rh-btn-primary" type="submit">Save reminder settings</button>
+                                <button class="btn rh-btn-subtle" type="button" id="apartmentReminderCancel">@T["Cancel"]</button>
+                                <button class="btn rh-btn-primary" type="submit">@T["Save reminder settings"]</button>
                             </div>
                         </div>
                     }
@@ -238,13 +240,13 @@
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment members</h2>
-                        <p class="rh-dashboard-panel-copy">Owners and collaborators with apartment-level access.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Apartment members"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Owners and collaborators with apartment-level access."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentMemberModal">Add+</button>
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentMemberModal">@T["Add+"]</button>
                     }
                 </div>
 
@@ -253,12 +255,12 @@
                     <input type="hidden" name="tenancySearch" value="@Model.TenancySearch" />
                     <div class="rh-search-input-wrap">
                         <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="Search apartment members" autocomplete="off" />
+                        <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="@T["Search apartment members"]" autocomplete="off" />
                     </div>
                 </form>
                 @if (!owners.Any())
                 {
-                    <div class="rh-empty">No apartment members assigned yet.</div>
+                    <div class="rh-empty">@T["No apartment members assigned yet."]</div>
                 }
                 else
                 {
@@ -268,20 +270,24 @@
                             <article class="rh-member-card rh-card-spotlight">
                                 <div class="rh-member-card-copy">
                                     <strong>@owner.OwnerName</strong>
-                                    <small>@owner.Role • Assigned @owner.AssignedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
+                                    <small>@T[owner.Role.ToString()] • @T["Assigned {0}", owner.AssignedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)]</small>
                                 </div>
 
                                 <div class="rh-member-card-actions">
-                                    <span class="rh-chip rh-chip-info">@owner.Role</span>
-                                    <span class="rh-chip @(owner.Permission == PermissionLevelEnum.ReadWrite ? "rh-chip-primary" : "rh-chip-warning")">@owner.Permission</span>
+                                    <span class="rh-chip rh-chip-info">@T[owner.Role.ToString()]</span>
+                                    <span class="rh-chip @(owner.Permission == PermissionLevelEnum.ReadWrite ? "rh-chip-primary" : "rh-chip-warning")">@T[owner.Permission.ToString()]</span>
+                                    @if (canOpenUserOverview)
+                                    {
+                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@owner.OwnerId">@T["User overview"]</a>
+                                    }
                                     @if (Model.CanWrite)
                                     {
-                                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editApartmentMemberModal-@owner.Id">Edit</button>
-                                        <form method="post" asp-action="RemoveOwner" data-confirm-modal="true" data-confirm-title="Remove apartment member?" data-confirm-message="This member will lose apartment access." data-confirm-proceed="Remove member">
+                                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editApartmentMemberModal-@owner.Id">@T["Edit"]</button>
+                                        <form method="post" asp-action="RemoveOwner" data-confirm-modal="true" data-confirm-title="@T["Remove apartment member?"]" data-confirm-message="@T["This member will lose apartment access."]" data-confirm-proceed="@T["Remove member"]">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="apartmentId" value="@apartment.Id" />
                                             <input type="hidden" name="assignmentId" value="@owner.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Remove</button>
+                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
                                         </form>
                                     }
                                 </div>
@@ -294,13 +300,13 @@
             <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-apartment-section="tenancies">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Tenancies</h2>
-                        <p class="rh-dashboard-panel-copy">Track tenancy records linked to this apartment.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Tenancies"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Track tenancy records linked to this apartment."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <a class="btn btn-sm rh-btn-primary" asp-controller="Tenancies" asp-action="Create" asp-route-apartmentId="@apartment.Id">Add+</a>
+                        <a class="btn btn-sm rh-btn-primary" asp-controller="Tenancies" asp-action="Create" asp-route-apartmentId="@apartment.Id">@T["Add+"]</a>
                     }
                 </div>
 
@@ -309,13 +315,13 @@
                     <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
                     <div class="rh-search-input-wrap">
                         <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="tenancySearch" value="@Model.TenancySearch" placeholder="Search tenancy records" autocomplete="off" />
+                        <input class="form-control rh-input js-auto-submit" type="text" name="tenancySearch" value="@Model.TenancySearch" placeholder="@T["Search tenancy records"]" autocomplete="off" />
                     </div>
                 </form>
 
                 @if (!sortedTenancies.Any())
                 {
-                    <div class="rh-empty">No tenancy records linked to this apartment yet.</div>
+                    <div class="rh-empty">@T["No tenancy records linked to this apartment yet."]</div>
                 }
                 else
                 {
@@ -324,51 +330,51 @@
                         {
                             var tenancyState = GetTenancyState(tenancy);
                             var tenancyStateClass = GetTenancyStateClass(tenancyState);
-                            var startDateLabel = tenancy.StartDate.LocalDateTime.ToString("dd MMM yyyy");
-                            var endDateLabel = tenancy.EndDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Open term";
+                            var startDateLabel = tenancy.StartDate.LocalDateTime.ToString("d", CultureInfo.CurrentCulture);
+                            var endDateLabel = tenancy.EndDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Open term"].Value;
                             <article class="rh-unit-card rh-card-spotlight rh-tenancy-card-shell">
                                 <div class="rh-unit-card-head rh-tenancy-card-head">
                                     <div>
-                                        <h3>Tenancy #@tenancy.Id</h3>
+                                        <h3>@T["Tenancy #{0}", tenancy.Id]</h3>
                                         <small>@tenancy.ApartmentName</small>
                                     </div>
                                     <div class="rh-tenancy-card-head-actions">
-                                        <span class="rh-chip @tenancyStateClass">@tenancyState</span>
-                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@tenancy.Id">Open</a>
+                                        <span class="rh-chip @tenancyStateClass">@T[tenancyState]</span>
+                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@tenancy.Id">@T["Open"]</a>
                                         @if (Model.CanWrite)
                                         {
-                                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#editTenancyModal-@tenancy.Id">Edit</button>
+                                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#editTenancyModal-@tenancy.Id">@T["Edit"]</button>
                                         }
                                     </div>
                                 </div>
 
                                 <div class="rh-tenancy-dateband">
                                     <div class="rh-tenancy-datepill start">
-                                        <span>Start date</span>
+                                        <span>@T["Start date"]</span>
                                         <strong>@startDateLabel</strong>
                                     </div>
                                     <div class="rh-tenancy-datepill end">
-                                        <span>End date</span>
+                                        <span>@T["End date"]</span>
                                         <strong>@endDateLabel</strong>
                                     </div>
                                 </div>
 
                                 <div class="rh-unit-card-meta rh-tenancy-card-meta">
-                                    <span>Monthly rent <strong>@tenancy.MonthlyRent.ToString("N0")</strong></span>
-                                    <span>Apartment <strong>@tenancy.ApartmentName</strong></span>
-                                    <span>Max members <strong>@tenancy.MaxMembers</strong></span>
+                                    <span>@T["Monthly rent"] <strong>@tenancy.MonthlyRent.ToString("N0", CultureInfo.CurrentCulture)</strong></span>
+                                    <span>@T["Apartment"] <strong>@tenancy.ApartmentName</strong></span>
+                                    <span>@T["Max members"] <strong>@tenancy.MaxMembers</strong></span>
                                 </div>
 
                                 <div class="rh-unit-card-schedule">
-                                    <span>Paid through <strong>@(tenancy.PaidThroughDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not yet covered")</strong></span>
-                                    <span>Next due <strong>@(tenancy.NextRentDueDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
-                                    <span>Reminder <strong>@(tenancy.NextRentReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "Not scheduled")</strong></span>
-                                    <span>Lease alert <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "No lease end")</strong></span>
+                                    <span>@T["Paid through"] <strong>@(tenancy.PaidThroughDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not yet covered"].Value)</strong></span>
+                                    <span>@T["Next due"] <strong>@(tenancy.NextRentDueDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong></span>
+                                    <span>@T["Reminder"] <strong>@(tenancy.NextRentReminderDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong></span>
+                                    <span>@T["Lease alert"] <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["No lease end"].Value)</strong></span>
                                 </div>
 
                                 @if (tenancy.IsPaidInAdvance)
                                 {
-                                    <div class="rh-inline-hint">Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished.</div>
+                                    <div class="rh-inline-hint">@T["Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished."]</div>
                                 }
                             </article>
                         }
@@ -379,19 +385,19 @@
             <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact" data-apartment-section="documents">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Apartment documents</h2>
-                        <p class="rh-dashboard-panel-copy">Reference files and operational records for this apartment.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Apartment documents"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Reference files and operational records for this apartment."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentDocumentModal">Add+</button>
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentDocumentModal">@T["Add+"]</button>
                     }
                 </div>
 
                 @if (!apartmentDocuments.Any())
                 {
-                    <div class="rh-empty">No apartment documents uploaded yet.</div>
+                    <div class="rh-empty">@T["No apartment documents uploaded yet."]</div>
                 }
                 else
                 {
@@ -401,17 +407,17 @@
                             <article class="rh-document-item rh-document-item-previewable rh-card-spotlight">
                                 <div class="rh-document-item-copy">
                                     <a asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id" class="rh-document-title-link">@document.FileName</a>
-                                    <small>@document.DocumentType - @document.UploadedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
+                                    <small>@T[document.DocumentType.ToString()] - @document.UploadedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)</small>
                                 </div>
                                 <div class="rh-document-actions">
-                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id">Preview</a>
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@document.Id">@T["Preview"]</a>
                                     @if (Model.CanWrite)
                                     {
-                                        <form method="post" asp-action="DeleteDocument" data-confirm-modal="true" data-confirm-title="Delete apartment document?" data-confirm-message="This document will be removed from the apartment." data-confirm-proceed="Delete document">
+                                        <form method="post" asp-action="DeleteDocument" data-confirm-modal="true" data-confirm-title="@T["Delete apartment document?"]" data-confirm-message="@T["This document will be removed from the apartment."]" data-confirm-proceed="@T["Delete document"]">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="apartmentId" value="@apartment.Id" />
                                             <input type="hidden" name="documentId" value="@document.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Delete</button>
+                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Delete"]</button>
                                         </form>
                                     }
                                 </div>
@@ -437,52 +443,52 @@
                         <input type="hidden" name="TenancyId" value="@tenancy.Id" />
 
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="modal-title">Edit Tenancy #@tenancy.Id</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <h5 class="modal-title">@T["Edit Tenancy #{0}", tenancy.Id]</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                         </div>
 
                         <div class="modal-body row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Start date</label>
+                                <label class="form-label">@T["Start date"]</label>
                                 <input class="form-control rh-input" type="date" name="StartDate" value="@tenancy.StartDate.ToString("yyyy-MM-dd")" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">End date</label>
+                                <label class="form-label">@T["End date"]</label>
                                 <input class="form-control rh-input" type="date" name="EndDate" value="@(tenancy.EndDate?.ToString("yyyy-MM-dd") ?? string.Empty)" />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Monthly rent</label>
+                                <label class="form-label">@T["Monthly rent"]</label>
                                 <input class="form-control rh-input" type="number" name="MonthlyRent" min="0" step="0.01" value="@tenancy.MonthlyRent" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Max members</label>
+                                <label class="form-label">@T["Max members"]</label>
                                 <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@tenancy.MaxMembers" required />
-                                <small class="text-muted">The selected dates must not overlap another tenancy for this apartment.</small>
+                                <small class="text-muted">@T["The selected dates must not overlap another tenancy for this apartment."]</small>
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Rent due day</label>
+                                <label class="form-label">@T["Rent due day"]</label>
                                 <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@tenancy.RentDueDay" required />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">After end date</label>
+                                <label class="form-label">@T["After end date"]</label>
                                 <div class="rh-select-wrap">
                                     <select class="form-select rh-input rh-select" name="EndBehavior">
-                                        <option value="ExpireAutomatically" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "selected" : null)">Expire automatically</option>
-                                        <option value="ContinueMonthToMonth" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "selected" : null)">Continue month-to-month</option>
-                                        <option value="NoEndDate" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "selected" : null)">No end date</option>
+                                        <option value="ExpireAutomatically" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "selected" : null)">@T["Expire automatically"]</option>
+                                        <option value="ContinueMonthToMonth" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "selected" : null)">@T["Continue month-to-month"]</option>
+                                        <option value="NoEndDate" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "selected" : null)">@T["No end date"]</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
 
                         <div class="modal-footer border-0 pt-0">
-                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn rh-btn-primary">Save tenancy</button>
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                            <button type="submit" class="btn rh-btn-primary">@T["Save tenancy"]</button>
                         </div>
                     </form>
                 </div>
@@ -501,40 +507,40 @@
                         <input type="hidden" name="assignmentId" value="@owner.Id" />
 
                         <div class="modal-header border-0 pb-0">
-                            <h5 class="modal-title">Edit Apartment Member</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <h5 class="modal-title">@T["Edit Apartment Member"]</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                         </div>
 
                         <div class="modal-body row g-3">
                             <div class="col-12">
                                 <div class="rh-inline-settings-note">
                                     <strong>@owner.OwnerName</strong>
-                                    <div class="mt-2">Adjust the apartment role and permission for this member.</div>
+                                    <div class="mt-2">@T["Adjust the apartment role and permission for this member."]</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Role</label>
+                                <label class="form-label">@T["Role"]</label>
                                 <div class="rh-select-wrap">
                                     <select class="form-select rh-input rh-select" name="Role">
-                                        <option value="Owner" selected="@(owner.Role == ApartmentMemberRoleEnum.Owner ? "selected" : null)">Owner</option>
-                                        <option value="Manager" selected="@(owner.Role == ApartmentMemberRoleEnum.Manager ? "selected" : null)">Manager</option>
+                                        <option value="Owner" selected="@(owner.Role == ApartmentMemberRoleEnum.Owner ? "selected" : null)">@T["Owner"]</option>
+                                        <option value="Manager" selected="@(owner.Role == ApartmentMemberRoleEnum.Manager ? "selected" : null)">@T["Manager"]</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Permission</label>
+                                <label class="form-label">@T["Permission"]</label>
                                 <div class="rh-select-wrap">
                                     <select class="form-select rh-input rh-select" name="Permission">
-                                        <option value="ReadOnly" selected="@(owner.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">ReadOnly</option>
-                                        <option value="ReadWrite" selected="@(owner.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">ReadWrite</option>
+                                        <option value="ReadOnly" selected="@(owner.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">@T["ReadOnly"]</option>
+                                        <option value="ReadWrite" selected="@(owner.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">@T["ReadWrite"]</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
 
                         <div class="modal-footer border-0 pt-0">
-                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn rh-btn-primary">Save member</button>
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                            <button type="submit" class="btn rh-btn-primary">@T["Save member"]</button>
                         </div>
                     </form>
                 </div>
@@ -550,50 +556,50 @@
                     <input type="hidden" name="apartmentId" value="@apartment.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Apartment Member</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Apartment Member"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-3">
                         <div class="col-12">
-                            <label class="form-label">Email</label>
+                            <label class="form-label">@T["Email"]</label>
                             <input class="form-control rh-input" name="Email" type="email" required />
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Full name</label>
+                            <label class="form-label">@T["Full name"]</label>
                             <input class="form-control rh-input" name="FullName" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Country code</label>
-                            <input class="form-control rh-input" name="CountryCode" inputmode="numeric" placeholder="e.g. +237" />
+                            <label class="form-label">@T["Country code"]</label>
+                            <input class="form-control rh-input" name="CountryCode" inputmode="numeric" placeholder="@T["e.g. +237"]" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Phone number</label>
-                            <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="e.g. REMOVED_PRIVATE_VALUE" />
+                            <label class="form-label">@T["Phone number"]</label>
+                            <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="@T["e.g. REMOVED_PRIVATE_VALUE"]" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Role</label>
+                            <label class="form-label">@T["Role"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="Role">
-                                    <option value="Owner">Owner</option>
-                                    <option value="Manager">Manager</option>
+                                    <option value="Owner">@T["Owner"]</option>
+                                    <option value="Manager">@T["Manager"]</option>
                                 </select>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Permission</label>
+                            <label class="form-label">@T["Permission"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="Permission">
-                                    <option value="ReadOnly">ReadOnly</option>
-                                    <option value="ReadWrite">ReadWrite</option>
+                                    <option value="ReadOnly">@T["ReadOnly"]</option>
+                                    <option value="ReadWrite">@T["ReadWrite"]</option>
                                 </select>
                             </div>
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Add member</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Add member"]</button>
                     </div>
                 </form>
             </div>
@@ -608,23 +614,23 @@
                     <input type="hidden" name="apartmentId" value="@apartment.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Apartment Document</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Apartment Document"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-3">
                         <div class="col-12">
-                            <label class="form-label">Document file</label>
+                            <label class="form-label">@T["Document file"]</label>
                             <input class="form-control rh-input" type="file" name="file" accept=".pdf,application/pdf" required />
-                            <small class="text-muted">Only PDF files are allowed in this section.</small>
+                            <small class="text-muted">@T["Only PDF files are allowed in this section."]</small>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Document type</label>
+                            <label class="form-label">@T["Document type"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="documentType">
                                     @foreach (var type in Enum.GetValues<DocumentTypeEnum>().Where(type => type != DocumentTypeEnum.PropertyImage && type != DocumentTypeEnum.ApartmentImage))
                                     {
-                                        <option value="@type">@type</option>
+                                        <option value="@type">@T[type.ToString()]</option>
                                     }
                                 </select>
                             </div>
@@ -632,8 +638,8 @@
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Upload document</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Upload document"]</button>
                     </div>
                 </form>
             </div>
@@ -648,21 +654,21 @@
                     <input type="hidden" name="apartmentId" value="@apartment.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Apartment Images</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Apartment Images"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-3">
                         <div class="col-12">
-                            <label class="form-label">Select image files</label>
+                            <label class="form-label">@T["Select image files"]</label>
                             <input class="form-control rh-input" type="file" name="files" accept="image/*" multiple required />
-                            <small class="text-muted">You can choose multiple images at once. Landscape images work best for the apartment gallery.</small>
+                            <small class="text-muted">@T["You can choose multiple images at once. Landscape images work best for the apartment gallery."]</small>
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Upload images</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Upload images"]</button>
                     </div>
                 </form>
             </div>
@@ -674,17 +680,17 @@
             <div class="modal-content rh-modal-content">
                 <div class="modal-header border-0 pb-0">
                     <div>
-                        <h5 class="modal-title">Manage Apartment Image</h5>
-                        <p class="text-muted mb-0">Replace or remove the image currently shown in the gallery.</p>
+                        <h5 class="modal-title">@T["Manage Apartment Image"]</h5>
+                        <p class="text-muted mb-0">@T["Replace or remove the image currently shown in the gallery."]</p>
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
 
                 <div class="modal-body row g-3">
                     <div class="col-12">
                         <div class="rh-inline-settings-note">
-                            <strong data-current-image-name>@(currentApartmentImage?.FileName ?? "No image selected yet")</strong>
-                            <div class="mt-2">Use a landscape image under 2 MB for the best result.</div>
+                            <strong data-current-image-name>@(currentApartmentImage?.FileName ?? T["No image selected yet"].Value)</strong>
+                            <div class="mt-2">@T["Use a landscape image under 2 MB for the best result."]</div>
                         </div>
                     </div>
 
@@ -694,12 +700,12 @@
                             <input type="hidden" name="apartmentId" value="@apartment.Id" />
                             <input type="hidden" name="currentDocumentId" value="@(currentApartmentImage?.Id)" />
 
-                            <label class="form-label">Replace current image</label>
+                            <label class="form-label">@T["Replace current image"]</label>
                             <input class="form-control rh-input" type="file" name="file" accept="image/*" required />
-                            <small class="text-muted d-block mt-2">Uploading here replaces only the image currently displayed in the gallery.</small>
+                            <small class="text-muted d-block mt-2">@T["Uploading here replaces only the image currently displayed in the gallery."]</small>
 
                             <div class="modal-footer border-0 px-0 pt-3 pb-0">
-                                <button type="submit" class="btn rh-btn-primary">Save current image</button>
+                                <button type="submit" class="btn rh-btn-primary">@T["Save current image"]</button>
                             </div>
                         </form>
                     </div>
@@ -707,13 +713,13 @@
                     @if (currentApartmentImage != null)
                     {
                         <div class="col-12">
-                            <form method="post" asp-action="DeleteApartmentImage" data-confirm-modal="true" data-confirm-title="Delete apartment image?" data-confirm-message="This will remove the image currently shown in the gallery." data-confirm-proceed="Delete image">
+                            <form method="post" asp-action="DeleteApartmentImage" data-confirm-modal="true" data-confirm-title="@T["Delete apartment image?"]" data-confirm-message="@T["This will remove the image currently shown in the gallery."]" data-confirm-proceed="@T["Delete image"]">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="apartmentId" value="@apartment.Id" />
                                 <input type="hidden" name="documentId" value="@currentApartmentImage.Id" />
 
                                 <div class="modal-footer border-0 px-0 pt-0 pb-0 justify-content-start">
-                                    <button type="submit" class="btn rh-btn-outline-danger">Delete current image</button>
+                                    <button type="submit" class="btn rh-btn-outline-danger">@T["Delete current image"]</button>
                                 </div>
                             </form>
                         </div>
@@ -728,18 +734,18 @@
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content rh-image-lightbox-modal">
             <div class="modal-header border-0">
-                <h5 class="modal-title">Apartment image</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title">@T["Apartment image"]</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
             </div>
             <div class="modal-body pt-0">
                 <div class="rh-image-lightbox-stage">
                     @if (apartmentImages.Count > 1)
                     {
-                        <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-lightbox-nav="prev" aria-label="Previous image">&#8592;</button>
-                        <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-lightbox-nav="next" aria-label="Next image">&#8594;</button>
+                        <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-lightbox-nav="prev" aria-label="@T["Previous image"]">&#8592;</button>
+                        <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-lightbox-nav="next" aria-label="@T["Next image"]">&#8594;</button>
                     }
                     <img src="@(currentApartmentImage?.BlobUrl ?? string.Empty)"
-                         alt="Apartment image preview"
+                         alt="@T["Apartment image preview"]"
                          class="rh-image-lightbox-preview"
                          id="apartmentImageLightboxPreview" />
                 </div>

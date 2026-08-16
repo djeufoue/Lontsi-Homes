@@ -3,6 +3,7 @@ using Common.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
+using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Storage;
 
@@ -37,6 +38,7 @@ namespace RentHub.API.Controllers
                 var query = _context.Apartments
                     .Include(a => a.Property)
                     .ThenInclude(p => p!.Landlord)
+                    .Include(a => a.Tenancies)
                     .Where(a => !a.IsDeleted && a.Property != null && !a.Property.IsDeleted)
                     .AsQueryable();
 
@@ -56,48 +58,58 @@ namespace RentHub.API.Controllers
                     query = query.Where(a => a.Property!.City.ToLower().Contains(normalized));
                 }
 
+                var nowUtc = DateTimeOffset.UtcNow;
+                var candidates = await query.ToListAsync();
+                var apartmentsWithStatus = candidates
+                    .Select(apartment => new
+                    {
+                        Apartment = apartment,
+                        Status = ApartmentStatusResolver.Resolve(apartment.Tenancies, nowUtc)
+                    });
+
                 if (!string.IsNullOrWhiteSpace(status) &&
                     !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase) &&
                     Enum.TryParse<ApartmentStatusEnum>(status, true, out var parsedStatus))
                 {
-                    query = query.Where(a => a.Status == parsedStatus);
+                    apartmentsWithStatus = apartmentsWithStatus.Where(item => item.Status == parsedStatus);
                 }
 
-                var totalCount = await query.CountAsync();
-                var apartments = await query
-                    .OrderBy(a => a.Status == ApartmentStatusEnum.Vacant ? 0 : 1)
-                    .ThenByDescending(a => a.CreatedAt)
+                var totalCount = apartmentsWithStatus.Count();
+                var apartments = apartmentsWithStatus
+                    .OrderBy(item => item.Status == ApartmentStatusEnum.Vacant ? 0 : 1)
+                    .ThenByDescending(item => item.Apartment.CreatedAt)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
-                    .ToListAsync();
+                    .ToList();
 
-                var leadImageMap = await BuildLeadImageMapAsync(apartments);
+                var apartmentEntities = apartments.Select(item => item.Apartment).ToList();
+                var leadImageMap = await BuildLeadImageMapAsync(apartmentEntities);
 
                 var response = new PublicApartmentCatalogResponseDto
                 {
                     Page = page,
                     PageSize = pageSize,
                     TotalCount = totalCount,
-                    Items = apartments.Select(apartment => new PublicApartmentCatalogItemDto
+                    Items = apartments.Select(item => new PublicApartmentCatalogItemDto
                     {
-                        ApartmentId = apartment.Id,
-                        PropertyId = apartment.PropertyId,
-                        ApartmentName = apartment.Name,
-                        PropertyName = apartment.Property!.Name,
-                        City = apartment.Property.City,
-                        Address = apartment.Property.Address,
-                        Type = apartment.Type.ToString(),
-                        Status = apartment.Status.ToString(),
-                        Price = apartment.Price,
-                        DepositPrice = apartment.DepositPrice,
-                        Area = apartment.Area,
-                        NumberOfRooms = apartment.NumberOfRooms,
-                        NumberOfBathrooms = apartment.NumberOfBathrooms,
-                        FloorNumber = apartment.FloorNumber,
-                        LandlordName = apartment.Property.Landlord != null
-                            ? (apartment.Property.Landlord.FullName ?? apartment.Property.Landlord.Email ?? "Landlord")
+                        ApartmentId = item.Apartment.Id,
+                        PropertyId = item.Apartment.PropertyId,
+                        ApartmentName = item.Apartment.Name,
+                        PropertyName = item.Apartment.Property!.Name,
+                        City = item.Apartment.Property.City,
+                        Address = item.Apartment.Property.Address,
+                        Type = item.Apartment.Type.ToString(),
+                        Status = item.Status.ToString(),
+                        Price = item.Apartment.Price,
+                        DepositPrice = item.Apartment.DepositPrice,
+                        Area = item.Apartment.Area,
+                        NumberOfRooms = item.Apartment.NumberOfRooms,
+                        NumberOfBathrooms = item.Apartment.NumberOfBathrooms,
+                        FloorNumber = item.Apartment.FloorNumber,
+                        LandlordName = item.Apartment.Property.Landlord != null
+                            ? (item.Apartment.Property.Landlord.FullName ?? item.Apartment.Property.Landlord.Email ?? "Landlord")
                             : "Landlord",
-                        LeadImageUrl = leadImageMap.TryGetValue(apartment.Id, out var imageUrl) ? imageUrl : null
+                        LeadImageUrl = leadImageMap.TryGetValue(item.Apartment.Id, out var imageUrl) ? imageUrl : null
                     }).ToList()
                 };
 
@@ -117,6 +129,7 @@ namespace RentHub.API.Controllers
                 var apartment = await _context.Apartments
                     .Include(a => a.Property)
                     .ThenInclude(p => p!.Landlord)
+                    .Include(a => a.Tenancies)
                     .FirstOrDefaultAsync(a => a.Id == id && !a.IsDeleted);
 
                 if (apartment == null || apartment.Property == null || apartment.Property.IsDeleted)
@@ -147,7 +160,7 @@ namespace RentHub.API.Controllers
                     City = apartment.Property.City,
                     Address = apartment.Property.Address,
                     Type = apartment.Type.ToString(),
-                    Status = apartment.Status.ToString(),
+                    Status = ApartmentStatusResolver.Resolve(apartment.Tenancies, DateTimeOffset.UtcNow).ToString(),
                     Price = apartment.Price,
                     DepositPrice = apartment.DepositPrice,
                     Area = apartment.Area,

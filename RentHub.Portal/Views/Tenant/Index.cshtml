@@ -2,10 +2,10 @@
 @using Common.Enums
 @using Common.Helpers
 @{
-    ViewData["Title"] = "Tenant Dashboard";
+    ViewData["Title"] = T["Tenant Dashboard"].Value;
 
-    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy");
-    string OptionalDateLabel(DateTimeOffset? value) => value.HasValue ? DateLabel(value.Value) : "Not scheduled";
+    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("d");
+    string OptionalDateLabel(DateTimeOffset? value) => value.HasValue ? DateLabel(value.Value) : T["Not scheduled"].Value;
     string StatusClass(RentPeriodStatusEnum status) => status switch
     {
         RentPeriodStatusEnum.Paid or RentPeriodStatusEnum.PaidBeforeRentHub or RentPeriodStatusEnum.PaidInAdvance => "rh-chip-primary",
@@ -19,24 +19,24 @@
     {
         PaymentMethodEnum.Momo => "MTN Mobile Money",
         PaymentMethodEnum.OrangeMoney => "Orange Money",
-        PaymentMethodEnum.Card => "card",
-        _ => method.ToString()
+        PaymentMethodEnum.Card => T["card"].Value,
+        _ => T[method.ToString()].Value
     };
 }
 
 <section class="rh-overview-shell">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
-            <p class="rh-kicker">Tenant workspace</p>
-            <h1 class="rh-heading-title">My rent dashboard</h1>
-            <p class="rh-heading-subtitle">Review your tenancy, payment history, and rent periods from one place.</p>
+            <p class="rh-kicker">@T["Tenant workspace"]</p>
+            <h1 class="rh-heading-title">@T["My rent dashboard"]</h1>
+            <p class="rh-heading-subtitle">@T["Review your tenancy, payment history, and rent periods from one place."]</p>
         </div>
     </section>
 
     @if (Model.Tenancies.Count == 0)
     {
         <section class="rh-panel rh-panel-elevated">
-            <div class="rh-empty">No active tenancy is linked to your account yet.</div>
+            <div class="rh-empty">@T["No active tenancy is linked to your account yet."]</div>
         </section>
     }
     else
@@ -63,34 +63,40 @@
                         <p class="rh-kicker">@tenancy.PropertyName</p>
                         <h2 class="rh-dashboard-panel-title">@tenancy.ApartmentName</h2>
                         <p class="rh-dashboard-panel-copy">
-                            @DateLabel(tenancy.StartDate) - @(tenancy.EndDate.HasValue ? DateLabel(tenancy.EndDate.Value) : "Open term")
+                            @DateLabel(tenancy.StartDate) - @(tenancy.EndDate.HasValue ? DateLabel(tenancy.EndDate.Value) : T["Open term"].Value)
                         </p>
                     </div>
-                    <span class="rh-chip rh-chip-info">@tenancy.Status</span>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="rh-chip rh-chip-info">@T[tenancy.Status]</span>
+                        @if (tenancy.EndDate.HasValue && !tenancy.TerminatedAt.HasValue)
+                        {
+                            <a class="btn btn-sm rh-btn-subtle" asp-controller="Tenancies" asp-action="Renewal" asp-route-tenancyId="@tenancy.Id">@T["Renewal"]</a>
+                        }
+                    </div>
                 </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-3">
                         <div class="rh-stat-box">
-                            <span class="rh-stat-label">Monthly rent</span>
+                            <span class="rh-stat-label">@T["Monthly rent"]</span>
                             <strong class="rh-stat-value">@tenancy.MonthlyRent.ToString("N0")</strong>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="rh-stat-box">
-                            <span class="rh-stat-label">Outstanding</span>
+                            <span class="rh-stat-label">@T["Outstanding"]</span>
                             <strong class="rh-stat-value">@item.OutstandingBalance.ToString("N0")</strong>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="rh-stat-box">
-                            <span class="rh-stat-label">Next due</span>
+                            <span class="rh-stat-label">@T["Next due"]</span>
                             <strong class="rh-stat-value">@OptionalDateLabel(item.NextDueDate)</strong>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="rh-stat-box">
-                            <span class="rh-stat-label">Landlord</span>
+                            <span class="rh-stat-label">@T["Landlord"]</span>
                             <strong class="rh-stat-value">@item.LandlordName</strong>
                         </div>
                     </div>
@@ -101,9 +107,10 @@
                     if (!item.CanPayRent)
                     {
                         <div class="rh-inline-settings-note rh-warning-note mb-3">
-                            @(string.IsNullOrWhiteSpace(item.PaymentUnavailableReason)
+                            @T[string.IsNullOrWhiteSpace(item.PaymentUnavailableReason)
                                 ? "Card payment mode is not available right now."
-                                : item.PaymentUnavailableReason)
+                                : item.PaymentUnavailableReason]
+                            <a class="btn btn-sm rh-btn-subtle ms-2" asp-action="PaymentDetails" asp-route-tenancyId="@tenancy.Id">@T["View payment details"]</a>
                         </div>
                     }
                     else
@@ -115,10 +122,10 @@
                             <input type="hidden" name="numberOfPeriods" value="0" data-rent-period-count />
                             <div class="row g-3 align-items-end">
                                 <div class="col-md-8">
-                                    <label class="form-label">Pay rent periods in order</label>
+                                    <label class="form-label">@T["Pay rent periods in order"]</label>
                                     <div class="rh-rent-period-picker" data-rent-period-picker>
                                         <button class="btn rh-btn-subtle rh-rent-period-picker-toggle" type="button" data-rent-picker-toggle>
-                                            Choose rent periods
+                                            @T["Choose rent periods"]
                                         </button>
                                         <div class="rh-rent-period-picker-menu" data-rent-picker-menu>
                                             @for (var optionIndex = 0; optionIndex < maxPayable; optionIndex++)
@@ -136,46 +143,53 @@
                                                            disabled="@(optionIndex > 0)" />
                                                     <span>
                                                         <strong>@optionLabel</strong>
-                                                        <small>@(period.Amount - period.PaidAmount).ToString("N0") due</small>
+                                                        <small>@T["{0:N0} due", period.Amount - period.PaidAmount]</small>
                                                     </span>
                                                 </label>
                                             }
                                         </div>
                                     </div>
                                     <small class="text-muted" data-rent-picker-help>
-                                        Select the oldest period first. Each selected period unlocks the next one.
+                                        @T["Select the oldest period first. Each selected period unlocks the next one."]
                                     </small>
                                 </div>
                                 <div class="col-md-4">
                                     <button type="submit" class="btn rh-btn-primary w-100" data-rent-submit disabled>
-                                        Pay selected rent
+                                        @T["Pay selected rent"]
                                     </button>
-                                    <small class="text-muted d-block mt-2">Payment method: @PaymentMethodLabel(item.PaymentMethod)</small>
+                                    <small class="text-muted d-block mt-2">@T["Payment method: {0}", PaymentMethodLabel(item.PaymentMethod)]</small>
                                 </div>
                             </div>
                         </form>
                     }
                 }
-                else if (pendingPaymentPeriod != null)
+                else if (pendingPaymentPeriod != null && item.AutomaticPaymentsEnabled)
                 {
                     <div class="rh-inline-settings-note mb-3 d-flex flex-wrap gap-2 align-items-center justify-content-between">
-                        <span>A card payment is already pending for @DateLabel(pendingPaymentPeriod.PeriodStart) - @DateLabel(pendingPaymentPeriod.PeriodEnd). Complete that payment before selecting another period.</span>
-                        <a class="btn rh-btn-primary" asp-action="RentCardCheckout" asp-route-reference="@pendingPaymentPeriod.PaymentReference">Continue card payment</a>
+                        <span>@T["A card payment is already pending for {0} - {1}. Complete that payment before selecting another period.", DateLabel(pendingPaymentPeriod.PeriodStart), DateLabel(pendingPaymentPeriod.PeriodEnd)]</span>
+                        <a class="btn rh-btn-primary" asp-action="RentCardCheckout" asp-route-reference="@pendingPaymentPeriod.PaymentReference">@T["Continue card payment"]</a>
+                    </div>
+                }
+                else if (pendingPaymentPeriod != null)
+                {
+                    <div class="rh-inline-settings-note rh-warning-note mb-3 d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                        <span>@T["Automatic payment is currently unavailable. Contact the landlord to arrange payment for this pending period."]</span>
+                        <a class="btn btn-sm rh-btn-subtle" asp-action="PaymentDetails" asp-route-tenancyId="@tenancy.Id">@T["View payment details"]</a>
                     </div>
                 }
                 else
                 {
-                    <div class="rh-inline-settings-note mb-3">No unpaid rent period is currently available for payment.</div>
+                    <div class="rh-inline-settings-note mb-3">@T["No unpaid rent period is currently available for payment."]</div>
                 }
 
                 <div class="table-responsive">
                     <table class="table align-middle">
                         <thead>
                             <tr>
-                                <th>Period</th>
-                                <th class="text-end">Amount</th>
-                                <th>Status</th>
-                                <th>Action</th>
+                                <th>@T["Period"]</th>
+                                <th class="text-end">@T["Amount"]</th>
+                                <th>@T["Status"]</th>
+                                <th>@T["Action"]</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -184,30 +198,36 @@
                                 <tr>
                                     <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
                                     <td class="text-end">@period.Amount.ToString("N0")</td>
-                                    <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
+                                    <td><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
                                     <td>
                                         @if (period.IsPayable)
                                         {
-                                            <span>Available in payment selector</span>
+                                            <span>@T["Available in payment selector"]</span>
                                         }
-                                        else if (period.Status == RentPeriodStatusEnum.PendingPayment && !string.IsNullOrWhiteSpace(period.PaymentReference))
+                                        else if (period.Status == RentPeriodStatusEnum.PendingPayment &&
+                                                 !string.IsNullOrWhiteSpace(period.PaymentReference) &&
+                                                 item.AutomaticPaymentsEnabled)
                                         {
-                                            <a class="btn btn-sm rh-btn-subtle" asp-action="RentCardCheckout" asp-route-reference="@period.PaymentReference">Continue payment</a>
+                                            <a class="btn btn-sm rh-btn-subtle" asp-action="RentCardCheckout" asp-route-reference="@period.PaymentReference">@T["Continue payment"]</a>
+                                        }
+                                        else if (period.Status == RentPeriodStatusEnum.PendingPayment)
+                                        {
+                                            <a class="btn btn-sm rh-btn-subtle" asp-action="PaymentDetails" asp-route-tenancyId="@tenancy.Id">@T["Payment details"]</a>
                                         }
                                         else if (period.PaymentId.HasValue && RentPeriodScheduleHelper.IsPaidStatus(period.Status))
                                         {
                                             <div class="d-flex flex-wrap gap-2">
-                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">Receipt</a>
-                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">Download</a>
+                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">@T["Receipt"]</a>
+                                                <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">@T["Download"]</a>
                                             </div>
                                         }
                                         else if (!string.IsNullOrWhiteSpace(period.LockedReason))
                                         {
-                                            <span class="text-muted">@period.LockedReason</span>
+                                            <span class="text-muted">@T[period.LockedReason]</span>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">View</span>
+                                            <span class="text-muted">@T["View"]</span>
                                         }
                                     </td>
                                 </tr>
@@ -218,16 +238,16 @@
 
                 @if (item.PaymentHistory.Any())
                 {
-                    <h3 class="rh-section-title mt-4 mb-2">Payment history</h3>
+                    <h3 class="rh-section-title mt-4 mb-2">@T["Payment history"]</h3>
                     <div class="table-responsive">
                         <table class="table align-middle">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Period</th>
-                                    <th class="text-end">Amount</th>
-                                    <th>Status</th>
-                                    <th>Receipt</th>
+                                    <th>@T["Date"]</th>
+                                    <th>@T["Period"]</th>
+                                    <th class="text-end">@T["Amount"]</th>
+                                    <th>@T["Status"]</th>
+                                    <th>@T["Receipt"]</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -237,18 +257,18 @@
                                         <td>@DateLabel(payment.PaymentDate)</td>
                                         <td>@payment.PeriodLabel</td>
                                         <td class="text-end">@payment.Amount.ToString("N0") @payment.Currency</td>
-                                        <td>@payment.Status</td>
+                                        <td>@T[payment.Status.ToString()]</td>
                                         <td>
                                             @if (payment.Status == PaymentStatusEnum.Success)
                                             {
                                                 <div class="d-flex flex-wrap gap-2">
-                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@payment.PaymentId">Receipt</a>
-                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@payment.PaymentId">Download</a>
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@payment.PaymentId">@T["Receipt"]</a>
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@payment.PaymentId">@T["Download"]</a>
                                                 </div>
                                             }
                                             else
                                             {
-                                                <span class="text-muted">After payment</span>
+                                                <span class="text-muted">@T["After payment"]</span>
                                             }
                                         </td>
                                     </tr>

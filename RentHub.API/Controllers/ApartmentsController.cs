@@ -45,7 +45,13 @@ namespace RentHub.API.Controllers
                 var apartments = await _context.Apartments
                     .Include(a => a.Property)
                     .ThenInclude(p => p.Landlord)
-                    .Where(a => !a.IsDeleted && a.Status == ApartmentStatusEnum.Vacant)
+                    .Include(a => a.Tenancies)
+                    .Where(a => !a.IsDeleted)
+                    .ToListAsync();
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                var response = apartments
+                    .Where(a => ApartmentStatusResolver.Resolve(a.Tenancies, nowUtc) == ApartmentStatusEnum.Vacant)
                     .Select(a => new ApartmentDto
                     {
                         Id = a.Id,
@@ -57,11 +63,11 @@ namespace RentHub.API.Controllers
                         LandlordName = a.Property != null && a.Property.Landlord != null
                             ? (a.Property.Landlord.FullName ?? string.Empty)
                             : string.Empty,
-                        Status = a.Status.ToString()
+                        Status = ApartmentStatusEnum.Vacant.ToString()
                     })
-                    .ToListAsync();
+                    .ToList();
 
-                return Ok(apartments);
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -83,9 +89,13 @@ namespace RentHub.API.Controllers
 
                 var apartments = await _context.Apartments
                     .Include(a => a.Property)
+                    .Include(a => a.Tenancies)
                     .Where(a => !a.IsDeleted && a.Property != null && a.Property.LandlordId == userId)
                     .OrderByDescending(a => a.CreatedAt)
-                    .Select(a => new ApartmentDto
+                    .ToListAsync();
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                var response = apartments.Select(a => new ApartmentDto
                     {
                         Id = a.Id,
                         Name = a.Name,
@@ -94,11 +104,11 @@ namespace RentHub.API.Controllers
                         Area = a.Area,
                         PropertyName = a.Property != null ? a.Property.Name : string.Empty,
                         LandlordName = string.Empty,
-                        Status = a.Status.ToString()
+                        Status = ApartmentStatusResolver.Resolve(a.Tenancies, nowUtc).ToString()
                     })
-                    .ToListAsync();
+                    .ToList();
 
-                return Ok(apartments);
+                return Ok(response);
             }
             catch (Exception ex)
             {
@@ -119,6 +129,10 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var isAdmin = User.IsInRole("Admin");
+                var restrictToTenantAssignments = User.IsInRole("Tenant") &&
+                                                  !User.IsInRole("Admin") &&
+                                                  !User.IsInRole("Landlord") &&
+                                                  !User.IsInRole("Manager");
 
                 var apt = await _context.Apartments
                     .Include(a => a.Property)
@@ -149,7 +163,10 @@ namespace RentHub.API.Controllers
                         o.ApartmentId == id && o.OwnerId == userId && !o.IsDeleted && o.Permission == PermissionLevelEnum.ReadWrite);
 
                 var tenancies = await _context.Tenancies
-                    .Where(t => t.ApartmentId == id && !t.IsDeleted)
+                    .Where(t =>
+                        t.ApartmentId == id &&
+                        !t.IsDeleted &&
+                        (!restrictToTenantAssignments || t.Members.Any(member => !member.IsDeleted && member.MemberId == userId)))
                     .OrderByDescending(t => t.StartDate)
                     .ToListAsync();
 
@@ -202,20 +219,22 @@ namespace RentHub.API.Controllers
                     })
                     .ToList();
 
-                var owners = await _context.ApartmentOwners
-                    .Include(o => o.Owner)
-                    .Where(o => o.ApartmentId == id && !o.IsDeleted)
-                    .OrderByDescending(o => o.CreatedAt)
-                    .Select(o => new ApartmentOwnerDto
-                    {
-                        Id = o.Id,
-                        OwnerId = o.OwnerId,
-                        OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
-                        Role = o.Role,
-                        Permission = o.Permission,
-                        AssignedAt = o.CreatedAt
-                    })
-                    .ToListAsync();
+                var owners = restrictToTenantAssignments
+                    ? new List<ApartmentOwnerDto>()
+                    : await _context.ApartmentOwners
+                        .Include(o => o.Owner)
+                        .Where(o => o.ApartmentId == id && !o.IsDeleted)
+                        .OrderByDescending(o => o.CreatedAt)
+                        .Select(o => new ApartmentOwnerDto
+                        {
+                            Id = o.Id,
+                            OwnerId = o.OwnerId,
+                            OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
+                            Role = o.Role,
+                            Permission = o.Permission,
+                            AssignedAt = o.CreatedAt
+                        })
+                        .ToListAsync();
 
                 var documentEntities = await _context.Documents
                     .Where(d => d.ApartmentId == id && !d.IsDeleted)
@@ -235,7 +254,7 @@ namespace RentHub.API.Controllers
                         Type = apt.Type.ToString(),
                         Price = apt.Price,
                         Area = apt.Area,
-                        Status = apt.Status.ToString(),
+                        Status = ApartmentStatusResolver.Resolve(tenancies, DateTimeOffset.UtcNow).ToString(),
                         RentReminderDaysBeforeDue = apt.RentReminderDaysBeforeDue,
                         LeaseTerminationReminderDaysBeforeEnd = apt.LeaseTerminationReminderDaysBeforeEnd,
                         CanWrite = canWrite
@@ -279,6 +298,16 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite) return Forbid();
 
+                if (!User.IsInRole("Admin") &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, property.LandlordId))
+                {
+                    return StatusCode(StatusCodes.Status402PaymentRequired, new
+                    {
+                        Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                        Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+                    });
+                }
+
                 var normalizedName = (request.Name ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(normalizedName))
                     return BadRequest("Apartment name is required.");
@@ -296,7 +325,7 @@ namespace RentHub.API.Controllers
 
                 var activeSubscription = await _context.UserSubscriptions
                     .Include(us => us.SubscriptionPlan)
-                    .Where(us => us.UserId == property.LandlordId && !us.IsDeleted && us.EndDate > DateTimeOffset.UtcNow)
+                    .Where(us => us.UserId == property.LandlordId && !us.IsDeleted && us.IsApproved && us.PaymentStatus == PaymentStatusEnum.Success && us.EndDate > DateTimeOffset.UtcNow)
                     .OrderByDescending(us => us.EndDate)
                     .FirstOrDefaultAsync();
 
@@ -489,6 +518,16 @@ namespace RentHub.API.Controllers
                         m.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite) return Forbid();
+
+                if (!User.IsInRole("Admin") &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apt.Property.LandlordId))
+                {
+                    return StatusCode(StatusCodes.Status402PaymentRequired, new
+                    {
+                        Code = "SUBSCRIPTION_REQUIRED",
+                        Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+                    });
+                }
 
                 var email = (request.Email ?? string.Empty).Trim();
                 if (string.IsNullOrWhiteSpace(email)) return BadRequest("Email is required.");

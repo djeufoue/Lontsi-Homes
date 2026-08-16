@@ -15,6 +15,8 @@ namespace RentHub.API.Helpers
             bool requireStripePayoutSetup = true)
         {
             var now = DateTimeOffset.UtcNow;
+            requireStripePayoutSetup = requireStripePayoutSetup &&
+                await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(context);
             var landlord = await context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == landlordId);
@@ -25,7 +27,7 @@ namespace RentHub.API.Helpers
 
             var activeSubscription = await context.UserSubscriptions
                 .Include(us => us.SubscriptionPlan)
-                .Where(us => us.UserId == landlordId && us.IsApproved && us.EndDate > now)
+                .Where(us => us.UserId == landlordId && us.IsApproved && us.PaymentStatus == PaymentStatusEnum.Success && us.EndDate > now)
                 .OrderByDescending(us => us.EndDate)
                 .FirstOrDefaultAsync();
 
@@ -78,6 +80,15 @@ namespace RentHub.API.Helpers
             if (requireStripePayoutSetup && !scope.StripePayoutSetupComplete)
             {
                 scope.StatusMessage = "Set up your payout account before creating properties so tenant rent payments can be routed to you later.";
+                return scope;
+            }
+
+            if (landlord?.IsSubscriptionExempt == true)
+            {
+                scope.SubscriptionApproved = true;
+                scope.MaxProperties = null;
+                scope.CanCreate = true;
+                scope.StatusMessage = "Subscription exemption enabled by an administrator.";
                 return scope;
             }
 
@@ -148,6 +159,36 @@ namespace RentHub.API.Helpers
                 m.PropertyId == propertyId &&
                 m.ManagerId == userId &&
                 m.Permission == PermissionLevelEnum.ReadWrite);
+        }
+
+        public static async Task<bool> CanAccessTenancyAsync(
+            ApplicationDbContext context,
+            int tenancyId,
+            int apartmentId,
+            int propertyId,
+            string userId,
+            bool isAdmin)
+        {
+            if (isAdmin) return true;
+            if (await context.TenancyMembers.AnyAsync(member => !member.IsDeleted && member.TenancyId == tenancyId && member.MemberId == userId)) return true;
+            if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
+            if (await context.PropertyManagerAssignments.AnyAsync(assignment => !assignment.IsDeleted && assignment.PropertyId == propertyId && assignment.ManagerId == userId)) return true;
+            return await context.ApartmentOwners.AnyAsync(assignment => !assignment.IsDeleted && assignment.ApartmentId == apartmentId && assignment.OwnerId == userId);
+        }
+
+        public static async Task<bool> CanWriteTenancyAsync(
+            ApplicationDbContext context,
+            int apartmentId,
+            int propertyId,
+            string userId,
+            bool isAdmin)
+        {
+            if (isAdmin) return true;
+            if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
+            if (await context.PropertyManagerAssignments.AnyAsync(assignment =>
+                    !assignment.IsDeleted && assignment.PropertyId == propertyId && assignment.ManagerId == userId && assignment.Permission == PermissionLevelEnum.ReadWrite)) return true;
+            return await context.ApartmentOwners.AnyAsync(assignment =>
+                !assignment.IsDeleted && assignment.ApartmentId == apartmentId && assignment.OwnerId == userId && assignment.Permission == PermissionLevelEnum.ReadWrite);
         }
 
         public static string ResolvePrimaryRole(ISet<string> roles)

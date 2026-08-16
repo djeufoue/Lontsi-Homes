@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Common.Enums;
 using RentHub.API.Models.Entities;
 
 namespace RentHub.API.Data
@@ -29,8 +30,11 @@ namespace RentHub.API.Data
         public DbSet<LandlordKycProfile> LandlordKycProfiles => Set<LandlordKycProfile>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
+        public DbSet<PlatformPaymentSettings> PlatformPaymentSettings => Set<PlatformPaymentSettings>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
         public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+        public DbSet<SubscriptionInquiry> SubscriptionInquiries => Set<SubscriptionInquiry>();
+        public DbSet<SubscriptionInquiryMessage> SubscriptionInquiryMessages => Set<SubscriptionInquiryMessage>();
 
         // Extension requests and settings
         public DbSet<TenancyExtensionRequest> TenancyExtensionRequests => Set<TenancyExtensionRequest>();
@@ -65,6 +69,9 @@ namespace RentHub.API.Data
 
             builder.Entity<ApplicationUser>(entity =>
             {
+                entity.Property(u => u.Language)
+                    .HasDefaultValue(PlatformLanguage.English);
+
                 entity.Property(u => u.CountryIsoCode)
                     .HasMaxLength(2);
 
@@ -95,6 +102,20 @@ namespace RentHub.API.Data
             {
                 entity.Property(t => t.TerminationNotes)
                     .HasMaxLength(512);
+            });
+
+            builder.Entity<TenancyExtensionRequest>(entity =>
+            {
+                entity.Property(request => request.RejectionReason)
+                    .HasMaxLength(512);
+
+                entity.HasOne(request => request.Tenancy)
+                    .WithMany(tenancy => tenancy.ExtensionRequests)
+                    .HasForeignKey(request => request.TenancyId);
+
+                entity.HasIndex(request => request.TenancyId)
+                    .IsUnique()
+                    .HasFilter("[Status] = 0 AND [IsDeleted] = 0");
             });
 
             builder.Entity<RentPeriod>(entity =>
@@ -293,6 +314,10 @@ namespace RentHub.API.Data
                 .HasIndex(a => a.Channel)
                 .IsUnique();
 
+            builder.Entity<PlatformPaymentSettings>()
+                .Property(settings => settings.Id)
+                .ValueGeneratedNever();
+
             builder.Entity<ApartmentConversation>()
                 .HasIndex(c => new { c.ApartmentId, c.VisitorId })
                 .IsUnique();
@@ -308,6 +333,20 @@ namespace RentHub.API.Data
                 .WithMany(c => c.Messages)
                 .HasForeignKey(m => m.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<SubscriptionInquiry>(entity =>
+            {
+                entity.Property(i => i.ProposedMonthlyPrice).HasPrecision(18, 2);
+                entity.HasIndex(i => i.PublicAccessToken).IsUnique();
+                entity.HasIndex(i => new { i.RequesterUserId, i.LastMessageAt });
+                entity.HasOne(i => i.RequesterUser).WithMany().HasForeignKey(i => i.RequesterUserId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<SubscriptionInquiryMessage>(entity =>
+            {
+                entity.HasOne(m => m.SubscriptionInquiry).WithMany(i => i.Messages).HasForeignKey(m => m.SubscriptionInquiryId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(m => m.SenderUser).WithMany().HasForeignKey(m => m.SenderUserId).OnDelete(DeleteBehavior.NoAction);
+            });
 
             // Ensure that each owner is assigned only once per apartment
             builder.Entity<ApartmentOwner>()

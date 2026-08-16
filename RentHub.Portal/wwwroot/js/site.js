@@ -1,4 +1,11 @@
 (() => {
+  const t = (key, ...args) => {
+    let value = window.rhI18n?.[key] || key;
+    args.forEach((argument, index) => {
+      value = value.replaceAll(`{${index}}`, String(argument));
+    });
+    return value;
+  };
   const body = document.body;
   const toggle = document.getElementById("rhSidebarToggle");
   const sidebar = document.getElementById("rhSidebar");
@@ -8,6 +15,20 @@
   const confirmationTitleEl = document.getElementById("confirmationModalTitle");
   const confirmationMessageEl = document.getElementById("confirmationModalMessage");
   const confirmationProceedEl = document.getElementById("confirmationModalProceed");
+  const confirmationDurationEl = document.getElementById("confirmationModalDuration");
+  const confirmationDurationSelectEl = document.getElementById("confirmationDurationMonths");
+
+  document.addEventListener("change", (event) => {
+    const select = event.target.closest("[data-auto-page-size]");
+    if (!select) return;
+
+    const url = new URL(window.location.href);
+    const sizeParameter = select.dataset.pageSizeParameter || "pageSize";
+    const pageParameter = select.dataset.pageParameter || "page";
+    url.searchParams.set(sizeParameter, select.value);
+    url.searchParams.set(pageParameter, "1");
+    window.location.assign(url.toString());
+  });
 
   const workspaceState = {
     connection: null,
@@ -72,14 +93,14 @@
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rh-success-modal" data-feedback-surface="true">
           <div class="modal-header border-0">
-            <h5 class="modal-title" id="rhFeedbackModalTitle">Action completed</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <h5 class="modal-title" id="rhFeedbackModalTitle">${t("Action completed")}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t("Close")}"></button>
           </div>
           <div class="modal-body pt-0">
             <p class="mb-0" id="rhFeedbackModalMessage"></p>
           </div>
           <div class="modal-footer border-0 pt-0">
-            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal" id="rhFeedbackModalClose">Close</button>
+            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal" id="rhFeedbackModalClose">${t("Close")}</button>
           </div>
         </div>
       </div>`;
@@ -105,7 +126,7 @@
     const autoCloseEnabled = options.autoCloseEnabled === true;
     const autoCloseMs = Number(options.autoCloseSeconds || 0) * 1000;
 
-    titleEl.textContent = type === "error" ? "Action Failed" : "Action Completed";
+    titleEl.textContent = type === "error" ? t("Action Failed") : t("Action Completed");
     messageEl.textContent = message;
     surfaceEl.classList.toggle("rh-error-modal", type === "error");
     surfaceEl.classList.toggle("rh-success-modal", type !== "error");
@@ -164,7 +185,7 @@
       datePickerState.popover.id = "rhDatePickerPopover";
       datePickerState.popover.className = "rh-date-popover";
       datePickerState.popover.setAttribute("role", "dialog");
-      datePickerState.popover.setAttribute("aria-label", "Choose date");
+      datePickerState.popover.setAttribute("aria-label", t("Choose date"));
       document.body.appendChild(datePickerState.popover);
       return datePickerState.popover;
     };
@@ -211,6 +232,9 @@
       const firstWeekday = monthStart.getDay();
       const daysInMonth = monthEnd.getDate();
       const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(monthStart);
+      const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+      const weekdays = Array.from({ length: 7 }, (_, index) =>
+        weekdayFormatter.format(new Date(2026, 7, 16 + index)));
       const days = [];
 
       for (let index = 0; index < firstWeekday; index += 1) {
@@ -235,12 +259,12 @@
 
       ensurePopover().innerHTML = `
         <div class="rh-date-popover-head">
-          <button type="button" class="rh-date-nav" data-date-nav="prev" aria-label="Previous month">&lsaquo;</button>
+          <button type="button" class="rh-date-nav" data-date-nav="prev" aria-label="${t("Previous month")}">&lsaquo;</button>
           <strong>${monthLabel}</strong>
-          <button type="button" class="rh-date-nav" data-date-nav="next" aria-label="Next month">&rsaquo;</button>
+          <button type="button" class="rh-date-nav" data-date-nav="next" aria-label="${t("Next month")}">&rsaquo;</button>
         </div>
         <div class="rh-date-weekdays" aria-hidden="true">
-          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+          ${weekdays.map((weekday) => `<span>${escapeHtml(weekday)}</span>`).join("")}
         </div>
         <div class="rh-date-grid">
           ${days.join("")}
@@ -272,7 +296,7 @@
       input.autocomplete = "off";
       input.readOnly = true;
       input.classList.add("rh-date-input");
-      input.placeholder = input.placeholder || "Select date";
+      input.placeholder = input.placeholder || t("Select date");
 
       const wrapper = document.createElement("div");
       wrapper.className = "rh-date-field";
@@ -362,6 +386,76 @@
     }
   };
 
+  const autoSearchFocusStorageKey = "renthub:auto-search-focus";
+
+  const focusSearchInput = (input, selection = {}) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    if (typeof input.setSelectionRange !== "function") {
+      return;
+    }
+
+    const valueLength = input.value.length;
+    const start = Number.isInteger(selection.start) ? Math.min(selection.start, valueLength) : valueLength;
+    const end = Number.isInteger(selection.end) ? Math.min(selection.end, valueLength) : start;
+    input.setSelectionRange(start, end);
+  };
+
+  const rememberAutoSearchFocus = (form, input) => {
+    const forms = Array.from(document.querySelectorAll(".rh-auto-search-form"));
+    const formIndex = forms.indexOf(form);
+    if (formIndex < 0) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(autoSearchFocusStorageKey, JSON.stringify({
+        path: window.location.pathname,
+        formIndex,
+        inputName: input.name,
+        start: input.selectionStart,
+        end: input.selectionEnd,
+        savedAt: Date.now()
+      }));
+    } catch {
+      // Search still works when browser storage is unavailable; only focus restoration is skipped.
+    }
+  };
+
+  const restoreAutoSearchFocus = () => {
+    let state;
+    try {
+      state = JSON.parse(window.sessionStorage.getItem(autoSearchFocusStorageKey) || "null");
+      window.sessionStorage.removeItem(autoSearchFocusStorageKey);
+    } catch {
+      return;
+    }
+
+    if (!state
+      || state.path !== window.location.pathname
+      || Date.now() - Number(state.savedAt || 0) > 15000) {
+      return;
+    }
+
+    const forms = document.querySelectorAll(".rh-auto-search-form");
+    const form = forms[state.formIndex];
+    const input = form?.querySelector(".js-auto-submit");
+    if (!input || input.name !== state.inputName) {
+      return;
+    }
+
+    focusSearchInput(input, state);
+  };
+
+  const restoreSectionSearchFocus = (workspaceRoot, sectionName, selection) => {
+    const form = Array.from(workspaceRoot.querySelectorAll(".rh-auto-search-form"))
+      .find((candidate) => candidate.dataset.sectionSearch === sectionName);
+    focusSearchInput(form?.querySelector(".js-auto-submit"), selection);
+  };
+
   const bindAutoSearchForms = (root) => {
     root.querySelectorAll(".rh-auto-search-form").forEach((form) => {
       if (form.dataset.autoSearchBound === "true") {
@@ -374,27 +468,40 @@
       }
 
       form.dataset.autoSearchBound = "true";
-      const submitSectionRefresh = () => {
+      const submitSectionRefresh = (restoreFocus = false) => {
+        const sectionName = form.dataset.sectionSearch;
+        const selection = {
+          start: input.selectionStart,
+          end: input.selectionEnd
+        };
         const propertyRoot = form.closest("[data-property-overview-root='true']");
-        if (propertyRoot && form.dataset.sectionSearch) {
+        if (propertyRoot && sectionName) {
           const payload = Object.fromEntries(new FormData(form).entries());
           refreshPropertyOverview(propertyRoot, {
-            sectionName: form.dataset.sectionSearch,
+            sectionName,
             overrides: payload
+          }).then(() => {
+            if (restoreFocus) {
+              restoreSectionSearchFocus(propertyRoot, sectionName, selection);
+            }
           }).catch(() => {
-            showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(propertyRoot));
+            showFeedbackModal("error", t("Unable to refresh this section right now."), getDialogOptions(propertyRoot));
           });
           return true;
         }
 
         const apartmentRoot = form.closest("[data-apartment-overview-root='true']");
-        if (apartmentRoot && form.dataset.sectionSearch) {
+        if (apartmentRoot && sectionName) {
           const payload = Object.fromEntries(new FormData(form).entries());
           refreshApartmentOverview(apartmentRoot, {
-            sectionName: form.dataset.sectionSearch,
+            sectionName,
             overrides: payload
+          }).then(() => {
+            if (restoreFocus) {
+              restoreSectionSearchFocus(apartmentRoot, sectionName, selection);
+            }
           }).catch(() => {
-            showFeedbackModal("error", "Unable to refresh this section right now.", getDialogOptions(apartmentRoot));
+            showFeedbackModal("error", t("Unable to refresh this section right now."), getDialogOptions(apartmentRoot));
           });
           return true;
         }
@@ -412,10 +519,11 @@
       input.addEventListener("input", () => {
         window.clearTimeout(timer);
         timer = window.setTimeout(() => {
-          if (submitSectionRefresh()) {
+          if (submitSectionRefresh(true)) {
             return;
           }
 
+          rememberAutoSearchFocus(form, input);
           form.requestSubmit();
         }, 320);
       });
@@ -455,7 +563,7 @@
       setValidation("");
 
       if (!file.type.startsWith("image/")) {
-        setValidation("Please choose an image file.");
+        setValidation(t("Please choose an image file."));
         imageInput.value = "";
         return;
       }
@@ -470,7 +578,7 @@
       const img = new Image();
       img.onload = () => {
         if (img.width <= img.height) {
-          setValidation("Please choose a landscape image.");
+          setValidation(t("Please choose a landscape image."));
           imageInput.value = "";
           URL.revokeObjectURL(objectUrl);
           return;
@@ -480,7 +588,7 @@
         imageForm.requestSubmit();
       };
       img.onerror = () => {
-        setValidation("This image could not be validated.");
+        setValidation(t("This image could not be validated."));
         imageInput.value = "";
         URL.revokeObjectURL(objectUrl);
       };
@@ -498,7 +606,7 @@
     const images = Array.from(modal.querySelectorAll("[data-property-lightbox-image]"))
       .map((item) => ({
         url: item.dataset.imageUrl || "",
-        name: item.dataset.imageName || "Property image"
+        name: item.dataset.imageName || t("Property image")
       }))
       .filter((item) => item.url);
 
@@ -621,7 +729,7 @@
       });
 
       if (!response.ok) {
-        throw new Error("Unable to refresh the property workspace right now.");
+        throw new Error(t("Unable to refresh the property workspace right now."));
       }
 
       const html = await response.text();
@@ -629,14 +737,14 @@
       const doc = parser.parseFromString(html, "text/html");
       const nextRoot = doc.querySelector("[data-property-overview-root='true']");
       if (!nextRoot) {
-        throw new Error("Property workspace content was not returned.");
+        throw new Error(t("Property workspace content was not returned."));
       }
 
       if (options.sectionName) {
         const currentSection = root.querySelector(`[data-property-section='${options.sectionName}']`);
         const nextSection = nextRoot.querySelector(`[data-property-section='${options.sectionName}']`);
         if (!currentSection || !nextSection) {
-          throw new Error("Requested property section could not be refreshed.");
+          throw new Error(t("Requested property section could not be refreshed."));
         }
 
         currentSection.replaceWith(nextSection);
@@ -687,7 +795,7 @@
       });
 
       if (!response.ok) {
-        throw new Error("Unable to refresh the apartment workspace right now.");
+        throw new Error(t("Unable to refresh the apartment workspace right now."));
       }
 
       const html = await response.text();
@@ -695,14 +803,14 @@
       const doc = parser.parseFromString(html, "text/html");
       const nextRoot = doc.querySelector("[data-apartment-overview-root='true']");
       if (!nextRoot) {
-        throw new Error("Apartment workspace content was not returned.");
+        throw new Error(t("Apartment workspace content was not returned."));
       }
 
       if (options.sectionName) {
         const currentSection = root.querySelector(`[data-apartment-section='${options.sectionName}']`);
         const nextSection = nextRoot.querySelector(`[data-apartment-section='${options.sectionName}']`);
         if (!currentSection || !nextSection) {
-          throw new Error("Requested apartment section could not be refreshed.");
+          throw new Error(t("Requested apartment section could not be refreshed."));
         }
 
         currentSection.replaceWith(nextSection);
@@ -769,12 +877,12 @@
           });
 
           if (!response.ok) {
-            const message = await parseAjaxMessage(response, "Unable to complete this action right now.");
+            const message = await parseAjaxMessage(response, t("Unable to complete this action right now."));
             showFeedbackModal("error", message, dialogOptions);
             return;
           }
 
-          const message = await parseAjaxMessage(response, "Action completed successfully.");
+          const message = await parseAjaxMessage(response, t("Action completed successfully."));
           if (form.dataset.liveCloseModal === "true") {
             const modalEl = form.closest(".modal");
             if (modalEl) {
@@ -786,7 +894,7 @@
           showFeedbackModal("success", message, dialogOptions);
           await refreshPropertyOverview(root);
         } catch (error) {
-          showFeedbackModal("error", error?.message || "Unable to complete this action right now.", getDialogOptions(root));
+          showFeedbackModal("error", error?.message || t("Unable to complete this action right now."), getDialogOptions(root));
         } finally {
           if (submitter) {
             submitter.disabled = false;
@@ -852,6 +960,15 @@
     });
   };
 
+  const initPropertySettingsPage = (root = document.querySelector("[data-property-settings-root='true']")) => {
+    if (!root) {
+      return;
+    }
+
+    initCountrySelectors(root);
+    initPropertySettingsEditor(root);
+  };
+
   const initApartmentGallery = (root) => {
     const gallery = root.querySelector("[data-apartment-gallery='true']");
     if (!gallery || gallery.dataset.bound === "true") {
@@ -878,7 +995,7 @@
     const updateManageModal = () => {
       const activeSlide = slides[activeIndex];
       const documentId = activeSlide?.dataset.documentId || "";
-      const imageName = activeSlide?.dataset.imageName || "Current apartment image";
+      const imageName = activeSlide?.dataset.imageName || t("Current apartment image");
       if (hiddenDocumentId) hiddenDocumentId.value = documentId;
       if (deleteDocumentId) deleteDocumentId.value = documentId;
       if (imageNameTarget) imageNameTarget.textContent = imageName;
@@ -894,7 +1011,7 @@
       });
 
       if (currentName) {
-        currentName.textContent = slides[activeIndex].dataset.imageName || "Apartment image";
+        currentName.textContent = slides[activeIndex].dataset.imageName || t("Apartment image");
       }
 
       if (currentIndex) {
@@ -903,7 +1020,7 @@
 
       if (lightboxPreview) {
         lightboxPreview.src = slides[activeIndex].dataset.imageUrl || "";
-        lightboxPreview.alt = slides[activeIndex].dataset.imageName || "Apartment image preview";
+        lightboxPreview.alt = slides[activeIndex].dataset.imageName || t("Apartment image preview");
       }
 
       updateManageModal();
@@ -1033,18 +1150,19 @@
         submitButton.disabled = selectedCount === 0;
 
         if (selectedCount === 0) {
-          toggleButton.textContent = "Choose rent periods";
+          toggleButton.textContent = t("Choose rent periods");
           if (helpText) {
-            helpText.textContent = "Select the oldest period first. Each selected period unlocks the next one.";
+            helpText.textContent = t("Select the oldest period first. Each selected period unlocks the next one.");
           }
           return;
         }
 
-        const periodLabel = lastSelectedOption?.dataset.label || "selected period";
+        const periodLabel = lastSelectedOption?.dataset.label || t("selected period");
         const total = lastSelectedOption?.dataset.total || "";
-        toggleButton.textContent = `Pay ${selectedCount} period${selectedCount > 1 ? "s" : ""} through ${periodLabel}${total ? ` - ${total}` : ""}`;
+        const payKey = selectedCount > 1 ? "Pay {0} periods through {1}" : "Pay {0} period through {1}";
+        toggleButton.textContent = `${t(payKey, selectedCount, periodLabel)}${total ? ` - ${total}` : ""}`;
         if (helpText) {
-          helpText.textContent = "Rent periods are selected in order. Unselecting one period clears every period after it.";
+          helpText.textContent = t("Rent periods are selected in order. Unselecting one period clears every period after it.");
         }
       };
 
@@ -1203,14 +1321,21 @@
       pendingForm = form;
 
       if (confirmationTitleEl) {
-        confirmationTitleEl.textContent = form.dataset.confirmTitle || "Please confirm";
+        confirmationTitleEl.textContent = form.dataset.confirmTitle || t("Please confirm");
       }
 
       if (confirmationMessageEl) {
-        confirmationMessageEl.textContent = form.dataset.confirmMessage || "Are you sure you want to continue?";
+        confirmationMessageEl.textContent = form.dataset.confirmMessage || t("Are you sure you want to continue?");
       }
 
-      confirmationProceedEl.textContent = form.dataset.confirmProceed || "Proceed";
+      const needsDuration = form.dataset.confirmDuration === "true";
+      confirmationDurationEl?.classList.toggle("d-none", !needsDuration);
+      if (needsDuration && confirmationDurationSelectEl) {
+        const durationInput = form.querySelector("[data-subscription-duration-input]");
+        confirmationDurationSelectEl.value = durationInput?.value || "12";
+      }
+
+      confirmationProceedEl.textContent = form.dataset.confirmProceed || t("Proceed");
       confirmationProceedEl.classList.toggle("rh-btn-primary", form.dataset.confirmStyle === "primary");
       confirmationProceedEl.classList.toggle("rh-btn-outline-danger", form.dataset.confirmStyle !== "primary");
 
@@ -1222,6 +1347,13 @@
         return;
       }
 
+      if (pendingForm.dataset.confirmDuration === "true" && confirmationDurationSelectEl) {
+        const durationInput = pendingForm.querySelector("[data-subscription-duration-input]");
+        if (durationInput) {
+          durationInput.value = confirmationDurationSelectEl.value;
+        }
+      }
+
       pendingForm.dataset.confirmed = "true";
       confirmationModal.hide();
       pendingForm.requestSubmit();
@@ -1229,13 +1361,19 @@
     });
 
     confirmationModalEl.addEventListener("hidden.bs.modal", () => {
+      confirmationDurationEl?.classList.add("d-none");
+      pendingForm?.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+        checkbox.checked = checkbox.defaultChecked;
+      });
       pendingForm = null;
     });
   }
 
   initPropertyOverview();
+  initPropertySettingsPage();
   initApartmentOverview();
   bindAutoSearchForms(document);
+  restoreAutoSearchFocus();
   initCountrySelectors(document);
   initDatePickers(document);
   initRentPeriodPickers(document);

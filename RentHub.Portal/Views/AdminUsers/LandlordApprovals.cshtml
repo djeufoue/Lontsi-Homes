@@ -18,13 +18,13 @@
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form">
         <div class="col-md-9">
             <label class="form-label rh-auth-label" for="search">Search</label>
-            <input id="search" name="search" class="form-control rh-input" value="@Model.Search" placeholder="Email, name, or phone number" />
+            <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
         </div>
-        <div class="col-md-3 d-grid">
-            <button type="submit" class="btn rh-btn-primary">Apply Filter</button>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn rh-btn-primary flex-grow-1">Apply Filter</button>
         </div>
     </form>
 </section>

@@ -22,6 +22,11 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Verify(string code)
         {
+            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
             try
             {
                 var receipt = await _api.GetAnonymousAsync<RentReceiptVerificationDto>($"receipts/verify/{Uri.EscapeDataString(code ?? string.Empty)}");
@@ -35,7 +40,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet("Payment/{paymentId:int}")]
-        [Authorize]
+        [Authorize(Roles = "Landlord,Manager,Tenant")]
         public async Task<IActionResult> Payment(int paymentId)
         {
             try
@@ -52,7 +57,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet("Payment/{paymentId:int}/Download")]
-        [Authorize]
+        [Authorize(Roles = "Landlord,Manager,Tenant")]
         public async Task<IActionResult> DownloadPayment(int paymentId)
         {
             try

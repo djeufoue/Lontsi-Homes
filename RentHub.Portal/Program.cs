@@ -1,7 +1,13 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.Extensions.Options;
+using Common.Enums;
+using RentHub.Portal;
 using RentHub.Portal.Hubs;
+using RentHub.Portal.Localization;
 using RentHub.Portal.Middleware;
 using RentHub.Portal.Services;
 using System.IO;
@@ -15,7 +21,28 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+builder.Services
+    .AddControllersWithViews()
+    .AddViewLocalization(LanguageViewLocationExpanderFormat.Suffix)
+    .AddDataAnnotationsLocalization(options =>
+    {
+        options.DataAnnotationLocalizerProvider = (_, factory) =>
+            factory.Create(typeof(SharedResource));
+    });
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    var supportedCultures = PlatformLanguageOptions.SupportedCultures.ToArray();
+    options.DefaultRequestCulture = new RequestCulture(PlatformLanguageOptions.EnglishCultureName);
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    options.FallBackToParentCultures = true;
+    options.FallBackToParentUICultures = true;
+    options.RequestCultureProviders = new List<IRequestCultureProvider>
+    {
+        new UserPreferenceRequestCultureProvider()
+    };
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<PortalAuthSessionService>();
 builder.Services.AddSignalR();
@@ -67,6 +94,7 @@ app.UseRouting();
 app.UseSession();
 
 app.UseAuthentication();
+app.UseRequestLocalization(app.Services.GetRequiredService<IOptions<RequestLocalizationOptions>>().Value);
 app.UseMiddleware<RequestUserLoggingMiddleware>();
 app.UseAuthorization();
 

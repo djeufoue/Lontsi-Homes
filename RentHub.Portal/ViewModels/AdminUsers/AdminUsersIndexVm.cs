@@ -6,6 +6,7 @@ namespace RentHub.Portal.ViewModels.AdminUsers
     {
         public string? Search { get; set; }
         public bool CanDeleteUsers { get; set; }
+        public bool SkipLandlordPhoneVerification { get; set; }
         public List<AdminUserVerificationStatusDto> Users { get; set; } = new();
     }
 

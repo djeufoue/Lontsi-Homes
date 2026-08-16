@@ -36,6 +36,31 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> PaymentDetails(int tenancyId)
+        {
+            if (tenancyId <= 0) return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var dashboard = await _api.GetAsync<TenantDashboardDto>("tenancies/tenant-dashboard");
+                var tenancy = dashboard.Tenancies.FirstOrDefault(item => item.Tenancy.Id == tenancyId);
+                if (tenancy == null)
+                {
+                    TempData["Error"] = "The requested tenancy could not be found.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                return View(tenancy);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load manual payment details for tenancy {TenancyId}.", tenancyId);
+                TempData["Error"] = "Unable to load payment details right now.";
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> PayRent(int tenancyId, int numberOfPeriods, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
         {

@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public class AdminUsersController : Controller
     {
         private readonly RentHubApiClient _api;
@@ -18,6 +18,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Index(string? search = null)
         {
             var endpoint = string.IsNullOrWhiteSpace(search)
@@ -26,18 +27,41 @@ namespace RentHub.Portal.Controllers
 
             var usersTask = _api.GetAsync<List<AdminUserVerificationStatusDto>>(endpoint);
             var permissionsTask = _api.GetAsync<AdminUserManagementPermissionsDto>("AdminUsers/management-permissions");
+            var settingsTask = _api.GetAsync<PaymentAvailabilityDto>("PaymentSettings");
 
-            await Task.WhenAll(usersTask, permissionsTask);
+            await Task.WhenAll(usersTask, permissionsTask, settingsTask);
 
             return View(new AdminUsersIndexVm
             {
                 Search = search,
                 CanDeleteUsers = permissionsTask.Result.CanDeleteUsers,
+                SkipLandlordPhoneVerification = settingsTask.Result.SkipLandlordPhoneVerification,
                 Users = usersTask.Result
             });
         }
 
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateLandlordPhoneVerificationBypass(bool verificationRequired, string? search = null)
+        {
+            try
+            {
+                var bypassEnabled = !verificationRequired;
+                await _api.PutAsync(
+                    "PaymentSettings/platform/landlord-phone-verification-bypass",
+                    new UpdateLandlordPhoneVerificationBypassRequest { Enabled = bypassEnabled });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            return RedirectToAction(nameof(Index), new { search });
+        }
+
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Landlords(string? search = null)
         {
             var endpoint = string.IsNullOrWhiteSpace(search)
@@ -57,7 +81,30 @@ namespace RentHub.Portal.Controllers
             });
         }
 
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateSubscriptionExemption(
+            string userId,
+            bool subscriptionExempt,
+            string? search = null)
+        {
+            try
+            {
+                await _api.PutAsync(
+                    $"AdminUsers/{Uri.EscapeDataString(userId)}/subscription-exemption",
+                    new UpdateLandlordSubscriptionExemptionRequest { Enabled = subscriptionExempt });
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ExtractMessage(ex.Message);
+            }
+
+            return RedirectToAction(nameof(Landlords), new { search });
+        }
+
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> LandlordApprovals(string? search = null)
         {
             var endpoint = string.IsNullOrWhiteSpace(search)
@@ -73,12 +120,13 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin,Landlord,Manager")]
         public async Task<IActionResult> Overview(string userId)
         {
             if (string.IsNullOrWhiteSpace(userId))
             {
                 TempData["Error"] = "User id is required.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAccessibleDirectory();
             }
 
             try
@@ -92,11 +140,12 @@ namespace RentHub.Portal.Controllers
             catch (Exception ex)
             {
                 TempData["Error"] = ExtractMessage(ex.Message);
-                return RedirectToAction(nameof(Index));
+                return RedirectToAccessibleDirectory();
             }
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> OtpStatus(string userId)
         {
@@ -110,6 +159,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> KycFile(string userId, string key)
         {
@@ -125,6 +175,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApproveKyc(string userId, string? note = null, string? returnTo = null, string? search = null)
         {
@@ -132,6 +183,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RejectKyc(
             string userId,
@@ -160,6 +212,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RestartValidation(string userId, string? search = null, string? returnTo = null)
         {
@@ -179,6 +232,7 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteUser(string userId, string? search = null, string? returnTo = null)
         {
@@ -253,6 +307,13 @@ namespace RentHub.Portal.Controllers
             }
 
             return RedirectToAction(nameof(LandlordApprovals), new { search });
+        }
+
+        private IActionResult RedirectToAccessibleDirectory()
+        {
+            return User.IsInRole("Admin")
+                ? RedirectToAction(nameof(Index))
+                : RedirectToAction("Index", "Members");
         }
 
         private static string ExtractMessage(string raw)

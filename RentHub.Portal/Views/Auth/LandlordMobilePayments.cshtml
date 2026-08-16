@@ -74,7 +74,7 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6 js-conditional" id="subscriptionNumberFields">
                             <label asp-for="SubscriptionPaymentPhoneNumber" class="form-label rh-auth-label"></label>
-                            <input asp-for="SubscriptionPaymentPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" required data-required-when-visible="true" />
+                            <input asp-for="SubscriptionPaymentPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="Optional, e.g. 6XXXXXXXX" />
                             <span asp-validation-for="SubscriptionPaymentPhoneNumber" class="text-danger small"></span>
                         </div>
                         <div class="col-md-6">
@@ -98,7 +98,7 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6 js-conditional" id="payoutNumberFields">
                             <label asp-for="PayoutPhoneNumber" class="form-label rh-auth-label"></label>
-                            <input asp-for="PayoutPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="6XXXXXXXX" required data-required-when-visible="true" />
+                            <input asp-for="PayoutPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="Optional, e.g. 6XXXXXXXX" />
                             <span asp-validation-for="PayoutPhoneNumber" class="text-danger small"></span>
                         </div>
                         <div class="col-md-6">

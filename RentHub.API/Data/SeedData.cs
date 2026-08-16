@@ -787,6 +787,13 @@ END
         private static void EnsureUserVerificationColumns(ApplicationDbContext context)
         {
             context.Database.ExecuteSqlRaw(@"
+                IF COL_LENGTH('AspNetUsers', 'IsSubscriptionExempt') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [IsSubscriptionExempt] bit NOT NULL
+                        CONSTRAINT [DF_AspNetUsers_IsSubscriptionExempt] DEFAULT(0);
+                END
+
                 IF COL_LENGTH('AspNetUsers', 'UsePrimaryPhoneForSubscriptionPayments') IS NULL
                 BEGIN
                     ALTER TABLE [AspNetUsers]

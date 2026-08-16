@@ -16,6 +16,7 @@ namespace RentHub.Portal.ViewModels.Properties
 
         public string UserRole { get; set; } = string.Empty;
         public bool CanCreateProperty { get; set; }
+        public bool PlatformAutomaticPaymentsEnabled { get; set; }
         public bool ShowCreateEntryPoint { get; set; }
         public bool RequiresPayoutSetup { get; set; }
         public bool PayoutSetupStarted { get; set; }

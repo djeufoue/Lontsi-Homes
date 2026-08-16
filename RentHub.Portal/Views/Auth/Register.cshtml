@@ -36,7 +36,6 @@
             <ul class="rh-auth-points">
                 <li>Email OTP confirmation</li>
                 <li>Country selection before identity verification</li>
-                <li>SMS phone verification will be enabled after Twilio approval</li>
             </ul>
         </aside>
 
@@ -45,7 +44,7 @@
 
             <div class="rh-auth-card-header">
                 <h2>Account details</h2>
-                <p>Create the login account first. Payment and phone verification come next.</p>
+                <p>Create the login account first. Optional contact and payment details can be completed later.</p>
             </div>
 
             <form asp-action="Register" method="post" class="rh-auth-form">
@@ -125,7 +124,7 @@
                 </div>
 
                 <div class="rh-inline-hint mt-3">
-                    After this step, you will confirm your email, choose your country, and verify your main phone.
+                    After this step, you will confirm your email and choose your country.
                 </div>
 
                 <button type="submit" class="btn rh-btn-primary w-100 mt-4">Continue to email OTP</button>

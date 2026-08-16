@@ -13,41 +13,37 @@
     <script src="~/js/theme.js" asp-append-version="true"></script>
     <style>
         :root {
-            color-scheme: light;
-            --ink: #122033;
-            --muted: #607086;
-            --line: #d8e2ee;
-            --brand: #0f766e;
-            --danger: #b4233a;
-            --bg: #eef4f8;
-            --surface: #fff;
-            --shadow: rgba(15, 23, 42, .08);
-            --status-bg: @(Model.IsValid ? "#dcfce7" : "#fee2e2");
-            --status-ink: @(Model.IsValid ? "#166534" : "#991b1b");
+            color-scheme: dark;
+            --ink: #f4f1ed;
+            --muted: #aaa5a0;
+            --line: rgba(255, 255, 255, .09);
+            --bg: radial-gradient(circle at 20% 0%, rgba(124, 95, 111, .14), transparent 34%), #181719;
+            --surface: #302f33;
+            --shadow: rgba(0, 0, 0, .32);
+            --status-bg: @(Model.IsValid ? "rgba(167, 201, 155, .14)" : "rgba(239, 140, 150, .14)");
+            --status-ink: @(Model.IsValid ? "#c4ddb9" : "#f1a0a8");
         }
 
-        :root[data-bs-theme="dark"] {
-            color-scheme: dark;
-            --ink: #e6edf3;
-            --muted: #9dafbe;
-            --line: #30414b;
-            --brand: #41c7bd;
-            --danger: #ff8797;
-            --bg: #071117;
-            --surface: #101d24;
-            --shadow: rgba(0, 0, 0, .34);
-            --status-bg: @(Model.IsValid ? "#123d35" : "#481d27");
-            --status-ink: @(Model.IsValid ? "#83e4c9" : "#ff9caa");
+        :root[data-bs-theme="light"] {
+            color-scheme: light;
+            --ink: #29272a;
+            --muted: #6f6965;
+            --line: rgba(41, 39, 42, .12);
+            --bg: #ebe8e2;
+            --surface: #f8f5ef;
+            --shadow: rgba(56, 48, 42, .13);
+            --status-bg: @(Model.IsValid ? "#e4eee0" : "#f7e3e5");
+            --status-ink: @(Model.IsValid ? "#42653a" : "#8f3944");
         }
 
         body {
             margin: 0;
-            min-height: 100vh;
+            min-height: 100dvh;
             display: grid;
             place-items: center;
             background: var(--bg);
             color: var(--ink);
-            font-family: Arial, sans-serif;
+            font-family: "Segoe UI", sans-serif;
             padding: 24px;
         }
 
@@ -55,7 +51,7 @@
             width: min(720px, 100%);
             background: var(--surface);
             border: 1px solid var(--line);
-            border-radius: 10px;
+            border-radius: 26px;
             box-shadow: 0 18px 40px var(--shadow);
             padding: 32px;
         }

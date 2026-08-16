@@ -110,19 +110,23 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                if (request.PayoutChannel is not PayoutChannelEnum.MtnMoney and not PayoutChannelEnum.OrangeMoney)
+                var normalizedPayoutPhone = string.Empty;
+                if (!string.IsNullOrWhiteSpace(request.PayoutPhoneNumber) || request.PayoutChannel.HasValue)
                 {
-                    return BadRequest("Choose MTN Money or Orange Money for payout payments.");
-                }
+                    if (request.PayoutChannel is not PayoutChannelEnum.MtnMoney and not PayoutChannelEnum.OrangeMoney)
+                    {
+                        return BadRequest("Choose MTN Money or Orange Money when a payout number is provided.");
+                    }
 
-                var payoutValidation = ValidateCameroonMobileMoneyNumber(
-                    request.PayoutPhoneNumber,
-                    request.PayoutChannel,
-                    "payout number",
-                    out var normalizedPayoutPhone);
-                if (payoutValidation != null)
-                {
-                    return payoutValidation;
+                    var payoutValidation = ValidateCameroonMobileMoneyNumber(
+                        request.PayoutPhoneNumber,
+                        request.PayoutChannel,
+                        "payout number",
+                        out normalizedPayoutPhone);
+                    if (payoutValidation != null)
+                    {
+                        return payoutValidation;
+                    }
                 }
 
                 var user = new ApplicationUser
@@ -137,7 +141,7 @@ namespace RentHub.API.Controllers
                     SubscriptionPaymentChannel = request.PayoutChannel,
                     PayoutPhoneNumber = normalizedPayoutPhone,
                     PayoutChannel = request.PayoutChannel,
-                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber.Trim(),
+                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber?.Trim(),
                     EmailConfirmed = false
                 };
 
@@ -490,17 +494,15 @@ namespace RentHub.API.Controllers
                 }
 
                 var status = await BuildLandlordOnboardingStatusAsync(user);
-                var nextStep = IsSmsVerificationEnabled
-                    ? status.NextStep
-                    : LandlordOnboardingSteps.Phone;
+                var nextStep = status.NextStep;
 
                 return Ok(new
                 {
                     Email = user.Email,
                     NextStep = nextStep,
                     Status = status,
-                    Message = !IsSmsVerificationEnabled
-                        ? "Country saved. SMS phone verification is not available yet while we wait for Twilio approval."
+                    Message = !status.SmsVerificationEnabled
+                        ? "Country saved. Continue with identity verification."
                         : IsCameroonCountry(countryIsoCode, countryCode)
                         ? "Country saved. Verify your Cameroon phone number next."
                         : "Country saved. Verify your main phone number next."
@@ -608,7 +610,7 @@ namespace RentHub.API.Controllers
                     return BadRequest(updateResult.Errors);
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
                     return Ok(new
@@ -616,7 +618,7 @@ namespace RentHub.API.Controllers
                         Email = user.Email,
                         NextStep = deferredStatus.NextStep,
                         Status = deferredStatus,
-                        Message = "SMS phone verification is not available yet while we wait for Twilio approval. Continue with identity verification."
+                        Message = "Continue with identity verification."
                     });
                 }
 
@@ -662,7 +664,7 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
                     return Ok(new
@@ -670,7 +672,7 @@ namespace RentHub.API.Controllers
                         Email = user.Email,
                         NextStep = deferredStatus.NextStep,
                         Status = deferredStatus,
-                        Message = "SMS phone verification is not available yet while we wait for Twilio approval. Continue with identity verification."
+                        Message = "Continue with identity verification."
                     });
                 }
 
@@ -738,6 +740,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return Conflict(new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Mobile payment setup is skipped while automatic payments are disabled."
+                    });
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -749,11 +760,11 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     return Ok(await BuildMobilePaymentOtpResponseAsync(
                         user,
-                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue with identity verification."));
+                        "Continue with identity verification."));
                 }
 
                 if (!user.EmailConfirmed || !user.PhoneNumberConfirmed || string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -913,6 +924,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return Conflict(new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Mobile payment setup is unavailable while automatic payments are disabled."
+                    });
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -924,11 +944,11 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     return Ok(await BuildMobilePaymentOtpResponseAsync(
                         user,
-                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue with identity verification."));
+                        "Continue with identity verification."));
                 }
 
                 if (string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) || user.SubscriptionPaymentChannel == null)
@@ -1077,6 +1097,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return Conflict(new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Mobile payment setup is unavailable while automatic payments are disabled."
+                    });
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -1099,11 +1128,11 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     return Ok(await BuildMobilePaymentOtpResponseAsync(
                         user,
-                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
+                        "Continue with identity verification."));
                 }
 
                 if (!IsCameroonCountryCode(user.CountryCode))
@@ -1262,6 +1291,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return Conflict(new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Mobile payment verification is unavailable while automatic payments are disabled."
+                    });
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -1284,11 +1322,11 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     return Ok(await BuildMobilePaymentOtpResponseAsync(
                         user,
-                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
+                        "Continue with identity verification."));
                 }
 
                 if (!IsCameroonCountryCode(user.CountryCode))
@@ -1470,6 +1508,15 @@ namespace RentHub.API.Controllers
         {
             try
             {
+                if (!await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context))
+                {
+                    return Conflict(new
+                    {
+                        Code = "AUTOMATIC_PAYMENTS_DISABLED",
+                        Message = "Mobile payment verification is unavailable while automatic payments are disabled."
+                    });
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);
@@ -1492,11 +1539,11 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!IsSmsVerificationEnabled)
+                if (!await IsLandlordPhoneVerificationEnabledAsync())
                 {
                     return Ok(await BuildMobilePaymentOtpResponseAsync(
                         user,
-                        "SMS payment-number verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification."));
+                        "Continue with identity verification."));
                 }
 
                 if (!IsCameroonCountryCode(user.CountryCode))
@@ -1876,8 +1923,8 @@ namespace RentHub.API.Controllers
                     UserName = request.Email,
                     Email = request.Email,
                     FullName = request.FullName?.Trim(),
-                    PhoneNumber = request.PhoneNumber.Trim(),
-                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber.Trim(),
+                    PhoneNumber = request.PhoneNumber?.Trim(),
+                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber?.Trim(),
                     EmailConfirmed = false,
                     PhoneNumberConfirmed = false,
                     IsWhatsAppPhoneVerified = false
@@ -2048,22 +2095,28 @@ namespace RentHub.API.Controllers
                     return emailOtpResult;
                 }
 
-                var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp.Trim(), "phone number");
-                if (phoneOtpResult != null)
+                if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
                 {
-                    return phoneOtpResult;
+                    var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp?.Trim() ?? string.Empty, "phone number");
+                    if (phoneOtpResult != null)
+                    {
+                        return phoneOtpResult;
+                    }
                 }
 
-                var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp.Trim(), "WhatsApp");
-                if (whatsAppOtpResult != null)
+                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                 {
-                    return whatsAppOtpResult;
+                    var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp?.Trim() ?? string.Empty, "WhatsApp");
+                    if (whatsAppOtpResult != null)
+                    {
+                        return whatsAppOtpResult;
+                    }
                 }
 
                 user.EmailConfirmed = true;
-                user.PhoneNumberConfirmed = true;
-                user.IsWhatsAppPhoneVerified = true;
-                user.WhatsAppPhoneVerifiedAt = DateTimeOffset.UtcNow;
+                user.PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(user.PhoneNumber);
+                user.IsWhatsAppPhoneVerified = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber);
+                user.WhatsAppPhoneVerifiedAt = user.IsWhatsAppPhoneVerified ? DateTimeOffset.UtcNow : null;
 
                 var updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
@@ -2417,6 +2470,8 @@ namespace RentHub.API.Controllers
                 var landlordStatus = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase))
                     ? await BuildLandlordOnboardingStatusAsync(user, roles)
                     : null;
+                var automaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
+                var stripePayoutSetupRequired = automaticPaymentsEnabled && IsStripePayoutSetupRequired;
 
                 var plans = await _context.SubscriptionPlans
                     .OrderBy(p => p.DisplayOrder)
@@ -2475,6 +2530,8 @@ namespace RentHub.API.Controllers
                     WhatsAppOtpRequestLimit = landlordStatus?.WhatsAppOtpRequestLimit,
                     SmsVerificationEnabled = landlordStatus?.SmsVerificationEnabled ?? IsSmsVerificationEnabled,
                     Roles = roles.ToList(),
+                    IsSubscriptionExempt = user.IsSubscriptionExempt,
+                    Language = user.Language,
                     KycDocumentType = landlordStatus?.KycDocumentType,
                     KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
                     IsKycSubmitted = landlordStatus?.IsKycSubmitted ?? false,
@@ -2491,7 +2548,8 @@ namespace RentHub.API.Controllers
                     StripePayoutSetupStarted = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId) || user.StripePayoutSetupStartedAt.HasValue,
                     StripePayoutSetupComplete = IsStripePayoutSetupComplete(user),
                     StripeConnectPlatformEnabled = IsStripeConnectPlatformEnabled,
-                    StripePayoutSetupRequired = IsStripePayoutSetupRequired,
+                    StripePayoutSetupRequired = stripePayoutSetupRequired,
+                    AutomaticPaymentsEnabled = automaticPaymentsEnabled,
                     StripeConnectAccountId = user.StripeConnectAccountId ?? string.Empty,
                     StripePayoutDetailsSubmitted = user.StripePayoutDetailsSubmitted,
                     StripeChargesEnabled = user.StripeChargesEnabled,
@@ -2502,8 +2560,8 @@ namespace RentHub.API.Controllers
                     StripePayoutSetupCompletedAt = user.StripePayoutSetupCompletedAt,
                     StripePayoutStatusUpdatedAt = user.StripePayoutStatusUpdatedAt,
                     NextOnboardingStep = landlordStatus?.NextStep ?? LandlordOnboardingSteps.Complete,
-                    CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user, IsStripePayoutSetupRequired),
-                    SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user, IsStripePayoutSetupRequired),
+                    CanStartSubscriptionCheckout = CanStartSubscriptionCheckout(roles, landlordStatus, user, stripePayoutSetupRequired),
+                    SubscriptionBlockedReason = ResolveSubscriptionBlockedReason(roles, landlordStatus, user, stripePayoutSetupRequired),
                     PropertyCount = properties.Count,
                     ApartmentCount = properties.Sum(p => p.ApartmentCount),
                     HasActiveSubscription = activeSubscription != null,
@@ -2534,6 +2592,49 @@ namespace RentHub.API.Controllers
             catch (Exception ex)
             {
                 return ServerError(ex, "GetProfileOverview", "Unable to load profile information right now. Please try again.");
+            }
+        }
+
+        [HttpPost("language")]
+        [Authorize]
+        public async Task<IActionResult> UpdateLanguage([FromBody] UpdatePlatformLanguageRequest request)
+        {
+            if (!PlatformLanguageOptions.IsSupported(request.Language))
+            {
+                return BadRequest(new { Message = "Select a supported language." });
+            }
+
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                user.Language = request.Language;
+                var result = await _userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                {
+                    return BadRequest(result.Errors);
+                }
+
+                return Ok(new UpdatePlatformLanguageResponse
+                {
+                    Language = user.Language,
+                    CultureName = user.Language.ToCultureName(),
+                    Token = await _tokenService.GenerateTokenAsync(user)
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "UpdateLanguage", "Unable to update your language preference right now. Please try again.");
             }
         }
 
@@ -2695,7 +2796,8 @@ namespace RentHub.API.Controllers
                 PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                 PlatformTermsSignatureName = user.PlatformTermsSignatureName,
                 PlatformTermsVersion = user.PlatformTermsVersion,
-                SmsVerificationEnabled = IsSmsVerificationEnabled,
+                SmsVerificationEnabled = IsSmsVerificationEnabled &&
+                    !await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context),
                 CreatedAt = user.CreatedAt,
                 Roles = roles
             };
@@ -2705,9 +2807,16 @@ namespace RentHub.API.Controllers
             status.PayoutOtpRequestLimit = await BuildOtpRequestLimitAsync(user, OtpSendPurposes.RentPayoutPhone);
             status.WhatsAppOtpRequestLimit = await BuildOtpRequestLimitAsync(user, OtpSendPurposes.WhatsAppPhone);
 
-            status.NextStep = ResolveLandlordOnboardingStep(status);
+            var automaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
+            status.NextStep = ResolveLandlordOnboardingStep(status, automaticPaymentsEnabled);
             status.IsComplete = status.NextStep == LandlordOnboardingSteps.Complete;
             return status;
+        }
+
+        private async Task<bool> IsLandlordPhoneVerificationEnabledAsync()
+        {
+            return IsSmsVerificationEnabled &&
+                !await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context);
         }
 
         private async Task<OtpRequestLimitDto> BuildOtpRequestLimitAsync(ApplicationUser user, string purpose)
@@ -2884,7 +2993,9 @@ namespace RentHub.API.Controllers
             };
         }
 
-        private static string ResolveLandlordOnboardingStep(LandlordOnboardingStatusDto status)
+        private static string ResolveLandlordOnboardingStep(
+            LandlordOnboardingStatusDto status,
+            bool automaticPaymentsEnabled)
         {
             if (status.Roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
             {
@@ -2924,6 +3035,21 @@ namespace RentHub.API.Controllers
             if (string.IsNullOrWhiteSpace(status.PhoneNumber) || !status.PhoneNumberConfirmed)
             {
                 return LandlordOnboardingSteps.Phone;
+            }
+
+            if (!automaticPaymentsEnabled)
+            {
+                if (!status.IsKycSubmitted)
+                {
+                    return LandlordOnboardingSteps.Kyc;
+                }
+
+                if (!status.PlatformTermsAccepted)
+                {
+                    return LandlordOnboardingSteps.Contract;
+                }
+
+                return LandlordOnboardingSteps.Complete;
             }
 
             if (!IsCameroonCountry(status.CountryIsoCode, status.CountryCode))

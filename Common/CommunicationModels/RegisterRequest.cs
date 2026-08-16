@@ -33,19 +33,16 @@ namespace Common.CommunicationModels
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
         public string? PhoneNumber { get; set; }
 
-        [Required]
         [Display(Name = "Payout number")]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Payout number must contain only digits and may start with +.")]
-        public string PayoutPhoneNumber { get; set; } = string.Empty;
+        public string? PayoutPhoneNumber { get; set; }
 
-        [Required]
         [Display(Name = "Payout channel")]
         public PayoutChannelEnum? PayoutChannel { get; set; }
 
-        [Required]
         [Display(Name = "WhatsApp number")]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string WhatsAppPhoneNumber { get; set; } = string.Empty;
+        public string? WhatsAppPhoneNumber { get; set; }
 
         /// <summary>
         /// Optional account type input. This field is ignored for self-registration and is kept

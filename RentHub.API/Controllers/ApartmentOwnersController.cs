@@ -121,13 +121,13 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
                 // Check landlord subscription approval
-                var subscription = await _context.UserSubscriptions
-                    .Include(us => us.SubscriptionPlan)
-                    .Where(us => us.UserId == userId && us.EndDate > DateTimeOffset.UtcNow && us.IsApproved)
-                    .FirstOrDefaultAsync();
-                if (subscription == null)
+                if (!await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, userId))
                 {
-                    return BadRequest("Your subscription is inactive or not approved. You cannot add owners.");
+                    return StatusCode(StatusCodes.Status402PaymentRequired, new
+                    {
+                        Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                        Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+                    });
                 }
                 // Create or find owner user
                 var ownerUser = (await _userOnboardingService.EnsureUserAsync(

@@ -86,8 +86,8 @@ namespace RentHub.API.Controllers
                 }
 
                 account.AccountName = request.AccountName.Trim();
-                account.PhoneNumber = request.PhoneNumber.Trim();
-                account.CountryCode = request.CountryCode.Trim();
+                account.PhoneNumber = request.PhoneNumber?.Trim() ?? string.Empty;
+                account.CountryCode = request.CountryCode?.Trim() ?? string.Empty;
                 account.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
                 account.UpdatedAt = DateTimeOffset.UtcNow;
                 account.UpdatedBy = userId;

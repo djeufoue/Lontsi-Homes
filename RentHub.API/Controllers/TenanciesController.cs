@@ -122,6 +122,10 @@ namespace RentHub.API.Controllers
                 if (!canWrite)
                     return Forbid();
 
+                if (!User.IsInRole("Admin") &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apartment.Property.LandlordId))
+                    return SubscriptionRequired();
+
                 var hasApartmentOwner = await _context.ApartmentOwners.AnyAsync(o =>
                     !o.IsDeleted &&
                     o.ApartmentId == request.ApartmentId &&
@@ -142,7 +146,7 @@ namespace RentHub.API.Controllers
                 if (request.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !request.EndDate.HasValue)
                     return BadRequest("EndDate is required when the tenancy should expire automatically.");
 
-                var hasOverlap = await HasOverlappingTenancyAsync(request.ApartmentId, request.StartDate, request.EndDate);
+                var hasOverlap = await TenancyLifecycleHelper.HasOverlappingTenancyAsync(_context, request.ApartmentId, request.StartDate, request.EndDate);
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
@@ -246,7 +250,11 @@ namespace RentHub.API.Controllers
                 if (!canWrite)
                     return Forbid();
 
-                var hasOverlap = await HasOverlappingTenancyAsync(request.ApartmentId, request.StartDate, request.EndDate);
+                if (!User.IsInRole("Admin") &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apartment.Property.LandlordId))
+                    return SubscriptionRequired();
+
+                var hasOverlap = await TenancyLifecycleHelper.HasOverlappingTenancyAsync(_context, request.ApartmentId, request.StartDate, request.EndDate);
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
@@ -386,7 +394,8 @@ namespace RentHub.API.Controllers
                 if (request.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !request.EndDate.HasValue)
                     return BadRequest("EndDate is required when the tenancy should expire automatically.");
 
-                var hasOverlap = await HasOverlappingTenancyAsync(
+                var hasOverlap = await TenancyLifecycleHelper.HasOverlappingTenancyAsync(
+                    _context,
                     tenancy.ApartmentId,
                     request.StartDate,
                     request.EndDate,
@@ -477,10 +486,8 @@ namespace RentHub.API.Controllers
                 if (string.IsNullOrEmpty(userId))
                     return Unauthorized();
 
-                if (request.NewEndDate <= tenancy.StartDate)
-                    return BadRequest("New end date must be after the tenancy start date.");
-
                 var canWrite =
+                    User.IsInRole("Admin") ||
                     tenancy.Apartment!.Property!.LandlordId == userId ||
                     await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite) ||
                     await _context.PropertyManagerAssignments.AnyAsync(m => !m.IsDeleted && m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
@@ -488,9 +495,38 @@ namespace RentHub.API.Controllers
                 if (!canWrite)
                     return Forbid();
 
+                var nowUtc = DateTimeOffset.UtcNow;
+                if (tenancy.TerminatedAt.HasValue)
+                    return Conflict(new { Message = "A terminated tenancy cannot be renewed." });
+                if (!tenancy.EndDate.HasValue)
+                    return BadRequest(new { Message = "A tenancy without an end date cannot be renewed." });
+                if (tenancy.EndDate.Value.Date < nowUtc.Date)
+                    return Conflict(new { Message = "An expired tenancy cannot be renewed." });
+                if (request.NewEndDate.Date <= tenancy.EndDate.Value.Date)
+                    return BadRequest(new { Message = "New end date must be later than the current tenancy end date." });
+                if (request.NewEndDate.Date <= nowUtc.Date)
+                    return BadRequest(new { Message = "New end date must be in the future." });
+
+                if (await TenancyLifecycleHelper.HasOverlappingTenancyAsync(
+                        _context,
+                        tenancy.ApartmentId,
+                        tenancy.StartDate,
+                        request.NewEndDate,
+                        tenancy.Id))
+                    return BadRequest("The extension would overlap another tenancy for this apartment.");
+
+                await TenancyLifecycleHelper.SynchronizeRentPeriodsForExtensionAsync(
+                    _context,
+                    tenancy,
+                    request.NewEndDate,
+                    userId,
+                    nowUtc);
+
                 tenancy.EndDate = request.NewEndDate;
+                tenancy.RenewalReminderSentAt = null;
+                tenancy.RenewalReminderSentForEndDate = null;
                 tenancy.UpdatedBy = userId;
-                tenancy.UpdatedAt = DateTimeOffset.UtcNow;
+                tenancy.UpdatedAt = nowUtc;
                 _context.Tenancies.Update(tenancy);
                 await _context.SaveChangesAsync();
 
@@ -592,6 +628,10 @@ namespace RentHub.API.Controllers
                         o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite) return Forbid();
+
+                if (!User.IsInRole("Admin") &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, tenancy.Apartment.Property.LandlordId))
+                    return SubscriptionRequired();
 
                 var currentCount = tenancy.Members.Count(m => !m.IsDeleted);
                 if (currentCount >= tenancy.MaxMembers)
@@ -806,6 +846,7 @@ namespace RentHub.API.Controllers
                 if (tenancy.Apartment?.Property == null) return NotFound("Property not found.");
 
                 var hasAccess =
+                    User.IsInRole("Admin") ||
                     tenancy.Members.Any(m => !m.IsDeleted && m.MemberId == userId) ||
                     tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.ApartmentOwners.AnyAsync(o => !o.IsDeleted && o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId) ||
@@ -814,6 +855,7 @@ namespace RentHub.API.Controllers
                 if (!hasAccess) return Forbid();
 
                 var canWrite =
+                    User.IsInRole("Admin") ||
                     tenancy.Apartment.Property.LandlordId == userId ||
                     await _context.PropertyManagerAssignments.AnyAsync(m =>
                         !m.IsDeleted &&
@@ -925,6 +967,7 @@ namespace RentHub.API.Controllers
 
                 var documentDtos = await DocumentHelpers.ToDtosAsync(documents, _storageService);
                 var nowUtc = DateTimeOffset.UtcNow;
+                var platformAutomaticPaymentsEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
 
                 var dashboard = new TenantDashboardDto
                 {
@@ -947,6 +990,12 @@ namespace RentHub.API.Controllers
                             tenancy.Apartment?.Property?.Landlord,
                             tenancy.Apartment?.Property?.CountryIsoCode,
                             tenancy.Apartment?.Property?.CountryCode);
+                        if (!platformAutomaticPaymentsEnabled || tenancy.Apartment?.Property?.AutomaticPaymentsEnabled != true)
+                        {
+                            paymentAvailability = TenantRentPaymentAvailability.Unavailable(
+                                PaymentMethodEnum.Cash,
+                                PaymentAvailabilityHelper.AutomaticPaymentsUnavailableMessage);
+                        }
 
                         return new TenantDashboardTenancyDto
                         {
@@ -976,6 +1025,7 @@ namespace RentHub.API.Controllers
                             PaymentMethod = paymentAvailability.Method,
                             CanPayRent = paymentAvailability.CanPay,
                             PaymentUnavailableReason = paymentAvailability.Message,
+                            AutomaticPaymentsEnabled = platformAutomaticPaymentsEnabled && tenancy.Apartment?.Property?.AutomaticPaymentsEnabled == true,
                             RentPeriods = periodDtos,
                             PaymentHistory = MapPaymentHistory(payments.Where(payment => payment.TenancyId == tenancy.Id), periods),
                             Documents = documentDtos.Where(document => document.TenancyId == tenancy.Id).ToList()
@@ -1111,6 +1161,15 @@ namespace RentHub.API.Controllers
                 : TenantRentPaymentAvailability.Unavailable(
                     PaymentMethodEnum.Card,
                     "Rent payment is not available because the landlord has not configured a verified payout method.");
+        }
+
+        private ObjectResult SubscriptionRequired()
+        {
+            return StatusCode(StatusCodes.Status402PaymentRequired, new
+            {
+                Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+            });
         }
 
         internal sealed class TenantRentPaymentAvailability
@@ -1293,15 +1352,5 @@ namespace RentHub.API.Controllers
             return "Active";
         }
 
-        private Task<bool> HasOverlappingTenancyAsync(int apartmentId, DateTimeOffset startDate, DateTimeOffset? endDate, int? ignoredTenancyId = null)
-        {
-            return _context.Tenancies
-                .IgnoreQueryFilters()
-                .Where(t => !t.IsDeleted && t.ApartmentId == apartmentId && (!ignoredTenancyId.HasValue || t.Id != ignoredTenancyId.Value))
-                .Where(t => t.TerminatedAt == null)
-                .AnyAsync(t =>
-                    (endDate == null || t.StartDate <= endDate.Value) &&
-                    (t.EndDate == null || startDate <= t.EndDate.Value));
-        }
     }
 }

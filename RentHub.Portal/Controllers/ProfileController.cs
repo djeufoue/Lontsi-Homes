@@ -3,25 +3,35 @@ using Common.Enums;
 using Common.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 using RentHub.Portal.Services;
 using RentHub.Portal.ViewModels.Auth;
 using RentHub.Portal.ViewModels.Profile;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Globalization;
 
 namespace RentHub.Portal.Controllers
 {
     [Authorize]
     public class ProfileController : Controller
     {
-        private const string SmsVerificationUnavailableMessage = "SMS phone verification is not available yet while we wait for Twilio approval. Continue testing without phone-number verification.";
+        private const string SmsVerificationUnavailableMessage = "Phone verification is not required for this account.";
 
         private readonly RentHubApiClient _api;
+        private readonly PortalAuthSessionService _authSession;
+        private readonly IStringLocalizer<SharedResource> _localizer;
         private readonly ILogger<ProfileController> _logger;
 
-        public ProfileController(RentHubApiClient api, ILogger<ProfileController> logger)
+        public ProfileController(
+            RentHubApiClient api,
+            PortalAuthSessionService authSession,
+            IStringLocalizer<SharedResource> localizer,
+            ILogger<ProfileController> logger)
         {
             _api = api;
+            _authSession = authSession;
+            _localizer = localizer;
             _logger = logger;
         }
 
@@ -45,7 +55,14 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
-                return View(await BuildProfileIndexVmAsync());
+                var model = await BuildProfileIndexVmAsync();
+                if (model.Overview.IsSubscriptionExempt)
+                {
+                    TempData["Info"] = "Your landlord account has a subscription exemption, so no payment plan is required.";
+                    return RedirectToAction("Index", "Properties");
+                }
+
+                return View(model);
             }
             catch (Exception ex)
             {
@@ -55,12 +72,63 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateLanguage(UpdateLanguageVm model)
+        {
+            if (!ModelState.IsValid || !PlatformLanguageOptions.IsSupported(model.Language))
+            {
+                TempData["Error"] = _localizer["Select a supported language."].Value;
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<UpdatePlatformLanguageRequest, UpdatePlatformLanguageResponse>(
+                    "Account/language",
+                    new UpdatePlatformLanguageRequest { Language = model.Language });
+
+                if (string.IsNullOrWhiteSpace(response.Token) ||
+                    !PlatformLanguageOptions.IsSupported(response.Language))
+                {
+                    throw new InvalidOperationException("The language update response was incomplete.");
+                }
+
+                await _authSession.PersistTokenAsync(response.Token);
+
+                var culture = CultureInfo.GetCultureInfo(response.Language.ToCultureName());
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = culture;
+                TempData["Success"] = _localizer["Your language preference has been updated."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update the authenticated user's language preference");
+                TempData["Error"] = _localizer["Unable to update your language preference right now. Please try again."].Value;
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
         [HttpGet]
         [Authorize(Roles = "Landlord")]
         public async Task<IActionResult> PayoutSetup(bool refresh = false)
         {
             try
             {
+                var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+                if (overview.IsSubscriptionExempt)
+                {
+                    TempData["Info"] = "Your landlord account has a subscription exemption, so payout setup is not required.";
+                    return RedirectToAction("Index", "Properties");
+                }
+
+                if (!overview.AutomaticPaymentsEnabled)
+                {
+                    TempData["Info"] = "Stripe setup is skipped while automatic payments are disabled.";
+                    return RedirectToAction(nameof(Payments));
+                }
+
                 if (refresh)
                 {
                     return await RedirectToStripePayoutSetupAsync();
@@ -86,6 +154,11 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 return await RedirectToStripePayoutSetupAsync();
             }
             catch (Exception ex)
@@ -105,6 +178,11 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 var status = await _api.GetAsync<StripePayoutAccountStatusDto>("PayoutAccounts/stripe/status");
                 if (status.SetupComplete)
                 {
@@ -402,6 +480,11 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 var response = await _api.PostAsync<object, JsonElement>($"Subscriptions/subscribe/{planId}", new { });
                 var message = ReadMessage(response);
 
@@ -437,6 +520,11 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 var session = await _api.PostAsync<StartSubscriptionCheckoutRequest, SubscriptionCheckoutSessionDto>(
                     $"Subscriptions/checkout/{planId}",
                     new StartSubscriptionCheckoutRequest
@@ -468,6 +556,46 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestManualSubscription(int planId, int durationMonths = 12)
+        {
+            if (planId <= 0)
+            {
+                TempData["Error"] = "Please choose a valid subscription plan.";
+                return RedirectToAction(nameof(Payments));
+            }
+
+            if (durationMonths is < 6 or > 36)
+            {
+                TempData["Error"] = "Choose a subscription duration between 6 and 36 months.";
+                return RedirectToAction(nameof(Payments));
+            }
+
+            try
+            {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
+                await _api.PostAsync($"Subscriptions/manual-request/{planId}", new ManualSubscriptionActivationRequest
+                {
+                    DurationMonths = durationMonths
+                });
+                TempData["Success"] = "Your activation request was sent. The administrator will review it after receiving your cash payment.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual subscription request failed for plan {PlanId}", planId);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiMessage(ex.Message),
+                    "Unable to submit the manual subscription request right now.");
+            }
+
+            return RedirectToAction(nameof(Payments));
+        }
+
         [HttpGet]
         public async Task<IActionResult> CardCheckout(string? reference = null)
         {
@@ -479,6 +607,11 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 var session = await _api.GetAsync<SubscriptionCheckoutSessionDto>(
                     $"Subscriptions/checkout-session/{Uri.EscapeDataString(reference)}");
 
@@ -523,6 +656,11 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return RedirectExemptLandlordToProperties();
+                }
+
                 var status = await _api.GetAsync<SubscriptionCheckoutStatusDto>($"Subscriptions/checkout-status/{Uri.EscapeDataString(reference)}");
                 TempData[status.PaymentCompleted ? "Success" : "Error"] = string.IsNullOrWhiteSpace(status.Message)
                     ? (status.PaymentCompleted ? "Subscription activated successfully." : "The card payment was not completed. Please try again.")
@@ -545,6 +683,11 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
+                if (await HasSubscriptionExemptionAsync())
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden);
+                }
+
                 if (!string.IsNullOrWhiteSpace(reference))
                 {
                     try
@@ -570,6 +713,18 @@ namespace RentHub.Portal.Controllers
                 _logger.LogError(ex, "Failed to refresh subscription details");
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, "Unable to refresh subscription details right now.");
             }
+        }
+
+        private async Task<bool> HasSubscriptionExemptionAsync()
+        {
+            var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+            return overview.IsSubscriptionExempt;
+        }
+
+        private IActionResult RedirectExemptLandlordToProperties()
+        {
+            TempData["Info"] = "Your landlord account has a subscription exemption, so no payment plan is required.";
+            return RedirectToAction("Index", "Properties");
         }
 
         private static string? ReadMessage(JsonElement element)

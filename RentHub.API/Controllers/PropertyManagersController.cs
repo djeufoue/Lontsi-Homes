@@ -83,12 +83,15 @@ namespace RentHub.API.Controllers
                 // Non-admin users must respect landlord subscription status.
                 if (!isAdmin)
                 {
-                    var hasApprovedSubscription = await _context.UserSubscriptions
-                        .AnyAsync(us => us.UserId == property.LandlordId && us.EndDate > DateTimeOffset.UtcNow && us.IsApproved);
+                    var hasApprovedSubscription = await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, property.LandlordId);
 
                     if (!hasApprovedSubscription)
                     {
-                        return BadRequest("Landlord subscription is inactive or not approved. Cannot add property members.");
+                        return StatusCode(StatusCodes.Status402PaymentRequired, new
+                        {
+                            Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                            Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+                        });
                     }
                 }
 

@@ -13,6 +13,7 @@ namespace Common.CommunicationModels
         public int TotalPages { get; set; }
         public string Search { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        public bool AutomaticPaymentsEnabled { get; set; }
     }
 
     public class SubscriptionPaymentActivitySummaryDto

@@ -50,6 +50,8 @@ namespace RentHub.API.Controllers
                 var canWrite = property.LandlordId == userId || await _context.PropertyManagerAssignments
                     .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
                 if (!canWrite) return Forbid();
+                if (!User.IsInRole("Admin") && !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, property.LandlordId))
+                    return SubscriptionRequired();
 
                 var extension = Path.GetExtension(request.File.FileName);
                 var blobName = $"property-{propertyId}-{Guid.NewGuid()}{extension}";
@@ -111,6 +113,9 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite)
                     return Forbid();
+                if (!User.IsInRole("Admin") && apartment.Property != null &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apartment.Property.LandlordId))
+                    return SubscriptionRequired();
 
                 var file = request.File;
                 var extension = Path.GetExtension(file.FileName);
@@ -181,6 +186,9 @@ namespace RentHub.API.Controllers
 
                 if (!canWrite)
                     return Forbid();
+                if (!User.IsInRole("Admin") && apartment.Property != null &&
+                    !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apartment.Property.LandlordId))
+                    return SubscriptionRequired();
 
                 var file = request.File;
                 var extension = Path.GetExtension(file.FileName);
@@ -459,6 +467,15 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        private ObjectResult SubscriptionRequired()
+        {
+            return StatusCode(StatusCodes.Status402PaymentRequired, new
+            {
+                Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+            });
         }
 
         private static bool ValidateUpload(IFormFile file, DocumentTypeEnum type, out string errorMessage)

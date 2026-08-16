@@ -27,6 +27,11 @@ namespace RentHub.API.Controllers
         [Authorize]
         public async Task<IActionResult> GetByPayment(int paymentId)
         {
+            if (User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
             var userId = UserHelpers.GetUserId(User);
             if (string.IsNullOrWhiteSpace(userId))
             {

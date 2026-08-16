@@ -21,5 +21,6 @@ namespace Common.CommunicationModels
 
         // Owned, Managed, Owner, Tenant, Admin
         public string AccessSource { get; set; } = string.Empty;
+        public bool AutomaticPaymentsEnabled { get; set; }
     }
 }

@@ -1,86 +1,86 @@
 @model Common.CommunicationModels.StripePayoutAccountStatusDto
 @{
-    ViewData["Title"] = "Payout Account Setup";
+    ViewData["Title"] = T["Payout Account Setup"];
     var statusText = !Model.IsKycApproved
-        ? "KYC approval required"
+        ? T["KYC approval required"].Value
         : !Model.IsPlatformReady
-        ? "Platform activation pending"
+        ? T["Platform activation pending"].Value
         : !Model.IsCountrySupported
-        ? "Unsupported country"
+        ? T["Unsupported country"].Value
         : Model.SetupComplete
-        ? "Ready"
+        ? T["Ready"].Value
         : Model.HasAccount
-            ? "Needs details"
-            : "Not started";
+            ? T["Needs details"].Value
+            : T["Not started"].Value;
     var requirementsSummary = FriendlyStripeMessage(Model.RequirementsSummary);
     var disabledReason = FriendlyStripeMessage(Model.DisabledReason);
     var hasStripeActionNeeded = !string.IsNullOrWhiteSpace(requirementsSummary) || !string.IsNullOrWhiteSpace(disabledReason);
     var payoutReadinessText = Model.PayoutsEnabled
-        ? "Enabled"
+        ? T["Enabled"].Value
         : hasStripeActionNeeded
-            ? "Action needed"
+            ? T["Action needed"].Value
             : Model.DetailsSubmitted
-                ? "Reviewing"
-                : "Waiting";
+                ? T["Reviewing"].Value
+                : T["Waiting"].Value;
 }
 
 <section class="rh-page-header rh-page-header-elevated">
     <div>
-        <p class="rh-kicker">Payout Setup</p>
-        <h1 class="rh-heading-title">Connect your payout account</h1>
-        <p class="rh-heading-subtitle">Set up Stripe so tenant card rent payments can be routed to you after rent payments are enabled.</p>
+        <p class="rh-kicker">@T["Payout Setup"]</p>
+        <h1 class="rh-heading-title">@T["Connect your payout account"]</h1>
+        <p class="rh-heading-subtitle">@T["Set up Stripe so tenant card rent payments can be routed to you after rent payments are enabled."]</p>
     </div>
     <div class="rh-toolbar">
-        <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Payments">Back to Payment Center</a>
+        <a class="btn rh-btn-subtle" asp-controller="Profile" asp-action="Payments">@T["Back to Payment Center"]</a>
     </div>
 </section>
 
 <section class="rh-profile-grid">
     <article class="rh-panel rh-panel-elevated">
         <p class="rh-kicker mb-1">Stripe Connect</p>
-        <h2 class="rh-section-title mb-2">Payout readiness</h2>
-        <p class="text-muted">@Model.Message</p>
+        <h2 class="rh-section-title mb-2">@T["Payout readiness"]</h2>
+        <p class="text-muted">@T[Model.Message ?? string.Empty]</p>
 
         @if (!Model.IsKycApproved)
         {
             <div class="alert alert-warning py-2">
-                KYC status: <strong>@Model.KycStatus</strong>. An administrator must approve your KYC before Stripe payout setup is available.
+                @T["KYC status: {0}. An administrator must approve your KYC before Stripe payout setup is available.", T[Model.KycStatus.ToString()]]
             </div>
         }
 
         @if (Model.IsKycApproved && !Model.IsPlatformReady)
         {
             <div class="alert alert-info py-2">
-                @Model.PlatformReadinessMessage
+                @T[Model.PlatformReadinessMessage ?? string.Empty]
             </div>
         }
 
         @if (!string.IsNullOrWhiteSpace(Model.CountryIsoCode))
         {
             <div class="alert @(Model.IsCountrySupported ? "alert-info" : "alert-danger") py-2">
-                Payout country: <strong>@Model.CountryIsoCode</strong>
+                @T["Payout country:"] <strong>@Model.CountryIsoCode</strong>
                 @if (!Model.IsCountrySupported)
                 {
-                    <span> - @Model.CountryUnsupportedMessage</span>
+                    <span> - @T[Model.CountryUnsupportedMessage ?? string.Empty]</span>
                 }
             </div>
         }
 
         <div class="rh-payout-status-grid">
             <div class="rh-payout-status-item @(Model.HasAccount ? "is-complete" : string.Empty)">
-                <span>Account</span>
-                <strong>@(Model.HasAccount ? "Created" : "Missing")</strong>
+                <span>@T["Account"]</span>
+                <strong>@(Model.HasAccount ? T["Created"] : T["Missing"])</strong>
             </div>
             <div class="rh-payout-status-item @(Model.DetailsSubmitted ? "is-complete" : string.Empty)">
-                <span>Details</span>
-                <strong>@(Model.DetailsSubmitted ? "Submitted" : "Required")</strong>
+                <span>@T["Details"]</span>
+                <strong>@(Model.DetailsSubmitted ? T["Submitted"] : T["Required"])</strong>
             </div>
             <div class="rh-payout-status-item @(Model.ChargesEnabled ? "is-complete" : string.Empty)">
-                <span>Charges</span>
-                <strong>@(Model.ChargesEnabled ? "Enabled" : "Waiting")</strong>
+                <span>@T["Charges"]</span>
+                <strong>@(Model.ChargesEnabled ? T["Enabled"] : T["Waiting"])</strong>
             </div>
             <div class="rh-payout-status-item @(Model.PayoutsEnabled ? "is-complete" : string.Empty)">
-                <span>Payouts</span>
+                <span>@T["Payouts"]</span>
                 <strong>@payoutReadinessText</strong>
             </div>
         </div>
@@ -88,58 +88,58 @@
         @if (!string.IsNullOrWhiteSpace(requirementsSummary))
         {
             <div class="alert alert-warning mt-3 mb-0">
-                <strong>Stripe still needs attention:</strong> @requirementsSummary
+                <strong>@T["Stripe still needs attention:"]</strong> @requirementsSummary
             </div>
         }
 
         @if (!string.IsNullOrWhiteSpace(disabledReason))
         {
             <div class="alert alert-danger mt-3 mb-0">
-                <strong>Payouts are waiting:</strong> @disabledReason
+                <strong>@T["Payouts are waiting:"]</strong> @disabledReason
             </div>
         }
     </article>
 
     <article class="rh-panel rh-panel-elevated">
-        <p class="rh-kicker mb-1">Next action</p>
+        <p class="rh-kicker mb-1">@T["Next action"]</p>
         <h2 class="rh-section-title mb-2">@statusText</h2>
         @if (!Model.IsKycApproved)
         {
-            <p class="text-muted">Wait for the administrator to approve your submitted KYC before connecting Stripe. You can review your current verification status from the profile checklist.</p>
-            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Index">Open profile checklist</a>
+            <p class="text-muted">@T["Wait for the administrator to approve your submitted KYC before connecting Stripe. You can review your current verification status from the profile checklist."]</p>
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Index">@T["Open profile checklist"]</a>
         }
         else if (!Model.IsPlatformReady)
         {
-            <p class="text-muted">Stripe Connect account setup is paused while the platform activation is completed. You can keep testing subscriptions, profiles, and property workflows.</p>
-            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">Continue testing payments</a>
+            <p class="text-muted">@T["Stripe Connect account setup is paused while the platform activation is completed. You can keep testing subscriptions, profiles, and property workflows."]</p>
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">@T["Continue testing payments"]</a>
         }
         else if (!Model.IsCountrySupported)
         {
-            <p class="text-muted">Stripe Connect cannot create a payout account for this country in the current configuration. Use an alternate payout path until this country is supported.</p>
-            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Index">Back to profile</a>
+            <p class="text-muted">@T["Stripe Connect cannot create a payout account for this country in the current configuration. Use an alternate payout path until this country is supported."]</p>
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Index">@T["Back to profile"]</a>
         }
         else if (Model.SetupComplete)
         {
-            <p class="text-muted">Your payout account is ready. The next setup step is choosing a landlord subscription.</p>
-            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments" asp-fragment="subscriptionPlans">Choose subscription</a>
+            <p class="text-muted">@T["Your payout account is ready. The next setup step is choosing a landlord subscription."]</p>
+            <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments" asp-fragment="subscriptionPlans">@T["Choose subscription"]</a>
         }
         else
         {
-            <p class="text-muted">Stripe will ask for the business and payout details needed to receive tenant rent payments later.</p>
+            <p class="text-muted">@T["Stripe will ask for the business and payout details needed to receive tenant rent payments later."]</p>
             <form asp-action="StartPayoutSetup" method="post">
                 @Html.AntiForgeryToken()
                 <button type="submit" class="btn rh-btn-primary">
-                    @(Model.HasAccount ? "Continue Stripe setup" : "Start Stripe setup")
+                    @(Model.HasAccount ? T["Continue Stripe setup"] : T["Start Stripe setup"])
                 </button>
             </form>
         }
 
-        <a class="btn rh-btn-subtle mt-2" asp-controller="Profile" asp-action="Index">Do this later</a>
+        <a class="btn rh-btn-subtle mt-2" asp-controller="Profile" asp-action="Index">@T["Do this later"]</a>
     </article>
 </section>
 
 @functions {
-    private static string FriendlyStripeMessage(string value)
+    private string FriendlyStripeMessage(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -147,13 +147,13 @@
         }
 
         return value
-            .Replace("requirements.past_due", "Stripe needs overdue verification details before payouts can be enabled", StringComparison.OrdinalIgnoreCase)
-            .Replace("requirements.pending_verification", "Stripe is reviewing the submitted payout account details", StringComparison.OrdinalIgnoreCase)
-            .Replace("individual.verification.proof_of_liveness", "complete the Stripe identity/liveness check", StringComparison.OrdinalIgnoreCase)
-            .Replace("individual.verification.document", "upload an identity document", StringComparison.OrdinalIgnoreCase)
-            .Replace("individual.verification.additional_document", "upload an additional identity document", StringComparison.OrdinalIgnoreCase)
-            .Replace("Missing now:", "Action needed now:", StringComparison.OrdinalIgnoreCase)
-            .Replace("Past due:", "Overdue:", StringComparison.OrdinalIgnoreCase)
-            .Replace("Pending verification:", "Pending review:", StringComparison.OrdinalIgnoreCase);
+            .Replace("requirements.past_due", T["Stripe needs overdue verification details before payouts can be enabled"], StringComparison.OrdinalIgnoreCase)
+            .Replace("requirements.pending_verification", T["Stripe is reviewing the submitted payout account details"], StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.proof_of_liveness", T["complete the Stripe identity/liveness check"], StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.document", T["upload an identity document"], StringComparison.OrdinalIgnoreCase)
+            .Replace("individual.verification.additional_document", T["upload an additional identity document"], StringComparison.OrdinalIgnoreCase)
+            .Replace("Missing now:", T["Action needed now:"], StringComparison.OrdinalIgnoreCase)
+            .Replace("Past due:", T["Overdue:"], StringComparison.OrdinalIgnoreCase)
+            .Replace("Pending verification:", T["Pending review:"], StringComparison.OrdinalIgnoreCase);
     }
 }

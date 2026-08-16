@@ -21,27 +21,21 @@ namespace RentHub.Portal.Controllers
             _logger = logger;
         }
 
-        [Authorize(Roles = "Landlord")]
-        public async Task<IActionResult> Index(string? search = null)
+        [Authorize(Roles = "Admin,Landlord,Manager,Tenant")]
+        public async Task<IActionResult> Index(
+            string? search = null,
+            int? propertyId = null,
+            string? status = null,
+            int page = 1,
+            int pageSize = 12)
         {
             try
             {
-                var items = await _api.GetAsync<List<ApartmentDto>>("apartments/mine");
-
-                if (!string.IsNullOrWhiteSpace(search))
-                {
-                    var s = search.Trim().ToLowerInvariant();
-                    items = items
-                        .Where(a => (a.Name ?? string.Empty).ToLowerInvariant().Contains(s)
-                                 || (a.PropertyName ?? string.Empty).ToLowerInvariant().Contains(s))
-                        .ToList();
-                }
-
-                return View(new ApartmentIndexVm
-                {
-                    Search = search,
-                    Items = items
-                });
+                var endpoint = $"workspace-directory/apartments?search={Uri.EscapeDataString(search ?? string.Empty)}" +
+                               $"&propertyId={propertyId}&status={Uri.EscapeDataString(status ?? string.Empty)}" +
+                               $"&page={page}&pageSize={pageSize}";
+                var model = await _api.GetAsync<WorkspaceDirectoryResponseDto<WorkspaceApartmentDto>>(endpoint);
+                return View(model);
             }
             catch (Exception ex)
             {

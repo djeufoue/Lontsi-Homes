@@ -1,0 +1,178 @@
+@model RentHub.Portal.ViewModels.Tenancies.TenancyRenewalVm
+@using Common.Enums
+@{
+    ViewData["Title"] = T["Tenancy renewal"].Value;
+    var workspace = Model.Workspace;
+    var pendingRequests = workspace.Requests.Where(request => request.Status == TenancyExtensionStatusEnum.Pending).ToList();
+    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("d");
+}
+
+<section class="rh-overview-shell rh-tenancy-shell">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            @if (workspace.CanReview)
+            {
+                <a class="rh-overview-backlink" asp-action="Overview" asp-route-id="@workspace.TenancyId">&#8592; @T["Back to tenancy overview"]</a>
+            }
+            else
+            {
+                <a class="rh-overview-backlink" asp-controller="Tenant" asp-action="Index">&#8592; @T["Back to rent dashboard"]</a>
+            }
+            <p class="rh-kicker">@T["Renewal workflow"]</p>
+            <h1 class="rh-heading-title">@T["Tenancy renewal"]</h1>
+            <p class="rh-heading-subtitle">@workspace.PropertyName - @workspace.ApartmentName</p>
+            <div class="rh-overview-badges">
+                <span class="rh-chip rh-chip-info">@T["Current end date: {0}", workspace.CurrentEndDate.HasValue ? DateLabel(workspace.CurrentEndDate.Value) : T["Not scheduled"].Value]</span>
+                @if (pendingRequests.Count > 0)
+                {
+                    <span class="rh-chip rh-chip-warning">@T["Renewal pending"]</span>
+                }
+            </div>
+        </div>
+    </section>
+
+    @if (workspace.CanRequest)
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Request a renewal"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Propose a future end date. The landlord or an authorized manager must approve it before your tenancy changes."]</p>
+                </div>
+            </div>
+            <form asp-action="RequestRenewal" method="post" class="row g-3 align-items-end">
+                @Html.AntiForgeryToken()
+                <input asp-for="Workspace.TenancyId" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                <div class="col-md-8">
+                    <label class="form-label" asp-for="ProposedEndDate">@T["Proposed new end date"]</label>
+                    <input class="form-control rh-input"
+                           asp-for="ProposedEndDate"
+                           type="date"
+                           min="@workspace.MinimumProposedEndDate?.ToString("yyyy-MM-dd")"
+                           required />
+                    <span asp-validation-for="ProposedEndDate" class="text-danger"></span>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn rh-btn-primary w-100" type="submit">@T["Submit renewal request"]</button>
+                </div>
+            </form>
+        </section>
+    }
+    else if (!workspace.CanReview && !string.IsNullOrWhiteSpace(workspace.RequestUnavailableReason))
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="rh-inline-settings-note rh-warning-note">@T[workspace.RequestUnavailableReason]</div>
+        </section>
+    }
+
+    @if (workspace.CanReview && pendingRequests.Count > 0)
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Pending review"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Approve to update the tenancy and rent schedule, or reject without changing the tenancy."]</p>
+                </div>
+            </div>
+
+            <div class="d-grid gap-3">
+                @foreach (var request in pendingRequests)
+                {
+                    <article class="rh-card-spotlight p-3">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                            <div>
+                                <strong>@request.RequestedByName</strong>
+                                <div class="text-muted">@T["Requested on {0}", DateLabel(request.CreatedAt)]</div>
+                                <div>@T["Proposed end date: {0}", DateLabel(request.ProposedEndDate)]</div>
+                            </div>
+                            <form asp-action="ApproveRenewal" method="post" data-confirm-modal="true" data-confirm-title="@T["Approve this renewal request?"]" data-confirm-message="@T["The tenancy end date and rent schedule will be extended to the proposed date."]" data-confirm-proceed="@T["Approve renewal"]">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="tenancyId" value="@workspace.TenancyId" />
+                                <input type="hidden" name="requestId" value="@request.Id" />
+                                <button class="btn rh-btn-primary" type="submit">@T["Approve"]</button>
+                            </form>
+                        </div>
+                        <form asp-action="RejectRenewal" method="post" class="row g-2 align-items-end mt-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="tenancyId" value="@workspace.TenancyId" />
+                            <input type="hidden" name="requestId" value="@request.Id" />
+                            <div class="col-md-9">
+                                <label class="form-label" for="rejectionReason-@request.Id">@T["Rejection reason optional"]</label>
+                                <textarea class="form-control rh-input" id="rejectionReason-@request.Id" name="rejectionReason" rows="2" maxlength="512"></textarea>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn rh-btn-outline-danger w-100" type="submit">@T["Reject"]</button>
+                            </div>
+                        </form>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="rh-panel rh-panel-elevated">
+        <div class="rh-overview-panel-head align-start">
+            <div>
+                <h2 class="rh-dashboard-panel-title">@T["Renewal history"]</h2>
+                <p class="rh-dashboard-panel-copy">@T["Every submitted request and decision remains recorded here."]</p>
+            </div>
+        </div>
+
+        @if (workspace.Requests.Count == 0)
+        {
+            <div class="rh-empty">@T["No renewal request has been submitted for this tenancy."]</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle rh-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>@T["Requested by"]</th>
+                            <th>@T["Submitted"]</th>
+                            <th>@T["Previous end date"]</th>
+                            <th>@T["Proposed end date"]</th>
+                            <th>@T["Status"]</th>
+                            <th>@T["Decision"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var request in workspace.Requests)
+                        {
+                            <tr>
+                                <td>@request.RequestedByName</td>
+                                <td>@DateLabel(request.CreatedAt)</td>
+                                <td>@(request.OriginalEndDate.HasValue ? DateLabel(request.OriginalEndDate.Value) : T["Not recorded"].Value)</td>
+                                <td>@DateLabel(request.ProposedEndDate)</td>
+                                <td><span class="rh-chip @(request.Status == TenancyExtensionStatusEnum.Pending ? "rh-chip-warning" : request.Status == TenancyExtensionStatusEnum.Approved ? "rh-chip-primary" : "rh-chip-info")">@T[request.Status.ToString()]</span></td>
+                                <td>
+                                    @if (request.ReviewedAt.HasValue)
+                                    {
+                                        <div>@DateLabel(request.ReviewedAt.Value)</div>
+                                        @if (!string.IsNullOrWhiteSpace(request.ReviewedByName))
+                                        {
+                                            <small class="text-muted">@request.ReviewedByName</small>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">@T["Awaiting review"]</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(request.RejectionReason))
+                                    {
+                                        <small class="d-block text-muted">@T["Reason:"] @request.RejectionReason</small>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

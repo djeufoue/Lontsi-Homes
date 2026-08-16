@@ -1,8 +1,9 @@
 @model RentHub.Portal.ViewModels.Tenancies.TenancyCreateWizardVm
 @using Common.Enums
+@using System.Globalization
 @using Common.Helpers
 @{
-    ViewData["Title"] = "Create Tenancy";
+    ViewData["Title"] = T["Create Tenancy"];
 
     var draft = Model.Draft;
     var step = Model.Step;
@@ -38,7 +39,7 @@
         .FirstOrDefault();
 
     string DateValue(DateTimeOffset? value) => value?.ToString("yyyy-MM-dd") ?? string.Empty;
-    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy");
+    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("d", CultureInfo.CurrentCulture);
     string StatusClass(RentPeriodStatusEnum status) => status switch
     {
         RentPeriodStatusEnum.PaidBeforeRentHub or RentPeriodStatusEnum.PaidInAdvance or RentPeriodStatusEnum.Paid => "rh-chip-primary",
@@ -54,8 +55,8 @@
 <section class="rh-overview-shell">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
-            <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@draft.ApartmentId">&#8592; Back to apartment</a>
-            <p class="rh-kicker">Guided tenancy setup</p>
+            <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@draft.ApartmentId">&#8592; @T["Back to apartment"]</a>
+            <p class="rh-kicker">@T["Guided tenancy setup"]</p>
             <h1 class="rh-heading-title">@draft.ApartmentName</h1>
             <p class="rh-heading-subtitle">@draft.PropertyName</p>
         </div>
@@ -63,18 +64,18 @@
             <form asp-action="CancelCreate" method="post">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
-                <button type="submit" class="btn rh-btn-subtle">Cancel setup</button>
+                <button type="submit" class="btn rh-btn-subtle">@T["Cancel setup"]</button>
             </form>
         </div>
     </section>
 
     <section class="rh-panel rh-panel-elevated mb-3">
         <div class="rh-tenancy-wizard-steps">
-            <span class="@StepClass(1)">1. Details</span>
-            <span class="@StepClass(2)">2. Schedule</span>
-            <span class="@StepClass(3)">3. Payment history</span>
-            <span class="@StepClass(4)">4. Tenant</span>
-            <span class="@StepClass(5)">5. Review</span>
+            <span class="@StepClass(1)">@T["1. Details"]</span>
+            <span class="@StepClass(2)">@T["2. Schedule"]</span>
+            <span class="@StepClass(3)">@T["3. Payment history"]</span>
+            <span class="@StepClass(4)">@T["4. Tenant"]</span>
+            <span class="@StepClass(5)">@T["5. Review"]</span>
         </div>
     </section>
 
@@ -95,8 +96,8 @@
         <section class="rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head align-start">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Tenancy details</h2>
-                    <p class="rh-dashboard-panel-copy">Set the contract dates, rent amount, reminder day, and end behavior.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Tenancy details"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Set the contract dates, rent amount, reminder day, and end behavior."]</p>
                 </div>
             </div>
 
@@ -105,58 +106,58 @@
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
                 <div class="col-md-6">
-                    <label class="form-label">Start date</label>
+                    <label class="form-label">@T["Start date"]</label>
                     <input class="form-control rh-input" type="date" name="StartDate" value="@DateValue(draft.StartDate)" required data-details-start />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">End date</label>
+                    <label class="form-label">@T["End date"]</label>
                     <input class="form-control rh-input" type="date" name="EndDate" value="@DateValue(draft.EndDate)" data-end-date-input data-details-end />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Monthly rent</label>
+                    <label class="form-label">@T["Monthly rent"]</label>
                     <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@draft.MonthlyRent" required data-details-rent />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Max members</label>
+                    <label class="form-label">@T["Max members"]</label>
                     <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@draft.MaxMembers" required data-details-members />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">Rent due day</label>
+                    <label class="form-label">@T["Rent due day"]</label>
                     <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@draft.RentDueDay" required data-details-due-day />
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label">After end date behavior</label>
+                    <label class="form-label">@T["After end date behavior"]</label>
                     <div class="rh-guided-option-grid">
                         <label class="rh-guided-option">
                             <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ExpireAutomatically)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "checked" : null) data-end-behavior />
-                            <span>Expire automatically</span>
-                            <small>No new rent is generated after the end date.</small>
+                            <span>@T["Expire automatically"]</span>
+                            <small>@T["No new rent is generated after the end date."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ContinueMonthToMonth)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "checked" : null) data-end-behavior />
-                            <span>Continue month-to-month</span>
-                            <small>Rent and reminders continue after the end date.</small>
+                            <span>@T["Continue month-to-month"]</span>
+                            <small>@T["Rent and reminders continue after the end date."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.NoEndDate)" @(draft.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "checked" : null) data-end-behavior />
-                            <span>No end date</span>
-                            <small>The tenancy stays active until it is terminated.</small>
+                            <span>@T["No end date"]</span>
+                            <small>@T["The tenancy stays active until it is terminated."]</small>
                         </label>
                     </div>
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label">Contract PDF optional</label>
+                    <label class="form-label">@T["Contract PDF optional"]</label>
                     <input class="form-control rh-input" type="file" name="ContractDocument" accept=".pdf,application/pdf" />
                     @if (!string.IsNullOrWhiteSpace(draft.ContractFileName))
                     {
-                        <small class="text-muted d-block mt-2">Current draft file: @draft.ContractFileName</small>
+                        <small class="text-muted d-block mt-2">@T["Current draft file: {0}", draft.ContractFileName]</small>
                     }
                 </div>
 
                 <div class="col-12 d-flex justify-content-end">
-                    <button type="submit" class="btn rh-btn-primary" data-details-submit disabled>Continue to rent schedule</button>
+                    <button type="submit" class="btn rh-btn-primary" data-details-submit disabled>@T["Continue to rent schedule"]</button>
                 </div>
             </form>
         </section>
@@ -167,20 +168,20 @@
         <section class="rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head align-start">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Rent schedule</h2>
-                    <p class="rh-dashboard-panel-copy">The system generated continuous monthly periods from the tenancy details.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Rent schedule"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["The system generated continuous monthly periods from the tenancy details."]</p>
                 </div>
-                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">Edit details</a>
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">@T["Edit details"]</a>
             </div>
 
             <div class="table-responsive">
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Period</th>
-                            <th>Due date</th>
-                            <th class="text-end">Amount</th>
-                            <th>Status</th>
+                            <th>@T["Period"]</th>
+                            <th>@T["Due date"]</th>
+                            <th class="text-end">@T["Amount"]</th>
+                            <th>@T["Status"]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -189,8 +190,8 @@
                             <tr>
                                 <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
                                 <td>@DateLabel(period.DueDate)</td>
-                                <td class="text-end">@period.Amount.ToString("N0")</td>
-                                <td><span class="rh-chip @StatusClass(period.Status)">Pending setup</span></td>
+                                <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td><span class="rh-chip @StatusClass(period.Status)">@T["Pending setup"]</span></td>
                             </tr>
                         }
                     </tbody>
@@ -208,14 +209,14 @@
             }
 
             <div class="d-flex justify-content-between">
-                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">Back</a>
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">@T["Back"]</a>
                 @if (canContinueFromSchedule)
                 {
-                    <a class="btn rh-btn-primary" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">Continue to payment history</a>
+                    <a class="btn rh-btn-primary" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">@T["Continue to payment history"]</a>
                 }
                 else
                 {
-                    <span class="btn rh-btn-primary disabled" aria-disabled="true">Continue to payment history</span>
+                    <span class="btn rh-btn-primary disabled" aria-disabled="true">@T["Continue to payment history"]</span>
                 }
             </div>
         </section>
@@ -226,8 +227,8 @@
         <section class="rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head align-start">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Payment history import</h2>
-                    <p class="rh-dashboard-panel-copy">Tell RentHub which generated periods are unpaid, paid before RentHub, or already prepaid.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Payment history import"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Tell RentHub which generated periods are unpaid, paid before RentHub, or already prepaid."]</p>
                 </div>
             </div>
 
@@ -239,37 +240,37 @@
                     <div class="rh-guided-option-grid">
                         <label class="rh-guided-option">
                             <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) data-import-mode />
-                            <span>All generated periods are unpaid</span>
-                            <small>Use this when nothing was paid before entering the system.</small>
+                            <span>@T["All generated periods are unpaid"]</span>
+                            <small>@T["Use this when nothing was paid before entering the system."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub ? "checked" : null) data-import-mode />
-                            <span>All past periods were paid before RentHub</span>
-                            <small>Past months are recorded as already paid outside the platform.</small>
+                            <span>@T["All past periods were paid before RentHub"]</span>
+                            <small>@T["Past months are recorded as already paid outside the platform."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) data-import-mode />
-                            <span>Some periods were already paid</span>
-                            <small>Choose one continuous unpaid range; earlier periods become paid before RentHub.</small>
+                            <span>@T["Some periods were already paid"]</span>
+                            <small>@T["Choose one continuous unpaid range; earlier periods become paid before RentHub."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) data-import-mode />
-                            <span>Tenant paid in advance</span>
-                            <small>Mark future periods as paid in advance.</small>
+                            <span>@T["Tenant paid in advance"]</span>
+                            <small>@T["Mark future periods as paid in advance."]</small>
                         </label>
                     </div>
                 </div>
 
                 <div class="col-12" data-unpaid-range>
                     <div class="rh-inline-settings-note">
-                        <strong>Continuous unpaid range</strong>
+                        <strong>@T["Continuous unpaid range"]</strong>
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
-                                <label class="form-label">Unpaid from</label>
+                                <label class="form-label">@T["Unpaid from"]</label>
                                 <input class="form-control rh-input" type="date" name="UnpaidFrom" value="@DateValue(draft.UnpaidFrom)" min="@minPeriodDate" max="@maxPeriodDate" data-unpaid-from />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Unpaid to</label>
+                                <label class="form-label">@T["Unpaid to"]</label>
                                 <input class="form-control rh-input" type="date" name="UnpaidTo" value="@DateValue(draft.UnpaidTo)" min="@minPeriodDate" max="@maxPeriodDate" data-unpaid-to />
                             </div>
                         </div>
@@ -278,14 +279,14 @@
 
                 <div class="col-12">
                     <div class="rh-inline-settings-note">
-                        <strong>Future prepaid rent optional</strong>
+                        <strong>@T["Future prepaid rent optional"]</strong>
                         <div class="row g-3 mt-1">
                             <div class="col-md-6">
-                                <label class="form-label">Paid in advance from</label>
+                                <label class="form-label">@T["Paid in advance from"]</label>
                                 <input class="form-control rh-input" type="date" name="PaidInAdvanceFrom" value="@DateValue(draft.PaidInAdvanceFrom)" min="@minPrepaidDate" max="@maxPrepaidDate" data-prepaid-from />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Paid in advance to</label>
+                                <label class="form-label">@T["Paid in advance to"]</label>
                                 <input class="form-control rh-input" type="date" name="PaidInAdvanceTo" value="@DateValue(draft.PaidInAdvanceTo)" min="@minPrepaidDate" max="@maxPrepaidDate" data-prepaid-to />
                             </div>
                         </div>
@@ -297,10 +298,10 @@
                         <table class="table align-middle">
                             <thead>
                                 <tr>
-                                    <th>Period</th>
-                                    <th>Due date</th>
-                                    <th class="text-end">Amount</th>
-                                    <th>Status after import</th>
+                                    <th>@T["Period"]</th>
+                                    <th>@T["Due date"]</th>
+                                    <th class="text-end">@T["Amount"]</th>
+                                    <th>@T["Status after import"]</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -309,8 +310,8 @@
                                     <tr>
                                         <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
                                         <td>@DateLabel(period.DueDate)</td>
-                                        <td class="text-end">@period.Amount.ToString("N0")</td>
-                                        <td><span class="rh-chip @StatusClass(period.Status)">@RentPeriodScheduleHelper.StatusLabel(period.Status)</span></td>
+                                        <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                        <td><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -319,8 +320,8 @@
                 </div>
 
                 <div class="col-12 d-flex justify-content-between">
-                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="2">Back</a>
-                    <button type="submit" class="btn rh-btn-primary" data-import-submit disabled>Continue to tenant invitation</button>
+                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="2">@T["Back"]</a>
+                    <button type="submit" class="btn rh-btn-primary" data-import-submit disabled>@T["Continue to tenant invitation"]</button>
                 </div>
             </form>
         </section>
@@ -331,8 +332,8 @@
         <section class="rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head align-start">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Tenant invitation</h2>
-                    <p class="rh-dashboard-panel-copy">Invite the main tenant and store phone/WhatsApp contact details for reminders.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Tenant invitation"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Invite the main tenant and store phone/WhatsApp contact details for reminders."]</p>
                 </div>
             </div>
 
@@ -342,33 +343,33 @@
                 <input type="hidden" name="Role" value="@TenancyMemberRoleEnum.MainTenant" />
 
                 <div class="col-md-6">
-                    <label class="form-label">Tenant email</label>
+                    <label class="form-label">@T["Tenant email"]</label>
                     <input class="form-control rh-input" type="email" name="Email" value="@draft.MainTenant.Email" required data-tenant-email />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Full name</label>
+                    <label class="form-label">@T["Full name"]</label>
                     <input class="form-control rh-input" name="FullName" value="@draft.MainTenant.FullName" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Country code</label>
-                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\+?\d+$" placeholder="e.g. +1" />
+                    <label class="form-label">@T["Country code"]</label>
+                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\+?\d+$" placeholder="@T["e.g. +1"]" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Phone number optional</label>
+                    <label class="form-label">@T["Phone number optional"]</label>
                     <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">WhatsApp number optional</label>
+                    <label class="form-label">@T["WhatsApp number optional"]</label>
                     <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
                 </div>
                 <div class="col-12">
                     <div class="rh-inline-settings-note">
-                        Tenant identity photos, KYC, and landlord payout setup are not required here. The tenant will confirm their email before opening rent payment pages.
+                        @T["Tenant identity photos, KYC, and landlord payout setup are not required here. The tenant will confirm their email before opening rent payment pages."]
                     </div>
                 </div>
                 <div class="col-12 d-flex justify-content-between">
-                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">Back</a>
-                    <button type="submit" class="btn rh-btn-primary" data-tenant-submit disabled>Continue to review</button>
+                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">@T["Back"]</a>
+                    <button type="submit" class="btn rh-btn-primary" data-tenant-submit disabled>@T["Continue to review"]</button>
                 </div>
             </form>
         </section>
@@ -379,27 +380,27 @@
         <section class="rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head align-start">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Review and create</h2>
-                    <p class="rh-dashboard-panel-copy">Nothing is saved permanently until you create the tenancy.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Review and create"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Nothing is saved permanently until you create the tenancy."]</p>
                 </div>
             </div>
 
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <div class="rh-stat-box">
-                        <span class="rh-stat-label">Start</span>
+                        <span class="rh-stat-label">@T["Start"]</span>
                         <strong class="rh-stat-value">@DateLabel(draft.StartDate)</strong>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="rh-stat-box">
-                        <span class="rh-stat-label">Rent</span>
-                        <strong class="rh-stat-value">@draft.MonthlyRent.ToString("N0")</strong>
+                        <span class="rh-stat-label">@T["Rent"]</span>
+                        <strong class="rh-stat-value">@draft.MonthlyRent.ToString("N0", CultureInfo.CurrentCulture)</strong>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="rh-stat-box">
-                        <span class="rh-stat-label">Tenant</span>
+                        <span class="rh-stat-label">@T["Tenant"]</span>
                         <strong class="rh-stat-value">@draft.MainTenant.Email</strong>
                     </div>
                 </div>
@@ -408,8 +409,8 @@
             @if (oldestOpenPeriod != null)
             {
                 <div class="rh-inline-settings-note mb-3">
-                    Oldest payable period after creation: <strong>@DateLabel(oldestOpenPeriod.PeriodStart) - @DateLabel(oldestOpenPeriod.PeriodEnd)</strong>.
-                    Tenant payments will always start there first.
+                    @T["Oldest payable period after creation:"] <strong>@DateLabel(oldestOpenPeriod.PeriodStart) - @DateLabel(oldestOpenPeriod.PeriodEnd)</strong>.
+                    @T["Tenant payments will always start there first."]
                 </div>
             }
 
@@ -417,9 +418,9 @@
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Period</th>
-                            <th class="text-end">Amount</th>
-                            <th>Status</th>
+                            <th>@T["Period"]</th>
+                            <th class="text-end">@T["Amount"]</th>
+                            <th>@T["Status"]</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -427,8 +428,8 @@
                         {
                             <tr>
                                 <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                <td class="text-end">@period.Amount.ToString("N0")</td>
-                                <td><span class="rh-chip @StatusClass(period.Status)">@RentPeriodScheduleHelper.StatusLabel(period.Status)</span></td>
+                                <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                             </tr>
                         }
                     </tbody>
@@ -436,11 +437,11 @@
             </div>
 
             <div class="d-flex justify-content-between">
-                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="4">Back</a>
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="4">@T["Back"]</a>
                 <form asp-action="CompleteCreate" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
-                    <button type="submit" class="btn rh-btn-primary" @(!canSubmit ? "disabled" : null)>Create tenancy</button>
+                    <button type="submit" class="btn rh-btn-primary" @(!canSubmit ? "disabled" : null)>@T["Create tenancy"]</button>
                 </form>
             </div>
         </section>

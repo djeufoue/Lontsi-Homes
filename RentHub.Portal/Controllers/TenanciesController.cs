@@ -25,26 +25,21 @@ namespace RentHub.Portal.Controllers
             _logger = logger;
         }
 
-        public async Task<IActionResult> Index(string? search = null)
+        [Authorize(Roles = "Admin,Landlord,Manager,Tenant")]
+        public async Task<IActionResult> Index(
+            string? search = null,
+            int? propertyId = null,
+            string? status = null,
+            int page = 1,
+            int pageSize = 12)
         {
             try
             {
-                var items = await _api.GetAsync<List<TenancyDto>>("tenancies");
-
-                if (!string.IsNullOrWhiteSpace(search))
-                {
-                    var s = search.Trim().ToLowerInvariant();
-                    items = items.Where(t =>
-                        (t.PropertyName ?? string.Empty).ToLowerInvariant().Contains(s) ||
-                        (t.ApartmentName ?? string.Empty).ToLowerInvariant().Contains(s))
-                        .ToList();
-                }
-
-                return View(new TenancyIndexVm
-                {
-                    Search = search,
-                    Items = items
-                });
+                var endpoint = $"workspace-directory/tenancies?search={Uri.EscapeDataString(search ?? string.Empty)}" +
+                               $"&propertyId={propertyId}&status={Uri.EscapeDataString(status ?? string.Empty)}" +
+                               $"&page={page}&pageSize={pageSize}";
+                var model = await _api.GetAsync<WorkspaceDirectoryResponseDto<WorkspaceTenancyDto>>(endpoint);
+                return View(model);
             }
             catch (Exception ex)
             {
@@ -52,11 +47,18 @@ namespace RentHub.Portal.Controllers
             }
         }
 
-        public async Task<IActionResult> Overview(int id, string? memberSearch = null)
+        public async Task<IActionResult> Overview(
+            int id,
+            string? memberSearch = null,
+            string? rentStatus = null,
+            DateTime? rentFrom = null,
+            DateTime? rentTo = null,
+            int rentPage = 1,
+            int rentPageSize = 5)
         {
             try
             {
-                var vm = await BuildOverviewVmAsync(id, memberSearch);
+                var vm = await BuildOverviewVmAsync(id, memberSearch, rentStatus, rentFrom, rentTo, rentPage, rentPageSize);
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.Tenancy.PropertyId);
                 return View(vm);
             }
@@ -67,11 +69,142 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Landlord,Manager,Tenant")]
+        public async Task<IActionResult> RentPeriods(
+            int tenancyId,
+            string? rentStatus = null,
+            DateTime? rentFrom = null,
+            DateTime? rentTo = null,
+            string rentSortDirection = "asc",
+            int rentPage = 1,
+            int rentPageSize = 10)
+        {
+            try
+            {
+                var vm = await BuildOverviewVmAsync(tenancyId, null, rentStatus, rentFrom, rentTo, rentPage, rentPageSize, rentSortDirection);
+                vm.IsRentPeriodsPage = true;
+                SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.Tenancy.PropertyId);
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Index)));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Renewal(int tenancyId)
+        {
+            if (tenancyId <= 0) return RedirectToAction(nameof(Index));
+
+            try
+            {
+                var workspace = await _api.GetAsync<TenancyRenewalWorkspaceDto>($"tenancies/{tenancyId}/extension-requests");
+                return View(new TenancyRenewalVm
+                {
+                    Workspace = workspace,
+                    ProposedEndDate = workspace.MinimumProposedEndDate?.LocalDateTime
+                });
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Index)));
+            }
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestRenewal(TenancyRenewalVm vm)
+        {
+            var tenancyId = vm.Workspace.TenancyId;
+            if (tenancyId <= 0) return RedirectToAction(nameof(Index));
+
+            if (!vm.ProposedEndDate.HasValue)
+            {
+                ModelState.AddModelError(nameof(vm.ProposedEndDate), "Choose a proposed end date.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                try
+                {
+                    vm.Workspace = await _api.GetAsync<TenancyRenewalWorkspaceDto>($"tenancies/{tenancyId}/extension-requests");
+                    return View(nameof(Renewal), vm);
+                }
+                catch (Exception ex)
+                {
+                    return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Renewal), new { tenancyId }));
+                }
+            }
+
+            try
+            {
+                await _api.PostAsync($"tenancies/{tenancyId}/extension-requests", new ExtendTenancyRequest
+                {
+                    NewEndDate = new DateTimeOffset(vm.ProposedEndDate!.Value.Date, TimeSpan.Zero)
+                });
+                TempData["Success"] = "Renewal request submitted.";
+            }
+            catch (Exception ex)
+            {
+                var error = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(error.Message, "Unable to submit the renewal request right now.");
+            }
+
+            return RedirectToAction(nameof(Renewal), new { tenancyId });
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveRenewal(int tenancyId, int requestId)
+        {
+            if (tenancyId <= 0 || requestId <= 0) return RedirectToAction(nameof(Index));
+
+            try
+            {
+                await _api.PutAsync($"tenancies/{tenancyId}/extension-requests/{requestId}/approve", new { });
+                TempData["Success"] = "Renewal request approved.";
+            }
+            catch (Exception ex)
+            {
+                var error = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(error.Message, "Unable to approve the renewal request right now.");
+            }
+
+            return RedirectToAction(nameof(Renewal), new { tenancyId });
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectRenewal(int tenancyId, int requestId, string? rejectionReason)
+        {
+            if (tenancyId <= 0 || requestId <= 0) return RedirectToAction(nameof(Index));
+            if (rejectionReason?.Length > 512)
+            {
+                TempData["Error"] = "The rejection reason cannot exceed 512 characters.";
+                return RedirectToAction(nameof(Renewal), new { tenancyId });
+            }
+
+            try
+            {
+                await _api.PutAsync($"tenancies/{tenancyId}/extension-requests/{requestId}/reject", new RejectTenancyExtensionRequest
+                {
+                    Reason = rejectionReason
+                });
+                TempData["Success"] = "Renewal request rejected.";
+            }
+            catch (Exception ex)
+            {
+                var error = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(error.Message, "Unable to reject the renewal request right now.");
+            }
+
+            return RedirectToAction(nameof(Renewal), new { tenancyId });
+        }
+
+        [HttpGet]
         public async Task<IActionResult> MemberProfile(int tenancyId, int memberId)
         {
             try
             {
-                var overview = await BuildOverviewVmAsync(tenancyId, null);
+                var overview = await BuildOverviewVmAsync(tenancyId, null, rentPageSize: 50);
                 var member = overview.Members.FirstOrDefault(item => item.Id == memberId);
                 if (member == null)
                 {
@@ -79,7 +212,7 @@ namespace RentHub.Portal.Controllers
                     return RedirectToAction(nameof(Overview), new { id = tenancyId });
                 }
 
-                var rentPeriods = overview.RentPeriods
+                var rentPeriods = overview.AllRentPeriods
                     .OrderBy(period => period.PeriodStart)
                     .ToList();
                 var paidPeriods = rentPeriods.Count(period => RentPeriodScheduleHelper.IsPaidStatus(period.Status));
@@ -511,14 +644,14 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> MarkRentPeriodPaid(int tenancyId, int rentPeriodId)
+        public async Task<IActionResult> MarkRentPeriodPaid(int tenancyId, int rentPeriodId, string? returnUrl = null)
         {
             try
             {
                 if (rentPeriodId <= 0)
                 {
                     TempData["Error"] = "Please choose a rent period to mark as paid.";
-                    return RedirectToAction(nameof(Overview), new { id = tenancyId });
+                    return RedirectToRentPeriodSource(tenancyId, returnUrl);
                 }
 
                 await _api.PostAsync<MarkRentPeriodPaidRequest, JsonElement>(
@@ -538,7 +671,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to mark the rent period as paid right now.");
             }
 
-            return RedirectToAction(nameof(Overview), new { id = tenancyId });
+            return RedirectToRentPeriodSource(tenancyId, returnUrl);
         }
 
         private async Task<TenancyCreateDraft> LoadOrCreateDraftAsync(int apartmentId)
@@ -809,7 +942,15 @@ namespace RentHub.Portal.Controllers
             draft.ContractContentType = null;
         }
 
-        private async Task<TenancyOverviewVm> BuildOverviewVmAsync(int id, string? memberSearch)
+        private async Task<TenancyOverviewVm> BuildOverviewVmAsync(
+            int id,
+            string? memberSearch,
+            string? rentStatus = null,
+            DateTime? rentFrom = null,
+            DateTime? rentTo = null,
+            int rentPage = 1,
+            int rentPageSize = 5,
+            string rentSortDirection = "asc")
         {
             var overview = await _api.GetAsync<TenancyOverviewDto>($"tenancies/{id}/overview");
             var members = overview.Members ?? new List<TenancyMemberDto>();
@@ -823,6 +964,43 @@ namespace RentHub.Portal.Controllers
                     .ToList();
             }
 
+            var allRentPeriods = (overview.RentPeriods ?? new List<RentPeriodDto>())
+                .OrderBy(period => period.PeriodStart)
+                .ToList();
+            var rentStatuses = allRentPeriods
+                .Select(period => period.StatusLabel)
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(label => label)
+                .ToList();
+            var filteredRentPeriods = allRentPeriods.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(rentStatus))
+            {
+                filteredRentPeriods = filteredRentPeriods.Where(period =>
+                    string.Equals(period.StatusLabel, rentStatus.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(period.Status.ToString(), rentStatus.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+            if (rentFrom.HasValue)
+            {
+                filteredRentPeriods = filteredRentPeriods.Where(period => period.PeriodEnd.Date >= rentFrom.Value.Date);
+            }
+            if (rentTo.HasValue)
+            {
+                filteredRentPeriods = filteredRentPeriods.Where(period => period.PeriodStart.Date <= rentTo.Value.Date);
+            }
+
+            rentSortDirection = string.Equals(rentSortDirection, "desc", StringComparison.OrdinalIgnoreCase)
+                ? "desc"
+                : "asc";
+            filteredRentPeriods = rentSortDirection == "desc"
+                ? filteredRentPeriods.OrderByDescending(period => period.PeriodStart)
+                : filteredRentPeriods.OrderBy(period => period.PeriodStart);
+
+            rentPageSize = Math.Clamp(rentPageSize, 5, 50);
+            var filteredList = filteredRentPeriods.ToList();
+            var totalRentPages = Math.Max(1, (int)Math.Ceiling(filteredList.Count / (double)rentPageSize));
+            rentPage = Math.Clamp(rentPage, 1, totalRentPages);
+
             return new TenancyOverviewVm
             {
                 Tenancy = overview.Tenancy,
@@ -831,11 +1009,26 @@ namespace RentHub.Portal.Controllers
                     .Where(doc => doc.DocumentType == DocumentTypeEnum.TenancyContract)
                     .OrderByDescending(doc => doc.UploadedAt)
                     .ToList(),
-                RentPeriods = (overview.RentPeriods ?? new List<RentPeriodDto>())
-                    .OrderBy(period => period.PeriodStart)
-                    .ToList(),
-                MemberSearch = memberSearch
+                RentPeriods = filteredList.Skip((rentPage - 1) * rentPageSize).Take(rentPageSize).ToList(),
+                AllRentPeriods = allRentPeriods,
+                MemberSearch = memberSearch,
+                RentStatus = rentStatus,
+                RentFrom = rentFrom,
+                RentTo = rentTo,
+                RentSortDirection = rentSortDirection,
+                RentPage = rentPage,
+                RentPageSize = rentPageSize,
+                TotalRentPeriods = filteredList.Count,
+                TotalRentPages = totalRentPages,
+                RentStatuses = rentStatuses
             };
+        }
+
+        private IActionResult RedirectToRentPeriodSource(int tenancyId, string? returnUrl)
+        {
+            return !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+                ? LocalRedirect(returnUrl)
+                : RedirectToAction(nameof(Overview), new { id = tenancyId });
         }
 
         private Task<IActionResult> HandleApiFailureAsync(Exception ex, IActionResult? fallback = null)

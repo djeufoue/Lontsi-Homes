@@ -15,7 +15,7 @@ namespace RentHub.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public class AdminUsersController : ControllerBase
     {
         private const string OtpLoginProvider = "RentHub";
@@ -58,6 +58,7 @@ namespace RentHub.API.Controllers
             _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
 
         [HttpGet("verification-status")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetVerificationStatus([FromQuery] string? search = null)
         {
             var query = _context.Users.AsNoTracking();
@@ -105,6 +106,7 @@ namespace RentHub.API.Controllers
         }
 
         [HttpGet("landlord-verification-status")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetLandlordVerificationStatus([FromQuery] string? search = null)
         {
             var landlordRoleId = await _context.Roles
@@ -154,6 +156,7 @@ namespace RentHub.API.Controllers
         }
 
         [HttpGet("landlord-approvals")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetLandlordApprovals([FromQuery] string? search = null)
         {
             var landlordRoleId = await _context.Roles
@@ -214,6 +217,7 @@ namespace RentHub.API.Controllers
         }
 
         [HttpGet("management-permissions")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetManagementPermissions()
         {
             return Ok(new AdminUserManagementPermissionsDto
@@ -222,9 +226,114 @@ namespace RentHub.API.Controllers
             });
         }
 
+        [HttpPut("{userId}/subscription-exemption")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateSubscriptionExemption(
+            string userId,
+            UpdateLandlordSubscriptionExemptionRequest request)
+        {
+            var landlord = await _userManager.FindByIdAsync(userId);
+            if (landlord == null)
+            {
+                return NotFound(new { Message = "Landlord account was not found." });
+            }
+
+            if (!await _userManager.IsInRoleAsync(landlord, "Landlord"))
+            {
+                return BadRequest(new { Message = "Subscription exemptions can only be assigned to landlords." });
+            }
+
+            var cancelledSubscriptionCount = 0;
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                if (request.Enabled)
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    var currentAdminId = UserHelpers.GetUserId(User);
+                    var subscriptions = await _context.UserSubscriptions
+                        .Where(subscription =>
+                            subscription.UserId == userId &&
+                            !subscription.IsDeleted &&
+                            (subscription.EndDate > now ||
+                             !subscription.IsApproved ||
+                             subscription.PaymentStatus == PaymentStatusEnum.Pending))
+                        .ToListAsync();
+
+                    foreach (var subscription in subscriptions)
+                    {
+                        subscription.AllowAutomaticCardPayments = false;
+                        subscription.IsAutomaticRenewal = false;
+                        subscription.UpdatedAt = now;
+                        subscription.UpdatedBy = currentAdminId;
+
+                        if (subscription.IsApproved &&
+                            subscription.PaymentStatus == PaymentStatusEnum.Success &&
+                            subscription.EndDate > now)
+                        {
+                            // Keep the successful payment in the history, but end its access now.
+                            subscription.EndDate = now;
+                        }
+                        else
+                        {
+                            // Match the existing rejection convention so cancelled requests remain
+                            // available through the admin history query that ignores query filters.
+                            subscription.IsApproved = false;
+                            subscription.PaymentStatus = PaymentStatusEnum.Failed;
+                            subscription.IsDeleted = true;
+                            subscription.DeletedAt = now;
+                            subscription.DeletedBy = currentAdminId;
+                            if (subscription.EndDate > now)
+                            {
+                                subscription.EndDate = now;
+                            }
+                        }
+                    }
+
+                    cancelledSubscriptionCount = subscriptions.Count;
+                }
+
+                landlord.IsSubscriptionExempt = request.Enabled;
+                var result = await _userManager.UpdateAsync(landlord);
+                if (!result.Succeeded)
+                {
+                    await transaction.RollbackAsync();
+                    return BadRequest(new
+                    {
+                        Message = string.Join(" ", result.Errors.Select(error => error.Description))
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return Ok(new
+            {
+                landlord.Id,
+                landlord.IsSubscriptionExempt,
+                CancelledSubscriptionCount = cancelledSubscriptionCount,
+                Message = request.Enabled
+                    ? "Subscription exemption enabled. Current subscriptions were ended and pending requests were cancelled."
+                    : "Subscription exemption disabled for this landlord."
+            });
+        }
+
         [HttpGet("{userId}/overview")]
+        [Authorize(Roles = "Admin,Landlord,Manager")]
         public async Task<IActionResult> GetOverview(string userId)
         {
+            var isAdmin = User.IsInRole("Admin");
+            if (!isAdmin && !await CanAccessUserOverviewAsync(userId))
+            {
+                return Forbid();
+            }
+
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
@@ -232,22 +341,25 @@ namespace RentHub.API.Controllers
             }
 
             var roles = (await _userManager.GetRolesAsync(user)).ToList();
-            var kyc = await _context.LandlordKycProfiles
-                .AsNoTracking()
-                .Include(p => p.ReviewedBy)
-                .FirstOrDefaultAsync(p => p.UserId == user.Id);
+            var kyc = isAdmin
+                ? await _context.LandlordKycProfiles
+                    .AsNoTracking()
+                    .Include(p => p.ReviewedBy)
+                    .FirstOrDefaultAsync(p => p.UserId == user.Id)
+                : null;
             var status = BuildStatusDto(user, roles, kyc);
 
             return Ok(new AdminUserOverviewDto
             {
                 User = status,
-                Kyc = BuildKycSummary(kyc, user.Id),
-                OtpCodes = await BuildOtpDtosAsync(user),
+                Kyc = isAdmin ? BuildKycSummary(kyc, user.Id) : null,
+                OtpCodes = isAdmin ? await BuildOtpDtosAsync(user) : new List<AdminUserOtpDto>(),
                 Steps = BuildStepDtos(status)
             });
         }
 
         [HttpGet("{userId}/kyc-file/{key}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetKycFile(string userId, string key)
         {
             var profile = await _context.LandlordKycProfiles
@@ -275,18 +387,21 @@ namespace RentHub.API.Controllers
         }
 
         [HttpPost("{userId}/kyc/approve")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ApproveKyc(string userId, [FromBody] KycReviewRequest request)
         {
             return await ReviewKycAsync(userId, LandlordKycStatusEnum.Approved, request);
         }
 
         [HttpPost("{userId}/kyc/reject")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> RejectKyc(string userId, [FromBody] KycReviewRequest request)
         {
             return await ReviewKycAsync(userId, LandlordKycStatusEnum.Rejected, request);
         }
 
         [HttpGet("{userId}/otp-status")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetOtpStatus(string userId)
         {
             var user = await _userManager.FindByIdAsync(userId);
@@ -299,6 +414,7 @@ namespace RentHub.API.Controllers
         }
 
         [HttpPost("{userId}/restart-validation")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> RestartValidation(string userId)
         {
             try
@@ -378,6 +494,7 @@ namespace RentHub.API.Controllers
         }
 
         [HttpDelete("{userId}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteUser(string userId)
         {
             if (!await IsCurrentUserMasterAdminAsync())
@@ -444,6 +561,41 @@ namespace RentHub.API.Controllers
                     Message = "Unable to delete this user right now."
                 });
             }
+        }
+
+        private async Task<bool> CanAccessUserOverviewAsync(string targetUserId)
+        {
+            var currentUserId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(currentUserId)) return false;
+            if (string.Equals(currentUserId, targetUserId, StringComparison.Ordinal)) return true;
+
+            var accessiblePropertyIds = _context.Properties
+                .AsNoTracking()
+                .Where(property => !property.IsDeleted &&
+                    (property.LandlordId == currentUserId ||
+                     _context.PropertyManagerAssignments.Any(assignment =>
+                         !assignment.IsDeleted &&
+                         assignment.PropertyId == property.Id &&
+                         assignment.ManagerId == currentUserId)))
+                .Select(property => property.Id);
+
+            return await _context.Properties.AsNoTracking().AnyAsync(property =>
+                       accessiblePropertyIds.Contains(property.Id) && property.LandlordId == targetUserId)
+                   || await _context.PropertyManagerAssignments.AsNoTracking().AnyAsync(assignment =>
+                       !assignment.IsDeleted &&
+                       accessiblePropertyIds.Contains(assignment.PropertyId) &&
+                       assignment.ManagerId == targetUserId)
+                   || await _context.ApartmentOwners.AsNoTracking().AnyAsync(assignment =>
+                       !assignment.IsDeleted &&
+                       assignment.Apartment != null &&
+                       accessiblePropertyIds.Contains(assignment.Apartment.PropertyId) &&
+                       assignment.OwnerId == targetUserId)
+                   || await _context.TenancyMembers.AsNoTracking().AnyAsync(assignment =>
+                       !assignment.IsDeleted &&
+                       assignment.Tenancy != null &&
+                       assignment.Tenancy.Apartment != null &&
+                       accessiblePropertyIds.Contains(assignment.Tenancy.Apartment.PropertyId) &&
+                       assignment.MemberId == targetUserId);
         }
 
         private async Task<IActionResult> ReviewKycAsync(string userId, LandlordKycStatusEnum status, KycReviewRequest? request)
@@ -555,7 +707,8 @@ namespace RentHub.API.Controllers
                 CreatedAt = user.CreatedAt,
                 Roles = roles,
                 NextOnboardingStep = nextStep,
-                IsOnboardingComplete = nextStep == LandlordOnboardingSteps.Complete
+                IsOnboardingComplete = nextStep == LandlordOnboardingSteps.Complete,
+                IsSubscriptionExempt = user.IsSubscriptionExempt
             };
         }
 
@@ -1065,7 +1218,7 @@ namespace RentHub.API.Controllers
                 CreateStep(
                     LandlordOnboardingSteps.Phone,
                     smsVerificationUnavailable ? "Primary phone paused" : "Primary phone verified",
-                    smsVerificationUnavailable ? "SMS phone verification is temporarily paused while Twilio approval is pending." : "The landlord confirms the SMS OTP for the primary phone.",
+                    smsVerificationUnavailable ? "Phone verification is not required for this onboarding flow." : "The landlord confirms the verification code for the primary phone.",
                     smsVerificationUnavailable || !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed,
                     status.NextOnboardingStep == LandlordOnboardingSteps.Phone,
                     smsVerificationUnavailable ? "Temporarily skipped." : status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")

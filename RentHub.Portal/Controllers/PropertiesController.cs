@@ -135,6 +135,30 @@ namespace RentHub.Portal.Controllers
             });
         }
 
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateAutomaticPayments(int propertyId, bool enabled)
+        {
+            try
+            {
+                await _api.PutAsync($"PaymentSettings/properties/{propertyId}", new UpdateAutomaticPaymentAvailabilityRequest
+                {
+                    Enabled = enabled
+                });
+                TempData["Success"] = enabled
+                    ? "Automatic payments enabled for this property."
+                    : "Automatic payments disabled for this property.";
+            }
+            catch (Exception ex)
+            {
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update automatic payments right now.");
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
         [HttpGet]
         public async Task<IActionResult> Overview(int id, string? apartmentSearch = null, string? memberSearch = null, int unitsPage = 1, int unitsPageSize = 6)
         {
@@ -175,6 +199,20 @@ namespace RentHub.Portal.Controllers
             catch (Exception ex)
             {
                 return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Index)));
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Settings(int id)
+        {
+            try
+            {
+                var vm = await BuildPropertyOverviewVmAsync(id, null, null, 1, 6);
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Overview), new { id }));
             }
         }
 
@@ -311,7 +349,7 @@ namespace RentHub.Portal.Controllers
             }
 
             TempData["Success"] = "Success dialog settings updated for this property.";
-            return RedirectToAction(nameof(Overview), new { id = propertyId });
+            return RedirectToAction(nameof(Settings), new { id = propertyId });
         }
 
         [HttpPost]
@@ -344,7 +382,7 @@ namespace RentHub.Portal.Controllers
             }
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
-            return RedirectToAction(nameof(Overview), new { id = propertyId });
+            return RedirectToAction(nameof(Settings), new { id = propertyId });
         }
 
         [HttpPost]
@@ -862,6 +900,7 @@ namespace RentHub.Portal.Controllers
                 TotalCount = response.TotalCount,
                 UserRole = response.UserRole,
                 CanCreateProperty = response.CanCreateProperty,
+                PlatformAutomaticPaymentsEnabled = profile.AutomaticPaymentsEnabled,
                 ShowCreateEntryPoint = response.CanCreateProperty || (isLandlord && !requiresComplianceAction),
                 RequiresPayoutSetup = requiresPayoutSetup,
                 PayoutSetupStarted = profile.StripePayoutSetupStarted || profile.HasStripePayoutAccount,

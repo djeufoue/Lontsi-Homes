@@ -1,9 +1,10 @@
 @model RentHub.Portal.ViewModels.Properties.PropertyOverviewVm
 @using Common.Enums
 @using System
+@using System.Globalization
 @using System.Linq
 @{
-    ViewData["Title"] = "Property Overview";
+    ViewData["Title"] = T["Property Overview"];
 
     var property = Model.Property;
     var totalPages = Model.UnitsPageSize <= 0 ? 1 : (int)Math.Ceiling((double)Model.TotalUnits / Model.UnitsPageSize);
@@ -23,29 +24,29 @@
         .Where(doc => doc.DocumentType != DocumentTypeEnum.PropertyImage)
         .OrderByDescending(doc => doc.UploadedAt)
         .ToList();
-    var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? "Landlord" : property.LandlordName;
+    var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? T["Landlord"].Value : property.LandlordName;
     var landlordInitial = landlordName.Trim()[0].ToString().ToUpperInvariant();
     var members = Model.FilteredManagers ?? new List<Common.CommunicationModels.PropertyManagerDto>();
+    var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
     var selectedCountryIsoCode = string.IsNullOrWhiteSpace(property.CountryIsoCode) ? string.Empty : property.CountryIsoCode.Trim().ToUpperInvariant();
-    var selectedCountryCode = string.IsNullOrWhiteSpace(property.CountryCode) ? string.Empty : property.CountryCode.Trim();
     var countries = new[]
     {
-        new { Iso = "CA", Code = "+1", Label = "Canada (+1)" },
-        new { Iso = "US", Code = "+1", Label = "United States (+1)" },
-        new { Iso = "CM", Code = "+237", Label = "Cameroon (+237)" },
-        new { Iso = "GB", Code = "+44", Label = "United Kingdom (+44)" },
-        new { Iso = "FR", Code = "+33", Label = "France (+33)" },
-        new { Iso = "BE", Code = "+32", Label = "Belgium (+32)" },
-        new { Iso = "DE", Code = "+49", Label = "Germany (+49)" },
-        new { Iso = "NG", Code = "+234", Label = "Nigeria (+234)" },
-        new { Iso = "CI", Code = "+225", Label = "Cote d'Ivoire (+225)" },
-        new { Iso = "GH", Code = "+233", Label = "Ghana (+233)" },
-        new { Iso = "ZA", Code = "+27", Label = "South Africa (+27)" },
-        new { Iso = "KE", Code = "+254", Label = "Kenya (+254)" },
-        new { Iso = "AE", Code = "+971", Label = "United Arab Emirates (+971)" }
+        new { Iso = "CA", Code = "+1", Label = T["Canada"].Value + " (+1)" },
+        new { Iso = "US", Code = "+1", Label = T["United States"].Value + " (+1)" },
+        new { Iso = "CM", Code = "+237", Label = T["Cameroon"].Value + " (+237)" },
+        new { Iso = "GB", Code = "+44", Label = T["United Kingdom"].Value + " (+44)" },
+        new { Iso = "FR", Code = "+33", Label = T["France"].Value + " (+33)" },
+        new { Iso = "BE", Code = "+32", Label = T["Belgium"].Value + " (+32)" },
+        new { Iso = "DE", Code = "+49", Label = T["Germany"].Value + " (+49)" },
+        new { Iso = "NG", Code = "+234", Label = T["Nigeria"].Value + " (+234)" },
+        new { Iso = "CI", Code = "+225", Label = T["Cote d'Ivoire"].Value + " (+225)" },
+        new { Iso = "GH", Code = "+233", Label = T["Ghana"].Value + " (+233)" },
+        new { Iso = "ZA", Code = "+27", Label = T["South Africa"].Value + " (+27)" },
+        new { Iso = "KE", Code = "+254", Label = T["Kenya"].Value + " (+254)" },
+        new { Iso = "AE", Code = "+971", Label = T["United Arab Emirates"].Value + " (+971)" }
     };
     var selectedCountry = countries.FirstOrDefault(country => string.Equals(country.Iso, selectedCountryIsoCode, StringComparison.OrdinalIgnoreCase));
-    var propertyCountryLabel = selectedCountry?.Label ?? (string.IsNullOrWhiteSpace(selectedCountryIsoCode) ? "Country not set" : selectedCountryIsoCode);
+    var propertyCountryLabel = selectedCountry?.Label ?? (string.IsNullOrWhiteSpace(selectedCountryIsoCode) ? T["Country not set"].Value : selectedCountryIsoCode);
 }
 
 <section class="rh-overview-shell"
@@ -57,22 +58,23 @@
          data-auto-close-seconds="@Model.SuccessDialogAutoCloseSeconds">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
-            <a class="rh-overview-backlink" asp-action="Index">&#8592; Back to properties</a>
-            <p class="rh-kicker">Property Command Center</p>
+            <a class="rh-overview-backlink" asp-action="Index">&#8592; @T["Back to properties"]</a>
+            <p class="rh-kicker">@T["Property Command Center"]</p>
             <h1 class="rh-heading-title">@property.Name</h1>
             <p class="rh-heading-subtitle">@property.Address, @property.City@(!string.IsNullOrWhiteSpace(selectedCountryIsoCode) ? $", {selectedCountryIsoCode}" : string.Empty)</p>
 
             <div class="rh-overview-badges">
-                <span class="rh-chip rh-chip-primary">@Model.TotalUnits apartments</span>
+                <span class="rh-chip rh-chip-primary">@T["{0} apartments", Model.TotalUnits]</span>
                 <span class="rh-chip rh-chip-info">@propertyCountryLabel</span>
-                <span class="rh-chip rh-chip-info">@(propertyDocuments.Count) documents</span>
-                <span class="rh-chip @(Model.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(Model.CanWrite ? "Write access" : "Read access")</span>
+                <span class="rh-chip rh-chip-info">@T["{0} documents", propertyDocuments.Count]</span>
+                <span class="rh-chip @(Model.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(Model.CanWrite ? T["Write access"] : T["Read access"])</span>
             </div>
         </div>
 
         <div class="rh-overview-hero-actions">
-            <a class="btn rh-btn-subtle" asp-action="Map" asp-route-id="@property.Id">Open Map</a>
-            <a class="btn rh-btn-primary" asp-action="Index">Property Portfolio</a>
+            <a class="btn rh-btn-subtle" asp-action="Settings" asp-route-id="@property.Id">@T["Property Settings"]</a>
+            <a class="btn rh-btn-subtle" asp-action="Map" asp-route-id="@property.Id">@T["Open Map"]</a>
+            <a class="btn rh-btn-primary" asp-action="Index">@T["Property Portfolio"]</a>
         </div>
     </section>
 
@@ -80,23 +82,23 @@
         <article class="rh-overview-spotlight rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Operations overview</h2>
-                    <p class="rh-dashboard-panel-copy">A refined workspace for apartments, members, location, and documents.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Operations overview"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["A refined workspace for apartments, members, location, and documents."]</p>
                 </div>
 
-                <div class="rh-dashboard-range-chip">Updated today</div>
+                <div class="rh-dashboard-range-chip">@T["Updated today"]</div>
             </div>
 
             <div class="rh-overview-spotlight-grid">
                 <div class="rh-overview-bigstat">
-                    <span>Occupied</span>
+                    <span>@T["Occupied"]</span>
                     <strong>@occupiedUnits</strong>
-                    <small>Actively assigned apartments</small>
+                    <small>@T["Actively assigned apartments"]</small>
                 </div>
                 <div class="rh-overview-bigstat alt">
-                    <span>Average rent</span>
+                    <span>@T["Average rent"]</span>
                     <strong>@averageRent.ToString("N0")</strong>
-                    <small>Snapshot across apartments</small>
+                    <small>@T["Snapshot across apartments"]</small>
                 </div>
             </div>
 
@@ -105,7 +107,7 @@
                     <span class="rh-avatar">@landlordInitial</span>
                     <div>
                         <strong>@landlordName</strong>
-                        <small>Landlord</small>
+                        <small>@T["Landlord"]</small>
                     </div>
                 </div>
             </div>
@@ -113,19 +115,19 @@
 
         <article class="rh-overview-sidebarcard rh-panel rh-panel-elevated">
             <div class="rh-overview-sidebarstat">
-                <span>Total apartments</span>
+                <span>@T["Total apartments"]</span>
                 <strong>@Model.TotalUnits</strong>
-                <small>Inventory inside this property</small>
+                <small>@T["Inventory inside this property"]</small>
             </div>
             <div class="rh-overview-sidebarstat">
-                <span>Available now</span>
+                <span>@T["Available now"]</span>
                 <strong>@availableUnits</strong>
-                <small>Ready for the next tenant</small>
+                <small>@T["Ready for the next tenant"]</small>
             </div>
             <div class="rh-overview-sidebarstat">
-                <span>Members</span>
+                <span>@T["Members"]</span>
                 <strong>@(Model.Managers.Count + 1)</strong>
-                <small>Landlord plus property team</small>
+                <small>@T["Landlord plus property team"]</small>
             </div>
         </article>
     </section>
@@ -135,8 +137,8 @@
             <article class="rh-overview-image-card rh-panel rh-panel-elevated">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Property image</h2>
-                        <p class="rh-dashboard-panel-copy">Landscape cover for this property. Max 2 MB.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Property image"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Landscape cover for this property. Max 2 MB."]</p>
                     </div>
 
                     @if (Model.CanWrite)
@@ -146,7 +148,7 @@
                             <input type="hidden" name="propertyId" value="@property.Id" />
                             <input type="hidden" name="type" value="@DocumentTypeEnum.PropertyImage" />
                             <input class="rh-hidden-input" id="propertyImageFile" type="file" name="file" accept="image/*" />
-                            <button type="button" class="rh-icon-btn rh-image-edit-trigger" data-image-trigger="propertyImageFile" title="Replace property image" aria-label="Replace property image">
+                            <button type="button" class="rh-icon-btn rh-image-edit-trigger" data-image-trigger="propertyImageFile" title="@T["Replace property image"]" aria-label="@T["Replace property image"]">
                                 <span class="rh-icon-pencil"></span>
                             </button>
                             <p class="rh-inline-validation" id="propertyImageValidation" aria-live="polite"></p>
@@ -157,15 +159,15 @@
                 <div class="rh-property-image-frame">
                     @if (propertyImage != null && !string.IsNullOrWhiteSpace(propertyImageUrl))
                     {
-                        <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#propertyImageLightbox" aria-label="Open property image">
-                            <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-property-image" />
+                        <button type="button" class="rh-property-image-button" data-bs-toggle="modal" data-bs-target="#propertyImageLightbox" aria-label="@T["Open property image"]">
+                            <img src="@propertyImageUrl" alt="@T["{0} property image", property.Name ?? T["Property"].Value]" class="rh-property-image" />
                         </button>
                     }
                     else
                     {
                         <div class="rh-property-image-placeholder">
-                            <strong>No property image yet</strong>
-                            <span>Upload a landscape image so this overview feels complete.</span>
+                            <strong>@T["No property image yet"]</strong>
+                            <span>@T["Upload a landscape image so this overview feels complete."]</span>
                         </div>
                     }
                 </div>
@@ -174,11 +176,11 @@
             <article class="rh-overview-map-preview rh-panel rh-panel-elevated">
                 <div class="rh-overview-panel-head">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Property map</h2>
-                        <p class="rh-dashboard-panel-copy">Your saved latitude and longitude now pin the property on the map.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Property map"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Your saved latitude and longitude now pin the property on the map."]</p>
                     </div>
 
-                    <a class="btn rh-btn-subtle btn-sm" asp-action="Map" asp-route-id="@property.Id">Open full map</a>
+                    <a class="btn rh-btn-subtle btn-sm" asp-action="Map" asp-route-id="@property.Id">@T["Open full map"]</a>
                 </div>
 
                 @{
@@ -201,7 +203,7 @@
                     <iframe
                         class="rh-map-iframe"
                         src="@previewEmbedUrl"
-                        title="@property.Name location preview"
+                        title="@T["{0} location preview", property.Name ?? T["Property"].Value]"
                         loading="lazy"
                         referrerpolicy="no-referrer-when-downgrade">
                     </iframe>
@@ -217,18 +219,18 @@
             <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Property documents</h2>
-                        <p class="rh-dashboard-panel-copy">Rules, guides, and reference files linked to this property.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Property documents"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Rules, guides, and reference files linked to this property."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addPropertyDocumentModal">Add+</button>
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addPropertyDocumentModal">@T["Add+"]</button>
                     }
                 </div>
                 @if (!propertyDocuments.Any())
                 {
-                    <div class="rh-empty">No property documents uploaded yet.</div>
+                    <div class="rh-empty">@T["No property documents uploaded yet."]</div>
                 }
                 else
                 {
@@ -238,18 +240,18 @@
                             <article class="rh-document-item rh-document-item-previewable rh-card-spotlight">
                                 <div class="rh-document-item-copy">
                                     <a asp-action="DocumentPreview" asp-route-id="@doc.Id" class="rh-document-title-link">@doc.FileName</a>
-                                    <small>@doc.DocumentType • @doc.UploadedAt.LocalDateTime.ToString("dd MMM yyyy")</small>
+                                    <small>@T[doc.DocumentType.ToString()] • @doc.UploadedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)</small>
                                 </div>
 
                                 <div class="rh-document-actions">
-                                    <a class="btn btn-sm rh-btn-subtle" asp-action="DocumentPreview" asp-route-id="@doc.Id">Preview</a>
+                                    <a class="btn btn-sm rh-btn-subtle" asp-action="DocumentPreview" asp-route-id="@doc.Id">@T["Preview"]</a>
                                     @if (Model.CanWrite)
                                     {
-                                        <form method="post" asp-action="DeleteDocument" class="d-inline" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="Delete document?" data-confirm-message="This document will be removed from this property." data-confirm-proceed="Delete document">
+                                        <form method="post" asp-action="DeleteDocument" class="d-inline" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="@T["Delete document?"]" data-confirm-message="@T["This document will be removed from this property."]" data-confirm-proceed="@T["Delete document"]">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="propertyId" value="@property.Id" />
                                             <input type="hidden" name="documentId" value="@doc.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Delete</button>
+                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Delete"]</button>
                                         </form>
                                     }
                                 </div>
@@ -264,18 +266,18 @@
             <article class="rh-overview-units-card rh-panel rh-panel-elevated" data-property-section="apartments">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Apartments</h2>
-                        <p class="rh-dashboard-panel-copy">Manage the apartments in this property.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Apartments"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Manage the apartments in this property."]</p>
                     </div>
 
                     <div class="rh-overview-inline-actions">
                         <div class="rh-overview-inline-stats">
-                            <span>@Model.TotalUnits total</span>
-                            <span>@availableUnits available</span>
+                            <span>@T["{0} total", Model.TotalUnits]</span>
+                            <span>@T["{0} available", availableUnits]</span>
                         </div>
                         @if (Model.CanWrite)
                         {
-                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentModal">Add+</button>
+                            <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentModal">@T["Add+"]</button>
                         }
                     </div>
                 </div>
@@ -287,13 +289,13 @@
                     <input type="hidden" name="unitsPageSize" value="@Model.UnitsPageSize" />
                     <div class="rh-search-input-wrap">
                         <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="apartmentSearch" value="@Model.ApartmentSearch" placeholder="Search apartments by name, type, or status" autocomplete="off" />
+                        <input class="form-control rh-input js-auto-submit" type="text" name="apartmentSearch" value="@Model.ApartmentSearch" placeholder="@T["Search apartments by name, type, or status"]" autocomplete="off" />
                     </div>
                 </form>
 
                 @if (!Model.Units.Any())
                 {
-                    <div class="rh-empty">No apartments found for this property.</div>
+                    <div class="rh-empty">@T["No apartments found for this property."]</div>
                 }
                 else
                 {
@@ -304,14 +306,14 @@
                                 <div class="rh-unit-card-head">
                                     <div>
                                         <h3>@unit.Name</h3>
-                                        <small>@unit.Type</small>
+                                        <small>@T[unit.Type.ToString()]</small>
                                     </div>
-                                    <span class="rh-chip @(((unit.Status ?? string.Empty).Contains("available", StringComparison.OrdinalIgnoreCase)) ? "rh-chip-primary" : "rh-chip-info")">@unit.Status</span>
+                                    <span class="rh-chip @(((unit.Status ?? string.Empty).Contains("available", StringComparison.OrdinalIgnoreCase)) ? "rh-chip-primary" : "rh-chip-info")">@T[unit.Status ?? string.Empty]</span>
                                 </div>
 
                                 <div class="rh-unit-card-meta">
-                                    <span>Area <strong>@unit.Area.ToString("N0") sqm</strong></span>
-                                    <span>Rent <strong>@unit.Price.ToString("N0")</strong></span>
+                                    <span>@T["Area"] <strong>@unit.Area.ToString("N0", CultureInfo.CurrentCulture) @T["sqm"]</strong></span>
+                                    <span>@T["Rent"] <strong>@unit.Price.ToString("N0", CultureInfo.CurrentCulture)</strong></span>
                                 </div>
                             </a>
                         }
@@ -319,10 +321,10 @@
                 }
 
                 <div class="rh-overview-footerline">
-                    <small class="text-muted">Page @Model.UnitsPage / @totalPages</small>
+                    <small class="text-muted">@T["Page {0} / {1}", Model.UnitsPage, totalPages]</small>
                     @if (nextUnitsPage <= totalPages)
                     {
-                        <a class="btn btn-sm rh-btn-subtle" asp-action="Overview" asp-route-id="@property.Id" asp-route-apartmentSearch="@Model.ApartmentSearch" asp-route-memberSearch="@Model.MemberSearch" asp-route-unitsPage="@nextUnitsPage" asp-route-unitsPageSize="@Model.UnitsPageSize">See More</a>
+                        <a class="btn btn-sm rh-btn-subtle" asp-action="Overview" asp-route-id="@property.Id" asp-route-apartmentSearch="@Model.ApartmentSearch" asp-route-memberSearch="@Model.MemberSearch" asp-route-unitsPage="@nextUnitsPage" asp-route-unitsPageSize="@Model.UnitsPageSize">@T["See More"]</a>
                     }
                 </div>
             </article>
@@ -330,13 +332,13 @@
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-property-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">Property members</h2>
-                        <p class="rh-dashboard-panel-copy">Landlord and managers assigned to this property.</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Property members"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Landlord and managers assigned to this property."]</p>
                     </div>
 
                     @if (Model.CanWrite)
                     {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">Add+</button>
+                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">@T["Add+"]</button>
                     }
                 </div>
 
@@ -347,7 +349,7 @@
                     <input type="hidden" name="unitsPageSize" value="@Model.UnitsPageSize" />
                     <div class="rh-search-input-wrap">
                         <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="Search members by name or access" autocomplete="off" />
+                        <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="@T["Search members by name or access"]" autocomplete="off" />
                     </div>
                 </form>
 
@@ -355,13 +357,19 @@
                     <article class="rh-member-card rh-card-spotlight is-landlord">
                         <div class="rh-member-card-copy">
                             <strong>@landlordName</strong>
-                            <small>Landlord</small>
+                            <small>@T["Landlord"]</small>
                         </div>
-                        <span class="rh-chip rh-chip-primary">ReadWrite</span>
+                        <div class="rh-member-card-actions">
+                            <span class="rh-chip rh-chip-primary">@T["ReadWrite"]</span>
+                            @if (canOpenUserOverview && !string.IsNullOrWhiteSpace(property.LandlordId))
+                            {
+                                <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@property.LandlordId">@T["User overview"]</a>
+                            }
+                        </div>
                     </article>
                     @if (!members.Any())
                     {
-                        <div class="rh-empty">No additional members assigned yet.</div>
+                        <div class="rh-empty">@T["No additional members assigned yet."]</div>
                     }
                     else
                     {
@@ -370,8 +378,13 @@
                             <article class="rh-member-card rh-card-spotlight">
                                 <div class="rh-member-card-copy">
                                     <strong>@manager.ManagerName</strong>
-                                    <small>Manager • @manager.AssignedAt.LocalDateTime.ToString("yyyy-MM-dd")</small>
+                                    <small>@T["Manager"] • @manager.AssignedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)</small>
                                 </div>
+
+                                @if (canOpenUserOverview)
+                                {
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@manager.ManagerId">@T["User overview"]</a>
+                                }
 
                                 @if (Model.CanWrite)
                                 {
@@ -382,24 +395,24 @@
                                             <input type="hidden" name="assignmentId" value="@manager.Id" />
                                             <div class="rh-select-wrap">
                                                 <select class="form-select form-select-sm rh-input rh-select" name="permission">
-                                                    <option value="ReadOnly" selected="@(manager.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">ReadOnly</option>
-                                                    <option value="ReadWrite" selected="@(manager.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">ReadWrite</option>
+                                                    <option value="ReadOnly" selected="@(manager.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">@T["ReadOnly"]</option>
+                                                    <option value="ReadWrite" selected="@(manager.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">@T["ReadWrite"]</option>
                                                 </select>
                                             </div>
-                                            <button class="btn btn-sm rh-btn-subtle" type="submit">Save</button>
+                                            <button class="btn btn-sm rh-btn-subtle" type="submit">@T["Save"]</button>
                                         </form>
 
-                                        <form method="post" asp-action="RemoveManager" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="Remove property member?" data-confirm-message="This member will lose access to this property." data-confirm-proceed="Remove member">
+                                        <form method="post" asp-action="RemoveManager" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="@T["Remove property member?"]" data-confirm-message="@T["This member will lose access to this property."]" data-confirm-proceed="@T["Remove member"]">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="propertyId" value="@property.Id" />
                                             <input type="hidden" name="assignmentId" value="@manager.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">Remove</button>
+                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
                                         </form>
                                     </div>
                                 }
                                 else
                                 {
-                                    <span class="rh-chip rh-chip-info">@manager.Permission</span>
+                                    <span class="rh-chip rh-chip-info">@T[manager.Permission.ToString()]</span>
                                 }
                             </article>
                         }
@@ -409,114 +422,6 @@
         </div>
     </section>
 
-    <section class="rh-overview-bottomgrid">
-        <article class="rh-overview-settings-card rh-panel rh-panel-elevated">
-            <div class="rh-overview-panel-head compact">
-                <div>
-                    <h2 class="rh-dashboard-panel-title">Property settings</h2>
-                    <p class="rh-dashboard-panel-copy">Keep the core information current and accurate.</p>
-                </div>
-                @if (Model.CanWrite)
-                {
-                    <button type="button" class="rh-icon-btn" id="propertySettingsEditToggle" title="Edit property settings" aria-label="Edit property settings">
-                        <span class="rh-icon-pencil"></span>
-                    </button>
-                }
-            </div>
-
-            <form method="post" asp-action="UpdateSettings" class="row g-3 rh-inline-editor-form" id="propertySettingsForm" data-inline-editor="locked" data-live-submit="property-overview">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="propertyId" value="@property.Id" />
-
-                <div class="col-md-6">
-                    <label class="form-label">Name</label>
-                    <input class="form-control rh-input" name="Name" value="@property.Name" @(Model.CanWrite ? "readonly" : "disabled") />
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label">City</label>
-                    <input class="form-control rh-input" name="City" value="@property.City" @(Model.CanWrite ? "readonly" : "disabled") />
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label">Country</label>
-                    <input type="hidden" name="CountryCode" value="@selectedCountryCode" data-country-code-output />
-                    <div class="rh-select-wrap">
-                        <select class="form-select rh-input rh-select" name="CountryIsoCode" autocomplete="country" required data-country-selector @(Model.CanWrite ? null : "disabled")>
-                            <option value="">Choose a country</option>
-                            @foreach (var country in countries)
-                            {
-                                <option value="@country.Iso" data-country-code="@country.Code" selected="@(string.Equals(country.Iso, selectedCountryIsoCode, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Label</option>
-                            }
-                        </select>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label">Latitude</label>
-                    <input class="form-control rh-input" name="Latitude" type="number" step="0.000001" min="-90" max="90" value="@(property.Latitude?.ToString("F6") ?? string.Empty)" @(Model.CanWrite ? "readonly" : "disabled") />
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label">Longitude</label>
-                    <input class="form-control rh-input" name="Longitude" type="number" step="0.000001" min="-180" max="180" value="@(property.Longitude?.ToString("F6") ?? string.Empty)" @(Model.CanWrite ? "readonly" : "disabled") />
-                </div>
-
-                <div class="col-12">
-                    <label class="form-label">Address</label>
-                    <input class="form-control rh-input" name="Address" value="@property.Address" @(Model.CanWrite ? "readonly" : "disabled") />
-                </div>
-
-                <div class="col-12">
-                    <label class="form-label">Description</label>
-                    <textarea class="form-control rh-input" name="Description" rows="4" @(Model.CanWrite ? "readonly" : "disabled")>@property.Description</textarea>
-                </div>
-
-                @if (Model.CanWrite)
-                {
-                    <div class="col-12 rh-inline-editor-actions" hidden>
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <button class="btn rh-btn-subtle" type="button" id="propertySettingsCancel">Cancel</button>
-                            <button class="btn rh-btn-primary" type="submit">Save Settings</button>
-                        </div>
-                    </div>
-                }
-            </form>
-        </article>
-
-        <article class="rh-overview-settings-card rh-panel rh-panel-elevated">
-            <div class="rh-overview-panel-head compact">
-                <div>
-                    <h2 class="rh-dashboard-panel-title">Dialog settings</h2>
-                    <p class="rh-dashboard-panel-copy">Control auto-hide behavior for success and error dialogs only.</p>
-                </div>
-            </div>
-
-            <form method="post" asp-action="UpdateSuccessDialogSettings" class="row g-3" data-live-submit="property-overview">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="propertyId" value="@property.Id" />
-
-                <div class="col-12">
-                    <div class="rh-form-switch-row">
-                        <div class="form-check form-switch rh-form-switch">
-                            <input class="form-check-input" type="checkbox" id="autoCloseEnabled" name="autoCloseEnabled" value="true" @(Model.SuccessDialogAutoCloseEnabled ? "checked" : null) />
-                            <label class="form-check-label" for="autoCloseEnabled">Auto-hide success and error dialogs</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-12">
-                    <label class="form-label">Auto close after (seconds)</label>
-                    <input class="form-control rh-input" type="number" min="2" max="30" name="autoCloseSeconds" id="autoCloseSeconds" value="@Model.SuccessDialogAutoCloseSeconds" @(Model.SuccessDialogAutoCloseEnabled ? null : "disabled") />
-                    <small class="text-muted">Applies only to success and error dialogs, never to add/edit modal forms.</small>
-                </div>
-
-                <div class="col-12 d-grid">
-                    <button class="btn rh-btn-subtle" type="submit">Save Dialog Preferences</button>
-                </div>
-            </form>
-        </article>
-    </section>
 </section>
 @if (Model.CanWrite)
 {
@@ -528,42 +433,42 @@
                     <input type="hidden" name="PropertyId" value="@property.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Apartment</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Apartment"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-3">
                         <div class="col-12">
-                            <label class="form-label">Apartment name</label>
+                            <label class="form-label">@T["Apartment name"]</label>
                             <input class="form-control rh-input" name="Name" required />
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Type</label>
+                            <label class="form-label">@T["Type"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="Type">
                                     @foreach (var type in Enum.GetValues<ApartmentTypeEnum>())
                                     {
-                                        <option value="@type">@type</option>
+                                        <option value="@type">@T[type.ToString()]</option>
                                     }
                                 </select>
                             </div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Area (sqm)</label>
+                            <label class="form-label">@T["Area (sqm)"]</label>
                             <input class="form-control rh-input" name="Area" type="number" min="0" required />
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Monthly rent</label>
+                            <label class="form-label">@T["Monthly rent"]</label>
                             <input class="form-control rh-input" name="Price" type="number" min="0" step="0.01" required />
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Add Apartment</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Add Apartment"]</button>
                     </div>
                 </form>
             </div>
@@ -578,54 +483,54 @@
                     <input type="hidden" name="propertyId" value="@property.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Property Member</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Property Member"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-2">
                         <div class="col-12">
-                            <label class="form-label">Role</label>
+                            <label class="form-label">@T["Role"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="role">
-                                    <option value="Manager">Manager</option>
+                                    <option value="Manager">@T["Manager"]</option>
                                 </select>
                             </div>
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Email</label>
+                            <label class="form-label">@T["Email"]</label>
                             <input class="form-control rh-input" name="Email" type="email" required />
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Full Name</label>
+                            <label class="form-label">@T["Full Name"]</label>
                             <input class="form-control rh-input" name="FullName" required />
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Country Code</label>
-                            <input class="form-control rh-input" name="CountryCode" inputmode="numeric" placeholder="e.g. +237" />
+                            <label class="form-label">@T["Country Code"]</label>
+                            <input class="form-control rh-input" name="CountryCode" inputmode="numeric" placeholder="@T["e.g. +237"]" />
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Phone Number</label>
-                            <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="e.g. REMOVED_PRIVATE_VALUE" />
+                            <label class="form-label">@T["Phone Number"]</label>
+                            <input class="form-control rh-input" name="PhoneNumber" inputmode="numeric" placeholder="@T["e.g. REMOVED_PRIVATE_VALUE"]" />
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Allowed Access</label>
+                            <label class="form-label">@T["Allowed Access"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="Permission">
-                                    <option value="ReadOnly">ReadOnly</option>
-                                    <option value="ReadWrite">ReadWrite</option>
+                                    <option value="ReadOnly">@T["ReadOnly"]</option>
+                                    <option value="ReadWrite">@T["ReadWrite"]</option>
                                 </select>
                             </div>
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Add+</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Add+"]</button>
                     </div>
                 </form>
             </div>
@@ -640,24 +545,24 @@
                     <input type="hidden" name="propertyId" value="@property.Id" />
 
                     <div class="modal-header border-0 pb-0">
-                        <h5 class="modal-title">Add Property Document</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title">@T["Add Property Document"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
 
                     <div class="modal-body row g-3">
                         <div class="col-12">
-                            <label class="form-label">Document file</label>
+                            <label class="form-label">@T["Document file"]</label>
                             <input class="form-control rh-input" type="file" name="file" accept=".pdf,application/pdf" required />
-                            <small class="text-muted">Only PDF files are allowed in this section.</small>
+                            <small class="text-muted">@T["Only PDF files are allowed in this section."]</small>
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">Document type</label>
+                            <label class="form-label">@T["Document type"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="type">
                                     @foreach (var type in Enum.GetValues<DocumentTypeEnum>().Where(type => type != DocumentTypeEnum.PropertyImage && type != DocumentTypeEnum.ApartmentImage))
                                     {
-                                        <option value="@type">@type</option>
+                                        <option value="@type">@T[type.ToString()]</option>
                                     }
                                 </select>
                             </div>
@@ -665,8 +570,8 @@
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
-                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn rh-btn-primary">Upload document</button>
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Upload document"]</button>
                     </div>
                 </form>
             </div>
@@ -680,17 +585,17 @@
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content rh-image-lightbox-modal">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title">@property.Name image</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title">@T["{0} image", property.Name ?? T["Property"].Value]</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
                 <div class="modal-body pt-0">
                     <div class="rh-image-lightbox-stage">
                         @if (propertyImages.Count > 1)
                         {
-                            <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-property-lightbox-nav="prev" aria-label="Previous property image">&#8592;</button>
-                            <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-property-lightbox-nav="next" aria-label="Next property image">&#8594;</button>
+                            <button type="button" class="rh-gallery-nav rh-lightbox-nav prev" data-property-lightbox-nav="prev" aria-label="@T["Previous property image"]">&#8592;</button>
+                            <button type="button" class="rh-gallery-nav rh-lightbox-nav next" data-property-lightbox-nav="next" aria-label="@T["Next property image"]">&#8594;</button>
                         }
-                        <img src="@propertyImageUrl" alt="@property.Name property image" class="rh-image-lightbox-preview" id="propertyImageLightboxPreview" />
+                        <img src="@propertyImageUrl" alt="@T["{0} property image", property.Name ?? T["Property"].Value]" class="rh-image-lightbox-preview" id="propertyImageLightboxPreview" />
                     </div>
                     <div class="d-none" data-property-lightbox-items>
                         @foreach (var image in propertyImages)

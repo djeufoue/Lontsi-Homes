@@ -51,6 +51,15 @@ namespace RentHub.API.Controllers
                 if (tenancy.Apartment!.Property!.LandlordId != userId)
                     return Forbid();
 
+                if (!await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, tenancy.Apartment.Property.LandlordId))
+                {
+                    return StatusCode(StatusCodes.Status402PaymentRequired, new
+                    {
+                        Code = "SUBSCRIPTION_PAYMENT_REQUIRED",
+                        Message = PaymentAvailabilityHelper.SubscriptionRequiredMessage
+                    });
+                }
+
                 if (tenancy.Members.Count(m => !m.IsDeleted) >= tenancy.MaxMembers)
                     return BadRequest($"A tenancy cannot have more than {tenancy.MaxMembers} members.");
 

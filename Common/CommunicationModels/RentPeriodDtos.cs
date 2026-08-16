@@ -132,6 +132,7 @@ namespace Common.CommunicationModels
         public PaymentMethodEnum PaymentMethod { get; set; } = PaymentMethodEnum.Card;
         public bool CanPayRent { get; set; }
         public string PaymentUnavailableReason { get; set; } = string.Empty;
+        public bool AutomaticPaymentsEnabled { get; set; }
         public List<RentPeriodDto> RentPeriods { get; set; } = new();
         public List<TenantPaymentHistoryDto> PaymentHistory { get; set; } = new();
         public List<DocumentDto> Documents { get; set; } = new();

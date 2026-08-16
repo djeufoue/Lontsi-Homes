@@ -1,0 +1,89 @@
+@model Common.CommunicationModels.AdminSubscriptionHistoryDto
+@{
+    ViewData["Title"] = "Landlord Subscription History";
+    var selected = Model.Subscription;
+    var landlordName = string.IsNullOrWhiteSpace(selected.UserFullName) ? selected.UserEmail : selected.UserFullName;
+    string ChipClass(string status) => status switch
+    {
+        "Active" => "rh-chip-success",
+        "Pending approval" => "rh-chip-warning",
+        "Rejected" or "Failed" => "rh-chip-danger",
+        _ => "rh-chip-info"
+    };
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <a class="rh-back-link" asp-action="Index">← Back to subscription control</a>
+        <p class="rh-kicker mt-3">Admin Subscription History</p>
+        <h1 class="rh-heading-title">@landlordName</h1>
+        <p class="rh-heading-subtitle">@selected.UserEmail</p>
+    </div>
+</section>
+
+<section class="rh-property-summary mb-3">
+    <article class="rh-summary-card">
+        <p>Selected Plan</p>
+        <h3>@selected.PlanName</h3>
+        <small>@selected.DurationMonths month(s)</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>Selected Status</p>
+        <h3>@selected.Status</h3>
+        <small>@selected.PaymentStatus payment state</small>
+    </article>
+    <article class="rh-summary-card">
+        <p>History Records</p>
+        <h3>@Model.History.Count</h3>
+        <small>All retained subscription requests</small>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <p class="rh-kicker mb-1">Complete Timeline</p>
+            <h2 class="rh-section-title mb-0">Subscription history</h2>
+        </div>
+        <small class="text-muted">Newest request first</small>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table align-middle rh-table mb-0">
+            <thead>
+                <tr>
+                    <th>Requested</th>
+                    <th>Plan</th>
+                    <th>Status</th>
+                    <th>Payment</th>
+                    <th class="text-end">Price</th>
+                    <th>Coverage</th>
+                    <th>Reference</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.History)
+                {
+                    <tr class="@(item.Id == selected.Id ? "table-active" : string.Empty)">
+                        <td>@item.CreatedAt.LocalDateTime.ToString("dd MMM yyyy HH:mm")</td>
+                        <td>
+                            <strong>@item.PlanName</strong>
+                            <small class="text-muted d-block">@item.DurationMonths month(s)</small>
+                        </td>
+                        <td><span class="rh-chip @ChipClass(item.Status)">@item.Status</span></td>
+                        <td>
+                            @item.PaymentMethod
+                            <small class="text-muted d-block">@item.PaymentStatus</small>
+                        </td>
+                        <td class="text-end">@item.PlanPrice.ToString("N0") XAF</td>
+                        <td>
+                            @item.StartDate.LocalDateTime.ToString("dd MMM yyyy")
+                            <small class="text-muted d-block">to @item.EndDate.LocalDateTime.ToString("dd MMM yyyy")</small>
+                        </td>
+                        <td><small>@item.PaymentReference</small></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>

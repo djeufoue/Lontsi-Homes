@@ -36,6 +36,10 @@
             </div>
         </div>
         <div class="rh-overview-hero-actions">
+            @if (User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager"))
+            {
+                <a class="btn rh-btn-primary" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@member.MemberId">User overview</a>
+            }
             <a class="btn rh-btn-subtle" asp-action="Overview" asp-route-id="@tenancy.Id">Tenancy Workspace</a>
         </div>
     </section>
@@ -107,9 +111,13 @@
                                     <td class="text-end">@period.Amount.ToString("N0")</td>
                                     <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
                                     <td>
-                                        @if (period.PaymentId.HasValue)
+                                        @if (period.PaymentId.HasValue && !User.IsInRole("Admin"))
                                         {
                                             <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">View</a>
+                                        }
+                                        else if (period.PaymentId.HasValue)
+                                        {
+                                            <span class="text-muted">Restricted</span>
                                         }
                                         else
                                         {

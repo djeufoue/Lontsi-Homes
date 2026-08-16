@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Common.Enums;
 using RentHub.API.Models.Entities;
 using RentHub.API.Models.Settings;
 using System.IdentityModel.Tokens.Jwt;
@@ -33,6 +34,8 @@ namespace RentHub.API.Services.Auth
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
                 new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
                 new Claim(ClaimTypes.Name, string.IsNullOrWhiteSpace(user.FullName) ? (user.Email ?? string.Empty) : user.FullName),
+                new Claim("subscription_exempt", user.IsSubscriptionExempt ? "true" : "false"),
+                new Claim(PlatformLanguageOptions.ClaimType, user.Language.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
             var roles = await _userManager.GetRolesAsync(user);

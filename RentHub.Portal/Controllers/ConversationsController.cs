@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace RentHub.Portal.Controllers
 {
-    [Authorize(Roles = "Visitor,Landlord")]
+    [Authorize(Roles = "Visitor,Landlord,Admin")]
     public class ConversationsController : Controller
     {
         private readonly RentHubApiClient _api;
@@ -20,14 +20,33 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index(int? conversationId = null)
+        public async Task<IActionResult> Index(int? conversationId = null, string? kind = null)
         {
             try
             {
-                var items = await _api.GetAsync<List<ConversationListItemDto>>("Conversations/mine");
+                var isVisitor = User.IsInRole("Visitor");
+                var isLandlord = User.IsInRole("Landlord");
+                var isAdmin = User.IsInRole("Admin");
+                var items = (isVisitor || isLandlord)
+                    ? await _api.GetAsync<List<ConversationListItemDto>>("Conversations/mine")
+                    : new List<ConversationListItemDto>();
+                var subscriptionItems = (isLandlord || isAdmin)
+                    ? await _api.GetAsync<List<SubscriptionInquiryListItemDto>>("subscription-inquiries/mine")
+                    : new List<SubscriptionInquiryListItemDto>();
                 ConversationThreadDto? selectedConversation = null;
+                SubscriptionInquiryThreadDto? selectedSubscription = null;
+                var selectedKind = string.Equals(kind, "subscription", StringComparison.OrdinalIgnoreCase) || isAdmin ? "subscription" : "apartment";
 
-                if (conversationId.HasValue)
+                if (selectedKind == "subscription" && conversationId.HasValue)
+                {
+                    selectedSubscription = await _api.GetAsync<SubscriptionInquiryThreadDto>($"subscription-inquiries/{conversationId.Value}");
+                }
+                else if (selectedKind == "subscription" && subscriptionItems.Count > 0)
+                {
+                    selectedSubscription = await _api.GetAsync<SubscriptionInquiryThreadDto>($"subscription-inquiries/{subscriptionItems[0].InquiryId}");
+                    conversationId = selectedSubscription.InquiryId;
+                }
+                else if (conversationId.HasValue)
                 {
                     selectedConversation = await _api.GetAsync<ConversationThreadDto>($"Conversations/{conversationId.Value}");
                 }
@@ -40,10 +59,14 @@ namespace RentHub.Portal.Controllers
                 var vm = new ConversationInboxVm
                 {
                     Items = items,
+                    SubscriptionItems = subscriptionItems,
                     SelectedConversation = selectedConversation,
+                    SelectedSubscriptionInquiry = selectedSubscription,
                     SelectedConversationId = conversationId,
-                    IsVisitor = User.IsInRole("Visitor"),
-                    IsLandlord = User.IsInRole("Landlord")
+                    SelectedKind = selectedKind,
+                    IsVisitor = isVisitor,
+                    IsLandlord = isLandlord,
+                    IsAdmin = isAdmin
                 };
 
                 return View(vm);
@@ -114,6 +137,24 @@ namespace RentHub.Portal.Controllers
             }
 
             return RedirectToAction(nameof(Index), new { conversationId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Landlord,Admin")]
+        public async Task<IActionResult> SendSubscriptionMessage(int conversationId, string message)
+        {
+            try
+            {
+                await _api.PostAsync($"subscription-inquiries/{conversationId}/messages", new CreateSubscriptionInquiryMessageRequest { Message = message });
+                TempData["Success"] = "Reply sent.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to send subscription inquiry reply {InquiryId}.", conversationId);
+                TempData["Error"] = ExtractSafeMessage(ex.Message, "We couldn't send your reply right now.");
+            }
+            return RedirectToAction(nameof(Index), new { kind = "subscription", conversationId });
         }
 
         private static string ExtractSafeMessage(string raw, string fallback)

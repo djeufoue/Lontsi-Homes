@@ -187,7 +187,8 @@ namespace RentHub.API.Controllers
                     LandlordId = p.LandlordId,
                     LandlordName = p.Landlord != null ? (p.Landlord.FullName ?? p.Landlord.Email ?? "") : "",
                     CanWrite = isAdmin || p.LandlordId == userId || managedRw.Contains(p.Id),
-                    AccessSource = PropertyHelpers.ResolveAccessSource(isAdmin, p.LandlordId == userId, managedAll.Contains(p.Id), ownerProps.Contains(p.Id), tenantProps.Contains(p.Id))
+                    AccessSource = PropertyHelpers.ResolveAccessSource(isAdmin, p.LandlordId == userId, managedAll.Contains(p.Id), ownerProps.Contains(p.Id), tenantProps.Contains(p.Id)),
+                    AutomaticPaymentsEnabled = p.AutomaticPaymentsEnabled
                 }).ToList();
 
                 var response = new PropertyListResponseDto
@@ -292,7 +293,8 @@ namespace RentHub.API.Controllers
                         LandlordId = p.LandlordId,
                         LandlordName = p.Landlord != null ? (p.Landlord.FullName ?? p.Landlord.Email ?? "") : "",
                         CanWrite = true,
-                        AccessSource = "Owned"
+                        AccessSource = "Owned",
+                        AutomaticPaymentsEnabled = p.AutomaticPaymentsEnabled
                     })
                     .ToListAsync();
 
@@ -321,9 +323,15 @@ namespace RentHub.API.Controllers
 
                 var roles = (await _userManager.GetRolesAsync(user)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var isAdmin = roles.Contains("Admin");
+                var restrictToTenantAssignments = roles.Contains("Tenant") &&
+                                                  !roles.Contains("Admin") &&
+                                                  !roles.Contains("Landlord") &&
+                                                  !roles.Contains("Manager");
 
                 var property = await _context.Properties
                     .Include(p => p.Apartments)
+                    .ThenInclude(a => a.Tenancies)
+                    .ThenInclude(tenancy => tenancy.Members)
                     .Include(p => p.Landlord)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -346,7 +354,10 @@ namespace RentHub.API.Controllers
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
-                        .Where(a => !a.IsDeleted)
+                        .Where(a =>
+                            !a.IsDeleted &&
+                            (!restrictToTenantAssignments || a.Tenancies.Any(tenancy =>
+                                !tenancy.IsDeleted && tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId))))
                         .Select(a => new ApartmentDto
                         {
                             Id = a.Id,
@@ -356,7 +367,7 @@ namespace RentHub.API.Controllers
                             Area = a.Area,
                             PropertyName = property.Name,
                             LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? string.Empty) : string.Empty,
-                            Status = a.Status.ToString()
+                            Status = ApartmentStatusResolver.Resolve(a.Tenancies, DateTimeOffset.UtcNow).ToString()
                         })
                         .ToList()
                 };
@@ -719,9 +730,15 @@ namespace RentHub.API.Controllers
 
                 var roles = (await _userManager.GetRolesAsync(user)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var isAdmin = roles.Contains("Admin");
+                var restrictToTenantAssignments = roles.Contains("Tenant") &&
+                                                  !roles.Contains("Admin") &&
+                                                  !roles.Contains("Landlord") &&
+                                                  !roles.Contains("Manager");
 
                 var property = await _context.Properties
                     .Include(p => p.Apartments)
+                    .ThenInclude(a => a.Tenancies)
+                    .ThenInclude(tenancy => tenancy.Members)
                     .Include(p => p.Landlord)
                     .FirstOrDefaultAsync(p => p.Id == id);
 
@@ -746,7 +763,10 @@ namespace RentHub.API.Controllers
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
-                        .Where(a => !a.IsDeleted)
+                        .Where(a =>
+                            !a.IsDeleted &&
+                            (!restrictToTenantAssignments || a.Tenancies.Any(tenancy =>
+                                !tenancy.IsDeleted && tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId))))
                         .OrderByDescending(a => a.CreatedAt)
                         .Select(a => new ApartmentDto
                         {
@@ -757,24 +777,26 @@ namespace RentHub.API.Controllers
                             Area = a.Area,
                             PropertyName = property.Name,
                             LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? string.Empty) : string.Empty,
-                            Status = a.Status.ToString()
+                            Status = ApartmentStatusResolver.Resolve(a.Tenancies, DateTimeOffset.UtcNow).ToString()
                         })
                         .ToList()
                 };
 
-                var managers = await _context.PropertyManagerAssignments
-                    .Include(m => m.Manager)
-                    .Where(m => m.PropertyId == id)
-                    .OrderByDescending(m => m.CreatedAt)
-                    .Select(m => new PropertyManagerDto
-                    {
-                        Id = m.Id,
-                        ManagerId = m.ManagerId,
-                        ManagerName = m.Manager != null ? (m.Manager.FullName ?? m.Manager.Email ?? "") : "",
-                        Permission = m.Permission,
-                        AssignedAt = m.CreatedAt
-                    })
-                    .ToListAsync();
+                var managers = restrictToTenantAssignments
+                    ? new List<PropertyManagerDto>()
+                    : await _context.PropertyManagerAssignments
+                        .Include(m => m.Manager)
+                        .Where(m => m.PropertyId == id && !m.IsDeleted)
+                        .OrderByDescending(m => m.CreatedAt)
+                        .Select(m => new PropertyManagerDto
+                        {
+                            Id = m.Id,
+                            ManagerId = m.ManagerId,
+                            ManagerName = m.Manager != null ? (m.Manager.FullName ?? m.Manager.Email ?? "") : "",
+                            Permission = m.Permission,
+                            AssignedAt = m.CreatedAt
+                        })
+                        .ToListAsync();
 
                 var documentEntities = await _context.Documents
                     .Where(d => d.PropertyId == id && d.ApartmentId == null && d.TenancyId == null)

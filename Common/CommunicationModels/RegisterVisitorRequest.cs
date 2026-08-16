@@ -15,13 +15,11 @@ namespace Common.CommunicationModels
         public string? FullName { get; set; }
 
         [Display(Name = "Phone number")]
-        [Required]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
 
-        [Required]
         [Display(Name = "WhatsApp number")]
         [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string WhatsAppPhoneNumber { get; set; } = string.Empty;
+        public string? WhatsAppPhoneNumber { get; set; }
     }
 }

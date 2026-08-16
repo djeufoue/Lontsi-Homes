@@ -9,7 +9,7 @@
     {
         if (Model.Method == PaymentMethodEnum.Cash)
         {
-            return "Recorded by landlord";
+            return "Recorded manually by landlord";
         }
 
         return string.IsNullOrWhiteSpace(Model.ProviderReceiptUrl)

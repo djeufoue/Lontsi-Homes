@@ -39,6 +39,7 @@ namespace Common.CommunicationModels
         public bool SmsVerificationEnabled { get; set; }
         public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsOnboardingComplete { get; set; }
+        public bool IsSubscriptionExempt { get; set; }
         public string StripeConnectAccountId { get; set; } = string.Empty;
         public bool HasStripePayoutAccount { get; set; }
         public bool StripePayoutDetailsSubmitted { get; set; }
@@ -65,6 +66,11 @@ namespace Common.CommunicationModels
     public class AdminUserManagementPermissionsDto
     {
         public bool CanDeleteUsers { get; set; }
+    }
+
+    public class UpdateLandlordSubscriptionExemptionRequest
+    {
+        public bool Enabled { get; set; }
     }
 
     public class AdminUserOtpDto

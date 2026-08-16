@@ -17,6 +17,8 @@ namespace RentHub.API.Models.Entities
 
         public DateTimeOffset StartDate { get; set; }
         public DateTimeOffset? EndDate { get; set; }
+        public DateTimeOffset? RenewalReminderSentAt { get; set; }
+        public DateTimeOffset? RenewalReminderSentForEndDate { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal MonthlyRent { get; set; }
@@ -49,6 +51,7 @@ namespace RentHub.API.Models.Entities
         // Navigation property for members associated with this tenancy
         public ICollection<TenancyMember> Members { get; set; } = new List<TenancyMember>();
         public ICollection<RentPeriod> RentPeriods { get; set; } = new List<RentPeriod>();
+        public ICollection<TenancyExtensionRequest> ExtensionRequests { get; set; } = new List<TenancyExtensionRequest>();
     }
 }
 

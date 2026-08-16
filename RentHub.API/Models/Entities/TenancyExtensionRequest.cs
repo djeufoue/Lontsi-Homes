@@ -16,11 +16,14 @@ namespace RentHub.API.Models.Entities
         public Tenancy? Tenancy { get; set; }
         public string RequestedById { get; set; } = string.Empty;
         public ApplicationUser? RequestedBy { get; set; }
+        public DateTimeOffset? OriginalEndDate { get; set; }
         public DateTimeOffset ProposedEndDate { get; set; }
         public TenancyExtensionStatusEnum Status { get; set; } = TenancyExtensionStatusEnum.Pending;
         public string? ApprovedById { get; set; }
         public ApplicationUser? ApprovedBy { get; set; }
         public DateTimeOffset? ApprovedAt { get; set; }
+        [MaxLength(512)]
+        public string? RejectionReason { get; set; }
         // Audit fields
         public bool IsDeleted { get; set; } = false;
         public string? CreatedBy { get; set; }
