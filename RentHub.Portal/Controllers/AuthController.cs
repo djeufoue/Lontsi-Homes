@@ -996,6 +996,46 @@ namespace RentHub.Portal.Controllers
             return RedirectToAction(nameof(VerifyLandlordEmail), new { email });
         }
 
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult SetPassword(string email, string token)
+        {
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token))
+            {
+                TempData["AuthError"] = "This password creation link is invalid.";
+                return RedirectToAction(nameof(Login));
+            }
+
+            return View(new SetPasswordVm { Email = email, Token = token });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetPassword(SetPasswordVm vm)
+        {
+            if (!ModelState.IsValid) return View(vm);
+            try
+            {
+                await _api.PostAnonymousAsync<ResetPasswordRequest, JsonElement>(
+                    "Account/reset-password",
+                    new ResetPasswordRequest
+                    {
+                        Email = vm.Email,
+                        Token = vm.Token,
+                        NewPassword = vm.NewPassword
+                    });
+                TempData["AuthInfo"] = "Your password was created. You can now sign in.";
+                return RedirectToAction(nameof(Login), new { email = vm.Email });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Set password failed for invited account {Email}.", vm.Email);
+                ModelState.AddModelError(string.Empty, "This link is invalid or has expired. Ask the landlord to invite you again.");
+                return View(vm);
+            }
+        }
+
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]

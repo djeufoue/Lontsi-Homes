@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
+using RentHub.API.Services.Permissions;
 using RentHub.API.Services.Tenancies;
 
 namespace RentHub.API.Controllers
@@ -16,15 +17,18 @@ namespace RentHub.API.Controllers
     public class TenancyExtensionRequestsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IManagerPermissionService _permissionService;
         private readonly ITenancyRenewalEmailService _renewalEmailService;
         private readonly ILogger<TenancyExtensionRequestsController> _logger;
 
         public TenancyExtensionRequestsController(
             ApplicationDbContext context,
+            IManagerPermissionService permissionService,
             ITenancyRenewalEmailService renewalEmailService,
             ILogger<TenancyExtensionRequestsController> logger)
         {
             _context = context;
+            _permissionService = permissionService;
             _renewalEmailService = renewalEmailService;
             _logger = logger;
         }
@@ -54,8 +58,8 @@ namespace RentHub.API.Controllers
                     member.TenancyId == tenancyId && !member.IsDeleted && member.MemberId == userId,
                     cancellationToken);
             var isRequestingTenant = membership?.Role is TenancyMemberRoleEnum.MainTenant or TenancyMemberRoleEnum.CoTenant;
-            var canReview = await PropertyHelpers.CanWriteTenancyAsync(
-                _context, tenancy.ApartmentId, tenancy.Apartment.PropertyId, userId, isAdmin);
+            var canReview = await _permissionService.HasTenancyPermissionAsync(
+                userId, tenancy.Id, ManagerPermission.RenewTenancy, isAdmin);
             var requests = await _context.TenancyExtensionRequests
                 .AsNoTracking()
                 .Include(request => request.RequestedBy)
@@ -172,9 +176,8 @@ namespace RentHub.API.Controllers
                     return Conflict(new { Message = "This renewal request has already been reviewed." });
 
                 var tenancy = request.Tenancy!;
-                var property = tenancy.Apartment!.Property!;
-                var canWrite = await PropertyHelpers.CanWriteTenancyAsync(
-                    _context, tenancy.ApartmentId, property.Id, userId, User.IsInRole("Admin"));
+                var canWrite = await _permissionService.HasTenancyPermissionAsync(
+                    userId, tenancy.Id, ManagerPermission.RenewTenancy, User.IsInRole("Admin"));
                 if (!canWrite) return Forbid();
 
                 var nowUtc = DateTimeOffset.UtcNow;
@@ -245,8 +248,8 @@ namespace RentHub.API.Controllers
                     return Conflict(new { Message = "This renewal request has already been reviewed." });
 
                 var tenancy = request.Tenancy!;
-                var canWrite = await PropertyHelpers.CanWriteTenancyAsync(
-                    _context, tenancy.ApartmentId, tenancy.Apartment!.PropertyId, userId, User.IsInRole("Admin"));
+                var canWrite = await _permissionService.HasTenancyPermissionAsync(
+                    userId, tenancy.Id, ManagerPermission.RenewTenancy, User.IsInRole("Admin"));
                 if (!canWrite) return Forbid();
 
                 var nowUtc = DateTimeOffset.UtcNow;

@@ -1320,4 +1320,68 @@
   <data name="Current end date: {0}" xml:space="preserve"><value>Date de fin actuelle : {0}</value></data>
   <data name="Requested on {0}" xml:space="preserve"><value>Demandée le {0}</value></data>
   <data name="Proposed end date: {0}" xml:space="preserve"><value>Date de fin proposée : {0}</value></data>
+  <data name="Manager Permissions" xml:space="preserve"><value>Permissions du gestionnaire</value></data>
+  <data name="MANAGER ACCESS" xml:space="preserve"><value>ACCÈS DU GESTIONNAIRE</value></data>
+  <data name="Landlord only" xml:space="preserve"><value>Bailleur uniquement</value></data>
+  <data name="Default access" xml:space="preserve"><value>Accès par défaut</value></data>
+  <data name="Read Only" xml:space="preserve"><value>Lecture seule</value></data>
+  <data name="Full Access" xml:space="preserve"><value>Accès complet</value></data>
+  <data name="Select All" xml:space="preserve"><value>Tout sélectionner</value></data>
+  <data name="Save permissions" xml:space="preserve"><value>Enregistrer les permissions</value></data>
+  <data name="Choose the actions this Manager may perform." xml:space="preserve"><value>Choisissez les actions que ce gestionnaire peut effectuer.</value></data>
+  <data name="Read Only is the safe default. Manager permissions never allow the Manager to manage Manager access." xml:space="preserve"><value>La lecture seule est la valeur par défaut sécurisée. Ces permissions ne permettent jamais au gestionnaire de gérer l’accès des gestionnaires.</value></data>
+  <data name="Access to all Apartments / Units" xml:space="preserve"><value>Accès à tous les appartements</value></data>
+  <data name="Apartment access and overrides" xml:space="preserve"><value>Accès aux appartements et exceptions</value></data>
+  <data name="Can access this apartment" xml:space="preserve"><value>Peut accéder à cet appartement</value></data>
+  <data name="Configure exception" xml:space="preserve"><value>Configurer une exception</value></data>
+  <data name="Tenancy access automatically follows the apartment scope. Each apartment can override the global permissions." xml:space="preserve"><value>L’accès aux locations suit automatiquement celui des appartements. Chaque appartement peut remplacer les permissions globales.</value></data>
+  <data name="Apartments / Units" xml:space="preserve"><value>Appartements</value></data>
+  <data name="Rent &amp; Payments" xml:space="preserve"><value>Loyers et paiements</value></data>
+  <data name="Documents &amp; Communication" xml:space="preserve"><value>Documents et communication</value></data>
+  <data name="View property" xml:space="preserve"><value>Voir la propriété</value></data>
+  <data name="View property overview" xml:space="preserve"><value>Voir l’aperçu de la propriété</value></data>
+  <data name="Add property" xml:space="preserve"><value>Ajouter une propriété</value></data>
+  <data name="Edit property" xml:space="preserve"><value>Modifier la propriété</value></data>
+  <data name="Delete property" xml:space="preserve"><value>Supprimer la propriété</value></data>
+  <data name="View financial information" xml:space="preserve"><value>Voir les informations financières</value></data>
+  <data name="Edit financial information" xml:space="preserve"><value>Modifier les informations financières</value></data>
+  <data name="View dashboard" xml:space="preserve"><value>Voir le tableau de bord</value></data>
+  <data name="View members" xml:space="preserve"><value>Voir les membres</value></data>
+  <data name="Edit member" xml:space="preserve"><value>Modifier un membre</value></data>
+  <data name="Manage member roles" xml:space="preserve"><value>Gérer les rôles des membres</value></data>
+  <data name="View managers" xml:space="preserve"><value>Voir les gestionnaires</value></data>
+  <data name="View apartments" xml:space="preserve"><value>Voir les appartements</value></data>
+  <data name="Edit apartment" xml:space="preserve"><value>Modifier l’appartement</value></data>
+  <data name="Delete apartment" xml:space="preserve"><value>Supprimer l’appartement</value></data>
+  <data name="View apartment details" xml:space="preserve"><value>Voir les détails de l’appartement</value></data>
+  <data name="View apartment financial information" xml:space="preserve"><value>Voir les informations financières de l’appartement</value></data>
+  <data name="Manage apartment members" xml:space="preserve"><value>Gérer les membres de l’appartement</value></data>
+  <data name="Manage apartment documents" xml:space="preserve"><value>Gérer les documents de l’appartement</value></data>
+  <data name="View tenancies" xml:space="preserve"><value>Voir les locations</value></data>
+  <data name="Add tenancy" xml:space="preserve"><value>Ajouter une location</value></data>
+  <data name="Edit tenancy" xml:space="preserve"><value>Modifier la location</value></data>
+  <data name="Delete tenancy" xml:space="preserve"><value>Supprimer la location</value></data>
+  <data name="Renew tenancy" xml:space="preserve"><value>Renouveler la location</value></data>
+  <data name="View tenancy details" xml:space="preserve"><value>Voir les détails de la location</value></data>
+  <data name="View tenancy members" xml:space="preserve"><value>Voir les membres de la location</value></data>
+  <data name="Remove tenancy member" xml:space="preserve"><value>Retirer un membre de la location</value></data>
+  <data name="View lease documents" xml:space="preserve"><value>Voir les documents du bail</value></data>
+  <data name="Upload lease documents" xml:space="preserve"><value>Téléverser des documents du bail</value></data>
+  <data name="Delete lease documents" xml:space="preserve"><value>Supprimer des documents du bail</value></data>
+  <data name="View rent information" xml:space="preserve"><value>Voir les informations de loyer</value></data>
+  <data name="View payment history" xml:space="preserve"><value>Voir l’historique des paiements</value></data>
+  <data name="Mark rent as paid" xml:space="preserve"><value>Marquer le loyer comme payé</value></data>
+  <data name="Mark rent as unpaid" xml:space="preserve"><value>Marquer le loyer comme impayé</value></data>
+  <data name="Add manual payment" xml:space="preserve"><value>Ajouter un paiement manuel</value></data>
+  <data name="Edit payment" xml:space="preserve"><value>Modifier un paiement</value></data>
+  <data name="Delete or cancel payment" xml:space="preserve"><value>Supprimer ou annuler un paiement</value></data>
+  <data name="View outstanding rent" xml:space="preserve"><value>Voir les loyers impayés</value></data>
+  <data name="Send rent reminder" xml:space="preserve"><value>Envoyer un rappel de loyer</value></data>
+  <data name="View documents" xml:space="preserve"><value>Voir les documents</value></data>
+  <data name="Upload documents" xml:space="preserve"><value>Téléverser des documents</value></data>
+  <data name="Delete documents" xml:space="preserve"><value>Supprimer des documents</value></data>
+  <data name="View messages" xml:space="preserve"><value>Voir les messages</value></data>
+  <data name="Send messages" xml:space="preserve"><value>Envoyer des messages</value></data>
+  <data name="Refresh from address" xml:space="preserve"><value>Actualiser depuis l’adresse</value></data>
+  <data name="Permissions / Access" xml:space="preserve"><value>Permissions / Accès</value></data>
 </root>

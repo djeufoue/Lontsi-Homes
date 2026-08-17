@@ -154,6 +154,9 @@ builder.Services.AddScoped<IStorageService, AzureStorageService>();
 builder.Services.AddScoped<IKycFileStorageService, BlobKycFileStorageService>();
 builder.Services.AddScoped<RentHub.API.Services.Auth.TokenService>();
 builder.Services.AddScoped<IUserOnboardingService, UserOnboardingService>();
+builder.Services.AddScoped<IManagerInvitationEmailService, ManagerInvitationEmailService>();
+builder.Services.AddScoped<RentHub.API.Services.Permissions.IManagerPermissionService, RentHub.API.Services.Permissions.ManagerPermissionService>();
+builder.Services.AddScoped<RentHub.API.Services.Maps.IPropertyGeocodingService, RentHub.API.Services.Maps.GooglePropertyGeocodingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
 builder.Services.AddScoped<ITenancyRenewalEmailService, TenancyRenewalEmailService>();
 

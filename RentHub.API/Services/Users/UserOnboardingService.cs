@@ -50,7 +50,8 @@ namespace RentHub.API.Services.Users
             string? countryCode,
             string? phoneNumber,
             string? whatsAppPhoneNumber,
-            string roleName)
+            string roleName,
+            bool sendActivationEmail = true)
         {
             var normalizedEmail = (email ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(normalizedEmail))
@@ -135,7 +136,7 @@ namespace RentHub.API.Services.Users
                 }
             }
 
-            if (isNewUser)
+            if (isNewUser && sendActivationEmail)
             {
                 await SendActivationOtpAsync(user, temporaryPassword, roleName);
             }

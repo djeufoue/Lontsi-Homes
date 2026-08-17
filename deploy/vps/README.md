@@ -95,9 +95,20 @@ Fill in:
 - Azure Blob connection string
 - Twilio secrets
 - SMTP secrets
+- Google Geocoding API key (server-side only)
 - Stripe publishable key, secret key, and webhook signing secret
 - USD to XAF conversion rate
 - admin seed credentials
+
+For property address geocoding, enable only the **Geocoding API** in Google Cloud and set:
+
+```dotenv
+GOOGLE_GEOCODING_API_KEY=your-production-server-key
+```
+
+This key is consumed by `RentHub.API`; it is never embedded in the browser map. Restrict it to the VPS public IP and restrict its API scope to **Geocoding API**. Do not use an HTTP-referrer browser key for this variable.
+
+The embedded property map remains OpenStreetMap. If an older property already contains incorrect coordinates, open its property overview after deployment and use **Refresh from saved address** once the key is configured.
 
 ## Domain DNS
 

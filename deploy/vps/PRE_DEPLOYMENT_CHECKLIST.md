@@ -70,6 +70,9 @@ Prepare these production values before deployment:
 - Stripe webhook signing secret
 - USD to XAF display/conversion rate
 - admin seed email / password
+- Google Geocoding API key, restricted to the VPS public IP and to the Geocoding API
+
+The geocoding key belongs only in `deploy/vps/.env.production` as `GOOGLE_GEOCODING_API_KEY`; never commit the production value. The browser continues to render OpenStreetMap and does not receive this secret.
 
 ## 6. Server target
 

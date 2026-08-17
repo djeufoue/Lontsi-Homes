@@ -2716,6 +2716,16 @@ namespace RentHub.API.Controllers
                     return BadRequest(result.Errors);
                 }
 
+                if (!user.EmailConfirmed)
+                {
+                    user.EmailConfirmed = true;
+                    var confirmationResult = await _userManager.UpdateAsync(user);
+                    if (!confirmationResult.Succeeded)
+                    {
+                        return BadRequest(confirmationResult.Errors);
+                    }
+                }
+
                 return Ok(new { Message = "Password has been reset successfully." });
             }
             catch (Exception ex)

@@ -43,6 +43,8 @@ namespace RentHub.API.Data
         // Delegated user assignments
         public DbSet<ApartmentOwner> ApartmentOwners => Set<ApartmentOwner>();
         public DbSet<PropertyManagerAssignment> PropertyManagerAssignments => Set<PropertyManagerAssignment>();
+        public DbSet<ManagerApartmentPermissionOverride> ManagerApartmentPermissionOverrides => Set<ManagerApartmentPermissionOverride>();
+        public DbSet<ManagerPermissionAuditLog> ManagerPermissionAuditLogs => Set<ManagerPermissionAuditLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -357,6 +359,28 @@ namespace RentHub.API.Data
             builder.Entity<PropertyManagerAssignment>()
                 .HasIndex(m => new { m.PropertyId, m.ManagerId })
                 .IsUnique();
+
+            builder.Entity<ManagerApartmentPermissionOverride>(entity =>
+            {
+                entity.HasIndex(item => new { item.PropertyManagerAssignmentId, item.ApartmentId }).IsUnique();
+                entity.HasOne(item => item.PropertyManagerAssignment)
+                    .WithMany(assignment => assignment.ApartmentOverrides)
+                    .HasForeignKey(item => item.PropertyManagerAssignmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Apartment)
+                    .WithMany()
+                    .HasForeignKey(item => item.ApartmentId)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
+
+            builder.Entity<ManagerPermissionAuditLog>(entity =>
+            {
+                entity.HasIndex(item => new { item.PropertyId, item.ManagerId, item.ChangedAt });
+                entity.HasOne<PropertyManagerAssignment>()
+                    .WithMany()
+                    .HasForeignKey(item => item.PropertyManagerAssignmentId)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
 
             // Apply global query filters to soft-delete entities
             builder.Entity<Property>().HasQueryFilter(p => !p.IsDeleted);

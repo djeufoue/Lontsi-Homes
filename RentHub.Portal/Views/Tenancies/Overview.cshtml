@@ -54,7 +54,7 @@
             <a class="btn rh-btn-subtle" asp-controller="Apartments" asp-action="Overview" asp-route-id="@tenancy.ApartmentId">@T["Apartment Workspace"]</a>
             <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@tenancy.PropertyId">@T["Property Workspace"]</a>
             <a class="btn rh-btn-subtle" asp-action="Renewal" asp-route-tenancyId="@tenancy.Id">@T["Renewal requests"]</a>
-            @if (tenancy.CanWrite && tenancy.TerminatedAt == null)
+            @if (tenancy.CanTerminate && tenancy.TerminatedAt == null)
             {
                 <button type="button" class="btn rh-btn-outline-danger" data-bs-toggle="modal" data-bs-target="#terminateTenancyModal">@T["Terminate tenancy"]</button>
             }
@@ -108,7 +108,7 @@
                         <p class="rh-dashboard-panel-copy">@T["Maintain a single contract document for this tenancy."]</p>
                     </div>
 
-                    @if (tenancy.CanWrite)
+                    @if (tenancy.CanUploadDocuments)
                     {
                         <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#uploadTenancyContractModal">@(contract == null ? T["Add+"].Value : T["Replace"].Value)</button>
                     }
@@ -127,7 +127,7 @@
                         </div>
                         <div class="rh-document-actions">
                             <a class="btn btn-sm rh-btn-subtle" asp-controller="Properties" asp-action="DocumentPreview" asp-route-id="@contract.Id">@T["Preview"]</a>
-                            @if (tenancy.CanWrite)
+                            @if (tenancy.CanDeleteDocuments)
                             {
                                 <form method="post" asp-action="DeleteDocument" data-confirm-modal="true" data-confirm-title="@T["Delete tenancy contract?"]" data-confirm-message="@T["This will remove the current tenancy contract."]" data-confirm-proceed="@T["Delete contract"]">
                                     @Html.AntiForgeryToken()
@@ -141,7 +141,7 @@
                 }
             </article>
 
-            @if (!User.IsInRole("Admin"))
+            @if (!User.IsInRole("Admin") && tenancy.CanViewRent)
             {
                 <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact mt-3">
                     <div class="rh-overview-panel-head align-start">
@@ -162,7 +162,7 @@
                         <h2 class="rh-dashboard-panel-title">@T["Tenancy members"]</h2>
                         <p class="rh-dashboard-panel-copy">@T["Manage the main tenant, co-tenants, children, and visitors."]</p>
                     </div>
-                    @if (tenancy.CanWrite)
+                    @if (tenancy.CanAddMembers)
                     {
                         <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addTenancyMemberModal">@T["Add+"]</button>
                     }
@@ -208,15 +208,21 @@
                                     {
                                         <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@member.MemberId">@T["User overview"]</a>
                                     }
-                                    @if (tenancy.CanWrite)
+                                    @if (tenancy.CanEditMembers || tenancy.CanRemoveMembers)
                                     {
-                                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editTenancyMemberModal-@member.Id">@T["Edit"]</button>
-                                        <form method="post" asp-action="RemoveMember" data-confirm-modal="true" data-confirm-title="@T["Remove this tenancy member?"]" data-confirm-message="@T["This will remove the member from this tenancy and revoke their access to this tenancy workspace. Existing rent periods, payments, and generated receipts will stay in the system."]" data-confirm-proceed="@T["Remove member"]" data-confirm-style="danger">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="tenancyId" value="@tenancy.Id" />
-                                            <input type="hidden" name="memberId" value="@member.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
-                                        </form>
+                                        @if (tenancy.CanEditMembers)
+                                        {
+                                            <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editTenancyMemberModal-@member.Id">@T["Edit"]</button>
+                                        }
+                                        @if (tenancy.CanRemoveMembers)
+                                        {
+                                            <form method="post" asp-action="RemoveMember" data-confirm-modal="true" data-confirm-title="@T["Remove this tenancy member?"]" data-confirm-message="@T["This will remove the member from this tenancy and revoke their access to this tenancy workspace. Existing rent periods, payments, and generated receipts will stay in the system."]" data-confirm-proceed="@T["Remove member"]" data-confirm-style="danger">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                                <input type="hidden" name="memberId" value="@member.Id" />
+                                                <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
+                                            </form>
+                                        }
                                     }
                                 </div>
                             </article>

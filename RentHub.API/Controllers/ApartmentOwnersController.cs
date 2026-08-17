@@ -11,6 +11,7 @@ using System;
 
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -28,16 +29,19 @@ namespace RentHub.API.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IUserOnboardingService _userOnboardingService;
+        private readonly IManagerPermissionService _permissionService;
 
         public ApartmentOwnersController(ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
-            IUserOnboardingService userOnboardingService)
+            IUserOnboardingService userOnboardingService,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _userManager = userManager;
             _roleManager = roleManager;
             _userOnboardingService = userOnboardingService;
+            _permissionService = permissionService;
         }
 
         /// <summary>
@@ -67,8 +71,8 @@ namespace RentHub.API.Controllers
                 else
                 {
                     // manager with read permission
-                    hasAccess = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId);
+                    hasAccess = await _permissionService.HasApartmentPermissionAsync(
+                        userId, apartmentId, ManagerPermission.ViewMembers, User.IsInRole("Admin"));
                     if (!hasAccess)
                     {
                         // owner of apartment
@@ -115,13 +119,14 @@ namespace RentHub.API.Controllers
                     .Include(a => a.Property)
                     .FirstOrDefaultAsync(a => a.Id == apartmentId);
                 if (apartment == null) return NotFound("Apartment not found.");
-                // Only landlord of the property can add owners
-                if (apartment.Property?.LandlordId != userId)
+                var canManageMembers = await _permissionService.HasApartmentPermissionAsync(
+                    userId, apartmentId, ManagerPermission.ManageApartmentMembers, User.IsInRole("Admin"));
+                if (!canManageMembers)
                 {
                     return Forbid();
                 }
                 // Check landlord subscription approval
-                if (!await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, userId))
+                if (!await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, apartment.Property!.LandlordId))
                 {
                     return StatusCode(StatusCodes.Status402PaymentRequired, new
                     {
@@ -188,10 +193,10 @@ namespace RentHub.API.Controllers
                     .Include(a => a.Apartment)
                     .FirstOrDefaultAsync(a => a.Id == ownerAssignmentId && a.ApartmentId == apartmentId);
                 if (assignment == null) return NotFound("Owner assignment not found.");
-                // Only landlord of the property can update
                 var apartment = assignment.Apartment;
                 if (apartment == null) return NotFound("Apartment not found.");
-                if (apartment.Property?.LandlordId != userId)
+                if (!await _permissionService.HasApartmentPermissionAsync(
+                        userId, apartmentId, ManagerPermission.ManageApartmentMembers, User.IsInRole("Admin")))
                 {
                     return Forbid();
                 }
@@ -226,7 +231,8 @@ namespace RentHub.API.Controllers
                 if (assignment == null) return NotFound("Owner assignment not found.");
                 var apartment = assignment.Apartment;
                 if (apartment == null) return NotFound("Apartment not found.");
-                if (apartment.Property?.LandlordId != userId)
+                if (!await _permissionService.HasApartmentPermissionAsync(
+                        userId, apartmentId, ManagerPermission.ManageApartmentMembers, User.IsInRole("Admin")))
                 {
                     return Forbid();
                 }

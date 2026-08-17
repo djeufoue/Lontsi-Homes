@@ -488,6 +488,114 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RefreshMapLocation(int propertyId)
+        {
+            try
+            {
+                await _api.PostAsync<object, JsonElement>($"properties/{propertyId}/geocode", new { });
+                await BroadcastPropertyUpdateAsync(propertyId, "property-location-refreshed");
+                TempData["Success"] = "Property map location refreshed from the saved address.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to refresh map location for property {PropertyId}.", propertyId);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiError(ex.Message).Message,
+                    "Unable to locate this address. Verify the saved address and production map configuration.");
+            }
+
+            return RedirectToAction(nameof(Overview), new { id = propertyId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ManagerPermissions(int propertyId, int assignmentId)
+        {
+            try
+            {
+                var settings = await _api.GetAsync<ManagerPermissionSettingsDto>(
+                    $"properties/{propertyId}/managers/{assignmentId}/permissions");
+                var vm = new ManagerPermissionsVm
+                {
+                    PropertyId = propertyId,
+                    AssignmentId = assignmentId,
+                    PropertyName = settings.PropertyName,
+                    ManagerName = settings.ManagerName,
+                    ManagerEmail = settings.ManagerEmail,
+                    AccessAllApartments = settings.AccessAllApartments,
+                    SelectedPermissions = ExpandFlags(settings.PermissionFlags),
+                    Apartments = settings.Apartments.Select(apartment =>
+                    {
+                        var effective = (settings.PermissionFlags | apartment.AllowedPermissionFlags) &
+                                        ~apartment.DeniedPermissionFlags;
+                        return new ManagerApartmentPermissionsVm
+                        {
+                            ApartmentId = apartment.ApartmentId,
+                            ApartmentName = apartment.ApartmentName,
+                            HasAccess = apartment.HasAccess,
+                            SelectedPermissions = ExpandFlags(effective)
+                        };
+                    }).ToList()
+                };
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Manager permission page denied or unavailable for assignment {AssignmentId}.", assignmentId);
+                TempData["Error"] = "Only the property landlord can manage Manager permissions.";
+                return RedirectToAction(nameof(Overview), new { id = propertyId });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ManagerPermissions(ManagerPermissionsVm vm)
+        {
+            try
+            {
+                var globalFlags = CombineFlags(vm.SelectedPermissions);
+                var request = new UpdateManagerPermissionSettingsRequest
+                {
+                    PermissionFlags = globalFlags,
+                    AccessAllApartments = vm.AccessAllApartments,
+                    Apartments = vm.Apartments.Select(apartment =>
+                    {
+                        var effective = CombineFlags(apartment.SelectedPermissions);
+                        return new ManagerApartmentPermissionDto
+                        {
+                            ApartmentId = apartment.ApartmentId,
+                            ApartmentName = apartment.ApartmentName,
+                            HasAccess = apartment.HasAccess,
+                            AllowedPermissionFlags = effective & ~globalFlags,
+                            DeniedPermissionFlags = globalFlags & ~effective
+                        };
+                    }).ToList()
+                };
+
+                await _api.PutAsync(
+                    $"properties/{vm.PropertyId}/managers/{vm.AssignmentId}/permissions",
+                    request);
+                await BroadcastPropertyUpdateAsync(vm.PropertyId, "manager-permissions-updated");
+                TempData["Success"] = "Manager permissions updated.";
+                return RedirectToAction(nameof(ManagerPermissions), new
+                {
+                    propertyId = vm.PropertyId,
+                    assignmentId = vm.AssignmentId
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manager permission update failed for assignment {AssignmentId}.", vm.AssignmentId);
+                TempData["Error"] = SafeUserMessage(ParseApiError(ex.Message).Message, "Unable to update Manager permissions.");
+                return RedirectToAction(nameof(ManagerPermissions), new
+                {
+                    propertyId = vm.PropertyId,
+                    assignmentId = vm.AssignmentId
+                });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> RemoveManager(int propertyId, int assignmentId)
         {
             try
@@ -792,6 +900,10 @@ namespace RentHub.Portal.Controllers
                 ApartmentSearch = apartmentSearch,
                 MemberSearch = memberSearch,
                 CanWrite = overview.CanWrite,
+                CanManageManagers = overview.CanManageManagers,
+                CanAddApartment = overview.CanAddApartment,
+                CanUploadDocuments = overview.CanUploadDocuments,
+                CanDeleteDocuments = overview.CanDeleteDocuments,
                 UnitsPage = unitsPage,
                 UnitsPageSize = unitsPageSize,
                 TotalUnits = totalUnits,
@@ -800,6 +912,22 @@ namespace RentHub.Portal.Controllers
                 SuccessDialogAutoCloseEnabled = dialogSettings.AutoCloseEnabled,
                 SuccessDialogAutoCloseSeconds = dialogSettings.AutoCloseSeconds
             };
+        }
+
+        private static List<long> ExpandFlags(long flags)
+        {
+            return Enum.GetValues<ManagerPermission>()
+                .Where(permission => permission != ManagerPermission.None &&
+                                     ((long)permission & ((long)permission - 1)) == 0 &&
+                                     (flags & (long)permission) != 0)
+                .Select(permission => (long)permission)
+                .ToList();
+        }
+
+        private static long CombineFlags(IEnumerable<long>? selected)
+        {
+            var allowed = (long)ManagerPermissionDefaults.All;
+            return (selected ?? Array.Empty<long>()).Aggregate(0L, (current, value) => current | (value & allowed));
         }
 
         private async Task<DocumentPreviewVm> BuildDocumentPreviewVmAsync(int id)

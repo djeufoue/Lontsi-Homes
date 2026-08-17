@@ -134,7 +134,13 @@ namespace RentHub.API.Helpers
             if (isLandlord) return true;
 
             var isManager = await context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
-            if (isManager) return true;
+            if (isManager)
+            {
+                return await context.PropertyManagerAssignments.AnyAsync(m =>
+                    m.PropertyId == propertyId &&
+                    m.ManagerId == userId &&
+                    (m.PermissionFlags & (long)ManagerPermission.ViewProperty) != 0);
+            }
 
             var isOwner = await context.ApartmentOwners.AnyAsync(o => o.OwnerId == userId && o.Apartment!.PropertyId == propertyId);
             if (isOwner) return true;
@@ -158,7 +164,7 @@ namespace RentHub.API.Helpers
             return await context.PropertyManagerAssignments.AnyAsync(m =>
                 m.PropertyId == propertyId &&
                 m.ManagerId == userId &&
-                m.Permission == PermissionLevelEnum.ReadWrite);
+                (m.PermissionFlags & (long)ManagerPermission.EditProperty) != 0);
         }
 
         public static async Task<bool> CanAccessTenancyAsync(
@@ -172,7 +178,23 @@ namespace RentHub.API.Helpers
             if (isAdmin) return true;
             if (await context.TenancyMembers.AnyAsync(member => !member.IsDeleted && member.TenancyId == tenancyId && member.MemberId == userId)) return true;
             if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
-            if (await context.PropertyManagerAssignments.AnyAsync(assignment => !assignment.IsDeleted && assignment.PropertyId == propertyId && assignment.ManagerId == userId)) return true;
+            var managerAssignment = await context.PropertyManagerAssignments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(assignment => assignment.PropertyId == propertyId && assignment.ManagerId == userId);
+            if (managerAssignment != null)
+            {
+                var apartmentOverride = await context.ManagerApartmentPermissionOverrides
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.PropertyManagerAssignmentId == managerAssignment.Id && item.ApartmentId == apartmentId);
+                var hasApartmentAccess = apartmentOverride?.HasAccess ?? managerAssignment.AccessAllApartments;
+                var flags = managerAssignment.PermissionFlags;
+                if (apartmentOverride != null)
+                {
+                    flags = (flags | apartmentOverride.AllowedPermissionFlags) & ~apartmentOverride.DeniedPermissionFlags;
+                }
+
+                if (hasApartmentAccess && (flags & (long)ManagerPermission.ViewTenancies) != 0) return true;
+            }
             return await context.ApartmentOwners.AnyAsync(assignment => !assignment.IsDeleted && assignment.ApartmentId == apartmentId && assignment.OwnerId == userId);
         }
 
@@ -185,8 +207,23 @@ namespace RentHub.API.Helpers
         {
             if (isAdmin) return true;
             if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
-            if (await context.PropertyManagerAssignments.AnyAsync(assignment =>
-                    !assignment.IsDeleted && assignment.PropertyId == propertyId && assignment.ManagerId == userId && assignment.Permission == PermissionLevelEnum.ReadWrite)) return true;
+            var managerAssignment = await context.PropertyManagerAssignments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(assignment => assignment.PropertyId == propertyId && assignment.ManagerId == userId);
+            if (managerAssignment != null)
+            {
+                var apartmentOverride = await context.ManagerApartmentPermissionOverrides
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.PropertyManagerAssignmentId == managerAssignment.Id && item.ApartmentId == apartmentId);
+                var hasApartmentAccess = apartmentOverride?.HasAccess ?? managerAssignment.AccessAllApartments;
+                var flags = managerAssignment.PermissionFlags;
+                if (apartmentOverride != null)
+                {
+                    flags = (flags | apartmentOverride.AllowedPermissionFlags) & ~apartmentOverride.DeniedPermissionFlags;
+                }
+
+                if (hasApartmentAccess && (flags & (long)ManagerPermission.EditTenancy) != 0) return true;
+            }
             return await context.ApartmentOwners.AnyAsync(assignment =>
                 !assignment.IsDeleted && assignment.ApartmentId == apartmentId && assignment.OwnerId == userId && assignment.Permission == PermissionLevelEnum.ReadWrite);
         }

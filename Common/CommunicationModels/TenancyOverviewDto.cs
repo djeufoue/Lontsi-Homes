@@ -41,5 +41,19 @@ namespace Common.CommunicationModels
         public string Status { get; set; } = string.Empty;
 
         public bool CanWrite { get; set; }
+        public bool CanEdit { get; set; }
+        public bool CanDelete { get; set; }
+        public bool CanTerminate { get; set; }
+        public bool CanRenew { get; set; }
+        public bool CanViewMembers { get; set; }
+        public bool CanAddMembers { get; set; }
+        public bool CanEditMembers { get; set; }
+        public bool CanRemoveMembers { get; set; }
+        public bool CanViewDocuments { get; set; }
+        public bool CanUploadDocuments { get; set; }
+        public bool CanDeleteDocuments { get; set; }
+        public bool CanViewRent { get; set; }
+        public bool CanMarkRentPaid { get; set; }
+        public bool CanCancelPendingPayment { get; set; }
     }
 }

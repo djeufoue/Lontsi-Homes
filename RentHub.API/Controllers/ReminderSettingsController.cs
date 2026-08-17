@@ -11,6 +11,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 
 using RentHub.API.Helpers;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -25,10 +26,12 @@ namespace RentHub.API.Controllers
     public class ReminderSettingsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IManagerPermissionService _permissionService;
 
-        public ReminderSettingsController(ApplicationDbContext context)
+        public ReminderSettingsController(ApplicationDbContext context, IManagerPermissionService permissionService)
         {
             _context = context;
+            _permissionService = permissionService;
         }
 
         /// <summary>
@@ -85,8 +88,11 @@ namespace RentHub.API.Controllers
                 }
                 else
                 {
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
+                    var managerWrite = await _permissionService.HasPropertyPermissionAsync(
+                        userId,
+                        propertyId,
+                        ManagerPermission.SendRentReminder,
+                        User.IsInRole("Admin"));
                     var ownerWrite = await _context.ApartmentOwners
                         .Include(o => o.Apartment)
                         .AnyAsync(o => o.Apartment!.PropertyId == propertyId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);

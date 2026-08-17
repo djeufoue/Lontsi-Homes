@@ -141,7 +141,7 @@
                         <p class="rh-dashboard-panel-copy">@T["Landscape cover for this property. Max 2 MB."]</p>
                     </div>
 
-                    @if (Model.CanWrite)
+                    @if (Model.CanUploadDocuments)
                     {
                         <form id="propertyImageForm" method="post" asp-action="UploadPropertyDocument" enctype="multipart/form-data" class="rh-property-image-form" data-live-submit="property-overview">
                             @Html.AntiForgeryToken()
@@ -180,7 +180,17 @@
                         <p class="rh-dashboard-panel-copy">@T["Your saved latitude and longitude now pin the property on the map."]</p>
                     </div>
 
-                    <a class="btn rh-btn-subtle btn-sm" asp-action="Map" asp-route-id="@property.Id">@T["Open full map"]</a>
+                    <div class="d-flex gap-2 flex-wrap">
+                        @if (Model.CanWrite)
+                        {
+                            <form method="post" asp-action="RefreshMapLocation">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="propertyId" value="@property.Id" />
+                                <button class="btn rh-btn-subtle btn-sm" type="submit">@T["Refresh from address"]</button>
+                            </form>
+                        }
+                        <a class="btn rh-btn-subtle btn-sm" asp-action="Map" asp-route-id="@property.Id">@T["Open full map"]</a>
+                    </div>
                 </div>
 
                 @{
@@ -223,7 +233,7 @@
                         <p class="rh-dashboard-panel-copy">@T["Rules, guides, and reference files linked to this property."]</p>
                     </div>
 
-                    @if (Model.CanWrite)
+                    @if (Model.CanUploadDocuments)
                     {
                         <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addPropertyDocumentModal">@T["Add+"]</button>
                     }
@@ -245,7 +255,7 @@
 
                                 <div class="rh-document-actions">
                                     <a class="btn btn-sm rh-btn-subtle" asp-action="DocumentPreview" asp-route-id="@doc.Id">@T["Preview"]</a>
-                                    @if (Model.CanWrite)
+                                    @if (Model.CanDeleteDocuments)
                                     {
                                         <form method="post" asp-action="DeleteDocument" class="d-inline" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="@T["Delete document?"]" data-confirm-message="@T["This document will be removed from this property."]" data-confirm-proceed="@T["Delete document"]">
                                             @Html.AntiForgeryToken()
@@ -275,7 +285,7 @@
                             <span>@T["{0} total", Model.TotalUnits]</span>
                             <span>@T["{0} available", availableUnits]</span>
                         </div>
-                        @if (Model.CanWrite)
+                        @if (Model.CanAddApartment)
                         {
                             <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentModal">@T["Add+"]</button>
                         }
@@ -336,7 +346,7 @@
                         <p class="rh-dashboard-panel-copy">@T["Landlord and managers assigned to this property."]</p>
                     </div>
 
-                    @if (Model.CanWrite)
+                    @if (Model.CanManageManagers)
                     {
                         <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addMemberModal">@T["Add+"]</button>
                     }
@@ -386,21 +396,13 @@
                                     <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@manager.ManagerId">@T["User overview"]</a>
                                 }
 
-                                @if (Model.CanWrite)
+                                @if (Model.CanManageManagers)
                                 {
                                     <div class="rh-member-card-actions">
-                                        <form method="post" asp-action="UpdateManagerPermission" class="rh-member-permission-form" data-live-submit="property-overview">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="propertyId" value="@property.Id" />
-                                            <input type="hidden" name="assignmentId" value="@manager.Id" />
-                                            <div class="rh-select-wrap">
-                                                <select class="form-select form-select-sm rh-input rh-select" name="permission">
-                                                    <option value="ReadOnly" selected="@(manager.Permission == PermissionLevelEnum.ReadOnly ? "selected" : null)">@T["ReadOnly"]</option>
-                                                    <option value="ReadWrite" selected="@(manager.Permission == PermissionLevelEnum.ReadWrite ? "selected" : null)">@T["ReadWrite"]</option>
-                                                </select>
-                                            </div>
-                                            <button class="btn btn-sm rh-btn-subtle" type="submit">@T["Save"]</button>
-                                        </form>
+                                        <a class="btn btn-sm rh-btn-primary"
+                                           asp-action="ManagerPermissions"
+                                           asp-route-propertyId="@property.Id"
+                                           asp-route-assignmentId="@manager.Id">@T["Permissions / Access"]</a>
 
                                         <form method="post" asp-action="RemoveManager" data-live-submit="property-overview" data-confirm-modal="true" data-confirm-title="@T["Remove property member?"]" data-confirm-message="@T["This member will lose access to this property."]" data-confirm-proceed="@T["Remove member"]">
                                             @Html.AntiForgeryToken()
@@ -412,7 +414,7 @@
                                 }
                                 else
                                 {
-                                    <span class="rh-chip rh-chip-info">@T[manager.Permission.ToString()]</span>
+                                    <span class="rh-chip rh-chip-info">@T["Manager access"]</span>
                                 }
                             </article>
                         }
@@ -423,8 +425,10 @@
     </section>
 
 </section>
-@if (Model.CanWrite)
+@if (Model.CanAddApartment || Model.CanManageManagers || Model.CanUploadDocuments)
 {
+    @if (Model.CanAddApartment)
+    {
     <div class="modal fade" id="addApartmentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -474,7 +478,10 @@
             </div>
         </div>
     </div>
+    }
 
+    @if (Model.CanManageManagers)
+    {
     <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -518,13 +525,7 @@
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label">@T["Allowed Access"]</label>
-                            <div class="rh-select-wrap">
-                                <select class="form-select rh-input rh-select" name="Permission">
-                                    <option value="ReadOnly">@T["ReadOnly"]</option>
-                                    <option value="ReadWrite">@T["ReadWrite"]</option>
-                                </select>
-                            </div>
+                            <small class="text-muted">@T["New Managers start with Read Only access. Configure additional actions from Permissions / Access after adding them."]</small>
                         </div>
                     </div>
 
@@ -536,7 +537,10 @@
             </div>
         </div>
     </div>
+    }
 
+    @if (Model.CanUploadDocuments)
+    {
     <div class="modal fade" id="addPropertyDocumentModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
@@ -609,6 +613,7 @@
             </div>
         </div>
     </div>
+    }
 }
 
 

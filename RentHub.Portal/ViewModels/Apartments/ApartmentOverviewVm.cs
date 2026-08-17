@@ -12,5 +12,12 @@ namespace RentHub.Portal.ViewModels.Apartments
         public string? TenancySearch { get; set; }
         public string? MemberSearch { get; set; }
         public bool CanWrite { get; set; }
+        public bool CanViewFinancialInformation { get; set; }
+        public bool CanEditFinancialInformation { get; set; }
+        public bool CanManageMembers { get; set; }
+        public bool CanManageDocuments { get; set; }
+        public bool CanAddTenancy { get; set; }
+        public bool CanEditTenancy { get; set; }
+        public bool CanSendRentReminder { get; set; }
     }
 }

@@ -9,6 +9,13 @@ namespace Common.CommunicationModels
         public List<TenancyDto> Tenancies { get; set; } = new();
         public List<ApartmentOwnerDto> Owners { get; set; } = new();
         public List<DocumentDto> Documents { get; set; } = new();
+        public bool CanViewFinancialInformation { get; set; }
+        public bool CanEditFinancialInformation { get; set; }
+        public bool CanManageMembers { get; set; }
+        public bool CanManageDocuments { get; set; }
+        public bool CanAddTenancy { get; set; }
+        public bool CanEditTenancy { get; set; }
+        public bool CanSendRentReminder { get; set; }
     }
 
     public class ApartmentDetailsDto

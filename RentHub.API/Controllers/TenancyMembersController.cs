@@ -9,6 +9,8 @@ using System.Security.Claims;
 
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
+using RentHub.API.Services.Permissions;
+using Common.Enums;
 
 namespace RentHub.API.Controllers
 {
@@ -19,11 +21,16 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IUserOnboardingService _userOnboardingService;
+        private readonly IManagerPermissionService _permissionService;
 
-        public TenancyMembersController(ApplicationDbContext context, IUserOnboardingService userOnboardingService)
+        public TenancyMembersController(
+            ApplicationDbContext context,
+            IUserOnboardingService userOnboardingService,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _userOnboardingService = userOnboardingService;
+            _permissionService = permissionService;
         }
 
         /// <summary>
@@ -48,7 +55,8 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
-                if (tenancy.Apartment!.Property!.LandlordId != userId)
+                if (!await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancyId, ManagerPermission.AddTenancyMember, User.IsInRole("Admin")))
                     return Forbid();
 
                 if (!await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, tenancy.Apartment.Property.LandlordId))
@@ -134,6 +142,13 @@ namespace RentHub.API.Controllers
                     .FirstOrDefaultAsync(t => t.Id == tenancyId);
 
                 if (tenancy == null) return NotFound();
+
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+                var isMember = tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId);
+                if (!isMember && !await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancyId, ManagerPermission.ViewTenancyMembers, User.IsInRole("Admin")))
+                    return Forbid();
 
                 var dtos = tenancy.Members
                     .Where(m => !m.IsDeleted)

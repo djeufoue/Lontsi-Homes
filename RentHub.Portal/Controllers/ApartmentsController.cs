@@ -444,7 +444,14 @@ namespace RentHub.Portal.Controllers
                 Documents = overview.Documents ?? new List<DocumentDto>(),
                 TenancySearch = tenancySearch,
                 MemberSearch = memberSearch,
-                CanWrite = overview.Apartment.CanWrite
+                CanWrite = overview.Apartment.CanWrite,
+                CanViewFinancialInformation = overview.CanViewFinancialInformation,
+                CanEditFinancialInformation = overview.CanEditFinancialInformation,
+                CanManageMembers = overview.CanManageMembers,
+                CanManageDocuments = overview.CanManageDocuments,
+                CanAddTenancy = overview.CanAddTenancy,
+                CanEditTenancy = overview.CanEditTenancy,
+                CanSendRentReminder = overview.CanSendRentReminder
             };
         }
 

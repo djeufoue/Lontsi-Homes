@@ -8,6 +8,8 @@ using RentHub.API.Models.Entities;
 using RentHub.API.Helpers;
 using Common.Enums;
 using RentHub.API.Services.Users;
+using RentHub.API.Services.Email;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -17,11 +19,19 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IUserOnboardingService _userOnboardingService;
+        private readonly IManagerInvitationEmailService _managerInvitationEmailService;
+        private readonly IManagerPermissionService _permissionService;
 
-        public PropertyManagersController(ApplicationDbContext context, IUserOnboardingService userOnboardingService)
+        public PropertyManagersController(
+            ApplicationDbContext context,
+            IUserOnboardingService userOnboardingService,
+            IManagerInvitationEmailService managerInvitationEmailService,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _userOnboardingService = userOnboardingService;
+            _managerInvitationEmailService = managerInvitationEmailService;
+            _permissionService = permissionService;
         }
 
         [HttpGet]
@@ -37,8 +47,12 @@ namespace RentHub.API.Controllers
                 if (property == null) return NotFound("Property not found.");
 
                 var isAdmin = User.IsInRole("Admin");
-                var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, propertyId, userId, isAdmin);
-                if (!hasAccess) return Forbid();
+                var canViewManagers = await _permissionService.HasPropertyPermissionAsync(
+                    userId,
+                    propertyId,
+                    ManagerPermission.ViewManagers,
+                    isAdmin);
+                if (!canViewManagers) return Forbid();
 
                 var managers = await _context.PropertyManagerAssignments
                     .Include(m => m.Manager)
@@ -50,6 +64,8 @@ namespace RentHub.API.Controllers
                         ManagerId = m.ManagerId,
                         ManagerName = m.Manager != null ? (m.Manager.FullName ?? m.Manager.Email ?? "") : "",
                         Permission = m.Permission,
+                        PermissionFlags = m.PermissionFlags,
+                        AccessAllApartments = m.AccessAllApartments,
                         AssignedAt = m.CreatedAt
                     })
                     .ToListAsync();
@@ -77,8 +93,7 @@ namespace RentHub.API.Controllers
                 if (property == null) return NotFound("Property not found.");
 
                 var isAdmin = User.IsInRole("Admin");
-                var canWrite = await PropertyHelpers.CanWritePropertyAsync(_context, propertyId, userId, isAdmin);
-                if (!canWrite) return Forbid();
+                if (!await _permissionService.CanManageManagersAsync(userId, propertyId, isAdmin)) return Forbid();
 
                 // Non-admin users must respect landlord subscription status.
                 if (!isAdmin)
@@ -95,13 +110,15 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                var managerUser = (await _userOnboardingService.EnsureUserAsync(
+                var invitedUser = await _userOnboardingService.EnsureUserAsync(
                     request.Email,
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
                     null,
-                    "Manager")).User;
+                    "Manager",
+                    sendActivationEmail: false);
+                var managerUser = invitedUser.User;
 
                 var existing = await _context.PropertyManagerAssignments
                     .FirstOrDefaultAsync(m => m.PropertyId == propertyId && m.ManagerId == managerUser.Id && !m.IsDeleted);
@@ -125,7 +142,9 @@ namespace RentHub.API.Controllers
                 {
                     PropertyId = propertyId,
                     ManagerId = managerUser.Id,
-                    Permission = request.Permission,
+                    Permission = PermissionLevelEnum.ReadOnly,
+                    PermissionFlags = (long)ManagerPermissionDefaults.ReadOnly,
+                    AccessAllApartments = true,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
@@ -133,6 +152,7 @@ namespace RentHub.API.Controllers
 
                 _context.PropertyManagerAssignments.Add(assignment);
                 await _context.SaveChangesAsync();
+                await _managerInvitationEmailService.SendPropertyAccessEmailAsync(managerUser, property, invitedUser.IsNewUser);
 
                 var dto = new PropertyManagerDto
                 {
@@ -140,6 +160,8 @@ namespace RentHub.API.Controllers
                     ManagerId = assignment.ManagerId,
                     ManagerName = managerUser.FullName ?? managerUser.Email ?? "",
                     Permission = assignment.Permission,
+                    PermissionFlags = assignment.PermissionFlags,
+                    AccessAllApartments = assignment.AccessAllApartments,
                     AssignedAt = assignment.CreatedAt
                 };
 
@@ -168,10 +190,12 @@ namespace RentHub.API.Controllers
                 if (assignment.Property == null) return NotFound("Property not found.");
 
                 var isAdmin = User.IsInRole("Admin");
-                var canWrite = await PropertyHelpers.CanWritePropertyAsync(_context, propertyId, userId, isAdmin);
-                if (!canWrite) return Forbid();
+                if (!await _permissionService.CanManageManagersAsync(userId, propertyId, isAdmin)) return Forbid();
 
                 assignment.Permission = permission;
+                assignment.PermissionFlags = permission == PermissionLevelEnum.ReadWrite
+                    ? (long)ManagerPermissionDefaults.All
+                    : (long)ManagerPermissionDefaults.ReadOnly;
                 assignment.UpdatedBy = userId;
                 assignment.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -203,8 +227,7 @@ namespace RentHub.API.Controllers
                 if (assignment.Property == null) return NotFound("Property not found.");
 
                 var isAdmin = User.IsInRole("Admin");
-                var canWrite = await PropertyHelpers.CanWritePropertyAsync(_context, propertyId, userId, isAdmin);
-                if (!canWrite) return Forbid();
+                if (!await _permissionService.CanManageManagersAsync(userId, propertyId, isAdmin)) return Forbid();
 
                 assignment.IsDeleted = true;
                 assignment.DeletedBy = userId;
@@ -219,6 +242,151 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        [HttpGet("{managerAssignmentId}/permissions")]
+        [Authorize]
+        public async Task<IActionResult> GetPermissionSettings(int propertyId, int managerAssignmentId)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            if (!await _permissionService.CanManageManagersAsync(userId, propertyId, User.IsInRole("Admin"))) return Forbid();
+
+            var assignment = await _context.PropertyManagerAssignments
+                .AsNoTracking()
+                .Include(item => item.Property)
+                .Include(item => item.Manager)
+                .Include(item => item.ApartmentOverrides)
+                .FirstOrDefaultAsync(item => item.Id == managerAssignmentId && item.PropertyId == propertyId);
+            if (assignment?.Property == null) return NotFound("Manager assignment not found.");
+
+            var apartments = await _context.Apartments
+                .AsNoTracking()
+                .Where(item => item.PropertyId == propertyId)
+                .OrderBy(item => item.Name)
+                .Select(item => new { item.Id, item.Name })
+                .ToListAsync();
+
+            var overrideMap = assignment.ApartmentOverrides.ToDictionary(item => item.ApartmentId);
+            return Ok(new ManagerPermissionSettingsDto
+            {
+                AssignmentId = assignment.Id,
+                PropertyId = propertyId,
+                PropertyName = assignment.Property.Name,
+                ManagerId = assignment.ManagerId,
+                ManagerName = assignment.Manager?.FullName ?? assignment.Manager?.Email ?? string.Empty,
+                ManagerEmail = assignment.Manager?.Email ?? string.Empty,
+                PermissionFlags = assignment.PermissionFlags,
+                AccessAllApartments = assignment.AccessAllApartments,
+                Apartments = apartments.Select(apartment =>
+                {
+                    overrideMap.TryGetValue(apartment.Id, out var value);
+                    return new ManagerApartmentPermissionDto
+                    {
+                        ApartmentId = apartment.Id,
+                        ApartmentName = apartment.Name,
+                        HasAccess = value?.HasAccess ?? assignment.AccessAllApartments,
+                        AllowedPermissionFlags = value?.AllowedPermissionFlags ?? 0,
+                        DeniedPermissionFlags = value?.DeniedPermissionFlags ?? 0
+                    };
+                }).ToList()
+            });
+        }
+
+        [HttpPut("{managerAssignmentId}/permissions")]
+        [Authorize]
+        public async Task<IActionResult> UpdatePermissionSettings(
+            int propertyId,
+            int managerAssignmentId,
+            [FromBody] UpdateManagerPermissionSettingsRequest request)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            if (!await _permissionService.CanManageManagersAsync(userId, propertyId, User.IsInRole("Admin"))) return Forbid();
+
+            var allFlags = (long)ManagerPermissionDefaults.All;
+            if ((request.PermissionFlags & ~allFlags) != 0 || request.Apartments.Any(item =>
+                    (item.AllowedPermissionFlags & ~allFlags) != 0 ||
+                    (item.DeniedPermissionFlags & ~allFlags) != 0 ||
+                    (item.AllowedPermissionFlags & item.DeniedPermissionFlags) != 0))
+            {
+                return BadRequest("The permission payload contains invalid or conflicting values.");
+            }
+
+            var assignment = await _context.PropertyManagerAssignments
+                .Include(item => item.ApartmentOverrides)
+                .FirstOrDefaultAsync(item => item.Id == managerAssignmentId && item.PropertyId == propertyId);
+            if (assignment == null) return NotFound("Manager assignment not found.");
+
+            var validApartmentIds = await _context.Apartments
+                .Where(item => item.PropertyId == propertyId)
+                .Select(item => item.Id)
+                .ToHashSetAsync();
+            if (request.Apartments.Any(item => !validApartmentIds.Contains(item.ApartmentId)) ||
+                request.Apartments.Select(item => item.ApartmentId).Distinct().Count() != request.Apartments.Count)
+            {
+                return BadRequest("Every apartment permission must belong to this property and appear only once.");
+            }
+
+            var previousFlags = assignment.PermissionFlags;
+            var previousAllApartments = assignment.AccessAllApartments;
+            assignment.PermissionFlags = request.PermissionFlags;
+            assignment.AccessAllApartments = request.AccessAllApartments;
+            assignment.Permission = (request.PermissionFlags & ~(long)ManagerPermissionDefaults.ReadOnly) != 0
+                ? PermissionLevelEnum.ReadWrite
+                : PermissionLevelEnum.ReadOnly;
+            assignment.UpdatedBy = userId;
+            assignment.UpdatedAt = DateTimeOffset.UtcNow;
+
+            var requestedMap = request.Apartments.ToDictionary(item => item.ApartmentId);
+            foreach (var existing in assignment.ApartmentOverrides.ToList())
+            {
+                if (!requestedMap.TryGetValue(existing.ApartmentId, out var requested) ||
+                    (requested.HasAccess == request.AccessAllApartments && requested.AllowedPermissionFlags == 0 && requested.DeniedPermissionFlags == 0))
+                {
+                    _context.ManagerApartmentPermissionOverrides.Remove(existing);
+                    continue;
+                }
+
+                existing.HasAccess = requested.HasAccess;
+                existing.AllowedPermissionFlags = requested.AllowedPermissionFlags;
+                existing.DeniedPermissionFlags = requested.DeniedPermissionFlags;
+                existing.UpdatedBy = userId;
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                requestedMap.Remove(existing.ApartmentId);
+            }
+
+            foreach (var requested in requestedMap.Values.Where(item =>
+                         item.HasAccess != request.AccessAllApartments ||
+                         item.AllowedPermissionFlags != 0 ||
+                         item.DeniedPermissionFlags != 0))
+            {
+                assignment.ApartmentOverrides.Add(new ManagerApartmentPermissionOverride
+                {
+                    ApartmentId = requested.ApartmentId,
+                    HasAccess = requested.HasAccess,
+                    AllowedPermissionFlags = requested.AllowedPermissionFlags,
+                    DeniedPermissionFlags = requested.DeniedPermissionFlags,
+                    CreatedBy = userId,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            _context.ManagerPermissionAuditLogs.Add(new ManagerPermissionAuditLog
+            {
+                PropertyId = propertyId,
+                PropertyManagerAssignmentId = assignment.Id,
+                ManagerId = assignment.ManagerId,
+                ChangedBy = userId,
+                PreviousPermissionFlags = previousFlags,
+                NewPermissionFlags = request.PermissionFlags,
+                PreviousAccessAllApartments = previousAllApartments,
+                NewAccessAllApartments = request.AccessAllApartments,
+                Details = $"Apartment overrides submitted: {request.Apartments.Count}"
+            });
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Message = "Manager permissions updated." });
         }
     }
 }

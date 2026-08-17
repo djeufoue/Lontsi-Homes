@@ -12,6 +12,10 @@ namespace RentHub.Portal.ViewModels.Properties
         public string? ApartmentSearch { get; set; }
         public string? MemberSearch { get; set; }
         public bool CanWrite { get; set; }
+        public bool CanManageManagers { get; set; }
+        public bool CanAddApartment { get; set; }
+        public bool CanUploadDocuments { get; set; }
+        public bool CanDeleteDocuments { get; set; }
 
         public int UnitsPage { get; set; } = 1;
         public int UnitsPageSize { get; set; } = 6;

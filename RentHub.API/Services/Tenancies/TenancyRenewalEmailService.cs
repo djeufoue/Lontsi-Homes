@@ -92,14 +92,27 @@ namespace RentHub.API.Services.Tenancies
                 property.LandlordId
             };
 
-            var managerIds = await _context.PropertyManagerAssignments
+            var managerAssignments = await _context.PropertyManagerAssignments
                 .AsNoTracking()
+                .Include(assignment => assignment.ApartmentOverrides)
                 .Where(assignment =>
                     !assignment.IsDeleted &&
-                    assignment.PropertyId == property.Id &&
-                    assignment.Permission == PermissionLevelEnum.ReadWrite)
-                .Select(assignment => assignment.ManagerId)
+                    assignment.PropertyId == property.Id)
                 .ToListAsync(cancellationToken);
+            var managerIds = managerAssignments
+                .Where(assignment =>
+                {
+                    var apartmentOverride = assignment.ApartmentOverrides
+                        .FirstOrDefault(item => item.ApartmentId == tenancy.ApartmentId);
+                    var hasApartmentAccess = apartmentOverride?.HasAccess ?? assignment.AccessAllApartments;
+                    var effectiveFlags = assignment.PermissionFlags |
+                                         (apartmentOverride?.AllowedPermissionFlags ?? 0L);
+                    effectiveFlags &= ~(apartmentOverride?.DeniedPermissionFlags ?? 0L);
+                    return hasApartmentAccess &&
+                           (effectiveFlags & (long)ManagerPermission.RenewTenancy) != 0;
+                })
+                .Select(assignment => assignment.ManagerId)
+                .ToList();
             recipientIds.UnionWith(managerIds);
 
             var ownerIds = await _context.ApartmentOwners

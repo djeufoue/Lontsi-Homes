@@ -10,6 +10,8 @@ using RentHub.API.Helpers;
 using Common.CommunicationModels;
 using Common.Enums;
 using RentHub.API.Services.Storage;
+using RentHub.API.Services.Permissions;
+using RentHub.API.Services.Maps;
 
 namespace RentHub.API.Controllers
 {
@@ -21,17 +23,23 @@ namespace RentHub.API.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
         private readonly IConfiguration _configuration;
+        private readonly IManagerPermissionService _permissionService;
+        private readonly IPropertyGeocodingService _geocodingService;
 
         public PropertiesController(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             IStorageService storageService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IManagerPermissionService permissionService,
+            IPropertyGeocodingService geocodingService)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
             _configuration = configuration;
+            _permissionService = permissionService;
+            _geocodingService = geocodingService;
         }
         /// <summary>
         /// Admin-only full property list endpoint.
@@ -100,12 +108,15 @@ namespace RentHub.API.Controllers
 
                 var managed = await _context.PropertyManagerAssignments
                     .Where(m => m.ManagerId == userId)
-                    .Select(m => new { m.PropertyId, m.Permission })
+                    .Select(m => new { m.PropertyId, m.PermissionFlags })
                     .ToListAsync();
 
-                var managedAll = managed.Select(m => m.PropertyId).ToHashSet();
+                var managedAll = managed
+                    .Where(m => (m.PermissionFlags & (long)ManagerPermission.ViewProperty) != 0)
+                    .Select(m => m.PropertyId)
+                    .ToHashSet();
                 var managedRw = managed
-                    .Where(m => m.Permission == PermissionLevelEnum.ReadWrite)
+                    .Where(m => (m.PermissionFlags & (long)ManagerPermission.EditProperty) != 0)
                     .Select(m => m.PropertyId)
                     .ToHashSet();
 
@@ -230,7 +241,8 @@ namespace RentHub.API.Controllers
                 if (isManager)
                 {
                     var managerLandlords = await _context.PropertyManagerAssignments
-                        .Where(m => m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite)
+                        .Where(m => m.ManagerId == userId &&
+                                    (m.PermissionFlags & (long)ManagerPermission.AddProperty) != 0)
                         .Join(_context.Properties.Include(p => p.Landlord), m => m.PropertyId, p => p.Id, (m, p) => new
                         {
                             p.LandlordId,
@@ -339,6 +351,15 @@ namespace RentHub.API.Controllers
 
                 var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, id, userId, isAdmin);
                 if (!hasAccess) return Forbid();
+                if (roles.Contains("Manager") && !isAdmin && property.LandlordId != userId &&
+                    !await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.ViewProperty, false))
+                {
+                    return Forbid();
+                }
+
+                var managerApartmentIds = roles.Contains("Manager") && !isAdmin && property.LandlordId != userId
+                    ? await _permissionService.GetAccessibleApartmentIdsAsync(userId, id, ManagerPermission.ViewApartments, false)
+                    : null;
 
                 var dto = new PropertyDetailDto
                 {
@@ -356,6 +377,7 @@ namespace RentHub.API.Controllers
                     Apartments = property.Apartments
                         .Where(a =>
                             !a.IsDeleted &&
+                            (managerApartmentIds == null || managerApartmentIds.Contains(a.Id)) &&
                             (!restrictToTenantAssignments || a.Tenancies.Any(tenancy =>
                                 !tenancy.IsDeleted && tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId))))
                         .Select(a => new ApartmentDto
@@ -422,7 +444,8 @@ namespace RentHub.API.Controllers
                     landlordId = request.LandlordId.Trim();
 
                     var canCreateForLandlord = await _context.PropertyManagerAssignments
-                        .Where(m => m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite)
+                        .Where(m => m.ManagerId == userId &&
+                                    (m.PermissionFlags & (long)ManagerPermission.AddProperty) != 0)
                         .Join(_context.Properties, m => m.PropertyId, p => p.Id, (m, p) => p.LandlordId)
                         .AnyAsync(id => id == landlordId);
 
@@ -458,6 +481,8 @@ namespace RentHub.API.Controllers
 
                 if (string.IsNullOrWhiteSpace(normalizedCity) || string.IsNullOrWhiteSpace(normalizedAddress))
                     return BadRequest("City and Address are required.");
+                if (request.Latitude.HasValue != request.Longitude.HasValue)
+                    return BadRequest("Latitude and longitude must be provided together.");
 
                 var country = ResolvePropertyCountry(
                     request.CountryIsoCode,
@@ -481,6 +506,11 @@ namespace RentHub.API.Controllers
                 if (propertyExists)
                     return BadRequest($"A property named '{normalizedName}' already exists for this landlord in {normalizedCity}.");
 
+                var resolvedCoordinates = request.Latitude.HasValue
+                    ? null
+                    : await _geocodingService.GeocodeAsync(
+                        normalizedAddress, normalizedCity, country.CountryIsoCode, HttpContext.RequestAborted);
+
                 var propertyEntity = new Property
                 {
                     Name = normalizedName,
@@ -489,8 +519,8 @@ namespace RentHub.API.Controllers
                     CountryIsoCode = country.CountryIsoCode,
                     CountryCode = country.CountryCode,
                     Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
-                    Latitude = request.Latitude,
-                    Longitude = request.Longitude,
+                    Latitude = request.Latitude ?? resolvedCoordinates?.Latitude,
+                    Longitude = request.Longitude ?? resolvedCoordinates?.Longitude,
                     LandlordId = landlordId,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -651,7 +681,7 @@ namespace RentHub.API.Controllers
 
                 if (property == null) return NotFound("Property not found.");
 
-                var canWrite = await PropertyHelpers.CanWritePropertyAsync(_context, id, userId, isAdmin);
+                var canWrite = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.EditProperty, isAdmin);
                 if (!canWrite) return Forbid();
 
                 var name = request.Name.Trim();
@@ -660,6 +690,8 @@ namespace RentHub.API.Controllers
 
                 if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(city) || string.IsNullOrWhiteSpace(address))
                     return BadRequest("Name, city and address are required.");
+                if (request.Latitude.HasValue != request.Longitude.HasValue)
+                    return BadRequest("Latitude and longitude must be provided together.");
 
                 var duplicate = await _context.Properties.AnyAsync(p =>
                     p.Id != id &&
@@ -684,8 +716,12 @@ namespace RentHub.API.Controllers
                 property.CountryIsoCode = country.CountryIsoCode;
                 property.CountryCode = country.CountryCode;
                 property.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
-                property.Latitude = request.Latitude;
-                property.Longitude = request.Longitude;
+                var resolvedCoordinates = request.Latitude.HasValue
+                    ? null
+                    : await _geocodingService.GeocodeAsync(
+                        address, city, country.CountryIsoCode, HttpContext.RequestAborted);
+                property.Latitude = request.Latitude ?? resolvedCoordinates?.Latitude ?? property.Latitude;
+                property.Longitude = request.Longitude ?? resolvedCoordinates?.Longitude ?? property.Longitude;
                 property.UpdatedBy = userId;
                 property.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -716,6 +752,41 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("{id}/geocode")]
+        [Authorize]
+        public async Task<IActionResult> RefreshPropertyCoordinates(int id)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            var property = await _context.Properties.FirstOrDefaultAsync(item => item.Id == id);
+            if (property == null) return NotFound("Property not found.");
+            if (!await _permissionService.HasPropertyPermissionAsync(
+                    userId, id, ManagerPermission.EditProperty, User.IsInRole("Admin"))) return Forbid();
+
+            var coordinates = await _geocodingService.GeocodeAsync(
+                property.Address, property.City, property.CountryIsoCode, HttpContext.RequestAborted);
+            if (coordinates == null)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    Message = "The address could not be geocoded. Verify the address and the production Google Geocoding configuration."
+                });
+            }
+
+            property.Latitude = coordinates.Latitude;
+            property.Longitude = coordinates.Longitude;
+            property.UpdatedBy = userId;
+            property.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+            return Ok(new
+            {
+                property.Latitude,
+                property.Longitude,
+                coordinates.FormattedAddress,
+                Message = "Property map location refreshed from its address."
+            });
+        }
+
         [HttpGet("{id}/overview")]
         [Authorize]
         public async Task<IActionResult> GetPropertyOverview(int id)
@@ -744,10 +815,26 @@ namespace RentHub.API.Controllers
 
                 if (property == null) return NotFound("Property not found.");
 
-                var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, id, userId, isAdmin);
-                if (!hasAccess) return Forbid();
+                var isRestrictedManager = roles.Contains("Manager") && !isAdmin && property.LandlordId != userId;
+                var hasAccess = isRestrictedManager
+                    ? await _permissionService.HasPropertyPermissionAsync(
+                        userId, id, ManagerPermission.ViewPropertyOverview, false)
+                    : await PropertyHelpers.CanAccessPropertyAsync(_context, id, userId, isAdmin);
+                if (!hasAccess)
+                {
+                    return Forbid();
+                }
 
-                var canWrite = await PropertyHelpers.CanWritePropertyAsync(_context, id, userId, isAdmin);
+                var canWrite = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.EditProperty, isAdmin);
+                var canManageManagers = await _permissionService.CanManageManagersAsync(userId, id, isAdmin);
+                var canViewManagers = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.ViewManagers, isAdmin);
+                var canViewDocuments = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.ViewDocuments, isAdmin);
+                var canAddApartment = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.AddApartment, isAdmin);
+                var canUploadDocuments = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.UploadDocuments, isAdmin);
+                var canDeleteDocuments = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.DeleteDocuments, isAdmin);
+                var managerApartmentIds = isRestrictedManager
+                    ? await _permissionService.GetAccessibleApartmentIdsAsync(userId, id, ManagerPermission.ViewApartments, false)
+                    : null;
 
                 var propertyDto = new PropertyDetailDto
                 {
@@ -765,6 +852,7 @@ namespace RentHub.API.Controllers
                     Apartments = property.Apartments
                         .Where(a =>
                             !a.IsDeleted &&
+                            (managerApartmentIds == null || managerApartmentIds.Contains(a.Id)) &&
                             (!restrictToTenantAssignments || a.Tenancies.Any(tenancy =>
                                 !tenancy.IsDeleted && tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId))))
                         .OrderByDescending(a => a.CreatedAt)
@@ -782,7 +870,7 @@ namespace RentHub.API.Controllers
                         .ToList()
                 };
 
-                var managers = restrictToTenantAssignments
+                var managers = restrictToTenantAssignments || !canViewManagers
                     ? new List<PropertyManagerDto>()
                     : await _context.PropertyManagerAssignments
                         .Include(m => m.Manager)
@@ -794,14 +882,18 @@ namespace RentHub.API.Controllers
                             ManagerId = m.ManagerId,
                             ManagerName = m.Manager != null ? (m.Manager.FullName ?? m.Manager.Email ?? "") : "",
                             Permission = m.Permission,
+                            PermissionFlags = m.PermissionFlags,
+                            AccessAllApartments = m.AccessAllApartments,
                             AssignedAt = m.CreatedAt
                         })
                         .ToListAsync();
 
-                var documentEntities = await _context.Documents
-                    .Where(d => d.PropertyId == id && d.ApartmentId == null && d.TenancyId == null)
-                    .OrderByDescending(d => d.CreatedAt)
-                    .ToListAsync();
+                var documentEntities = canViewDocuments
+                    ? await _context.Documents
+                        .Where(d => d.PropertyId == id && d.ApartmentId == null && d.TenancyId == null)
+                        .OrderByDescending(d => d.CreatedAt)
+                        .ToListAsync()
+                    : new List<Document>();
 
                 var docs = await DocumentHelpers.ToDtosAsync(documentEntities, _storageService);
 
@@ -810,7 +902,11 @@ namespace RentHub.API.Controllers
                     Property = propertyDto,
                     Managers = managers,
                     Documents = docs,
-                    CanWrite = canWrite
+                    CanWrite = canWrite,
+                    CanManageManagers = canManageManagers,
+                    CanAddApartment = canAddApartment,
+                    CanUploadDocuments = canUploadDocuments,
+                    CanDeleteDocuments = canDeleteDocuments
                 };
 
                 return Ok(dto);

@@ -66,6 +66,7 @@ services:
       AzureStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
       AzureStorage__ContainerName: ${AZURE_STORAGE_CONTAINER}
       Portal__BaseUrl: https://${PORTAL_DOMAIN}
+      Maps__GoogleGeocodingApiKey: ${GOOGLE_GEOCODING_API_KEY}
       Onboarding__SmsVerificationEnabled: ${ONBOARDING_SMS_VERIFICATION_ENABLED}
       Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
       Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}

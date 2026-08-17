@@ -14,6 +14,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 
 using RentHub.API.Helpers;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -27,11 +28,16 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IStorageService _storageService;
+        private readonly IManagerPermissionService _permissionService;
 
-        public DocumentsController(ApplicationDbContext context, IStorageService storageService)
+        public DocumentsController(
+            ApplicationDbContext context,
+            IStorageService storageService,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _storageService = storageService;
+            _permissionService = permissionService;
         }
 
         [HttpPost("property/{propertyId}")]
@@ -47,8 +53,8 @@ namespace RentHub.API.Controllers
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
 
-                var canWrite = property.LandlordId == userId || await _context.PropertyManagerAssignments
-                    .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
+                var canWrite = await _permissionService.HasPropertyPermissionAsync(
+                    userId, propertyId, ManagerPermission.UploadDocuments, User.IsInRole("Admin"));
                 if (!canWrite) return Forbid();
                 if (!User.IsInRole("Admin") && !await PaymentAvailabilityHelper.HasActiveSubscriptionAsync(_context, property.LandlordId))
                     return SubscriptionRequired();
@@ -107,8 +113,9 @@ namespace RentHub.API.Controllers
                 if (apartment == null)
                     return NotFound("Apartment not found.");
 
-                var canWrite = apartment.Property?.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite) ||
+                var canWrite =
+                    await _permissionService.HasApartmentPermissionAsync(
+                        userId, apartmentId, ManagerPermission.ManageApartmentDocuments, User.IsInRole("Admin")) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite)
@@ -180,8 +187,9 @@ namespace RentHub.API.Controllers
                 if (apartment == null)
                     return NotFound("Apartment not found.");
 
-                var canWrite = apartment.Property?.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite) ||
+                var canWrite =
+                    await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancyId, ManagerPermission.UploadLeaseDocuments, User.IsInRole("Admin")) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
 
                 if (!canWrite)
@@ -244,7 +252,8 @@ namespace RentHub.API.Controllers
                 var hasAccess = isAdmin || document.UserId == userId;
                 if (!hasAccess && document.PropertyId.HasValue)
                 {
-                    hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, document.PropertyId.Value, userId, isAdmin);
+                    hasAccess = await _permissionService.HasPropertyPermissionAsync(
+                        userId, document.PropertyId.Value, ManagerPermission.ViewDocuments, isAdmin);
                 }
                 if (!hasAccess && document.ApartmentId.HasValue)
                 {
@@ -252,7 +261,8 @@ namespace RentHub.API.Controllers
                     var apartment = await _context.Apartments.FirstOrDefaultAsync(a => a.Id == apartmentId);
                     if (apartment != null)
                     {
-                        hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, apartment.PropertyId, userId, isAdmin);
+                        hasAccess = await _permissionService.HasApartmentPermissionAsync(
+                            userId, apartmentId, ManagerPermission.ViewDocuments, isAdmin);
                     }
                 }
                 if (!hasAccess && document.TenancyId.HasValue)
@@ -264,7 +274,8 @@ namespace RentHub.API.Controllers
 
                     if (tenancy?.Apartment != null)
                     {
-                        hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, tenancy.Apartment.PropertyId, userId, isAdmin);
+                        hasAccess = await _permissionService.HasTenancyPermissionAsync(
+                            userId, tenancyId, ManagerPermission.ViewLeaseDocuments, isAdmin);
                     }
                 }
                 if (!hasAccess) return Forbid();
@@ -287,11 +298,8 @@ namespace RentHub.API.Controllers
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var property = await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
                 if (property == null) return NotFound("Property not found.");
-                var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(
-                    _context,
-                    propertyId,
-                    userId,
-                    User.IsInRole("Admin"));
+                var hasAccess = await _permissionService.HasPropertyPermissionAsync(
+                    userId, propertyId, ManagerPermission.ViewDocuments, User.IsInRole("Admin"));
                 if (!hasAccess) return Forbid();
 
                 var documents = await _context.Documents
@@ -319,8 +327,9 @@ namespace RentHub.API.Controllers
                     .FirstOrDefaultAsync(a => a.Id == apartmentId);
                 if (apartment == null) return NotFound("Apartment not found.");
 
-                var hasAccess = apartment.Property?.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
+                var hasAccess =
+                    await _permissionService.HasApartmentPermissionAsync(
+                        userId, apartmentId, ManagerPermission.ViewDocuments, User.IsInRole("Admin")) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId) ||
                     await _context.Tenancies.AnyAsync(t =>
                         t.ApartmentId == apartmentId &&
@@ -355,8 +364,9 @@ namespace RentHub.API.Controllers
                 var apartment = tenancy.Apartment;
                 if (apartment == null) return NotFound("Apartment not found.");
 
-                var hasAccess = apartment.Property?.LandlordId == userId ||
-                    await _context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == apartment.PropertyId && m.ManagerId == userId) ||
+                var hasAccess =
+                    await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancyId, ManagerPermission.ViewLeaseDocuments, User.IsInRole("Admin")) ||
                     await _context.ApartmentOwners.AnyAsync(o => o.ApartmentId == apartment.Id && o.OwnerId == userId) ||
                     await _context.TenancyMembers.AnyAsync(m => m.TenancyId == tenancyId && !m.IsDeleted && m.MemberId == userId);
                 if (!hasAccess) return Forbid();
@@ -387,64 +397,44 @@ namespace RentHub.API.Controllers
                 if (document == null) return NotFound("Document not found.");
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
-                bool canDelete = document.UserId == userId;
-                if (!canDelete && document.PropertyId.HasValue)
-                {
-                    var propertyId = document.PropertyId.Value;
-                    var property = document.Property ?? await _context.Properties.FirstOrDefaultAsync(p => p.Id == propertyId);
-                    if (property != null && property.LandlordId == userId)
-                    {
-                        canDelete = true;
-                    }
-                    if (!canDelete)
-                    {
-                        canDelete = await _context.PropertyManagerAssignments
-                            .AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    }
-                }
+                var isAdmin = User.IsInRole("Admin");
+                var isManager = User.IsInRole("Manager") && !isAdmin;
+                var canDelete = document.TenancyId.HasValue
+                    ? await _permissionService.HasTenancyPermissionAsync(
+                        userId, document.TenancyId.Value, ManagerPermission.DeleteLeaseDocuments, isAdmin)
+                    : document.ApartmentId.HasValue
+                        ? await _permissionService.HasApartmentPermissionAsync(
+                            userId, document.ApartmentId.Value, ManagerPermission.ManageApartmentDocuments, isAdmin)
+                        : document.PropertyId.HasValue && await _permissionService.HasPropertyPermissionAsync(
+                            userId, document.PropertyId.Value, ManagerPermission.DeleteDocuments, isAdmin);
+
+                // Managers must always possess the explicit delete permission. Other account types
+                // retain the legacy ability to delete a file they uploaded themselves.
+                if (!canDelete && !isManager && document.UserId == userId)
+                    canDelete = true;
+
                 if (!canDelete && document.ApartmentId.HasValue)
                 {
-                    var apartmentId = document.ApartmentId.Value;
-                    var apartment = document.Apartment ?? await _context.Apartments
-                        .Include(a => a.Property)
-                        .FirstOrDefaultAsync(a => a.Id == apartmentId);
-                    if (apartment != null && apartment.Property?.LandlordId == userId)
-                    {
-                        canDelete = true;
-                    }
-                    if (!canDelete)
-                    {
-                        canDelete = await _context.PropertyManagerAssignments
-                            .AnyAsync(m => m.PropertyId == apartment!.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                    }
-                    if (!canDelete)
-                    {
-                        canDelete = await _context.ApartmentOwners
-                            .AnyAsync(o => o.ApartmentId == apartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    }
+                    canDelete = await _context.ApartmentOwners.AnyAsync(owner =>
+                        !owner.IsDeleted &&
+                        owner.ApartmentId == document.ApartmentId.Value &&
+                        owner.OwnerId == userId &&
+                        owner.Permission == PermissionLevelEnum.ReadWrite);
                 }
+
                 if (!canDelete && document.TenancyId.HasValue)
                 {
-                    var tenancyId = document.TenancyId.Value;
-                    var tenancy = document.Tenancy ?? await _context.Tenancies
-                        .Include(t => t.Apartment!.Property)
-                        .FirstOrDefaultAsync(t => t.Id == tenancyId);
-                    if (tenancy != null)
+                    var apartmentId = await _context.Tenancies
+                        .Where(tenancy => tenancy.Id == document.TenancyId.Value)
+                        .Select(tenancy => (int?)tenancy.ApartmentId)
+                        .FirstOrDefaultAsync();
+                    if (apartmentId.HasValue)
                     {
-                        if (tenancy.Apartment!.Property!.LandlordId == userId)
-                        {
-                            canDelete = true;
-                        }
-                        if (!canDelete)
-                        {
-                            canDelete = await _context.PropertyManagerAssignments
-                                .AnyAsync(m => m.PropertyId == tenancy.Apartment.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
-                        }
-                        if (!canDelete)
-                        {
-                            canDelete = await _context.ApartmentOwners
-                                .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                        }
+                        canDelete = await _context.ApartmentOwners.AnyAsync(owner =>
+                            !owner.IsDeleted &&
+                            owner.ApartmentId == apartmentId.Value &&
+                            owner.OwnerId == userId &&
+                            owner.Permission == PermissionLevelEnum.ReadWrite);
                     }
                 }
                 if (!canDelete) return Forbid();

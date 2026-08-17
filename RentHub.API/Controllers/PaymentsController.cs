@@ -13,6 +13,7 @@ using Microsoft.Data.SqlClient;
 using RentHub.API.Helpers;
 using Common.Helpers;
 using RentHub.API.Services.Receipts;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -27,6 +28,7 @@ namespace RentHub.API.Controllers
         private readonly IStripeCheckoutService _stripeCheckoutService;
         private readonly IRentReceiptService _receiptService;
         private readonly IConfiguration _configuration;
+        private readonly IManagerPermissionService _permissionService;
 
         public PaymentsController(ApplicationDbContext context,
             IPaymentService orangeMoneyService,
@@ -34,7 +36,8 @@ namespace RentHub.API.Controllers
             CardPaymentService cardPaymentService,
             IStripeCheckoutService stripeCheckoutService,
             IRentReceiptService receiptService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _orangeMoneyService = orangeMoneyService;
@@ -43,6 +46,7 @@ namespace RentHub.API.Controllers
             _stripeCheckoutService = stripeCheckoutService;
             _receiptService = receiptService;
             _configuration = configuration;
+            _permissionService = permissionService;
         }
 
         /// <summary>
@@ -786,7 +790,8 @@ namespace RentHub.API.Controllers
                     return NotFound("Tenancy or property not found.");
                 }
 
-                if (!await CanWriteTenancyAsync(tenancy, userId))
+                if (!await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancy.Id, ManagerPermission.MarkRentAsPaid, User.IsInRole("Admin")))
                 {
                     return Forbid();
                 }
@@ -934,7 +939,8 @@ namespace RentHub.API.Controllers
                     return NotFound("Tenancy or property not found.");
                 }
 
-                if (!await CanWriteTenancyAsync(tenancy, userId))
+                if (!await _permissionService.HasTenancyPermissionAsync(
+                        userId, tenancy.Id, ManagerPermission.DeletePayment, User.IsInRole("Admin")))
                 {
                     return Forbid();
                 }
@@ -1037,9 +1043,11 @@ namespace RentHub.API.Controllers
                     // Owner with write permission on the apartment
                     var ownerWrite = await _context.ApartmentOwners
                         .AnyAsync(o => o.ApartmentId == tenancy.ApartmentId && o.OwnerId == userId && o.Permission == PermissionLevelEnum.ReadWrite);
-                    // Manager with write permission on the property
-                    var managerWrite = await _context.PropertyManagerAssignments
-                        .AnyAsync(m => m.PropertyId == tenancy.Apartment!.PropertyId && m.ManagerId == userId && m.Permission == PermissionLevelEnum.ReadWrite);
+                    var managerWrite = await _permissionService.HasTenancyPermissionAsync(
+                        userId,
+                        tenancy.Id,
+                        ManagerPermission.MarkRentAsPaid,
+                        User.IsInRole("Admin"));
                     canWrite = ownerWrite || managerWrite;
                 }
                 if (!canWrite)
@@ -1343,35 +1351,6 @@ namespace RentHub.API.Controllers
                 : $"{first.PeriodStart:MMM d, yyyy} - {last.PeriodEnd:MMM d, yyyy}";
         }
 
-        private async Task<bool> CanWriteTenancyAsync(Tenancy tenancy, string userId)
-        {
-            if (tenancy.Apartment?.Property == null)
-            {
-                return false;
-            }
-
-            if (tenancy.Apartment.Property.LandlordId == userId)
-            {
-                return true;
-            }
-
-            var ownerWrite = await _context.ApartmentOwners.AnyAsync(o =>
-                !o.IsDeleted &&
-                o.ApartmentId == tenancy.ApartmentId &&
-                o.OwnerId == userId &&
-                o.Permission == PermissionLevelEnum.ReadWrite);
-
-            if (ownerWrite)
-            {
-                return true;
-            }
-
-            return await _context.PropertyManagerAssignments.AnyAsync(m =>
-                !m.IsDeleted &&
-                m.PropertyId == tenancy.Apartment.PropertyId &&
-                m.ManagerId == userId &&
-                m.Permission == PermissionLevelEnum.ReadWrite);
-        }
     }
 }
 

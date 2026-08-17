@@ -10,7 +10,8 @@ namespace RentHub.API.Services.Users
             string? countryCode,
             string? phoneNumber,
             string? whatsAppPhoneNumber,
-            string roleName);
+            string roleName,
+            bool sendActivationEmail = true);
 
         Task SendActivationOtpAsync(
             ApplicationUser user,

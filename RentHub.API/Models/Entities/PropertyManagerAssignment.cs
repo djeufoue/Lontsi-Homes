@@ -20,6 +20,12 @@ namespace RentHub.API.Models.Entities
 
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
 
+        public long PermissionFlags { get; set; } = (long)ManagerPermissionDefaults.ReadOnly;
+
+        public bool AccessAllApartments { get; set; } = true;
+
+        public ICollection<ManagerApartmentPermissionOverride> ApartmentOverrides { get; set; } = new List<ManagerApartmentPermissionOverride>();
+
         // Audit fields
         public bool IsDeleted { get; set; } = false;
         public string? CreatedBy { get; set; }

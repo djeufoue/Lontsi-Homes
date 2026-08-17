@@ -9,6 +9,7 @@ using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Storage;
+using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
 {
@@ -22,19 +23,22 @@ namespace RentHub.API.Controllers
         private readonly IEmailService _emailService;
         private readonly IStorageService _storageService;
         private readonly IConfiguration _configuration;
+        private readonly IManagerPermissionService _permissionService;
 
         public ConversationsController(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             IStorageService storageService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IManagerPermissionService permissionService)
         {
             _context = context;
             _userManager = userManager;
             _emailService = emailService;
             _storageService = storageService;
             _configuration = configuration;
+            _permissionService = permissionService;
         }
 
         [HttpGet("mine")]
@@ -57,7 +61,8 @@ namespace RentHub.API.Controllers
                 var roles = await _userManager.GetRolesAsync(user);
                 var isVisitor = roles.Any(r => string.Equals(r, "Visitor", StringComparison.OrdinalIgnoreCase));
                 var isLandlord = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase));
-                if (!isVisitor && !isLandlord)
+                var isManager = roles.Any(r => string.Equals(r, "Manager", StringComparison.OrdinalIgnoreCase));
+                if (!isVisitor && !isLandlord && !isManager)
                 {
                     return Forbid();
                 }
@@ -69,13 +74,32 @@ namespace RentHub.API.Controllers
                     .Include(c => c.Landlord)
                     .AsQueryable();
 
-                query = isVisitor
-                    ? query.Where(c => c.VisitorId == userId)
-                    : query.Where(c => c.LandlordId == userId);
+                if (isVisitor)
+                {
+                    query = query.Where(c => c.VisitorId == userId);
+                }
+                else if (isLandlord)
+                {
+                    query = query.Where(c => c.LandlordId == userId);
+                }
 
                 var conversations = await query
                     .OrderByDescending(c => c.LastMessageAt)
                     .ToListAsync();
+
+                if (isManager && !isLandlord)
+                {
+                    var visible = new List<ApartmentConversation>();
+                    foreach (var conversation in conversations)
+                    {
+                        if (await _permissionService.HasApartmentPermissionAsync(
+                                userId, conversation.ApartmentId, ManagerPermission.ViewMessages, User.IsInRole("Admin")))
+                        {
+                            visible.Add(conversation);
+                        }
+                    }
+                    conversations = visible;
+                }
 
                 var conversationIds = conversations.Select(c => c.Id).ToList();
                 var latestMessages = await _context.ConversationMessages
@@ -139,7 +163,7 @@ namespace RentHub.API.Controllers
                     return NotFound("Conversation not found.");
                 }
 
-                var access = await ResolveConversationAccessAsync(conversation, userId);
+                var access = await ResolveConversationAccessAsync(conversation, userId, ManagerPermission.ViewMessages);
                 if (!access.CanAccess)
                 {
                     return Forbid();
@@ -284,7 +308,7 @@ namespace RentHub.API.Controllers
                     return NotFound("Conversation not found.");
                 }
 
-                var access = await ResolveConversationAccessAsync(conversation, userId);
+                var access = await ResolveConversationAccessAsync(conversation, userId, ManagerPermission.SendMessages);
                 if (!access.CanAccess)
                 {
                     return Forbid();
@@ -391,7 +415,10 @@ namespace RentHub.API.Controllers
                 .FirstOrDefaultAsync(c => c.Id == conversationId);
         }
 
-        private async Task<(bool CanAccess, bool IsVisitor, bool IsLandlord)> ResolveConversationAccessAsync(ApartmentConversation conversation, string userId)
+        private async Task<(bool CanAccess, bool IsVisitor, bool IsLandlord)> ResolveConversationAccessAsync(
+            ApartmentConversation conversation,
+            string userId,
+            ManagerPermission managerPermission)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
@@ -401,7 +428,10 @@ namespace RentHub.API.Controllers
 
             var isVisitor = string.Equals(conversation.VisitorId, userId, StringComparison.Ordinal);
             var isLandlord = string.Equals(conversation.LandlordId, userId, StringComparison.Ordinal);
-            return (isVisitor || isLandlord, isVisitor, isLandlord);
+            var isAuthorizedManager = !isVisitor && !isLandlord &&
+                await _permissionService.HasApartmentPermissionAsync(
+                    userId, conversation.ApartmentId, managerPermission, User.IsInRole("Admin"));
+            return (isVisitor || isLandlord || isAuthorizedManager, isVisitor, isLandlord || isAuthorizedManager);
         }
 
         private async Task<ConversationThreadDto> BuildThreadDtoAsync(ApartmentConversation conversation, string currentUserId, bool isVisitor)

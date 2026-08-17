@@ -91,7 +91,7 @@ else
                         <td>
                             @if (period.Status == RentPeriodStatusEnum.PendingPayment)
                             {
-                                @if (tenancy.CanWrite && period.CanCancelPendingPayment)
+                                @if (tenancy.CanCancelPendingPayment && period.CanCancelPendingPayment)
                                 {
                                     <form method="post" asp-action="CancelPendingRentPayment" data-confirm-modal="true" data-confirm-title="@T["Cancel this pending payment?"]" data-confirm-message="@T["This cancels only the oldest pending payment, keeps its history, releases its rent period(s), and unlocks the next period. A completed payment cannot be cancelled."]" data-confirm-proceed="@T["Cancel pending payment"]" data-confirm-style="danger">
                                         @Html.AntiForgeryToken()
@@ -113,7 +113,7 @@ else
                                     <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">@T["Download"]</a>
                                 </div>
                             }
-                            else if (tenancy.CanWrite && period.IsPayable)
+                            else if (tenancy.CanMarkRentPaid && period.IsPayable)
                             {
                                 <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="@T["Mark this rent period as paid by cash?"]" data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]" data-confirm-proceed="@T["Mark paid cash"]" data-confirm-style="primary">
                                     @Html.AntiForgeryToken()
