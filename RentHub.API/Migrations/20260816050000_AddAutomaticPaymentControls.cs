@@ -36,6 +36,7 @@ namespace RentHub.API.Migrations
             migrationBuilder.InsertData(
                 table: "PlatformPaymentSettings",
                 columns: new[] { "Id", "AutomaticPaymentsEnabled", "UpdatedAt", "UpdatedBy" },
+                columnTypes: new[] { "int", "bit", "datetimeoffset", "nvarchar(max)" },
                 values: new object[] { 1, false, new DateTimeOffset(2026, 8, 16, 0, 0, 0, TimeSpan.Zero), null });
         }
 
