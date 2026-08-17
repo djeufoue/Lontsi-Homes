@@ -89,7 +89,24 @@ else
                         <td><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
                         <td><small>@(string.IsNullOrWhiteSpace(period.SystemReceiptNumber) ? (string.IsNullOrWhiteSpace(period.PaymentReference) ? "—" : period.PaymentReference) : period.SystemReceiptNumber)</small></td>
                         <td>
-                            @if (period.PaymentId.HasValue)
+                            @if (period.Status == RentPeriodStatusEnum.PendingPayment)
+                            {
+                                @if (tenancy.CanWrite && period.CanCancelPendingPayment)
+                                {
+                                    <form method="post" asp-action="CancelPendingRentPayment" data-confirm-modal="true" data-confirm-title="@T["Cancel this pending payment?"]" data-confirm-message="@T["This cancels only the oldest pending payment, keeps its history, releases its rent period(s), and unlocks the next period. A completed payment cannot be cancelled."]" data-confirm-proceed="@T["Cancel pending payment"]" data-confirm-style="danger">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                        <input type="hidden" name="rentPeriodId" value="@period.Id" />
+                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                        <button type="submit" class="btn btn-sm rh-btn-danger">@T["Cancel pending payment"]</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@T[period.CanCancelPendingPayment ? "Payment pending" : "Pay previous periods first"]</span>
+                                }
+                            }
+                            else if (period.PaymentId.HasValue)
                             {
                                 <div class="d-flex flex-wrap gap-2">
                                     <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">@T["Receipt"]</a>

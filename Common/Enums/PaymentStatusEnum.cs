@@ -9,6 +9,7 @@ namespace Common.Enums
         Success = 1,
         Failed = 2,
         Error = 3,
-        Unknown = 4
+        Unknown = 4,
+        Cancelled = 5
     }
 }

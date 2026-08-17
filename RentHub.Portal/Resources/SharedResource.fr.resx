@@ -1139,6 +1139,10 @@
   <data name="Manual Review" xml:space="preserve"><value>Examen manuel</value></data>
   <data name="Mark paid cash" xml:space="preserve"><value>Marquer comme payé en espèces</value></data>
   <data name="Mark this rent period as paid by cash?" xml:space="preserve"><value>Marquer cette période de loyer comme payée en espèces?</value></data>
+  <data name="Cancel pending payment" xml:space="preserve"><value>Annuler le paiement en attente</value></data>
+  <data name="Cancel this pending payment?" xml:space="preserve"><value>Annuler ce paiement en attente?</value></data>
+  <data name="This cancels only the oldest pending payment, keeps its history, releases its rent period(s), and unlocks the next period. A completed payment cannot be cancelled." xml:space="preserve"><value>Cette action annule uniquement le plus ancien paiement en attente, conserve son historique, libère ses périodes de loyer et déverrouille la période suivante. Un paiement terminé ne peut pas être annulé.</value></data>
+  <data name="Payment pending" xml:space="preserve"><value>Paiement en attente</value></data>
   <data name="Month-by-month rent state for this tenancy." xml:space="preserve"><value>État mensuel du loyer pour cette location.</value></data>
   <data name="Newest first" xml:space="preserve"><value>Plus récent d’abord</value></data>
   <data name="No active OTP" xml:space="preserve"><value>Aucun code OTP actif</value></data>

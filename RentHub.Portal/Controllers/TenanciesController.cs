@@ -674,6 +674,33 @@ namespace RentHub.Portal.Controllers
             return RedirectToRentPeriodSource(tenancyId, returnUrl);
         }
 
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelPendingRentPayment(int tenancyId, int rentPeriodId, string? returnUrl = null)
+        {
+            try
+            {
+                if (rentPeriodId <= 0)
+                {
+                    TempData["Error"] = "Please choose a pending rent payment to cancel.";
+                    return RedirectToRentPeriodSource(tenancyId, returnUrl);
+                }
+
+                await _api.PostAsync(
+                    $"payments/rent-periods/{rentPeriodId}/cancel-pending-payment",
+                    new { });
+
+                TempData["Success"] = "Pending payment cancelled. The rent period is available again.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Cancel pending rent payment failed in portal for tenancy {TenancyId}, rent period {RentPeriodId}.", tenancyId, rentPeriodId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to cancel the pending payment right now.");
+            }
+
+            return RedirectToRentPeriodSource(tenancyId, returnUrl);
+        }
+
         private async Task<TenancyCreateDraft> LoadOrCreateDraftAsync(int apartmentId)
         {
             var existing = LoadDraft(apartmentId);

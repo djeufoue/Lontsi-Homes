@@ -639,6 +639,11 @@ namespace RentHub.API.Controllers
                     return BadRequest(new { Message = "This rent payment has already been completed." });
                 }
 
+                if (payment.Status == PaymentStatusEnum.Cancelled)
+                {
+                    return BadRequest(new { Message = "This rent payment was cancelled. Please choose the rent periods again." });
+                }
+
                 if (!IsStripeCheckoutSessionId(payment.TransactionId))
                 {
                     return BadRequest(new { Message = "Card checkout is not ready yet. Please choose the rent periods again." });
@@ -712,7 +717,7 @@ namespace RentHub.API.Controllers
                     return NotFound("Rent card checkout was not found.");
                 }
 
-                if (payment.Status != PaymentStatusEnum.Success &&
+                if (payment.Status == PaymentStatusEnum.Pending &&
                     IsStripeCheckoutSessionId(payment.TransactionId))
                 {
                     var remoteStatus = await _stripeCheckoutService.RetrieveSessionAsync(payment.TransactionId);
@@ -738,6 +743,8 @@ namespace RentHub.API.Controllers
                         ? "Rent payment completed successfully."
                         : payment.Status == PaymentStatusEnum.Failed
                             ? "The card payment was not completed. Please choose the rent periods and try again."
+                            : payment.Status == PaymentStatusEnum.Cancelled
+                                ? "The card payment was cancelled. Please choose the rent periods again."
                             : "The card payment is still pending. Please complete the secure card form."
                 });
             }
@@ -897,6 +904,108 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPost("rent-periods/{rentPeriodId:int}/cancel-pending-payment")]
+        [Authorize]
+        public async Task<IActionResult> CancelPendingRentPayment(int rentPeriodId)
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var period = await _context.RentPeriods
+                    .Include(rp => rp.Payment)
+                    .Include(rp => rp.Tenancy)
+                    .ThenInclude(t => t!.Apartment)
+                    .ThenInclude(a => a!.Property)
+                    .FirstOrDefaultAsync(rp => rp.Id == rentPeriodId && !rp.IsDeleted);
+
+                if (period == null)
+                {
+                    return NotFound("Rent period not found.");
+                }
+
+                var tenancy = period.Tenancy;
+                if (tenancy?.Apartment?.Property == null)
+                {
+                    return NotFound("Tenancy or property not found.");
+                }
+
+                if (!await CanWriteTenancyAsync(tenancy, userId))
+                {
+                    return Forbid();
+                }
+
+                if (period.Status != RentPeriodStatusEnum.PendingPayment ||
+                    !period.PaymentId.HasValue ||
+                    period.Payment == null)
+                {
+                    return BadRequest("This rent period does not have a pending payment to cancel.");
+                }
+
+                if (period.Payment.Status != PaymentStatusEnum.Pending)
+                {
+                    return BadRequest("Only a pending payment can be cancelled.");
+                }
+
+                var payment = period.Payment;
+
+                var tenancyPeriods = await _context.RentPeriods
+                    .Where(rp => rp.TenancyId == tenancy.Id && !rp.IsDeleted)
+                    .OrderBy(rp => rp.PeriodStart)
+                    .ToListAsync();
+
+                var firstOpenPeriod = tenancyPeriods.FirstOrDefault(rp =>
+                    !RentPeriodScheduleHelper.IsPaidStatus(rp.Status));
+
+                if (firstOpenPeriod == null || firstOpenPeriod.Id != period.Id)
+                {
+                    return BadRequest("Pending payments must be cancelled in rent period order.");
+                }
+
+                var linkedPeriods = tenancyPeriods
+                    .Where(rp => rp.PaymentId == period.PaymentId.Value)
+                    .ToList();
+
+                if (linkedPeriods.Count == 0 ||
+                    linkedPeriods.Any(rp => rp.Status != RentPeriodStatusEnum.PendingPayment))
+                {
+                    return Conflict(new { Message = "This payment can no longer be cancelled because one of its rent periods has changed." });
+                }
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                payment.Status = PaymentStatusEnum.Cancelled;
+                payment.RequestKey = $"cancelled:{payment.Id}:{payment.RequestKey}";
+                payment.UpdatedBy = userId;
+                payment.UpdatedAt = nowUtc;
+
+                foreach (var linkedPeriod in linkedPeriods)
+                {
+                    linkedPeriod.Status = RentPeriodScheduleHelper.ResolveUnpaidStatus(linkedPeriod.DueDate, nowUtc);
+                    linkedPeriod.PaymentId = null;
+                    linkedPeriod.PaymentReference = string.Empty;
+                    linkedPeriod.UpdatedBy = userId;
+                    linkedPeriod.UpdatedAt = nowUtc;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    Message = "Pending rent payment cancelled.",
+                    PaymentId = payment.Id,
+                    ReleasedPeriodIds = linkedPeriods.Select(rp => rp.Id).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
         /// <summary>
         /// Marks a payment as paid (success) manually.  Only the landlord of the payment or an
         /// authorized manager/owner with write permission may perform this action.  Useful if
@@ -1032,6 +1141,11 @@ namespace RentHub.API.Controllers
             StripeCheckoutStatus remoteStatus,
             string actorId)
         {
+            if (payment.Status == PaymentStatusEnum.Cancelled)
+            {
+                return;
+            }
+
             var providerStatus = ResolveStripeProviderStatus(remoteStatus.PaymentStatus, remoteStatus.Status);
             var periods = await _context.RentPeriods
                 .Where(period => period.PaymentId == payment.Id && !period.IsDeleted)

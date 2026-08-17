@@ -1277,6 +1277,9 @@ namespace RentHub.API.Controllers
                     Status = status,
                     StatusLabel = RentPeriodScheduleHelper.StatusLabel(status),
                     IsPayable = isPayable,
+                    CanCancelPendingPayment = status == RentPeriodStatusEnum.PendingPayment &&
+                                              firstUnpaidId == period.Id &&
+                                              period.PaymentId.HasValue,
                     LockedReason = isPaid || isPayable
                         ? string.Empty
                         : firstUnpaidId.HasValue

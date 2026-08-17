@@ -22,6 +22,7 @@ namespace Common.CommunicationModels
         public RentPeriodStatusEnum Status { get; set; }
         public string StatusLabel { get; set; } = string.Empty;
         public bool IsPayable { get; set; }
+        public bool CanCancelPendingPayment { get; set; }
         public string LockedReason { get; set; } = string.Empty;
     }
 
