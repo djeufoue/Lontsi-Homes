@@ -115,12 +115,29 @@ else
                             }
                             else if (tenancy.CanMarkRentPaid && period.IsPayable)
                             {
-                                <form method="post" asp-action="MarkRentPeriodPaid" data-confirm-modal="true" data-confirm-title="@T["Mark this rent period as paid by cash?"]" data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]" data-confirm-proceed="@T["Mark paid cash"]" data-confirm-style="primary">
+                                <form method="post"
+                                      asp-action="MarkRentPeriodPaid"
+                                      class="rh-rent-payment-action"
+                                      data-confirm-modal="true"
+                                      data-confirm-title="@T["Mark this rent period as paid by cash?"]"
+                                      data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]"
+                                      data-confirm-proceed="@T["Mark paid cash"]"
+                                      data-confirm-style="primary"
+                                      data-submit-progress="true"
+                                      data-submit-progress-button-label="@T["Processing..."]">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                                     <input type="hidden" name="rentPeriodId" value="@period.Id" />
                                     <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                    <button type="submit" class="btn btn-sm rh-btn-primary">@T["Mark paid cash"]</button>
+                                    <button type="submit" class="btn btn-sm rh-btn-primary" data-submit-progress-button>@T["Mark paid cash"]</button>
+                                    <div class="rh-submit-progress"
+                                         data-submit-progress-status
+                                         role="status"
+                                         aria-live="polite"
+                                         hidden>
+                                        <span class="rh-submit-progress-spinner" aria-hidden="true"></span>
+                                        <span>@T["Payment processing is in progress. Please wait."]</span>
+                                    </div>
                                 </form>
                             }
                             else if (!string.IsNullOrWhiteSpace(period.LockedReason))

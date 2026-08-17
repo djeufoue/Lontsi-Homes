@@ -1600,6 +1600,43 @@ body.rh-body {
   margin-top: 1rem;
 }
 
+.rh-rent-payment-action {
+  min-width: min(18rem, 100%);
+}
+
+.rh-submit-progress {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 18rem;
+  margin-top: 0.55rem;
+  color: var(--rh-warning);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.rh-submit-progress[hidden] {
+  display: none !important;
+}
+
+.rh-submit-progress-spinner {
+  flex: 0 0 auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.08rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rh-submit-progress-spin 0.75s linear infinite;
+}
+
+@keyframes rh-submit-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .rh-table-filter-grid {
   margin-top: 0;
 }

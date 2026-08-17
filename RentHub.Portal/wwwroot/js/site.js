@@ -1411,6 +1411,39 @@
     });
   }
 
+  document.addEventListener("submit", (event) => {
+    const form = event.target.closest("form[data-submit-progress='true']");
+    if (!form || event.defaultPrevented) {
+      return;
+    }
+
+    event.preventDefault();
+    if (form.dataset.submitting === "true") {
+      return;
+    }
+
+    form.dataset.submitting = "true";
+    form.setAttribute("aria-busy", "true");
+
+    const submitButton = event.submitter || form.querySelector("[data-submit-progress-button]");
+    form.querySelectorAll("button[type='submit'], input[type='submit']").forEach((control) => {
+      control.disabled = true;
+    });
+
+    if (submitButton) {
+      submitButton.textContent = form.dataset.submitProgressButtonLabel || "Processing...";
+    }
+
+    const status = form.querySelector("[data-submit-progress-status]");
+    if (status) {
+      status.hidden = false;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => HTMLFormElement.prototype.submit.call(form));
+    });
+  });
+
   initPropertyOverview();
   initPropertySettingsPage();
   initApartmentOverview();
