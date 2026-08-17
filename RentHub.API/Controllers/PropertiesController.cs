@@ -19,6 +19,22 @@ namespace RentHub.API.Controllers
     [Route("api/[controller]")]
     public class PropertiesController : ControllerBase
     {
+        private const int MinDialogAutoCloseSeconds = 2;
+        private const int MaxDialogAutoCloseSeconds = 30;
+        private const string DefaultDialogPosition = "bottom-center";
+        private static readonly HashSet<string> AllowedDialogPositions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "top-start",
+            "top-center",
+            "top-end",
+            "center-start",
+            "center",
+            "center-end",
+            "bottom-start",
+            DefaultDialogPosition,
+            "bottom-end"
+        };
+
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IStorageService _storageService;
@@ -373,6 +389,10 @@ namespace RentHub.API.Controllers
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
                     MapEnabled = property.MapEnabled,
+                    SuccessDialogShowSuccessMessages = property.SuccessDialogShowSuccessMessages,
+                    SuccessDialogAutoCloseEnabled = property.SuccessDialogAutoCloseEnabled,
+                    SuccessDialogAutoCloseSeconds = property.SuccessDialogAutoCloseSeconds,
+                    SuccessDialogPosition = property.SuccessDialogPosition,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
@@ -544,6 +564,10 @@ namespace RentHub.API.Controllers
                     Latitude = propertyEntity.Latitude,
                     Longitude = propertyEntity.Longitude,
                     MapEnabled = propertyEntity.MapEnabled,
+                    SuccessDialogShowSuccessMessages = propertyEntity.SuccessDialogShowSuccessMessages,
+                    SuccessDialogAutoCloseEnabled = propertyEntity.SuccessDialogAutoCloseEnabled,
+                    SuccessDialogAutoCloseSeconds = propertyEntity.SuccessDialogAutoCloseSeconds,
+                    SuccessDialogPosition = propertyEntity.SuccessDialogPosition,
                     LandlordId = propertyEntity.LandlordId,
                     LandlordName = landlord.FullName ?? landlord.Email ?? "",
                     Apartments = new List<ApartmentDto>()
@@ -743,6 +767,10 @@ namespace RentHub.API.Controllers
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
                     MapEnabled = property.MapEnabled,
+                    SuccessDialogShowSuccessMessages = property.SuccessDialogShowSuccessMessages,
+                    SuccessDialogAutoCloseEnabled = property.SuccessDialogAutoCloseEnabled,
+                    SuccessDialogAutoCloseSeconds = property.SuccessDialogAutoCloseSeconds,
+                    SuccessDialogPosition = property.SuccessDialogPosition,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = new List<ApartmentDto>()
@@ -780,6 +808,56 @@ namespace RentHub.API.Controllers
                 Message = property.MapEnabled
                     ? "Property map enabled."
                     : "Property map disabled."
+            });
+        }
+
+        [HttpPut("{id}/dialog-settings")]
+        [Authorize]
+        public async Task<IActionResult> UpdatePropertyDialogSettings(
+            int id,
+            [FromBody] UpdatePropertyDialogSettingsRequest request)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var property = await _context.Properties.FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted);
+            if (property == null) return NotFound("Property not found.");
+
+            var isAdmin = User.IsInRole("Admin");
+            if (!await _permissionService.HasPropertyPermissionAsync(
+                    userId,
+                    id,
+                    ManagerPermission.EditProperty,
+                    isAdmin))
+            {
+                return Forbid();
+            }
+
+            var normalizedPosition = request.DialogPosition?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(normalizedPosition) || !AllowedDialogPositions.Contains(normalizedPosition))
+            {
+                return BadRequest(new { Message = "The selected dialog position is invalid." });
+            }
+
+            property.SuccessDialogShowSuccessMessages = request.ShowSuccessMessages;
+            property.SuccessDialogAutoCloseEnabled = request.AutoCloseEnabled;
+            property.SuccessDialogAutoCloseSeconds = Math.Clamp(
+                request.AutoCloseSeconds,
+                MinDialogAutoCloseSeconds,
+                MaxDialogAutoCloseSeconds);
+            property.SuccessDialogPosition = normalizedPosition;
+            property.UpdatedBy = userId;
+            property.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                property.Id,
+                property.SuccessDialogShowSuccessMessages,
+                property.SuccessDialogAutoCloseEnabled,
+                property.SuccessDialogAutoCloseSeconds,
+                property.SuccessDialogPosition,
+                Message = "Property dialog settings updated."
             });
         }
 
@@ -883,6 +961,10 @@ namespace RentHub.API.Controllers
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
                     MapEnabled = property.MapEnabled,
+                    SuccessDialogShowSuccessMessages = property.SuccessDialogShowSuccessMessages,
+                    SuccessDialogAutoCloseEnabled = property.SuccessDialogAutoCloseEnabled,
+                    SuccessDialogAutoCloseSeconds = property.SuccessDialogAutoCloseSeconds,
+                    SuccessDialogPosition = property.SuccessDialogPosition,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments

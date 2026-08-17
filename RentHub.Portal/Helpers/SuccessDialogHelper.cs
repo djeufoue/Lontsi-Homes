@@ -62,6 +62,23 @@ namespace RentHub.Portal.Helpers
             int autoCloseSeconds,
             bool showSuccessMessages,
             string? position)
+            => CacheForProperty(
+                session,
+                propertyId,
+                showCloseButton,
+                autoCloseEnabled,
+                autoCloseSeconds,
+                showSuccessMessages,
+                position);
+
+        public static void CacheForProperty(
+            ISession session,
+            int propertyId,
+            bool showCloseButton,
+            bool autoCloseEnabled,
+            int autoCloseSeconds,
+            bool showSuccessMessages,
+            string? position)
         {
             var normalized = NormalizeAutoClose(autoCloseSeconds);
             var normalizedPosition = NormalizePosition(position);

@@ -100,6 +100,19 @@ namespace RentHub.API.Data
 
                 entity.Property(p => p.MapEnabled)
                     .HasDefaultValue(false);
+
+                entity.Property(p => p.SuccessDialogShowSuccessMessages)
+                    .HasDefaultValue(true);
+
+                entity.Property(p => p.SuccessDialogAutoCloseEnabled)
+                    .HasDefaultValue(false);
+
+                entity.Property(p => p.SuccessDialogAutoCloseSeconds)
+                    .HasDefaultValue(5);
+
+                entity.Property(p => p.SuccessDialogPosition)
+                    .HasMaxLength(32)
+                    .HasDefaultValue("bottom-center");
             });
 
             builder.Entity<Tenancy>()

@@ -19,6 +19,10 @@ namespace RentHub.API.Models.Entities
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
         public bool MapEnabled { get; set; } = false;
+        public bool SuccessDialogShowSuccessMessages { get; set; } = true;
+        public bool SuccessDialogAutoCloseEnabled { get; set; }
+        public int SuccessDialogAutoCloseSeconds { get; set; } = 5;
+        public string SuccessDialogPosition { get; set; } = "bottom-center";
         public bool AutomaticPaymentsEnabled { get; set; }
 
         // Owner of the property

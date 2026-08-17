@@ -17,6 +17,10 @@ namespace Common.CommunicationModels
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
         public bool MapEnabled { get; set; }
+        public bool SuccessDialogShowSuccessMessages { get; set; } = true;
+        public bool SuccessDialogAutoCloseEnabled { get; set; }
+        public int SuccessDialogAutoCloseSeconds { get; set; } = 5;
+        public string SuccessDialogPosition { get; set; } = "bottom-center";
 
         public string LandlordId { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;

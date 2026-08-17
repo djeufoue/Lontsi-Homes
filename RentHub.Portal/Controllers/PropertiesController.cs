@@ -347,27 +347,56 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult UpdateSuccessDialogSettings(
+        public async Task<IActionResult> UpdateSuccessDialogSettings(
             int propertyId,
             bool autoCloseEnabled,
             int autoCloseSeconds,
             bool showSuccessMessages,
             string? dialogPosition)
         {
-            SuccessDialogHelper.SaveForProperty(
-                HttpContext.Session,
-                propertyId,
-                true,
-                autoCloseEnabled,
-                autoCloseSeconds,
-                showSuccessMessages,
-                dialogPosition);
-            if (IsAjaxRequest())
+            try
             {
-                return Ok(new { Message = "Success dialog settings updated for this property." });
+                var request = new UpdatePropertyDialogSettingsRequest
+                {
+                    ShowSuccessMessages = showSuccessMessages,
+                    AutoCloseEnabled = autoCloseEnabled,
+                    AutoCloseSeconds = autoCloseSeconds,
+                    DialogPosition = SuccessDialogHelper.NormalizePosition(dialogPosition)
+                };
+
+                await _api.PutAsync($"properties/{propertyId}/dialog-settings", request);
+                SuccessDialogHelper.CacheForProperty(
+                    HttpContext.Session,
+                    propertyId,
+                    true,
+                    request.AutoCloseEnabled,
+                    request.AutoCloseSeconds,
+                    request.ShowSuccessMessages,
+                    request.DialogPosition);
+                await BroadcastPropertyUpdateAsync(propertyId, "dialog-settings-updated");
+
+                if (IsAjaxRequest())
+                {
+                    return Ok(new { Message = "Success dialog settings updated for this property." });
+                }
+
+                TempData["Success"] = "Success dialog settings updated for this property.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to update dialog settings for property {PropertyId}.", propertyId);
+                var message = SafeUserMessage(
+                    ParseApiError(ex.Message).Message,
+                    "Unable to update the property dialog settings right now.");
+
+                if (IsAjaxRequest())
+                {
+                    return BadRequest(new { Message = message });
+                }
+
+                TempData["Error"] = message;
             }
 
-            TempData["Success"] = "Success dialog settings updated for this property.";
             return RedirectToAction(nameof(Settings), new { id = propertyId });
         }
 
@@ -906,7 +935,14 @@ namespace RentHub.Portal.Controllers
         {
             var overview = await _api.GetAsync<PropertyOverviewDto>($"properties/{id}/overview");
 
-            SuccessDialogHelper.ActivateForProperty(HttpContext.Session, id);
+            SuccessDialogHelper.CacheForProperty(
+                HttpContext.Session,
+                id,
+                true,
+                overview.Property.SuccessDialogAutoCloseEnabled,
+                overview.Property.SuccessDialogAutoCloseSeconds,
+                overview.Property.SuccessDialogShowSuccessMessages,
+                overview.Property.SuccessDialogPosition);
             var dialogSettings = SuccessDialogHelper.GetForProperty(HttpContext.Session, id);
 
             var apartments = overview.Property.Apartments?.ToList() ?? new List<ApartmentDto>();

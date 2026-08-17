@@ -73,8 +73,10 @@ namespace Common.Helpers
             var muted = (0.56, 0.45, 0.43);
             var footer = (0.66, 0.553, 0.537);
 
-            FillRect(sb, 0, 0, PageWidth, PageHeight, 0.12, 0.115, 0.118);
-            FillRect(sb, left - 18, 44, width + 36, 754, paper.Item1, paper.Item2, paper.Item3);
+            // The invoice paper fills the complete PDF media box. Previously a dark
+            // canvas was painted first and the paper was inset, which appeared as a
+            // thick black border in PDF readers and when printing.
+            FillRect(sb, 0, 0, PageWidth, PageHeight, paper.Item1, paper.Item2, paper.Item3);
 
             var invoiceTitle = isFrench ? "FACTURE DE LOYER" : "RENT INVOICE";
             var titleSize = FitFontSize(invoiceTitle, 31, 21, width - 70);
@@ -151,7 +153,7 @@ namespace Common.Helpers
             FillRect(sb, right - 58, 352, 58, 20, accent.Item1, accent.Item2, accent.Item3);
             TextRightFitted(sb, "F2", 8, 7, right - 10, 359, isFrench ? "PAYEE" : "PAID", (1d, 0.98, 0.95), 42);
 
-            FillRect(sb, left - 18, 44, width + 36, 250, footer.Item1, footer.Item2, footer.Item3);
+            FillRect(sb, 0, 0, PageWidth, 294, footer.Item1, footer.Item2, footer.Item3);
             Text(sb, "F2", 8, left, 260, isFrench ? "INFORMATIONS DU LOCATAIRE" : "TENANT INFORMATION", 1, 0.98, 0.95, 0.8);
             TextFitted(sb, "F2", 14, 10, left, 235, receipt.TenantName, (1d, 0.98, 0.95), 315);
 
@@ -197,7 +199,9 @@ namespace Common.Helpers
                 (1d, 0.98, 0.95),
                 315);
 
-            DrawQrCode(sb, receipt.QrCodeSvg, right - 112, 105, 106);
+            // Align the QR card with the top of the tenant-information block so the
+            // footer keeps the same visual grid as the browser invoice.
+            DrawQrCode(sb, receipt.QrCodeSvg, right - 112, 166, 106);
             return sb.ToString();
         }
 
