@@ -78,6 +78,35 @@
     }
   });
 
+  const feedbackDialogPositions = new Set([
+    "top-start",
+    "top-center",
+    "top-end",
+    "center-start",
+    "center",
+    "center-end",
+    "bottom-start",
+    "bottom-center",
+    "bottom-end"
+  ]);
+
+  const normalizeFeedbackDialogPosition = (position) => {
+    const normalized = String(position || "").trim().toLowerCase();
+    return feedbackDialogPositions.has(normalized) ? normalized : "bottom-center";
+  };
+
+  const applyFeedbackDialogPosition = (modalEl, position) => {
+    const dialogEl = modalEl?.querySelector(".modal-dialog");
+    if (!dialogEl) {
+      return;
+    }
+
+    Array.from(dialogEl.classList)
+      .filter((className) => className.startsWith("rh-feedback-position-"))
+      .forEach((className) => dialogEl.classList.remove(className));
+    dialogEl.classList.add(`rh-feedback-position-${normalizeFeedbackDialogPosition(position)}`);
+  };
+
   const ensureFeedbackModal = () => {
     let modalEl = document.getElementById("rhFeedbackModal");
     if (modalEl) {
@@ -90,7 +119,7 @@
     modalEl.tabIndex = -1;
     modalEl.setAttribute("aria-hidden", "true");
     modalEl.innerHTML = `
-      <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-dialog rh-feedback-dialog rh-feedback-position-bottom-center">
         <div class="modal-content rh-success-modal" data-feedback-surface="true">
           <div class="modal-header border-0">
             <h5 class="modal-title" id="rhFeedbackModalTitle">${t("Action completed")}</h5>
@@ -110,6 +139,10 @@
   };
 
   const showFeedbackModal = (type, message, options = {}) => {
+    if (type === "success" && options.showSuccessMessages === false) {
+      return;
+    }
+
     const modalEl = ensureFeedbackModal();
     const modal = getBootstrapModal(modalEl);
     const titleEl = modalEl.querySelector("#rhFeedbackModalTitle");
@@ -125,6 +158,7 @@
     const allowManualClose = options.allowManualClose !== false;
     const autoCloseEnabled = options.autoCloseEnabled === true;
     const autoCloseMs = Number(options.autoCloseSeconds || 0) * 1000;
+    applyFeedbackDialogPosition(modalEl, options.dialogPosition);
 
     titleEl.textContent = type === "error" ? t("Action Failed") : t("Action Completed");
     messageEl.textContent = message;
@@ -640,7 +674,7 @@
         return;
       }
 
-      autoCloseSeconds.disabled = !autoCloseEnabled.checked;
+      autoCloseSeconds.readOnly = !autoCloseEnabled.checked;
     };
 
     if (autoCloseEnabled && autoCloseEnabled.dataset.bound !== "true") {
@@ -690,7 +724,7 @@
   };
 
   const syncPropertyRootDataset = (currentRoot, nextRoot) => {
-    ["propertyId", "overviewContentUrl", "showCloseButton", "autoCloseEnabled", "autoCloseSeconds"].forEach((key) => {
+    ["propertyId", "overviewContentUrl", "showCloseButton", "autoCloseEnabled", "autoCloseSeconds", "showSuccessMessages", "dialogPosition"].forEach((key) => {
       if (nextRoot.dataset[key] !== undefined) {
         currentRoot.dataset[key] = nextRoot.dataset[key];
       }
@@ -828,7 +862,9 @@
   const getDialogOptions = (root) => ({
     allowManualClose: true,
     autoCloseEnabled: root?.dataset.autoCloseEnabled === "true",
-    autoCloseSeconds: Number(root?.dataset.autoCloseSeconds || 0)
+    autoCloseSeconds: Number(root?.dataset.autoCloseSeconds || 0),
+    showSuccessMessages: root?.dataset.showSuccessMessages !== "false",
+    dialogPosition: normalizeFeedbackDialogPosition(root?.dataset.dialogPosition)
   });
 
   const getDialogOptionsForForm = (root, form) => {
@@ -840,14 +876,20 @@
     const formData = new FormData(form);
     const autoCloseEnabled = formData.get("autoCloseEnabled") === "true";
     const autoCloseSeconds = Number(formData.get("autoCloseSeconds") || defaults.autoCloseSeconds || 0);
+    const showSuccessMessages = formData.get("showSuccessMessages") === "true";
+    const dialogPosition = normalizeFeedbackDialogPosition(formData.get("dialogPosition"));
 
     root.dataset.autoCloseEnabled = autoCloseEnabled ? "true" : "false";
     root.dataset.autoCloseSeconds = String(autoCloseSeconds);
+    root.dataset.showSuccessMessages = showSuccessMessages ? "true" : "false";
+    root.dataset.dialogPosition = dialogPosition;
 
     return {
       allowManualClose: true,
       autoCloseEnabled,
-      autoCloseSeconds
+      autoCloseSeconds,
+      showSuccessMessages,
+      dialogPosition
     };
   };
   const initLivePropertyForms = (root) => {

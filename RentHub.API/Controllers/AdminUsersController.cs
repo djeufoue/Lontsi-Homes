@@ -1074,15 +1074,44 @@ namespace RentHub.API.Controllers
                 return;
             }
 
-            var subject = status == LandlordKycStatusEnum.Approved
-                ? "Your Lontsi Homes identity verification was approved"
-                : "Your Lontsi Homes identity verification needs correction";
+            var isFrench = user.EmailLanguage == PlatformLanguage.French;
+            var subject = isFrench
+                ? (status == LandlordKycStatusEnum.Approved
+                    ? "Votre vérification d’identité Lontsi Homes a été approuvée"
+                    : "Votre vérification d’identité Lontsi Homes doit être corrigée")
+                : (status == LandlordKycStatusEnum.Approved
+                    ? "Your Lontsi Homes identity verification was approved"
+                    : "Your Lontsi Homes identity verification needs correction");
 
             var link = status == LandlordKycStatusEnum.Approved
                 ? BuildPortalUrl("/Properties")
                 : BuildPortalUrl($"/Auth/LandlordKyc?email={Uri.EscapeDataString(user.Email)}");
 
-            var lines = status == LandlordKycStatusEnum.Approved
+            var lines = isFrench
+                ? (status == LandlordKycStatusEnum.Approved
+                    ? new[]
+                    {
+                        $"Bonjour {ResolveDisplayName(user)},",
+                        string.Empty,
+                        "Votre vérification d’identité a été approuvée.",
+                        "Vous pouvez maintenant accéder à l’espace des propriétés :",
+                        link,
+                        string.Empty,
+                        "Lontsi Homes"
+                    }
+                    : new[]
+                    {
+                        $"Bonjour {ResolveDisplayName(user)},",
+                        string.Empty,
+                        "Votre vérification d’identité a été refusée et doit être corrigée.",
+                        $"Raison : {note}",
+                        string.Empty,
+                        "Utilisez ce lien pour téléverser les fichiers KYC corrigés :",
+                        link,
+                        string.Empty,
+                        "Lontsi Homes"
+                    })
+                : status == LandlordKycStatusEnum.Approved
                 ? new[]
                 {
                     $"Hello {ResolveDisplayName(user)},",

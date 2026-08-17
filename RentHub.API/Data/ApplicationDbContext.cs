@@ -74,6 +74,9 @@ namespace RentHub.API.Data
                 entity.Property(u => u.Language)
                     .HasDefaultValue(PlatformLanguage.English);
 
+                entity.Property(u => u.EmailLanguage)
+                    .HasDefaultValue(PlatformLanguage.English);
+
                 entity.Property(u => u.CountryIsoCode)
                     .HasMaxLength(2);
 
@@ -94,6 +97,9 @@ namespace RentHub.API.Data
 
                 entity.Property(p => p.CountryCode)
                     .HasMaxLength(8);
+
+                entity.Property(p => p.MapEnabled)
+                    .HasDefaultValue(false);
             });
 
             builder.Entity<Tenancy>()

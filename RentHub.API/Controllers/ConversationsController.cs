@@ -379,27 +379,30 @@ namespace RentHub.API.Controllers
                 : $"{portalBaseUrl}/Conversations?conversationId={conversation.Id}";
 
             var visitorLabel = string.IsNullOrWhiteSpace(sender.FullName) ? (sender.Email ?? "A visitor") : sender.FullName;
+            var isFrench = landlord.EmailLanguage == PlatformLanguage.French;
             var lines = new List<string>
             {
-                $"Hello {(landlord.FullName ?? landlord.Email ?? "Landlord")},",
+                isFrench ? $"Bonjour {(landlord.FullName ?? landlord.Email ?? "Bailleur")}," : $"Hello {(landlord.FullName ?? landlord.Email ?? "Landlord")},",
                 string.Empty,
-                $"{visitorLabel} sent you a new private message about {(apartment?.Name ?? "your apartment")}.",
+                isFrench
+                    ? $"{visitorLabel} vous a envoyé un nouveau message privé au sujet de {(apartment?.Name ?? "votre appartement")}."
+                    : $"{visitorLabel} sent you a new private message about {(apartment?.Name ?? "your apartment")}.",
                 string.Empty,
-                $"Message preview: {body}",
+                isFrench ? $"Aperçu du message : {body}" : $"Message preview: {body}",
                 string.Empty
             };
 
             if (!string.IsNullOrWhiteSpace(inboxUrl))
             {
-                lines.Add($"Open the conversation: {inboxUrl}");
+                lines.Add(isFrench ? $"Ouvrir la conversation : {inboxUrl}" : $"Open the conversation: {inboxUrl}");
                 lines.Add(string.Empty);
             }
 
-            lines.Add("This message was sent from the RentHub public listing experience.");
+            lines.Add(isFrench ? "Ce message a été envoyé depuis le site public Lontsi Homes." : "This message was sent from the RentHub public listing experience.");
 
             await _emailService.SendEmailAsync(
                 landlord.Email!,
-                $"RentHub inquiry for {(apartment?.Name ?? "your apartment")}",
+                isFrench ? $"Demande Lontsi Homes pour {(apartment?.Name ?? "votre appartement")}" : $"RentHub inquiry for {(apartment?.Name ?? "your apartment")}",
                 string.Join(Environment.NewLine, lines));
         }
 

@@ -40,6 +40,7 @@ namespace RentHub.API.Models.Entities
         public DateTimeOffset? StripePayoutStatusUpdatedAt { get; set; }
         public bool IsSubscriptionExempt { get; set; }
         public PlatformLanguage Language { get; set; } = PlatformLanguage.English;
+        public PlatformLanguage EmailLanguage { get; set; } = PlatformLanguage.English;
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation properties

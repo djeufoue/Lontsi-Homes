@@ -75,15 +75,19 @@ namespace RentHub.API.Controllers
                     UserHelpers.GetUserId(User),
                     markPaymentAsSuccess: subscription.PaymentMethod == PaymentMethodEnum.Cash);
 
-                var subscriberEmail = await ResolveSubscriptionUserEmailAsync(subscription.UserId);
-                if (!string.IsNullOrWhiteSpace(subscriberEmail))
+                var subscriber = await _context.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == subscription.UserId);
+                if (!string.IsNullOrWhiteSpace(subscriber?.Email))
                 {
                     try
                     {
+                        var isFrench = subscriber.EmailLanguage == PlatformLanguage.French;
+                        var culture = CultureInfo.GetCultureInfo(subscriber.EmailLanguage.ToCultureName());
                         await _emailService.SendEmailAsync(
-                            subscriberEmail,
-                            "Subscription activated",
-                            $"Your {subscription.PlanNameSnapshot} subscription has been approved and is now active until {subscription.EndDate:dd MMM yyyy}.");
+                            subscriber.Email,
+                            isFrench ? "Abonnement activé" : "Subscription activated",
+                            isFrench
+                                ? $"Votre abonnement {subscription.PlanNameSnapshot} a été approuvé et est maintenant actif jusqu’au {subscription.EndDate.ToString("d MMM yyyy", culture)}."
+                                : $"Your {subscription.PlanNameSnapshot} subscription has been approved and is now active until {subscription.EndDate.ToString("dd MMM yyyy", culture)}.");
                     }
                     catch (Exception emailException)
                     {
@@ -833,50 +837,52 @@ namespace RentHub.API.Controllers
             request.PaymentReference = $"MANUAL-SUB-{request.Id}-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
             await _context.SaveChangesAsync();
 
-            var adminEmails = await _context.UserRoles
+            var adminUsers = await _context.UserRoles
                 .Join(_context.Roles.Where(role => role.Name == "Admin"), ur => ur.RoleId, role => role.Id, (ur, role) => ur.UserId)
-                .Join(_context.Users, adminId => adminId, admin => admin.Id, (adminId, admin) => admin.Email)
-                .Where(email => email != null && email != string.Empty)
+                .Join(_context.Users, adminId => adminId, admin => admin.Id, (adminId, admin) => admin)
+                .Where(admin => admin.Email != null && admin.Email != string.Empty)
                 .Distinct()
                 .ToListAsync();
 
             var adminUrl = $"{(_configuration["Portal:BaseUrl"] ?? "https://localhost:7059").TrimEnd('/')}/AdminSubscriptions";
-            var emailLines = new List<string>
-            {
-                isPlanChange
-                    ? "A landlord changed a pending manual subscription request."
-                    : "A new manual subscription activation request is waiting for review.",
-                $"Landlord: {user.FullName ?? user.Email}",
-                $"Email: {user.Email}",
-            };
-            if (isPlanChange && !string.IsNullOrWhiteSpace(previousPlanName))
-            {
-                emailLines.Add($"Previous plan: {previousPlanName}");
-            }
-            emailLines.AddRange(new[]
-            {
-                $"Selected plan: {plan.Name}",
-                $"Duration: {activationRequest.DurationMonths} months",
-                $"Amount: {request.PlanPriceSnapshot:N0} XAF",
-                $"Reference: {request.PaymentReference}",
-                $"Review: {adminUrl}"
-            });
-            var emailBody = string.Join(Environment.NewLine, emailLines);
-            foreach (var email in adminEmails)
+            foreach (var admin in adminUsers)
             {
                 try
                 {
+                    var isFrench = admin.EmailLanguage == PlatformLanguage.French;
+                    var emailLines = new List<string>
+                    {
+                        isFrench
+                            ? (isPlanChange ? "Un bailleur a modifié une demande d’abonnement manuel en attente." : "Une nouvelle demande d’activation manuelle d’abonnement attend votre examen.")
+                            : (isPlanChange ? "A landlord changed a pending manual subscription request." : "A new manual subscription activation request is waiting for review."),
+                        isFrench ? $"Bailleur : {user.FullName ?? user.Email}" : $"Landlord: {user.FullName ?? user.Email}",
+                        isFrench ? $"Courriel : {user.Email}" : $"Email: {user.Email}"
+                    };
+                    if (isPlanChange && !string.IsNullOrWhiteSpace(previousPlanName))
+                    {
+                        emailLines.Add(isFrench ? $"Forfait précédent : {previousPlanName}" : $"Previous plan: {previousPlanName}");
+                    }
+                    emailLines.AddRange(new[]
+                    {
+                        isFrench ? $"Forfait sélectionné : {plan.Name}" : $"Selected plan: {plan.Name}",
+                        isFrench ? $"Durée : {activationRequest.DurationMonths} mois" : $"Duration: {activationRequest.DurationMonths} months",
+                        isFrench ? $"Montant : {request.PlanPriceSnapshot:N0} XAF" : $"Amount: {request.PlanPriceSnapshot:N0} XAF",
+                        isFrench ? $"Référence : {request.PaymentReference}" : $"Reference: {request.PaymentReference}",
+                        isFrench ? $"Examiner : {adminUrl}" : $"Review: {adminUrl}"
+                    });
                     await _emailService.SendEmailAsync(
-                        email!,
-                        isPlanChange ? "Manual subscription request changed" : "New manual subscription request",
-                        emailBody);
+                        admin.Email!,
+                        isFrench
+                            ? (isPlanChange ? "Demande d’abonnement manuel modifiée" : "Nouvelle demande d’abonnement manuel")
+                            : (isPlanChange ? "Manual subscription request changed" : "New manual subscription request"),
+                        string.Join(Environment.NewLine, emailLines));
                 }
                 catch (Exception emailException)
                 {
                     _logger.LogWarning(
                         emailException,
                         "Manual subscription request email failed for admin {AdminEmail} and subscription {SubscriptionId}",
-                        email,
+                        admin.Email,
                         request.Id);
                 }
             }
@@ -1515,10 +1521,13 @@ namespace RentHub.API.Controllers
             {
                 try
                 {
+                    var isFrench = subscription.User.EmailLanguage == PlatformLanguage.French;
                     await _emailService.SendEmailAsync(
                         subscription.User.Email,
-                        "Subscription request update",
-                        $"Your manual request for the {subscription.PlanNameSnapshot} plan was not approved. Contact the platform administrator if you need more information.");
+                        isFrench ? "Mise à jour de votre demande d’abonnement" : "Subscription request update",
+                        isFrench
+                            ? $"Votre demande manuelle pour le forfait {subscription.PlanNameSnapshot} n’a pas été approuvée. Contactez l’administrateur de la plateforme pour plus d’informations."
+                            : $"Your manual request for the {subscription.PlanNameSnapshot} plan was not approved. Contact the platform administrator if you need more information.");
                 }
                 catch (Exception emailException)
                 {

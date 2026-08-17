@@ -2537,6 +2537,57 @@ body.rh-auth-body {
 }
 
 /* Dialogs */
+.rh-feedback-dialog {
+  display: flex;
+  width: calc(100% - 2rem);
+  min-height: calc(100% - 2rem);
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.rh-feedback-dialog > .modal-content {
+  width: 100%;
+}
+
+.rh-feedback-position-top-start,
+.rh-feedback-position-top-center,
+.rh-feedback-position-top-end {
+  align-items: flex-start;
+}
+
+.rh-feedback-position-center-start,
+.rh-feedback-position-center,
+.rh-feedback-position-center-end {
+  align-items: center;
+}
+
+.rh-feedback-position-bottom-start,
+.rh-feedback-position-bottom-center,
+.rh-feedback-position-bottom-end {
+  align-items: flex-end;
+}
+
+.rh-feedback-position-top-start,
+.rh-feedback-position-center-start,
+.rh-feedback-position-bottom-start {
+  margin-left: 1rem;
+  margin-right: auto;
+}
+
+.rh-feedback-position-top-center,
+.rh-feedback-position-center,
+.rh-feedback-position-bottom-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.rh-feedback-position-top-end,
+.rh-feedback-position-center-end,
+.rh-feedback-position-bottom-end {
+  margin-left: auto;
+  margin-right: 1rem;
+}
+
 .rh-success-modal {
   border-radius: 1rem;
   border: 1px solid color-mix(in srgb, var(--rh-success) 40%, var(--rh-border));

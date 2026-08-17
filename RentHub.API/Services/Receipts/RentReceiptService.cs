@@ -104,6 +104,7 @@ namespace RentHub.API.Services.Receipts
                 PaymentDate = payment.PaymentDate,
                 Amount = payment.Amount,
                 Currency = payment.Currency,
+                Method = payment.Method,
                 PaymentMethod = payment.Method switch
                 {
                     PaymentMethodEnum.Cash => "Cash / off-platform (recorded by landlord)",
@@ -116,7 +117,9 @@ namespace RentHub.API.Services.Receipts
                 LandlordName = payment.Landlord?.FullName ?? payment.Landlord?.Email ?? "Landlord",
                 PropertyName = payment.Tenancy?.Apartment?.Property?.Name ?? string.Empty,
                 ApartmentName = payment.Tenancy?.Apartment?.Name ?? string.Empty,
-                PeriodLabel = BuildPeriodLabel(periods)
+                PeriodLabel = BuildPeriodLabel(periods),
+                PeriodStart = periods.FirstOrDefault()?.PeriodStart,
+                PeriodEnd = periods.LastOrDefault()?.PeriodEnd
             };
         }
 
@@ -126,24 +129,25 @@ namespace RentHub.API.Services.Receipts
             bool notifyLandlord,
             CancellationToken cancellationToken = default)
         {
-            var attachment = BuildReceiptAttachment(receipt);
             if (notifyTenant && !string.IsNullOrWhiteSpace(receipt.TenantEmail))
             {
+                var isFrench = receipt.TenantEmailLanguage == PlatformLanguage.French;
                 await TrySendEmailAsync(
                     receipt.TenantEmail,
-                    $"Rent receipt {receipt.ReceiptNumber}",
-                    BuildTenantReceiptEmail(receipt),
-                    attachment,
+                    isFrench ? $"Facture de loyer {receipt.ReceiptNumber}" : $"Rent invoice {receipt.ReceiptNumber}",
+                    BuildTenantReceiptEmail(receipt, receipt.TenantEmailLanguage),
+                    BuildReceiptAttachment(receipt, receipt.TenantEmailLanguage),
                     cancellationToken);
             }
 
             if (notifyLandlord && !string.IsNullOrWhiteSpace(receipt.LandlordEmail))
             {
+                var isFrench = receipt.LandlordEmailLanguage == PlatformLanguage.French;
                 await TrySendEmailAsync(
                     receipt.LandlordEmail,
-                    $"Rent payment received - {receipt.ReceiptNumber}",
-                    BuildLandlordPaymentEmail(receipt),
-                    attachment,
+                    isFrench ? $"Facture de loyer - paiement reçu - {receipt.ReceiptNumber}" : $"Rent invoice - payment received - {receipt.ReceiptNumber}",
+                    BuildLandlordPaymentEmail(receipt, receipt.LandlordEmailLanguage),
+                    BuildReceiptAttachment(receipt, receipt.LandlordEmailLanguage),
                     cancellationToken);
             }
         }
@@ -191,8 +195,11 @@ namespace RentHub.API.Services.Receipts
                 ProviderReceiptUrl = payment.ProviderReceiptUrl ?? string.Empty,
                 TenantName = payment.Tenant?.FullName ?? payment.Tenant?.Email ?? "Tenant",
                 TenantEmail = payment.Tenant?.Email ?? string.Empty,
+                TenantPhone = payment.Tenant?.PhoneNumber ?? string.Empty,
+                TenantEmailLanguage = payment.Tenant?.EmailLanguage ?? PlatformLanguage.English,
                 LandlordName = payment.Landlord?.FullName ?? payment.Landlord?.Email ?? "Landlord",
                 LandlordEmail = payment.Landlord?.Email ?? string.Empty,
+                LandlordEmailLanguage = payment.Landlord?.EmailLanguage ?? PlatformLanguage.English,
                 PropertyName = payment.Tenancy?.Apartment?.Property?.Name ?? string.Empty,
                 ApartmentName = payment.Tenancy?.Apartment?.Name ?? string.Empty,
                 PeriodLabel = BuildPeriodLabel(periods),
@@ -262,51 +269,86 @@ namespace RentHub.API.Services.Receipts
                 : $"{first.PeriodStart:MMM d, yyyy} - {last.PeriodEnd:MMM d, yyyy}";
         }
 
-        private static string BuildTenantReceiptEmail(RentReceiptDto receipt)
+        private static string BuildTenantReceiptEmail(RentReceiptDto receipt, PlatformLanguage language)
         {
-            return $"""
-                Your rent payment receipt is ready.
+            if (language == PlatformLanguage.French)
+            {
+                return $"""
+                    Votre facture de loyer est prête.
 
-                Receipt: {receipt.ReceiptNumber}
+                    Facture : {receipt.ReceiptNumber}
+                    Propriété : {receipt.PropertyName}
+                    Appartement : {receipt.ApartmentName}
+                    Période : {FormatReceiptPeriod(receipt, language)}
+                    Montant : {FormatReceiptAmount(receipt, language)}
+                    Date du paiement : {receipt.PaymentDate.ToString("d MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))}
+
+                    Consulter et vérifier votre facture :
+                    {receipt.VerificationUrl}
+                    """;
+            }
+
+            return $"""
+                Your rent invoice is ready.
+
+                Invoice: {receipt.ReceiptNumber}
                 Property: {receipt.PropertyName}
                 Apartment: {receipt.ApartmentName}
-                Period: {receipt.PeriodLabel}
-                Amount: {receipt.Amount:N0} {receipt.Currency}
-                Payment date: {receipt.PaymentDate:MMM d, yyyy}
+                Period: {FormatReceiptPeriod(receipt, language)}
+                Amount: {FormatReceiptAmount(receipt, language)}
+                Payment date: {receipt.PaymentDate.ToString("MMM d, yyyy", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))}
 
-                View and verify your receipt:
+                View and verify your invoice:
                 {receipt.VerificationUrl}
                 """;
         }
 
-        private static string BuildLandlordPaymentEmail(RentReceiptDto receipt)
+        private static string BuildLandlordPaymentEmail(RentReceiptDto receipt, PlatformLanguage language)
         {
+            if (language == PlatformLanguage.French)
+            {
+                return $"""
+                    Un paiement de loyer a été enregistré.
+
+                    Locataire : {receipt.TenantName}
+                    Propriété : {receipt.PropertyName}
+                    Appartement : {receipt.ApartmentName}
+                    Période : {FormatReceiptPeriod(receipt, language)}
+                    Montant : {FormatReceiptAmount(receipt, language)}
+                    Mode : {FormatPaymentMethod(receipt.Method, language)}
+                    Facture : {receipt.ReceiptNumber}
+
+                    Lien de vérification :
+                    {receipt.VerificationUrl}
+                    """;
+            }
+
             return $"""
                 A rent payment was recorded.
 
                 Tenant: {receipt.TenantName}
                 Property: {receipt.PropertyName}
                 Apartment: {receipt.ApartmentName}
-                Period: {receipt.PeriodLabel}
-                Amount: {receipt.Amount:N0} {receipt.Currency}
-                Method: {receipt.Method}
-                Receipt: {receipt.ReceiptNumber}
+                Period: {FormatReceiptPeriod(receipt, language)}
+                Amount: {FormatReceiptAmount(receipt, language)}
+                Method: {FormatPaymentMethod(receipt.Method, language)}
+                Invoice: {receipt.ReceiptNumber}
 
                 Verification link:
                 {receipt.VerificationUrl}
                 """;
         }
 
-        private static IReadOnlyCollection<EmailAttachment> BuildReceiptAttachment(RentReceiptDto receipt)
+        private static IReadOnlyCollection<EmailAttachment> BuildReceiptAttachment(RentReceiptDto receipt, PlatformLanguage language)
         {
-            var pdf = RentReceiptPdfBuilder.Build(receipt);
+            var pdf = RentReceiptPdfBuilder.Build(receipt, language);
             var safeReceiptNumber = string.Join(
                 "-",
                 receipt.ReceiptNumber.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
 
             if (string.IsNullOrWhiteSpace(safeReceiptNumber))
             {
-                safeReceiptNumber = "rent-receipt";
+                safeReceiptNumber = "rent-invoice";
             }
 
             return new[]
@@ -317,6 +359,37 @@ namespace RentHub.API.Services.Receipts
                     ContentType = "application/pdf",
                     Content = pdf
                 }
+            };
+        }
+
+        private static string FormatReceiptPeriod(RentReceiptDto receipt, PlatformLanguage language)
+        {
+            if (!receipt.PeriodStart.HasValue || !receipt.PeriodEnd.HasValue)
+            {
+                return receipt.PeriodLabel;
+            }
+
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName());
+            return $"{receipt.PeriodStart.Value.ToString("d MMM yyyy", culture)} - {receipt.PeriodEnd.Value.ToString("d MMM yyyy", culture)}";
+        }
+
+        private static string FormatReceiptAmount(RentReceiptDto receipt, PlatformLanguage language)
+            => $"{receipt.Amount.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))} {receipt.Currency}";
+
+        private static string FormatPaymentMethod(PaymentMethodEnum method, PlatformLanguage language)
+        {
+            if (language != PlatformLanguage.French)
+            {
+                return method.ToString();
+            }
+
+            return method switch
+            {
+                PaymentMethodEnum.Cash => "Espèces / hors plateforme",
+                PaymentMethodEnum.Card => "Carte",
+                PaymentMethodEnum.Momo => "MTN Mobile Money",
+                PaymentMethodEnum.OrangeMoney => "Orange Money",
+                _ => method.ToString()
             };
         }
 

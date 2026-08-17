@@ -21,8 +21,11 @@ namespace Common.CommunicationModels
         public string ProviderReceiptUrl { get; set; } = string.Empty;
         public string TenantName { get; set; } = string.Empty;
         public string TenantEmail { get; set; } = string.Empty;
+        public string TenantPhone { get; set; } = string.Empty;
+        public PlatformLanguage TenantEmailLanguage { get; set; } = PlatformLanguage.English;
         public string LandlordName { get; set; } = string.Empty;
         public string LandlordEmail { get; set; } = string.Empty;
+        public PlatformLanguage LandlordEmailLanguage { get; set; } = PlatformLanguage.English;
         public string PropertyName { get; set; } = string.Empty;
         public string ApartmentName { get; set; } = string.Empty;
         public string PeriodLabel { get; set; } = string.Empty;
@@ -39,11 +42,14 @@ namespace Common.CommunicationModels
         public DateTimeOffset? PaymentDate { get; set; }
         public decimal Amount { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public PaymentMethodEnum Method { get; set; }
         public string PaymentMethod { get; set; } = string.Empty;
         public string TenantName { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;
         public string PropertyName { get; set; } = string.Empty;
         public string ApartmentName { get; set; } = string.Empty;
         public string PeriodLabel { get; set; } = string.Empty;
+        public DateTimeOffset? PeriodStart { get; set; }
+        public DateTimeOffset? PeriodEnd { get; set; }
     }
 }

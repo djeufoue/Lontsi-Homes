@@ -189,11 +189,18 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Map(int id)
         {
             try
             {
                 var vm = await BuildPropertyOverviewVmAsync(id, null, null, 1, 6);
+                if (!vm.Property.MapEnabled)
+                {
+                    TempData["Info"] = "The property map is disabled in Property Settings.";
+                    return RedirectToAction(nameof(Overview), new { id });
+                }
+
                 return View(vm);
             }
             catch (Exception ex)
@@ -340,15 +347,54 @@ namespace RentHub.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult UpdateSuccessDialogSettings(int propertyId, bool autoCloseEnabled, int autoCloseSeconds)
+        public IActionResult UpdateSuccessDialogSettings(
+            int propertyId,
+            bool autoCloseEnabled,
+            int autoCloseSeconds,
+            bool showSuccessMessages,
+            string? dialogPosition)
         {
-            SuccessDialogHelper.SaveForProperty(HttpContext.Session, propertyId, true, autoCloseEnabled, autoCloseSeconds);
+            SuccessDialogHelper.SaveForProperty(
+                HttpContext.Session,
+                propertyId,
+                true,
+                autoCloseEnabled,
+                autoCloseSeconds,
+                showSuccessMessages,
+                dialogPosition);
             if (IsAjaxRequest())
             {
                 return Ok(new { Message = "Success dialog settings updated for this property." });
             }
 
             TempData["Success"] = "Success dialog settings updated for this property.";
+            return RedirectToAction(nameof(Settings), new { id = propertyId });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateMapSettings(int propertyId, bool mapEnabled)
+        {
+            try
+            {
+                await _api.PutAsync($"properties/{propertyId}/map-settings", new UpdatePropertyMapSettingsRequest
+                {
+                    MapEnabled = mapEnabled
+                });
+                await BroadcastPropertyUpdateAsync(propertyId, "map-visibility-updated");
+                TempData["Success"] = mapEnabled
+                    ? "Property map enabled."
+                    : "Property map disabled.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to update map visibility for property {PropertyId}.", propertyId);
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiError(ex.Message).Message,
+                    "Unable to update the property map setting right now.");
+            }
+
             return RedirectToAction(nameof(Settings), new { id = propertyId });
         }
 
@@ -904,13 +950,16 @@ namespace RentHub.Portal.Controllers
                 CanAddApartment = overview.CanAddApartment,
                 CanUploadDocuments = overview.CanUploadDocuments,
                 CanDeleteDocuments = overview.CanDeleteDocuments,
+                CanManageMapVisibility = overview.CanManageMapVisibility,
                 UnitsPage = unitsPage,
                 UnitsPageSize = unitsPageSize,
                 TotalUnits = totalUnits,
                 Units = pagedUnits,
                 SuccessDialogShowCloseButton = true,
                 SuccessDialogAutoCloseEnabled = dialogSettings.AutoCloseEnabled,
-                SuccessDialogAutoCloseSeconds = dialogSettings.AutoCloseSeconds
+                SuccessDialogAutoCloseSeconds = dialogSettings.AutoCloseSeconds,
+                SuccessDialogShowSuccessMessages = dialogSettings.ShowSuccessMessages,
+                SuccessDialogPosition = dialogSettings.Position
             };
         }
 

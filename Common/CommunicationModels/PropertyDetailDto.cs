@@ -16,6 +16,7 @@ namespace Common.CommunicationModels
         public string? Description { get; set; }
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
+        public bool MapEnabled { get; set; }
 
         public string LandlordId { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;

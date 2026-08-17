@@ -199,9 +199,10 @@ namespace RentHub.API.Services.Reminders
             try
             {
                 var tenant = context.Tenant;
-                var subject = isUnpaid
-                    ? $"Rent Payment Overdue - {context.Apartment.Name}"
-                    : $"Rent Payment Reminder - {context.Apartment.Name}";
+                var isFrench = tenant.EmailLanguage == PlatformLanguage.French;
+                var subject = isFrench
+                    ? (isUnpaid ? $"Loyer en retard – {context.Apartment.Name}" : $"Rappel de paiement du loyer – {context.Apartment.Name}")
+                    : (isUnpaid ? $"Rent Payment Overdue - {context.Apartment.Name}" : $"Rent Payment Reminder - {context.Apartment.Name}");
                 var message = BuildRentReminderMessage(context, isUnpaid);
                 var smsMessage = BuildRentReminderSms(context, isUnpaid);
 
@@ -279,28 +280,58 @@ namespace RentHub.API.Services.Reminders
 
         private static string BuildRentReminderMessage(RentReminderContext context, bool isUnpaid)
         {
+            var isFrench = context.Tenant.EmailLanguage == PlatformLanguage.French;
             var greetingName = string.IsNullOrWhiteSpace(context.Tenant.FullName)
-                ? "there"
+                ? (isFrench ? string.Empty : "there")
                 : context.Tenant.FullName.Trim();
-            var statusLine = isUnpaid
-                ? $"Your rent period {FormatPeriod(context.RentPeriod)} is overdue."
-                : $"Your rent period {FormatPeriod(context.RentPeriod)} is due soon.";
+            var statusLine = isFrench
+                ? (isUnpaid
+                    ? $"Votre période de loyer du {FormatPeriod(context.RentPeriod, context.Tenant.EmailLanguage)} est en retard."
+                    : $"Votre période de loyer du {FormatPeriod(context.RentPeriod, context.Tenant.EmailLanguage)} arrive bientôt à échéance.")
+                : (isUnpaid
+                    ? $"Your rent period {FormatPeriod(context.RentPeriod, context.Tenant.EmailLanguage)} is overdue."
+                    : $"Your rent period {FormatPeriod(context.RentPeriod, context.Tenant.EmailLanguage)} is due soon.");
 
-            var paymentAction = context.AutomaticPaymentsEnabled
-                ? $"Pay here: {context.DashboardUrl}"
-                : $"Automatic payment is temporarily unavailable. Review payment details here: {context.PaymentDetailsUrl}";
+            var paymentAction = isFrench
+                ? (context.AutomaticPaymentsEnabled
+                    ? $"Payer ici : {context.DashboardUrl}"
+                    : $"Le paiement automatique est temporairement indisponible. Consultez les détails ici : {context.PaymentDetailsUrl}")
+                : (context.AutomaticPaymentsEnabled
+                    ? $"Pay here: {context.DashboardUrl}"
+                    : $"Automatic payment is temporarily unavailable. Review payment details here: {context.PaymentDetailsUrl}");
+
+            if (isFrench)
+            {
+                return string.Join(Environment.NewLine, new[]
+                {
+                    $"Bonjour {greetingName},",
+                    string.Empty,
+                    statusLine,
+                    $"Date d’échéance : {FormatDate(context.RentPeriod.DueDate, context.Tenant.EmailLanguage)}",
+                    $"Propriété : {context.Property.Name}",
+                    $"Appartement : {context.Apartment.Name}",
+                    $"Pays : {FormatCountry(context.Property, true)}",
+                    $"Montant de cette période : {FormatMoney(context.RentPeriod.Amount, context.Tenant.EmailLanguage)}",
+                    $"Solde impayé : {FormatMoney(context.OutstandingBalance, context.Tenant.EmailLanguage)}",
+                    string.Empty,
+                    "Les loyers doivent être payés dans l’ordre. Lontsi Homes commencera par la plus ancienne période impayée.",
+                    paymentAction,
+                    string.Empty,
+                    "Merci,"
+                });
+            }
 
             return string.Join(Environment.NewLine, new[]
             {
                 $"Hello {greetingName},",
                 string.Empty,
                 statusLine,
-                $"Due date: {FormatDate(context.RentPeriod.DueDate)}",
+                $"Due date: {FormatDate(context.RentPeriod.DueDate, context.Tenant.EmailLanguage)}",
                 $"Property: {context.Property.Name}",
                 $"Apartment: {context.Apartment.Name}",
-                $"Country: {FormatCountry(context.Property)}",
-                $"Amount for this period: {FormatMoney(context.RentPeriod.Amount)}",
-                $"Outstanding balance: {FormatMoney(context.OutstandingBalance)}",
+                $"Country: {FormatCountry(context.Property, false)}",
+                $"Amount for this period: {FormatMoney(context.RentPeriod.Amount, context.Tenant.EmailLanguage)}",
+                $"Outstanding balance: {FormatMoney(context.OutstandingBalance, context.Tenant.EmailLanguage)}",
                 string.Empty,
                 "Rent payments must be completed in order. RentHub will start with the oldest unpaid period.",
                 paymentAction,
@@ -318,7 +349,7 @@ namespace RentHub.API.Services.Reminders
             return $"Lontsi Homes: Rent for {context.Property.Name} - {context.Apartment.Name}, period {FormatPeriod(context.RentPeriod)}, is {state}. {action}";
         }
 
-        private static string FormatCountry(Property property)
+        private static string FormatCountry(Property property, bool isFrench = false)
         {
             var isoCode = property.CountryIsoCode?.Trim().ToUpperInvariant();
             var phoneCode = property.CountryCode?.Trim();
@@ -333,22 +364,22 @@ namespace RentHub.API.Services.Reminders
                 return isoCode;
             }
 
-            return string.IsNullOrWhiteSpace(phoneCode) ? "Not provided" : phoneCode;
+            return string.IsNullOrWhiteSpace(phoneCode) ? (isFrench ? "Non fourni" : "Not provided") : phoneCode;
         }
 
-        private static string FormatPeriod(RentPeriod period)
+        private static string FormatPeriod(RentPeriod period, PlatformLanguage language = PlatformLanguage.English)
         {
-            return $"{FormatDate(period.PeriodStart)} - {FormatDate(period.PeriodEnd)}";
+            return $"{FormatDate(period.PeriodStart, language)} - {FormatDate(period.PeriodEnd, language)}";
         }
 
-        private static string FormatDate(DateTimeOffset value)
+        private static string FormatDate(DateTimeOffset value, PlatformLanguage language = PlatformLanguage.English)
         {
-            return value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+            return value.ToString("dd MMM yyyy", CultureInfo.GetCultureInfo(language.ToCultureName()));
         }
 
-        private static string FormatMoney(decimal value)
+        private static string FormatMoney(decimal value, PlatformLanguage language = PlatformLanguage.English)
         {
-            return value.ToString("N0", CultureInfo.InvariantCulture);
+            return value.ToString("N0", CultureInfo.GetCultureInfo(language.ToCultureName()));
         }
 
         private sealed class RentReminderContext

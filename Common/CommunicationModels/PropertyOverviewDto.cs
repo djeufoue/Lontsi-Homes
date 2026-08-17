@@ -18,5 +18,6 @@ namespace Common.CommunicationModels
         public bool CanAddApartment { get; set; }
         public bool CanUploadDocuments { get; set; }
         public bool CanDeleteDocuments { get; set; }
+        public bool CanManageMapVisibility { get; set; }
     }
 }

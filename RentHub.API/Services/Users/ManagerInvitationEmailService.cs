@@ -31,7 +31,7 @@ public sealed class ManagerInvitationEmailService : IManagerInvitationEmailServi
         var baseUrl = (_configuration["Portal:BaseUrl"] ?? string.Empty).Trim().TrimEnd('/');
         var loginUrl = string.IsNullOrWhiteSpace(baseUrl) ? string.Empty : $"{baseUrl}/Auth/Login";
         var displayName = string.IsNullOrWhiteSpace(manager.FullName) ? manager.Email : manager.FullName;
-        var isFrench = manager.Language == PlatformLanguage.French;
+        var isFrench = manager.EmailLanguage == PlatformLanguage.French;
         var lines = new List<string>
         {
             isFrench ? $"Bonjour {displayName}," : $"Hello {displayName},",

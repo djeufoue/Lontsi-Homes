@@ -1384,4 +1384,66 @@
   <data name="Send messages" xml:space="preserve"><value>Envoyer des messages</value></data>
   <data name="Refresh from address" xml:space="preserve"><value>Actualiser depuis l’adresse</value></data>
   <data name="Permissions / Access" xml:space="preserve"><value>Permissions / Accès</value></data>
+  <data name="Map settings" xml:space="preserve"><value>Paramètres de la carte</value></data>
+  <data name="Control whether the property map is available throughout the workspace." xml:space="preserve"><value>Contrôlez si la carte de la propriété est disponible dans l’espace de travail.</value></data>
+  <data name="Enable property map" xml:space="preserve"><value>Activer la carte de la propriété</value></data>
+  <data name="When disabled, the map button, preview section, and full map page are hidden for every user." xml:space="preserve"><value>Lorsque cette option est désactivée, le bouton, l’aperçu et la page complète de la carte sont masqués pour tous les utilisateurs.</value></data>
+  <data name="Save Map Settings" xml:space="preserve"><value>Enregistrer les paramètres de la carte</value></data>
+  <data name="Dialog settings" xml:space="preserve"><value>Paramètres des dialogues</value></data>
+  <data name="Control the visibility, timing, and position of feedback dialogs for this property." xml:space="preserve"><value>Contrôlez la visibilité, la durée et la position des dialogues de retour pour cette propriété.</value></data>
+  <data name="Show success messages" xml:space="preserve"><value>Afficher les messages de réussite</value></data>
+  <data name="When disabled, successful actions continue normally without displaying a confirmation dialog. Error messages remain visible." xml:space="preserve"><value>Lorsque cette option est désactivée, les actions réussies continuent normalement sans afficher de dialogue de confirmation. Les erreurs restent visibles.</value></data>
+  <data name="Dialog position" xml:space="preserve"><value>Position du dialogue</value></data>
+  <data name="Bottom center is the default position." xml:space="preserve"><value>La position par défaut est en bas au centre.</value></data>
+  <data name="Auto-hide success and error dialogs" xml:space="preserve"><value>Masquer automatiquement les dialogues de réussite et d’erreur</value></data>
+  <data name="Auto close after (seconds)" xml:space="preserve"><value>Fermer automatiquement après (secondes)</value></data>
+  <data name="Applies only to success and error dialogs, never to add/edit modal forms." xml:space="preserve"><value>S’applique uniquement aux dialogues de réussite et d’erreur, jamais aux formulaires modaux d’ajout ou de modification.</value></data>
+  <data name="Save Dialog Preferences" xml:space="preserve"><value>Enregistrer les préférences des dialogues</value></data>
+  <data name="Top left" xml:space="preserve"><value>En haut à gauche</value></data>
+  <data name="Top center" xml:space="preserve"><value>En haut au centre</value></data>
+  <data name="Top right" xml:space="preserve"><value>En haut à droite</value></data>
+  <data name="Center left" xml:space="preserve"><value>Au centre à gauche</value></data>
+  <data name="Center" xml:space="preserve"><value>Au centre</value></data>
+  <data name="Center right" xml:space="preserve"><value>Au centre à droite</value></data>
+  <data name="Bottom left" xml:space="preserve"><value>En bas à gauche</value></data>
+  <data name="Bottom center" xml:space="preserve"><value>En bas au centre</value></data>
+  <data name="Bottom right" xml:space="preserve"><value>En bas à droite</value></data>
+  <data name="Email language" xml:space="preserve"><value>Langue des courriels</value></data>
+  <data name="Choose the language used for every email sent to you, including reminders, receipts, invitations, renewals, and account notifications." xml:space="preserve"><value>Choisissez la langue de tous les courriels qui vous sont envoyés, notamment les rappels, reçus, invitations, renouvellements et notifications de compte.</value></data>
+  <data name="Save email language" xml:space="preserve"><value>Enregistrer la langue des courriels</value></data>
+  <data name="This preference is independent from the language of the application interface." xml:space="preserve"><value>Cette préférence est indépendante de la langue de l’interface de l’application.</value></data>
+  <data name="Select a supported email language." xml:space="preserve"><value>Sélectionnez une langue de courriel prise en charge.</value></data>
+  <data name="Your email language preference has been updated." xml:space="preserve"><value>Votre préférence de langue des courriels a été mise à jour.</value></data>
+  <data name="Unable to update your email language preference right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour la langue de vos courriels pour le moment. Veuillez réessayer.</value></data>
+  <data name="Rent invoice" xml:space="preserve"><value>Facture de loyer</value></data>
+  <data name="Official invoice for a completed rent payment." xml:space="preserve"><value>Facture officielle correspondant à un paiement de loyer effectué.</value></data>
+  <data name="Download invoice" xml:space="preserve"><value>Télécharger la facture</value></data>
+  <data name="Open provider receipt" xml:space="preserve"><value>Ouvrir le reçu du fournisseur</value></data>
+  <data name="Property management and rent services" xml:space="preserve"><value>Gestion immobilière et services de location</value></data>
+  <data name="Invoice number" xml:space="preserve"><value>Numéro de facture</value></data>
+  <data name="Issue date" xml:space="preserve"><value>Date d’émission</value></data>
+  <data name="Description" xml:space="preserve"><value>Description</value></data>
+  <data name="Quantity" xml:space="preserve"><value>Quantité</value></data>
+  <data name="Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Rent for the rental unit" xml:space="preserve"><value>Loyer du logement</value></data>
+  <data name="Payment date" xml:space="preserve"><value>Date du paiement</value></data>
+  <data name="Amount paid" xml:space="preserve"><value>Montant payé</value></data>
+  <data name="Tenant information" xml:space="preserve"><value>Informations du locataire</value></data>
+  <data name="Scan the QR code to verify this invoice." xml:space="preserve"><value>Scannez le code QR pour vérifier cette facture.</value></data>
+  <data name="Verify invoice" xml:space="preserve"><value>Vérifier la facture</value></data>
+  <data name="Cash / off-platform" xml:space="preserve"><value>Espèces / hors plateforme</value></data>
+  <data name="Recorded manually by landlord" xml:space="preserve"><value>Enregistré manuellement par le bailleur</value></data>
+  <data name="Processed by platform" xml:space="preserve"><value>Traité par la plateforme</value></data>
+  <data name="Provider receipt available" xml:space="preserve"><value>Reçu du fournisseur disponible</value></data>
+  <data name="Invoice verification" xml:space="preserve"><value>Vérification de la facture</value></data>
+  <data name="Valid system invoice" xml:space="preserve"><value>Facture système valide</value></data>
+  <data name="This invoice was generated by Lontsi Homes and matches a successful rent payment." xml:space="preserve"><value>Cette facture a été générée par Lontsi Homes et correspond à un paiement de loyer réussi.</value></data>
+  <data name="Issued" xml:space="preserve"><value>Émise le</value></data>
+  <data name="Unavailable" xml:space="preserve"><value>Non disponible</value></data>
+  <data name="Method" xml:space="preserve"><value>Mode</value></data>
+  <data name="Rental unit" xml:space="preserve"><value>Logement</value></data>
+  <data name="Rent period" xml:space="preserve"><value>Période de loyer</value></data>
+  <data name="Invalid invoice" xml:space="preserve"><value>Facture invalide</value></data>
+  <data name="Invoice not found" xml:space="preserve"><value>Facture introuvable</value></data>
+  <data name="The scanned code does not match a valid system-generated rent invoice." xml:space="preserve"><value>Le code scanné ne correspond pas à une facture de loyer valide générée par le système.</value></data>
 </root>

@@ -311,6 +311,11 @@ namespace RentHub.API.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<int>("EmailLanguage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("FullName")
                         .HasColumnType("nvarchar(max)");
 
@@ -471,6 +476,11 @@ namespace RentHub.API.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("MapEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("LandlordId")
                         .IsRequired()
@@ -1462,7 +1472,6 @@ namespace RentHub.API.Migrations
         }
     }
 }
-
 
 
 

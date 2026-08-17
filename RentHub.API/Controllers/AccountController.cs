@@ -2532,6 +2532,7 @@ namespace RentHub.API.Controllers
                     Roles = roles.ToList(),
                     IsSubscriptionExempt = user.IsSubscriptionExempt,
                     Language = user.Language,
+                    EmailLanguage = user.EmailLanguage,
                     KycDocumentType = landlordStatus?.KycDocumentType,
                     KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
                     IsKycSubmitted = landlordStatus?.IsKycSubmitted ?? false,
@@ -2635,6 +2636,47 @@ namespace RentHub.API.Controllers
             catch (Exception ex)
             {
                 return ServerError(ex, "UpdateLanguage", "Unable to update your language preference right now. Please try again.");
+            }
+        }
+
+        [HttpPost("email-language")]
+        [Authorize]
+        public async Task<IActionResult> UpdateEmailLanguage([FromBody] UpdateEmailLanguageRequest request)
+        {
+            if (!PlatformLanguageOptions.IsSupported(request.EmailLanguage))
+            {
+                return BadRequest(new { Message = "Select a supported email language." });
+            }
+
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                user.EmailLanguage = request.EmailLanguage;
+                var result = await _userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                {
+                    return BadRequest(result.Errors);
+                }
+
+                return Ok(new UpdateEmailLanguageResponse
+                {
+                    EmailLanguage = user.EmailLanguage
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "UpdateEmailLanguage", "Unable to update your email language preference right now. Please try again.");
             }
         }
 
@@ -3213,7 +3255,7 @@ namespace RentHub.API.Controllers
 
         private async Task SendKycSubmittedAdminEmailAsync(ApplicationUser user, LandlordKycProfile profile)
         {
-            var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var recipients = new Dictionary<string, PlatformLanguage>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
@@ -3224,7 +3266,7 @@ namespace RentHub.API.Controllers
                 var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
                 foreach (var adminUser in adminUsers)
                 {
-                    AddRecipient(adminUser.Email);
+                    AddRecipient(adminUser.Email, adminUser.EmailLanguage);
                 }
 
                 if (recipients.Count == 0)
@@ -3237,29 +3279,49 @@ namespace RentHub.API.Controllers
 
                 var reviewUrl = BuildPortalUrl($"/AdminUsers/Overview?userId={Uri.EscapeDataString(user.Id)}");
                 var approvalsUrl = BuildPortalUrl($"/AdminUsers/LandlordApprovals?search={Uri.EscapeDataString(user.Email ?? user.Id)}");
-                var subject = $"KYC approval needed for {DisplayNameOrEmail(user)}";
-                var lines = new[]
-                {
-                    "A landlord has submitted KYC documents and needs admin approval.",
-                    string.Empty,
-                    $"Name: {DisplayNameOrEmail(user)}",
-                    $"Email: {user.Email ?? "Not provided"}",
-                    $"Document type: {profile.DocumentType}",
-                    $"Submitted at: {profile.SubmittedAt:yyyy-MM-dd HH:mm} UTC",
-                    string.Empty,
-                    "Open the direct approval page:",
-                    reviewUrl,
-                    string.Empty,
-                    "Approvals queue:",
-                    approvalsUrl,
-                    string.Empty,
-                    "Lontsi Homes"
-                };
-
-                var body = string.Join(Environment.NewLine, lines);
                 foreach (var recipient in recipients)
                 {
-                    await _emailService.SendEmailAsync(recipient, subject, body);
+                    var isFrench = recipient.Value == PlatformLanguage.French;
+                    var subject = isFrench
+                        ? $"Approbation KYC requise pour {DisplayNameOrEmail(user)}"
+                        : $"KYC approval needed for {DisplayNameOrEmail(user)}";
+                    var lines = isFrench
+                        ? new[]
+                        {
+                            "Un bailleur a soumis ses documents KYC et attend une approbation administrative.",
+                            string.Empty,
+                            $"Nom : {DisplayNameOrEmail(user)}",
+                            $"Courriel : {user.Email ?? "Non fourni"}",
+                            $"Type de document : {profile.DocumentType}",
+                            $"Soumis le : {profile.SubmittedAt:yyyy-MM-dd HH:mm} UTC",
+                            string.Empty,
+                            "Ouvrir la page d’approbation directe :",
+                            reviewUrl,
+                            string.Empty,
+                            "File des approbations :",
+                            approvalsUrl,
+                            string.Empty,
+                            "Lontsi Homes"
+                        }
+                        : new[]
+                        {
+                            "A landlord has submitted KYC documents and needs admin approval.",
+                            string.Empty,
+                            $"Name: {DisplayNameOrEmail(user)}",
+                            $"Email: {user.Email ?? "Not provided"}",
+                            $"Document type: {profile.DocumentType}",
+                            $"Submitted at: {profile.SubmittedAt:yyyy-MM-dd HH:mm} UTC",
+                            string.Empty,
+                            "Open the direct approval page:",
+                            reviewUrl,
+                            string.Empty,
+                            "Approvals queue:",
+                            approvalsUrl,
+                            string.Empty,
+                            "Lontsi Homes"
+                        };
+
+                    await _emailService.SendEmailAsync(recipient.Key, subject, string.Join(Environment.NewLine, lines));
                 }
             }
             catch (Exception ex)
@@ -3267,12 +3329,12 @@ namespace RentHub.API.Controllers
                 _logger.LogWarning(ex, "KYC admin notification failed for user {UserId}.", user.Id);
             }
 
-            void AddRecipient(string? email)
+            void AddRecipient(string? email, PlatformLanguage language = PlatformLanguage.English)
             {
                 var value = (email ?? string.Empty).Trim();
                 if (!string.IsNullOrWhiteSpace(value))
                 {
-                    recipients.Add(value);
+                    recipients[value] = language;
                 }
             }
         }

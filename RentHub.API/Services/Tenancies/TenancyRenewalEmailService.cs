@@ -43,13 +43,13 @@ namespace RentHub.API.Services.Tenancies
             var propertyName = tenancy.Apartment?.Property?.Name ?? string.Empty;
             var apartmentName = tenancy.Apartment?.Name ?? string.Empty;
             var renewalUrl = BuildPortalUrl($"/Tenancies/Renewal?tenancyId={tenancy.Id}");
-            var endDate = FormatDate(tenancy.EndDate.Value, tenant.Language);
+            var endDate = FormatDate(tenancy.EndDate.Value, tenant.EmailLanguage);
             var name = DisplayName(tenant);
 
-            var subject = tenant.Language == PlatformLanguage.French
+            var subject = tenant.EmailLanguage == PlatformLanguage.French
                 ? $"Votre bail arrive bientôt à échéance – {apartmentName}"
                 : $"Your tenancy is ending soon - {apartmentName}";
-            var body = tenant.Language == PlatformLanguage.French
+            var body = tenant.EmailLanguage == PlatformLanguage.French
                 ? string.Join(Environment.NewLine, new[]
                 {
                     $"Bonjour {name},",
@@ -134,11 +134,11 @@ namespace RentHub.API.Services.Tenancies
 
             foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
             {
-                var proposedDate = FormatDate(request.ProposedEndDate, recipient.Language);
-                var subject = recipient.Language == PlatformLanguage.French
+                var proposedDate = FormatDate(request.ProposedEndDate, recipient.EmailLanguage);
+                var subject = recipient.EmailLanguage == PlatformLanguage.French
                     ? $"Nouvelle demande de renouvellement – {tenancy.Apartment.Name}"
                     : $"New tenancy renewal request - {tenancy.Apartment.Name}";
-                var body = recipient.Language == PlatformLanguage.French
+                var body = recipient.EmailLanguage == PlatformLanguage.French
                     ? string.Join(Environment.NewLine, new[]
                     {
                         $"Bonjour {DisplayName(recipient)},",
@@ -176,20 +176,20 @@ namespace RentHub.API.Services.Tenancies
             var tenant = request.RequestedBy;
             var approved = request.Status == TenancyExtensionStatusEnum.Approved;
             var renewalUrl = BuildPortalUrl($"/Tenancies/Renewal?tenancyId={request.TenancyId}");
-            var proposedDate = FormatDate(request.ProposedEndDate, tenant.Language);
-            var subject = tenant.Language == PlatformLanguage.French
+            var proposedDate = FormatDate(request.ProposedEndDate, tenant.EmailLanguage);
+            var subject = tenant.EmailLanguage == PlatformLanguage.French
                 ? approved ? "Votre renouvellement a été approuvé" : "Votre renouvellement a été refusé"
                 : approved ? "Your tenancy renewal was approved" : "Your tenancy renewal was rejected";
 
             var lines = new List<string>
             {
-                tenant.Language == PlatformLanguage.French
+                tenant.EmailLanguage == PlatformLanguage.French
                     ? $"Bonjour {DisplayName(tenant)},"
                     : $"Hello {DisplayName(tenant)},",
                 string.Empty
             };
 
-            if (tenant.Language == PlatformLanguage.French)
+            if (tenant.EmailLanguage == PlatformLanguage.French)
             {
                 lines.Add(approved
                     ? $"Votre demande de renouvellement pour {request.Tenancy.Apartment.Name} a été approuvée. La nouvelle date de fin est le {proposedDate}."

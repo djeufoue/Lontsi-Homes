@@ -31,6 +31,7 @@ namespace Common.CommunicationModels
         public List<string> Roles { get; set; } = new();
         public bool IsSubscriptionExempt { get; set; }
         public PlatformLanguage Language { get; set; } = PlatformLanguage.English;
+        public PlatformLanguage EmailLanguage { get; set; } = PlatformLanguage.English;
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
         public bool IsKycSubmitted { get; set; }

@@ -1,5 +1,7 @@
 using Common.CommunicationModels;
+using Common.Enums;
 using Common.Helpers;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using RentHub.Portal.Services;
@@ -63,7 +65,10 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var receipt = await _api.GetAsync<RentReceiptDto>($"receipts/payment/{paymentId}");
-                var pdf = RentReceiptPdfBuilder.Build(receipt);
+                var language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("fr", StringComparison.OrdinalIgnoreCase)
+                    ? PlatformLanguage.French
+                    : PlatformLanguage.English;
+                var pdf = RentReceiptPdfBuilder.Build(receipt, language);
                 var fileName = $"{SafeFileName(receipt.ReceiptNumber)}.pdf";
                 return File(pdf, "application/pdf", fileName);
             }
@@ -77,7 +82,7 @@ namespace RentHub.Portal.Controllers
 
         private static string SafeFileName(string value)
         {
-            var fallback = string.IsNullOrWhiteSpace(value) ? "rent-receipt" : value.Trim();
+            var fallback = string.IsNullOrWhiteSpace(value) ? "rent-invoice" : value.Trim();
             foreach (var c in Path.GetInvalidFileNameChars())
             {
                 fallback = fallback.Replace(c, '-');

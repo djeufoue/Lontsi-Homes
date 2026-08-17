@@ -110,6 +110,38 @@ namespace RentHub.Portal.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateEmailLanguage(UpdateEmailLanguageVm model)
+        {
+            if (!ModelState.IsValid || !PlatformLanguageOptions.IsSupported(model.EmailLanguage))
+            {
+                TempData["Error"] = _localizer["Select a supported email language."].Value;
+                return RedirectToAction(nameof(Index));
+            }
+
+            try
+            {
+                var response = await _api.PostAsync<UpdateEmailLanguageRequest, UpdateEmailLanguageResponse>(
+                    "Account/email-language",
+                    new UpdateEmailLanguageRequest { EmailLanguage = model.EmailLanguage });
+
+                if (!PlatformLanguageOptions.IsSupported(response.EmailLanguage))
+                {
+                    throw new InvalidOperationException("The email language update response was incomplete.");
+                }
+
+                TempData["Success"] = _localizer["Your email language preference has been updated."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update the authenticated user's email language preference");
+                TempData["Error"] = _localizer["Unable to update your email language preference right now. Please try again."].Value;
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
         [HttpGet]
         [Authorize(Roles = "Landlord")]
         public async Task<IActionResult> PayoutSetup(bool refresh = false)

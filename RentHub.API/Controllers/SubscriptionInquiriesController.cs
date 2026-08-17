@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using Common.CommunicationModels;
+using Common.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -173,7 +174,13 @@ namespace RentHub.API.Controllers
             var url = PortalUrl($"/Conversations?kind=subscription&conversationId={inquiry.Id}");
             foreach (var admin in admins.Where(a => !string.IsNullOrWhiteSpace(a.Email)))
             {
-                await _emailService.SendEmailAsync(admin.Email!, $"New {inquiry.PlanName} plan inquiry", $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) requested a {inquiry.PlanName} plan.\n\nProperties: {inquiry.PropertyCount}\nApartments: {inquiry.ApartmentCount}\nTenants: {inquiry.TenantCount}\nProposed monthly price: {inquiry.ProposedMonthlyPrice:N2}\n\nMessage: {message}\n\nOpen conversation: {url}");
+                var isFrench = admin.EmailLanguage == PlatformLanguage.French;
+                await _emailService.SendEmailAsync(
+                    admin.Email!,
+                    isFrench ? $"Nouvelle demande pour le forfait {inquiry.PlanName}" : $"New {inquiry.PlanName} plan inquiry",
+                    isFrench
+                        ? $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) demande le forfait {inquiry.PlanName}.\n\nPropriétés : {inquiry.PropertyCount}\nAppartements : {inquiry.ApartmentCount}\nLocataires : {inquiry.TenantCount}\nPrix mensuel proposé : {inquiry.ProposedMonthlyPrice:N2}\n\nMessage : {message}\n\nOuvrir la conversation : {url}"
+                        : $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) requested a {inquiry.PlanName} plan.\n\nProperties: {inquiry.PropertyCount}\nApartments: {inquiry.ApartmentCount}\nTenants: {inquiry.TenantCount}\nProposed monthly price: {inquiry.ProposedMonthlyPrice:N2}\n\nMessage: {message}\n\nOpen conversation: {url}");
             }
         }
 
@@ -182,7 +189,16 @@ namespace RentHub.API.Controllers
             var path = inquiry.RequesterUserId == null
                 ? $"/PlanInquiries/Thread?token={Uri.EscapeDataString(inquiry.PublicAccessToken)}"
                 : $"/Conversations?kind=subscription&conversationId={inquiry.Id}";
-            await _emailService.SendEmailAsync(inquiry.RequesterEmail, $"Reply to your {inquiry.PlanName} plan inquiry", $"An administrator replied to your plan request.\n\nMessage: {message}\n\nOpen conversation: {PortalUrl(path)}");
+            var requester = string.IsNullOrWhiteSpace(inquiry.RequesterUserId)
+                ? null
+                : await _userManager.FindByIdAsync(inquiry.RequesterUserId);
+            var isFrench = requester?.EmailLanguage == PlatformLanguage.French;
+            await _emailService.SendEmailAsync(
+                inquiry.RequesterEmail,
+                isFrench ? $"Réponse à votre demande pour le forfait {inquiry.PlanName}" : $"Reply to your {inquiry.PlanName} plan inquiry",
+                isFrench
+                    ? $"Un administrateur a répondu à votre demande de forfait.\n\nMessage : {message}\n\nOuvrir la conversation : {PortalUrl(path)}"
+                    : $"An administrator replied to your plan request.\n\nMessage: {message}\n\nOpen conversation: {PortalUrl(path)}");
         }
 
         private string PortalUrl(string path)

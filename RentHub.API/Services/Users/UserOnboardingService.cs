@@ -1,3 +1,4 @@
+using Common.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
@@ -164,31 +165,32 @@ namespace RentHub.API.Services.Users
 
             await StoreOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName, otp, expiry);
 
-            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
+            var isFrench = user.EmailLanguage == PlatformLanguage.French;
+            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? (isFrench ? "" : "there") : user.FullName;
             var verifyUrl = BuildVerifyUrl(user.Email ?? string.Empty, isVisitor: false);
             var lines = new List<string>
             {
-                $"Hello {greetingName},",
+                isFrench ? $"Bonjour {greetingName}," : $"Hello {greetingName},",
                 string.Empty,
-                $"Your Lontsi Homes email OTP is: {otp}",
-                "Use it to confirm your email and continue landlord registration.",
+                isFrench ? $"Votre code de vérification par courriel Lontsi Homes est : {otp}" : $"Your Lontsi Homes email OTP is: {otp}",
+                isFrench ? "Utilisez-le pour confirmer votre adresse courriel et poursuivre votre inscription comme bailleur." : "Use it to confirm your email and continue landlord registration.",
                 string.Empty
             };
 
             if (!string.IsNullOrWhiteSpace(verifyUrl))
             {
-                lines.Add("Verification page:");
+                lines.Add(isFrench ? "Page de vérification :" : "Verification page:");
                 lines.Add(verifyUrl);
                 lines.Add(string.Empty);
             }
 
-            lines.Add("This OTP expires in 10 minutes.");
+            lines.Add(isFrench ? "Ce code expire dans 10 minutes." : "This OTP expires in 10 minutes.");
             lines.Add(string.Empty);
-            lines.Add("If you did not request this account, please ignore this message.");
+            lines.Add(isFrench ? "Si vous n’avez pas demandé ce compte, ignorez ce message." : "If you did not request this account, please ignore this message.");
 
             await _emailService.SendEmailAsync(
                 user.Email ?? string.Empty,
-                "Lontsi Homes Email Verification OTP",
+                isFrench ? "Code de vérification de l’adresse courriel Lontsi Homes" : "Lontsi Homes Email Verification OTP",
                 string.Join(Environment.NewLine, lines));
         }
 
@@ -297,27 +299,28 @@ namespace RentHub.API.Services.Users
             }
 
             var verifyUrl = BuildVerifyUrl(user.Email ?? string.Empty, isVisitor: true);
-            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
+            var isFrench = user.EmailLanguage == PlatformLanguage.French;
+            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? (isFrench ? "" : "there") : user.FullName;
             var lines = new List<string>
             {
-                $"Hello {greetingName},",
+                isFrench ? $"Bonjour {greetingName}," : $"Hello {greetingName},",
                 string.Empty,
-                $"Your RentHub visitor email OTP is: {otp}",
+                isFrench ? $"Votre code de vérification visiteur par courriel est : {otp}" : $"Your RentHub visitor email OTP is: {otp}",
             };
 
             if (phoneOtp != null)
             {
-                lines.Add($"Your RentHub visitor phone OTP is: {phoneOtp}");
+                lines.Add(isFrench ? $"Votre code de vérification visiteur par téléphone est : {phoneOtp}" : $"Your RentHub visitor phone OTP is: {phoneOtp}");
             }
 
             if (whatsAppOtp != null)
             {
-                lines.Add($"Your RentHub visitor WhatsApp OTP is: {whatsAppOtp}");
+                lines.Add(isFrench ? $"Votre code de vérification visiteur WhatsApp est : {whatsAppOtp}" : $"Your RentHub visitor WhatsApp OTP is: {whatsAppOtp}");
             }
 
-            lines.Add("Use the verification codes shown above to activate your visitor account.");
+            lines.Add(isFrench ? "Utilisez les codes ci-dessus pour activer votre compte visiteur." : "Use the verification codes shown above to activate your visitor account.");
             lines.Add(string.Empty);
-            lines.Add("Verification page:");
+            lines.Add(isFrench ? "Page de vérification :" : "Verification page:");
 
             if (!string.IsNullOrWhiteSpace(verifyUrl))
             {
@@ -325,13 +328,13 @@ namespace RentHub.API.Services.Users
             }
 
             lines.Add(string.Empty);
-            lines.Add("This OTP expires in 10 minutes.");
+            lines.Add(isFrench ? "Ces codes expirent dans 10 minutes." : "This OTP expires in 10 minutes.");
             lines.Add(string.Empty);
-            lines.Add("If you did not request this account, please ignore this message.");
+            lines.Add(isFrench ? "Si vous n’avez pas demandé ce compte, ignorez ce message." : "If you did not request this account, please ignore this message.");
 
             await _emailService.SendEmailAsync(
                 user.Email ?? string.Empty,
-                "RentHub Visitor Account Verification",
+                isFrench ? "Vérification du compte visiteur Lontsi Homes" : "RentHub Visitor Account Verification",
                 string.Join(Environment.NewLine, lines));
 
             if (phoneOtp != null)
@@ -429,11 +432,12 @@ namespace RentHub.API.Services.Users
                 }
             }
 
+            var isFrench = user.EmailLanguage == PlatformLanguage.French;
             var subject = string.IsNullOrWhiteSpace(temporaryPassword)
-                ? "RentHub Account Activation OTP"
-                : "Welcome to RentHub";
+                ? (isFrench ? "Code d’activation du compte Lontsi Homes" : "RentHub Account Activation OTP")
+                : (isFrench ? "Bienvenue sur Lontsi Homes" : "Welcome to RentHub");
 
-            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName;
+            var greetingName = string.IsNullOrWhiteSpace(user.FullName) ? (isFrench ? "" : "there") : user.FullName;
             var verifyUrl = BuildVerifyUrl(
                 user.Email ?? string.Empty,
                 isVisitor: false,
@@ -441,7 +445,7 @@ namespace RentHub.API.Services.Users
                 returnUrl: isTenantActivation ? "/Tenant" : null);
             var lines = new List<string>
             {
-                $"Hello {greetingName},",
+                isFrench ? $"Bonjour {greetingName}," : $"Hello {greetingName},",
                 string.Empty
             };
 
@@ -449,52 +453,52 @@ namespace RentHub.API.Services.Users
             {
                 if (isTenantActivation)
                 {
-                    lines.Add("A RentHub tenant account has been created for you and linked to a tenancy.");
-                    lines.Add("To activate your account:");
-                    lines.Add("1. Open the RentHub account verification page.");
+                    lines.Add(isFrench ? "Un compte locataire Lontsi Homes a été créé pour vous et lié à une location." : "A RentHub tenant account has been created for you and linked to a tenancy.");
+                    lines.Add(isFrench ? "Pour activer votre compte :" : "To activate your account:");
+                    lines.Add(isFrench ? "1. Ouvrez la page de vérification du compte Lontsi Homes." : "1. Open the RentHub account verification page.");
                     if (!string.IsNullOrWhiteSpace(verifyUrl))
                     {
                         lines.Add($"   {verifyUrl}");
                     }
-                    lines.Add($"2. Enter your email address: {user.Email}");
-                    lines.Add($"3. Enter this email OTP code: {otp}");
-                    lines.Add($"4. Sign in with this temporary password: {temporaryPassword}");
-                    lines.Add("5. After activation, change your password as soon as possible.");
+                    lines.Add(isFrench ? $"2. Saisissez votre adresse courriel : {user.Email}" : $"2. Enter your email address: {user.Email}");
+                    lines.Add(isFrench ? $"3. Saisissez ce code reçu par courriel : {otp}" : $"3. Enter this email OTP code: {otp}");
+                    lines.Add(isFrench ? $"4. Connectez-vous avec ce mot de passe temporaire : {temporaryPassword}" : $"4. Sign in with this temporary password: {temporaryPassword}");
+                    lines.Add(isFrench ? "5. Après l’activation, modifiez votre mot de passe dès que possible." : "5. After activation, change your password as soon as possible.");
                 }
                 else
                 {
-                    lines.Add(string.IsNullOrWhiteSpace(welcomeRoleLabel)
-                        ? "A RentHub account has been created for you."
-                        : $"A RentHub account has been created for you and linked to the {welcomeRoleLabel} role.");
-                    lines.Add("To activate your account:");
-                    lines.Add("1. Open the RentHub account verification page.");
+                    lines.Add(isFrench
+                        ? (string.IsNullOrWhiteSpace(welcomeRoleLabel) ? "Un compte Lontsi Homes a été créé pour vous." : $"Un compte Lontsi Homes a été créé pour vous avec le rôle {welcomeRoleLabel}.")
+                        : (string.IsNullOrWhiteSpace(welcomeRoleLabel) ? "A RentHub account has been created for you." : $"A RentHub account has been created for you and linked to the {welcomeRoleLabel} role."));
+                    lines.Add(isFrench ? "Pour activer votre compte :" : "To activate your account:");
+                    lines.Add(isFrench ? "1. Ouvrez la page de vérification du compte Lontsi Homes." : "1. Open the RentHub account verification page.");
                     if (!string.IsNullOrWhiteSpace(verifyUrl))
                     {
                         lines.Add($"   {verifyUrl}");
                     }
-                    lines.Add($"2. Enter your email address: {user.Email}");
-                    lines.Add($"3. Enter this email OTP code: {otp}");
+                    lines.Add(isFrench ? $"2. Saisissez votre adresse courriel : {user.Email}" : $"2. Enter your email address: {user.Email}");
+                    lines.Add(isFrench ? $"3. Saisissez ce code reçu par courriel : {otp}" : $"3. Enter this email OTP code: {otp}");
                     if (!string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                     {
-                        lines.Add($"4. Enter the payout-number OTP sent to {user.PayoutPhoneNumber}.");
+                        lines.Add(isFrench ? $"4. Saisissez le code envoyé au numéro de versement {user.PayoutPhoneNumber}." : $"4. Enter the payout-number OTP sent to {user.PayoutPhoneNumber}.");
                     }
                     if (!string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
                     {
-                        lines.Add($"5. Enter the subscription-payment OTP sent to {user.SubscriptionPaymentPhoneNumber}.");
+                        lines.Add(isFrench ? $"5. Saisissez le code de paiement d’abonnement envoyé à {user.SubscriptionPaymentPhoneNumber}." : $"5. Enter the subscription-payment OTP sent to {user.SubscriptionPaymentPhoneNumber}.");
                     }
                     if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
                     {
-                        lines.Add($"6. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
+                        lines.Add(isFrench ? $"6. Saisissez le code WhatsApp envoyé à {user.WhatsAppPhoneNumber}." : $"6. Enter the WhatsApp OTP sent to {user.WhatsAppPhoneNumber}.");
                     }
-                    lines.Add($"7. Sign in with this temporary password: {temporaryPassword}");
-                    lines.Add("8. After activation, change your password as soon as possible.");
+                    lines.Add(isFrench ? $"7. Connectez-vous avec ce mot de passe temporaire : {temporaryPassword}" : $"7. Sign in with this temporary password: {temporaryPassword}");
+                    lines.Add(isFrench ? "8. Après l’activation, modifiez votre mot de passe dès que possible." : "8. After activation, change your password as soon as possible.");
                 }
                 lines.Add(string.Empty);
             }
             else
             {
-                lines.Add($"Your RentHub email OTP is: {otp}");
-                lines.Add("Use it on the account verification page together with the payout-number and WhatsApp OTPs.");
+                lines.Add(isFrench ? $"Votre code de vérification Lontsi Homes par courriel est : {otp}" : $"Your RentHub email OTP is: {otp}");
+                lines.Add(isFrench ? "Utilisez-le sur la page de vérification avec les codes du numéro de versement et de WhatsApp." : "Use it on the account verification page together with the payout-number and WhatsApp OTPs.");
                 if (!string.IsNullOrWhiteSpace(verifyUrl))
                 {
                     lines.Add(verifyUrl);
@@ -502,9 +506,9 @@ namespace RentHub.API.Services.Users
                 lines.Add(string.Empty);
             }
 
-            lines.Add("This OTP expires in 10 minutes.");
+            lines.Add(isFrench ? "Ce code expire dans 10 minutes." : "This OTP expires in 10 minutes.");
             lines.Add(string.Empty);
-            lines.Add("If you did not expect this message, please ignore it.");
+            lines.Add(isFrench ? "Si vous ne vous attendiez pas à recevoir ce message, ignorez-le." : "If you did not expect this message, please ignore it.");
 
             await _emailService.SendEmailAsync(user.Email ?? string.Empty, subject, string.Join(Environment.NewLine, lines));
 

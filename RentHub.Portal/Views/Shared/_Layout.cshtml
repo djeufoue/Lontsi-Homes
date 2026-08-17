@@ -7,10 +7,12 @@
     var rawSuccessMessage = TempData["Success"] as string;
     var rawInfoMessage = TempData["Info"] as string;
     var rawErrorMessage = TempData["Error"] as string;
-    var successMessage = string.IsNullOrWhiteSpace(rawSuccessMessage) ? null : T[rawSuccessMessage].Value;
+    var successDialog = SuccessDialogHelper.GetActive(Context.Session);
+    var successMessage = !successDialog.ShowSuccessMessages || string.IsNullOrWhiteSpace(rawSuccessMessage)
+        ? null
+        : T[rawSuccessMessage].Value;
     var infoMessage = string.IsNullOrWhiteSpace(rawInfoMessage) ? null : T[rawInfoMessage].Value;
     var errorMessage = string.IsNullOrWhiteSpace(rawErrorMessage) ? null : T[rawErrorMessage].Value;
-    var successDialog = SuccessDialogHelper.GetActive(Context.Session);
 
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
@@ -444,7 +446,7 @@
     @if (!string.IsNullOrWhiteSpace(successMessage))
     {
         <div class="modal fade" id="successDialogModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog rh-feedback-dialog rh-feedback-position-@successDialog.Position">
                 <div class="modal-content rh-success-modal">
                     <div class="modal-header border-0">
                         <h5 class="modal-title">@T["Action Completed"]</h5>
@@ -470,7 +472,7 @@
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="modal fade" id="errorDialogModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog rh-feedback-dialog rh-feedback-position-@successDialog.Position">
                 <div class="modal-content rh-error-modal">
                     <div class="modal-header border-0">
                         <h5 class="modal-title">@T["Action Failed"]</h5>
@@ -496,7 +498,7 @@
     @if (!string.IsNullOrWhiteSpace(infoMessage))
     {
         <div class="modal fade" id="infoDialogModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog rh-feedback-dialog rh-feedback-position-@successDialog.Position">
                 <div class="modal-content rh-success-modal">
                     <div class="modal-header border-0">
                         <h5 class="modal-title">@T["Action Needed"]</h5>

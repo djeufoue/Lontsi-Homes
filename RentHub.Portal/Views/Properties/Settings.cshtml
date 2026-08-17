@@ -22,6 +22,18 @@
         new { Iso = "KE", Code = "+254", Label = "Kenya (+254)" },
         new { Iso = "AE", Code = "+971", Label = "United Arab Emirates (+971)" }
     };
+    var dialogPositions = new[]
+    {
+        new { Value = "top-start", Label = T["Top left"].Value },
+        new { Value = "top-center", Label = T["Top center"].Value },
+        new { Value = "top-end", Label = T["Top right"].Value },
+        new { Value = "center-start", Label = T["Center left"].Value },
+        new { Value = "center", Label = T["Center"].Value },
+        new { Value = "center-end", Label = T["Center right"].Value },
+        new { Value = "bottom-start", Label = T["Bottom left"].Value },
+        new { Value = "bottom-center", Label = T["Bottom center"].Value },
+        new { Value = "bottom-end", Label = T["Bottom right"].Value }
+    };
 }
 
 <section class="rh-overview-shell rh-property-settings-page"
@@ -29,7 +41,9 @@
          data-property-id="@property.Id"
          data-show-close-button="true"
          data-auto-close-enabled="@(Model.SuccessDialogAutoCloseEnabled.ToString().ToLowerInvariant())"
-         data-auto-close-seconds="@Model.SuccessDialogAutoCloseSeconds">
+         data-auto-close-seconds="@Model.SuccessDialogAutoCloseSeconds"
+         data-show-success-messages="@(Model.SuccessDialogShowSuccessMessages.ToString().ToLowerInvariant())"
+         data-dialog-position="@Model.SuccessDialogPosition">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-action="Overview" asp-route-id="@property.Id">&#8592; Back to property overview</a>
@@ -122,11 +136,42 @@
             </form>
         </article>
 
+        @if (Model.CanManageMapVisibility)
+        {
+            <article class="rh-overview-settings-card rh-panel rh-panel-elevated">
+                <div class="rh-overview-panel-head compact">
+                    <div>
+                        <h2 class="rh-dashboard-panel-title">@T["Map settings"]</h2>
+                        <p class="rh-dashboard-panel-copy">@T["Control whether the property map is available throughout the workspace."]</p>
+                    </div>
+                </div>
+
+                <form method="post" asp-action="UpdateMapSettings" class="row g-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@property.Id" />
+
+                    <div class="col-12">
+                        <div class="rh-form-switch-row">
+                            <div class="form-check form-switch rh-form-switch">
+                                <input class="form-check-input" type="checkbox" id="mapEnabled" name="mapEnabled" value="true" @(property.MapEnabled ? "checked" : null) />
+                                <label class="form-check-label" for="mapEnabled">@T["Enable property map"]</label>
+                            </div>
+                        </div>
+                        <small class="text-muted">@T["When disabled, the map button, preview section, and full map page are hidden for every user."]</small>
+                    </div>
+
+                    <div class="col-12 d-grid">
+                        <button class="btn rh-btn-primary" type="submit">@T["Save Map Settings"]</button>
+                    </div>
+                </form>
+            </article>
+        }
+
         <article class="rh-overview-settings-card rh-panel rh-panel-elevated">
             <div class="rh-overview-panel-head compact">
                 <div>
-                    <h2 class="rh-dashboard-panel-title">Dialog settings</h2>
-                    <p class="rh-dashboard-panel-copy">Control auto-hide behavior for success and error dialogs for this property.</p>
+                    <h2 class="rh-dashboard-panel-title">@T["Dialog settings"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Control the visibility, timing, and position of feedback dialogs for this property."]</p>
                 </div>
             </div>
 
@@ -137,20 +182,43 @@
                 <div class="col-12">
                     <div class="rh-form-switch-row">
                         <div class="form-check form-switch rh-form-switch">
+                            <input class="form-check-input" type="checkbox" id="showSuccessMessages" name="showSuccessMessages" value="true" @(Model.SuccessDialogShowSuccessMessages ? "checked" : null) />
+                            <label class="form-check-label" for="showSuccessMessages">@T["Show success messages"]</label>
+                        </div>
+                    </div>
+                    <small class="text-muted">@T["When disabled, successful actions continue normally without displaying a confirmation dialog. Error messages remain visible."]</small>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label" for="dialogPosition">@T["Dialog position"]</label>
+                    <div class="rh-select-wrap">
+                        <select class="form-select rh-input rh-select" id="dialogPosition" name="dialogPosition">
+                            @foreach (var position in dialogPositions)
+                            {
+                                <option value="@position.Value" selected="@(string.Equals(Model.SuccessDialogPosition, position.Value, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@position.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <small class="text-muted">@T["Bottom center is the default position."]</small>
+                </div>
+
+                <div class="col-12">
+                    <div class="rh-form-switch-row">
+                        <div class="form-check form-switch rh-form-switch">
                             <input class="form-check-input" type="checkbox" id="autoCloseEnabled" name="autoCloseEnabled" value="true" @(Model.SuccessDialogAutoCloseEnabled ? "checked" : null) />
-                            <label class="form-check-label" for="autoCloseEnabled">Auto-hide success and error dialogs</label>
+                            <label class="form-check-label" for="autoCloseEnabled">@T["Auto-hide success and error dialogs"]</label>
                         </div>
                     </div>
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label">Auto close after (seconds)</label>
-                    <input class="form-control rh-input" type="number" min="2" max="30" name="autoCloseSeconds" id="autoCloseSeconds" value="@Model.SuccessDialogAutoCloseSeconds" @(Model.SuccessDialogAutoCloseEnabled ? null : "disabled") />
-                    <small class="text-muted">Applies only to success and error dialogs, never to add/edit modal forms.</small>
+                    <label class="form-label">@T["Auto close after (seconds)"]</label>
+                    <input class="form-control rh-input" type="number" min="2" max="30" name="autoCloseSeconds" id="autoCloseSeconds" value="@Model.SuccessDialogAutoCloseSeconds" @(Model.SuccessDialogAutoCloseEnabled ? null : "readonly") />
+                    <small class="text-muted">@T["Applies only to success and error dialogs, never to add/edit modal forms."]</small>
                 </div>
 
                 <div class="col-12 d-grid">
-                    <button class="btn rh-btn-primary" type="submit">Save Dialog Preferences</button>
+                    <button class="btn rh-btn-primary" type="submit">@T["Save Dialog Preferences"]</button>
                 </div>
             </form>
         </article>

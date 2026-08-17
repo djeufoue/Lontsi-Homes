@@ -1,4 +1,5 @@
 using Common.CommunicationModels;
+using RentHub.Portal.Helpers;
 
 namespace RentHub.Portal.ViewModels.Properties
 {
@@ -16,6 +17,7 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool CanAddApartment { get; set; }
         public bool CanUploadDocuments { get; set; }
         public bool CanDeleteDocuments { get; set; }
+        public bool CanManageMapVisibility { get; set; }
 
         public int UnitsPage { get; set; } = 1;
         public int UnitsPageSize { get; set; } = 6;
@@ -25,5 +27,7 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool SuccessDialogShowCloseButton { get; set; } = true;
         public bool SuccessDialogAutoCloseEnabled { get; set; } = false;
         public int SuccessDialogAutoCloseSeconds { get; set; } = 5;
+        public bool SuccessDialogShowSuccessMessages { get; set; } = true;
+        public string SuccessDialogPosition { get; set; } = SuccessDialogHelper.DefaultPosition;
     }
 }

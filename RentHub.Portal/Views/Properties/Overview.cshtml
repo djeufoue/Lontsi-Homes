@@ -55,7 +55,9 @@
          data-overview-content-url="@Url.Action("OverviewContent", "Properties", new { id = property.Id })"
          data-show-close-button="true"
          data-auto-close-enabled="@(Model.SuccessDialogAutoCloseEnabled.ToString().ToLowerInvariant())"
-         data-auto-close-seconds="@Model.SuccessDialogAutoCloseSeconds">
+         data-auto-close-seconds="@Model.SuccessDialogAutoCloseSeconds"
+         data-show-success-messages="@(Model.SuccessDialogShowSuccessMessages.ToString().ToLowerInvariant())"
+         data-dialog-position="@Model.SuccessDialogPosition">
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-action="Index">&#8592; @T["Back to properties"]</a>
@@ -73,7 +75,10 @@
 
         <div class="rh-overview-hero-actions">
             <a class="btn rh-btn-subtle" asp-action="Settings" asp-route-id="@property.Id">@T["Property Settings"]</a>
-            <a class="btn rh-btn-subtle" asp-action="Map" asp-route-id="@property.Id">@T["Open Map"]</a>
+            @if (property.MapEnabled)
+            {
+                <a class="btn rh-btn-subtle" asp-action="Map" asp-route-id="@property.Id">@T["Open Map"]</a>
+            }
             <a class="btn rh-btn-primary" asp-action="Index">@T["Property Portfolio"]</a>
         </div>
     </section>
@@ -173,6 +178,8 @@
                 </div>
             </article>
 
+            @if (property.MapEnabled)
+            {
             <article class="rh-overview-map-preview rh-panel rh-panel-elevated">
                 <div class="rh-overview-panel-head">
                     <div>
@@ -225,6 +232,7 @@
                     </div>
                 </div>
             </article>
+            }
 
             <article class="rh-overview-docs-card rh-panel rh-panel-elevated rh-overview-docs-compact">
                 <div class="rh-overview-panel-head align-start">

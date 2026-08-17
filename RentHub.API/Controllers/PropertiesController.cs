@@ -372,6 +372,7 @@ namespace RentHub.API.Controllers
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
+                    MapEnabled = property.MapEnabled,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
@@ -521,6 +522,7 @@ namespace RentHub.API.Controllers
                     Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
                     Latitude = request.Latitude ?? resolvedCoordinates?.Latitude,
                     Longitude = request.Longitude ?? resolvedCoordinates?.Longitude,
+                    MapEnabled = false,
                     LandlordId = landlordId,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -541,6 +543,7 @@ namespace RentHub.API.Controllers
                     Description = propertyEntity.Description,
                     Latitude = propertyEntity.Latitude,
                     Longitude = propertyEntity.Longitude,
+                    MapEnabled = propertyEntity.MapEnabled,
                     LandlordId = propertyEntity.LandlordId,
                     LandlordName = landlord.FullName ?? landlord.Email ?? "",
                     Apartments = new List<ApartmentDto>()
@@ -739,6 +742,7 @@ namespace RentHub.API.Controllers
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
+                    MapEnabled = property.MapEnabled,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = new List<ApartmentDto>()
@@ -752,6 +756,33 @@ namespace RentHub.API.Controllers
             }
         }
 
+        [HttpPut("{id}/map-settings")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdatePropertyMapSettings(
+            int id,
+            [FromBody] UpdatePropertyMapSettingsRequest request)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var property = await _context.Properties.FirstOrDefaultAsync(item => item.Id == id);
+            if (property == null) return NotFound("Property not found.");
+
+            property.MapEnabled = request.MapEnabled;
+            property.UpdatedBy = userId;
+            property.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                property.Id,
+                property.MapEnabled,
+                Message = property.MapEnabled
+                    ? "Property map enabled."
+                    : "Property map disabled."
+            });
+        }
+
         [HttpPost("{id}/geocode")]
         [Authorize]
         public async Task<IActionResult> RefreshPropertyCoordinates(int id)
@@ -760,6 +791,10 @@ namespace RentHub.API.Controllers
             if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
             var property = await _context.Properties.FirstOrDefaultAsync(item => item.Id == id);
             if (property == null) return NotFound("Property not found.");
+            if (!property.MapEnabled)
+            {
+                return Conflict(new { Message = "The property map is disabled in Property Settings." });
+            }
             if (!await _permissionService.HasPropertyPermissionAsync(
                     userId, id, ManagerPermission.EditProperty, User.IsInRole("Admin"))) return Forbid();
 
@@ -847,6 +882,7 @@ namespace RentHub.API.Controllers
                     Description = property.Description,
                     Latitude = property.Latitude,
                     Longitude = property.Longitude,
+                    MapEnabled = property.MapEnabled,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
                     Apartments = property.Apartments
@@ -906,7 +942,8 @@ namespace RentHub.API.Controllers
                     CanManageManagers = canManageManagers,
                     CanAddApartment = canAddApartment,
                     CanUploadDocuments = canUploadDocuments,
-                    CanDeleteDocuments = canDeleteDocuments
+                    CanDeleteDocuments = canDeleteDocuments,
+                    CanManageMapVisibility = isAdmin
                 };
 
                 return Ok(dto);

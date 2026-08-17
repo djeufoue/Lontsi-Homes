@@ -18,6 +18,7 @@ namespace RentHub.API.Models.Entities
         public string? Description { get; set; }
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
+        public bool MapEnabled { get; set; } = false;
         public bool AutomaticPaymentsEnabled { get; set; }
 
         // Owner of the property

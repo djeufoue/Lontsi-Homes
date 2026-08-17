@@ -228,6 +228,23 @@
             </div>
             <small class="text-muted" id="profileLanguageHelp">@T["Your selection is saved to your account and restored whenever you sign in."]</small>
         </form>
+
+        <hr class="my-4" />
+
+        <h3 class="rh-section-title mb-2">@T["Email language"]</h3>
+        <p class="text-muted">@T["Choose the language used for every email sent to you, including reminders, receipts, invitations, renewals, and account notifications."]</p>
+        <form asp-controller="Profile" asp-action="UpdateEmailLanguage" method="post" class="rh-profile-language-form">
+            @Html.AntiForgeryToken()
+            <label class="form-label" for="profileEmailLanguage">@T["Email language"]</label>
+            <div class="rh-profile-language-controls">
+                <select class="form-select" id="profileEmailLanguage" name="EmailLanguage" aria-describedby="profileEmailLanguageHelp">
+                    <option value="@((int)PlatformLanguage.English)" selected="@(overview.EmailLanguage == PlatformLanguage.English ? "selected" : null)">English</option>
+                    <option value="@((int)PlatformLanguage.French)" selected="@(overview.EmailLanguage == PlatformLanguage.French ? "selected" : null)">Français</option>
+                </select>
+                <button class="btn rh-btn-primary" type="submit">@T["Save email language"]</button>
+            </div>
+            <small class="text-muted" id="profileEmailLanguageHelp">@T["This preference is independent from the language of the application interface."]</small>
+        </form>
     </article>
 
     @if (isLandlord || isAdmin)
