@@ -7,6 +7,7 @@
     var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
 
     var tenancy = Model.Tenancy;
+    var rentSummary = Model.RentSummary;
     var today = DateTimeOffset.UtcNow.Date;
     var contract = Model.Documents.OrderByDescending(document => document.UploadedAt).FirstOrDefault();
     var rentPeriods = Model.AllRentPeriods.OrderBy(period => period.PeriodStart).ToList();
@@ -44,7 +45,7 @@
 
             <div class="rh-overview-badges">
                 <span class="rh-chip @stateClass">@T[tenancyState]</span>
-                <span class="rh-chip rh-chip-primary">@T["{0:N0} rent", tenancy.MonthlyRent]</span>
+                <span class="rh-chip rh-chip-primary">@T["{0:N0} XAF rent", tenancy.MonthlyRent]</span>
                 <span class="rh-chip rh-chip-info">@T["{0} / {1} members", members.Count, tenancy.MaxMembers]</span>
                 <span class="rh-chip @(tenancy.CanWrite ? "rh-chip-primary" : "rh-chip-warning")">@(tenancy.CanWrite ? T["Write access"].Value : T["Read access"].Value)</span>
             </div>
@@ -83,7 +84,7 @@
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
                 <span>@T["Main rent"]</span>
-                <strong>@tenancy.MonthlyRent.ToString("N0")</strong>
+                <strong>@tenancy.MonthlyRent.ToString("N0") XAF</strong>
                 <small>@T["Monthly tenancy arrangement"]</small>
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
@@ -98,6 +99,56 @@
             </div>
         </div>
     </section>
+
+    @if (tenancy.CanViewRent)
+    {
+        <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Rent situation"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["A simple view of the last payment, what is due now, the next rent period, and reminder activity."]</p>
+                </div>
+                <div class="d-flex flex-column align-items-end gap-2">
+                    @if (rentSummary.CanSendManualReminder)
+                    {
+                        <form method="post" asp-action="SendManualRentReminder">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                            <input type="hidden" name="returnUrl" value="@Context.Request.Path@Context.Request.QueryString" />
+                            <button type="submit" class="btn btn-sm rh-btn-primary">@T["Send a reminder now"]</button>
+                        </form>
+                    }
+                    else if (tenancy.CanSendRentReminder && !string.IsNullOrWhiteSpace(rentSummary.ManualReminderUnavailableReason))
+                    {
+                        <small class="text-muted text-end">@T[rentSummary.ManualReminderUnavailableReason]</small>
+                    }
+                </div>
+            </div>
+
+            <div class="rh-apartment-commanddeck-grid">
+                <div class="rh-apartment-stat-card rh-card-spotlight">
+                    <span>@T["Last paid month"]</span>
+                    <strong>@(rentSummary.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy") ?? T["No paid month yet"].Value)</strong>
+                    <small>@(rentSummary.LastPaidAt.HasValue ? T["Paid on {0}", rentSummary.LastPaidAt.Value.LocalDateTime.ToString("g")].Value : T["No payment date recorded"].Value)</small>
+                </div>
+                <div class="rh-apartment-stat-card rh-card-spotlight">
+                    <span>@T["Due now"]</span>
+                    <strong>@rentSummary.DueNowAmount.ToString("N0") XAF</strong>
+                    <small>@(rentSummary.DueNowPeriodCount == 0 ? T["Nothing due"].Value : T["{0} unpaid period(s)", rentSummary.DueNowPeriodCount].Value)</small>
+                </div>
+                <div class="rh-apartment-stat-card rh-card-spotlight">
+                    <span>@T["Next rent"]</span>
+                    <strong>@(rentSummary.NextPeriodDueDate?.LocalDateTime.ToString("d") ?? T["Not scheduled"].Value)</strong>
+                    <small>@(rentSummary.NextPeriodAmount.HasValue ? $"{rentSummary.NextPeriodAmount.Value:N0} XAF" : T["No upcoming period"].Value)</small>
+                </div>
+                <div class="rh-apartment-stat-card rh-card-spotlight">
+                    <span>@T["Last reminder sent"]</span>
+                    <strong>@(rentSummary.LastReminderSentAt?.LocalDateTime.ToString("g") ?? T["No reminder sent"].Value)</strong>
+                    <small>@T["{0} reminder(s) recorded", rentSummary.ReminderCount]</small>
+                </div>
+            </div>
+        </section>
+    }
 
     <section class="rh-overview-workgrid rh-apartment-workgrid">
         <div class="rh-overview-maincolumn">

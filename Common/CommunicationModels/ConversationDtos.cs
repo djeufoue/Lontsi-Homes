@@ -77,8 +77,16 @@ namespace Common.CommunicationModels
         [Range(1, 1000000)]
         public int TenantCount { get; set; }
 
-        [Range(typeof(decimal), "0.01", "1000000000")]
+        [Range(
+            typeof(decimal),
+            "0.01",
+            "1000000000",
+            ParseLimitsInInvariantCulture = true,
+            ConvertValueInInvariantCulture = true)]
         public decimal ProposedMonthlyPrice { get; set; }
+
+        [Range(6, 1200)]
+        public int CommitmentMonths { get; set; }
 
         [StringLength(160)]
         public string? RequesterName { get; set; }
@@ -109,6 +117,7 @@ namespace Common.CommunicationModels
         public string RequesterName { get; set; } = string.Empty;
         public string RequesterEmail { get; set; } = string.Empty;
         public decimal ProposedMonthlyPrice { get; set; }
+        public int CommitmentMonths { get; set; }
         public string LastMessagePreview { get; set; } = string.Empty;
         public DateTimeOffset LastMessageAt { get; set; }
         public bool HasUnreadMessages { get; set; }
@@ -134,6 +143,7 @@ namespace Common.CommunicationModels
         public int ApartmentCount { get; set; }
         public int TenantCount { get; set; }
         public decimal ProposedMonthlyPrice { get; set; }
+        public int CommitmentMonths { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset LastMessageAt { get; set; }
         public List<SubscriptionInquiryMessageDto> Messages { get; set; } = new();

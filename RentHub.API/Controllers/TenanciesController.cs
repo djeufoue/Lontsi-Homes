@@ -11,6 +11,7 @@ using RentHub.API.Services.Storage;
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Permissions;
+using RentHub.API.Services.Reminders;
 
 namespace RentHub.API.Controllers
 {
@@ -23,19 +24,22 @@ namespace RentHub.API.Controllers
         private readonly IStorageService _storageService;
         private readonly IUserOnboardingService _userOnboardingService;
         private readonly IManagerPermissionService _permissionService;
+        private readonly IRentReminderService _rentReminderService;
 
         public TenanciesController(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             IStorageService storageService,
             IUserOnboardingService userOnboardingService,
-            IManagerPermissionService permissionService)
+            IManagerPermissionService permissionService,
+            IRentReminderService rentReminderService)
         {
             _context = context;
             _userManager = userManager;
             _storageService = storageService;
             _userOnboardingService = userOnboardingService;
             _permissionService = permissionService;
+            _rentReminderService = rentReminderService;
         }
 
         [HttpGet]
@@ -883,8 +887,10 @@ namespace RentHub.API.Controllers
                 var canViewRent = !isRestrictedManager || await _permissionService.HasTenancyPermissionAsync(userId, id, ManagerPermission.ViewRentInformation, false);
                 var canMarkRentPaid = await _permissionService.HasTenancyPermissionAsync(userId, id, ManagerPermission.MarkRentAsPaid, isAdmin) || apartmentOwnerCanWrite;
                 var canCancelPendingPayment = await _permissionService.HasTenancyPermissionAsync(userId, id, ManagerPermission.DeletePayment, isAdmin) || apartmentOwnerCanWrite;
+                var canSendRentReminder = await _permissionService.HasTenancyPermissionAsync(userId, id, ManagerPermission.SendRentReminder, isAdmin) || apartmentOwnerCanWrite;
                 var canWrite = canEdit || canDelete || canTerminate || canRenew || canAddMembers || canEditMembers ||
-                               canRemoveMembers || canUploadDocuments || canDeleteDocuments || canMarkRentPaid || canCancelPendingPayment;
+                               canRemoveMembers || canUploadDocuments || canDeleteDocuments || canMarkRentPaid ||
+                               canCancelPendingPayment || canSendRentReminder;
 
                 var members = tenancy.Members
                     .Where(m => !m.IsDeleted)
@@ -927,6 +933,37 @@ namespace RentHub.API.Controllers
                         .ToListAsync()
                     : new List<RentPeriod>();
 
+                var reminderEntities = canViewRent
+                    ? await _context.RentReminders
+                        .AsNoTracking()
+                        .Include(reminder => reminder.Periods)
+                        .Where(reminder => reminder.TenancyId == tenancy.Id)
+                        .OrderByDescending(reminder => reminder.SentAt ?? reminder.CreatedAt)
+                        .ToListAsync()
+                    : new List<RentReminder>();
+
+                var requesterIds = reminderEntities
+                    .Where(reminder => !string.IsNullOrWhiteSpace(reminder.RequestedByUserId))
+                    .Select(reminder => reminder.RequestedByUserId!)
+                    .Distinct()
+                    .ToList();
+                var requesterNames = requesterIds.Count == 0
+                    ? new Dictionary<string, string>()
+                    : await _context.Users
+                        .Where(user => requesterIds.Contains(user.Id))
+                        .ToDictionaryAsync(
+                            user => user.Id,
+                            user => user.FullName ?? user.Email ?? string.Empty);
+                var reminderHistory = MapReminderHistory(reminderEntities, requesterNames);
+                var nowUtc = DateTimeOffset.UtcNow;
+                var rentSummary = BuildRentSummary(
+                    rentPeriods,
+                    reminderHistory,
+                    tenancy.Apartment.ManualRentReminderLimit,
+                    tenancy.Apartment.ManualRentReminderCooldownHours,
+                    canSendRentReminder,
+                    nowUtc);
+
                 return Ok(new TenancyOverviewDto
                 {
                     Tenancy = new TenancyDetailsDto
@@ -945,7 +982,7 @@ namespace RentHub.API.Controllers
                         TerminatedAt = tenancy.TerminatedAt,
                         TerminationReason = tenancy.TerminationReason,
                         TerminationNotes = tenancy.TerminationNotes,
-                        Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
+                        Status = ResolveTenancyStatus(tenancy, nowUtc),
                         CanWrite = canWrite,
                         CanEdit = canEdit,
                         CanDelete = canDelete,
@@ -960,16 +997,53 @@ namespace RentHub.API.Controllers
                         CanDeleteDocuments = canDeleteDocuments,
                         CanViewRent = canViewRent,
                         CanMarkRentPaid = canMarkRentPaid,
-                        CanCancelPendingPayment = canCancelPendingPayment
+                        CanCancelPendingPayment = canCancelPendingPayment,
+                        CanSendRentReminder = canSendRentReminder
                     },
                     Members = members,
                     Documents = docs,
-                    RentPeriods = MapRentPeriods(rentPeriods, DateTimeOffset.UtcNow)
+                    RentPeriods = MapRentPeriods(rentPeriods, nowUtc, reminderHistory),
+                    RentSummary = rentSummary,
+                    ReminderHistory = reminderHistory
                 });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { Message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/rent-reminders/manual")]
+        [Authorize]
+        public async Task<IActionResult> SendManualRentReminder(int id)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var exists = await _context.Tenancies.AnyAsync(tenancy => tenancy.Id == id && !tenancy.IsDeleted);
+            if (!exists) return NotFound("Tenancy not found.");
+
+            var isAdmin = User.IsInRole("Admin");
+            var canSend = await _permissionService.HasTenancyPermissionAsync(
+                userId,
+                id,
+                ManagerPermission.SendRentReminder,
+                isAdmin) ||
+                await _context.ApartmentOwners.AnyAsync(owner =>
+                    !owner.IsDeleted &&
+                    owner.OwnerId == userId &&
+                    owner.Permission == PermissionLevelEnum.ReadWrite &&
+                    owner.Apartment!.Tenancies.Any(tenancy => tenancy.Id == id && !tenancy.IsDeleted));
+
+            if (!canSend) return Forbid();
+
+            try
+            {
+                return Ok(await _rentReminderService.SendManualReminderAsync(id, userId));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return BadRequest(new { Message = exception.Message });
             }
         }
 
@@ -1280,7 +1354,146 @@ namespace RentHub.API.Controllers
             return RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, tenancyStart, tenancyEnd, endBehavior);
         }
 
-        private static List<RentPeriodDto> MapRentPeriods(IEnumerable<RentPeriod> periods, DateTimeOffset nowUtc)
+        private static List<RentReminderHistoryDto> MapReminderHistory(
+            IEnumerable<RentReminder> reminders,
+            IReadOnlyDictionary<string, string> requesterNames)
+        {
+            return reminders.Select(reminder => new RentReminderHistoryDto
+            {
+                Id = reminder.Id,
+                TenancyId = reminder.TenancyId,
+                Category = reminder.Category,
+                CategoryLabel = reminder.Category switch
+                {
+                    RentReminderCategoryEnum.BeforeDue => "Before due date",
+                    RentReminderCategoryEnum.DueDate => "Due date",
+                    RentReminderCategoryEnum.AfterDue => "After due date",
+                    RentReminderCategoryEnum.Manual => "Manual follow-up",
+                    _ => "Rent reminder"
+                },
+                IsManual = reminder.IsManual,
+                ScheduledFor = reminder.ScheduledFor,
+                CreatedAt = reminder.CreatedAt,
+                SentAt = reminder.SentAt,
+                Status = reminder.Status,
+                StatusLabel = reminder.Status switch
+                {
+                    RentReminderStatusEnum.Pending => "Pending",
+                    RentReminderStatusEnum.Sent => "Sent",
+                    RentReminderStatusEnum.PartiallySent => "Partially sent",
+                    RentReminderStatusEnum.Failed => "Failed",
+                    RentReminderStatusEnum.Cancelled => "Cancelled",
+                    _ => reminder.Status.ToString()
+                },
+                EmailStatus = reminder.EmailStatus,
+                SmsStatus = reminder.SmsStatus,
+                RecipientEmail = reminder.RecipientEmail,
+                RecipientPhone = reminder.RecipientPhone,
+                RequestedByName = reminder.RequestedByUserId != null && requesterNames.TryGetValue(reminder.RequestedByUserId, out var name)
+                    ? name
+                    : string.Empty,
+                FailureReason = reminder.FailureReason,
+                OutstandingAmount = reminder.OutstandingAmountSnapshot,
+                IncludedPeriodCount = reminder.IncludedPeriodCount,
+                Periods = reminder.Periods
+                    .OrderBy(period => period.PeriodStartSnapshot)
+                    .Select(period => new RentReminderPeriodSnapshotDto
+                    {
+                        RentPeriodId = period.RentPeriodId,
+                        PeriodStart = period.PeriodStartSnapshot,
+                        PeriodEnd = period.PeriodEndSnapshot,
+                        DueDate = period.DueDateSnapshot,
+                        Amount = period.AmountSnapshot,
+                        PaidAmount = period.PaidAmountSnapshot,
+                        OutstandingAmount = period.OutstandingAmountSnapshot,
+                        IsTrigger = period.IsTrigger,
+                        IsUpcomingInformation = period.Relation == RentReminderPeriodRelationEnum.UpcomingInformation
+                    })
+                    .ToList()
+            }).ToList();
+        }
+
+        private static RentSummaryDto BuildRentSummary(
+            IReadOnlyCollection<RentPeriod> periods,
+            IReadOnlyCollection<RentReminderHistoryDto> reminders,
+            int manualReminderLimit,
+            int manualCooldownHours,
+            bool canSendManualReminder,
+            DateTimeOffset nowUtc)
+        {
+            var paidPeriods = periods
+                .Where(period => period.Status is RentPeriodStatusEnum.Paid
+                    or RentPeriodStatusEnum.PaidBeforeRentHub
+                    or RentPeriodStatusEnum.PaidInAdvance)
+                .OrderByDescending(period => period.PeriodEnd)
+                .ToList();
+            var duePeriods = periods
+                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)) &&
+                                 period.DueDate <= nowUtc)
+                .OrderBy(period => period.DueDate)
+                .ToList();
+            var nextPeriod = periods
+                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)) &&
+                                 period.DueDate > nowUtc)
+                .OrderBy(period => period.DueDate)
+                .FirstOrDefault();
+            var successfulReminders = reminders
+                .Where(reminder => reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
+                .OrderByDescending(reminder => reminder.SentAt)
+                .ToList();
+            var oldestDuePeriodId = duePeriods.FirstOrDefault()?.Id;
+            var manualRemindersForOldestPeriod = oldestDuePeriodId.HasValue
+                ? successfulReminders.Count(reminder => reminder.IsManual &&
+                    reminder.Periods.Any(period => period.RentPeriodId == oldestDuePeriodId.Value && period.IsTrigger))
+                : 0;
+            var lastManualSentAt = oldestDuePeriodId.HasValue
+                ? successfulReminders
+                    .Where(reminder => reminder.IsManual &&
+                        reminder.Periods.Any(period => period.RentPeriodId == oldestDuePeriodId.Value && period.IsTrigger))
+                    .Max(reminder => reminder.SentAt)
+                : null;
+
+            var unavailableReason = string.Empty;
+            if (!canSendManualReminder)
+                unavailableReason = "You do not have permission to send a rent reminder.";
+            else if (!oldestDuePeriodId.HasValue)
+                unavailableReason = "No unpaid rent is currently due.";
+            else if (manualReminderLimit <= 0)
+                unavailableReason = "Manual rent reminders are disabled for this apartment.";
+            else if (manualRemindersForOldestPeriod >= manualReminderLimit)
+                unavailableReason = "The manual reminder limit has been reached.";
+            else if (lastManualSentAt.HasValue && manualCooldownHours > 0 &&
+                     lastManualSentAt.Value.AddHours(manualCooldownHours) > nowUtc)
+                unavailableReason = "The waiting period between manual reminders has not elapsed yet.";
+
+            var lastPaid = paidPeriods.FirstOrDefault();
+            var lastReminder = successfulReminders.FirstOrDefault();
+            return new RentSummaryDto
+            {
+                DueNowAmount = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)),
+                DueNowPeriodCount = duePeriods.Count,
+                OldestUnpaidDueDate = duePeriods.FirstOrDefault()?.DueDate,
+                LastPaidPeriodStart = lastPaid?.PeriodStart,
+                LastPaidPeriodEnd = lastPaid?.PeriodEnd,
+                LastPaidAt = lastPaid?.PaidDate,
+                NextPeriodStart = nextPeriod?.PeriodStart,
+                NextPeriodEnd = nextPeriod?.PeriodEnd,
+                NextPeriodDueDate = nextPeriod?.DueDate,
+                NextPeriodAmount = nextPeriod?.Amount,
+                LastReminderSentAt = lastReminder?.SentAt,
+                LastReminderCategory = lastReminder?.Category,
+                ReminderCount = successfulReminders.Count,
+                ManualReminderCount = manualRemindersForOldestPeriod,
+                ManualReminderLimit = manualReminderLimit,
+                CanSendManualReminder = string.IsNullOrEmpty(unavailableReason),
+                ManualReminderUnavailableReason = unavailableReason
+            };
+        }
+
+        private static List<RentPeriodDto> MapRentPeriods(
+            IEnumerable<RentPeriod> periods,
+            DateTimeOffset nowUtc,
+            IReadOnlyCollection<RentReminderHistoryDto>? reminderHistory = null)
         {
             var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
             var firstUnpaidId = ordered
@@ -1294,6 +1507,13 @@ namespace RentHub.API.Controllers
                 var status = ResolveDisplayStatus(period, nowUtc);
                 var isPaid = RentPeriodScheduleHelper.IsPaidStatus(status);
                 var isPayable = !isPaid && firstUnpaidId == period.Id && status != RentPeriodStatusEnum.PendingPayment;
+                var periodReminders = reminderHistory?
+                    .Where(reminder => reminder.Periods.Any(snapshot => snapshot.RentPeriodId == period.Id))
+                    .OrderByDescending(reminder => reminder.SentAt ?? reminder.CreatedAt)
+                    .ToList() ?? new List<RentReminderHistoryDto>();
+                var successfulPeriodReminders = periodReminders
+                    .Where(reminder => reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
+                    .ToList();
 
                 return new RentPeriodDto
                 {
@@ -1320,7 +1540,11 @@ namespace RentHub.API.Controllers
                         ? string.Empty
                         : firstUnpaidId.HasValue
                             ? "Pay previous periods first"
-                            : string.Empty
+                            : string.Empty,
+                    ReminderCount = successfulPeriodReminders.Count,
+                    ManualReminderCount = successfulPeriodReminders.Count(reminder => reminder.IsManual),
+                    LastReminderSentAt = successfulPeriodReminders.Max(reminder => reminder.SentAt),
+                    ReminderHistory = periodReminders
                 };
             }).ToList();
         }

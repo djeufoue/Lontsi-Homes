@@ -106,7 +106,7 @@
 </div>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" asp-action="PaymentActivity" class="rh-table-filter-grid rh-auto-search-form">
+    <form method="get" asp-action="PaymentActivity" class="rh-table-filter-grid rh-auto-search-form rh-collapsible-filter">
         <div class="col-md-5">
             <label class="form-label mb-1" for="PaymentSearch">Search</label>
             <input id="PaymentSearch" class="form-control rh-input js-auto-submit" name="search" value="@Model.Search" placeholder="User, email, plan, payment reference" />
@@ -143,8 +143,8 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle rh-table mb-0">
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                 <thead>
                     <tr>
                         <th>User</th>
@@ -161,13 +161,13 @@
                     @foreach (var item in Model.Items)
                     {
                         <tr>
-                            <td>
+                            <td class="rh-mobile-card-title" data-label="User">
                                 <a class="fw-semibold rh-table-property-link" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@item.UserId">
                                     @(string.IsNullOrWhiteSpace(item.UserFullName) ? item.UserEmail : item.UserFullName)
                                 </a>
                                 <small class="d-block text-muted">@item.UserEmail</small>
                             </td>
-                            <td>
+                            <td data-label="Property">
                                 @if (item.PropertyId.HasValue)
                                 {
                                     <a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId.Value">@item.PropertyName</a>
@@ -177,33 +177,33 @@
                                     <span class="text-muted">@item.PropertyName</span>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Plan">
                                 <div class="fw-semibold">@item.PlanName</div>
                                 <small class="text-muted">Subscription #@item.SubscriptionId @(item.IsAutomaticRenewal ? "- automatic" : string.Empty)</small>
                             </td>
-                            <td>
+                            <td data-label="Provider">
                                 <div class="fw-semibold">@item.Provider</div>
                                 <small class="text-muted">@item.PaymentMethod</small>
                             </td>
-                            <td>
+                            <td data-label="Status">
                                 <span class="rh-chip @StatusChip(item.PaymentStatus)">@item.PaymentStatus</span>
                                 @if (!string.IsNullOrWhiteSpace(item.ProcessingMessage))
                                 {
                                     <small class="d-block text-danger mt-1">@item.ProcessingMessage</small>
                                 }
                             </td>
-                            <td class="text-end">
+                            <td class="text-end" data-label="Amount">
                                 <div class="fw-semibold">@item.AmountUsd.ToString("C", currency)</div>
                                 <small class="text-muted">@item.AmountXaf.ToString("N0", CultureInfo.InvariantCulture) XAF</small>
                             </td>
-                            <td>
+                            <td data-label="Reference">
                                 <code>@item.PaymentReference</code>
                                 @if (!string.IsNullOrWhiteSpace(item.ProviderReference))
                                 {
                                     <small class="d-block text-muted">@item.ProviderReference</small>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Completed">
                                 @if (item.PaymentCompletedAt.HasValue)
                                 {
                                     <span>@item.PaymentCompletedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</span>

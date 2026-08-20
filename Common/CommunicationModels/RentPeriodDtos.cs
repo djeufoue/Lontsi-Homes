@@ -24,6 +24,10 @@ namespace Common.CommunicationModels
         public bool IsPayable { get; set; }
         public bool CanCancelPendingPayment { get; set; }
         public string LockedReason { get; set; } = string.Empty;
+        public int ReminderCount { get; set; }
+        public int ManualReminderCount { get; set; }
+        public DateTimeOffset? LastReminderSentAt { get; set; }
+        public List<RentReminderHistoryDto> ReminderHistory { get; set; } = new();
     }
 
     public class RentPeriodSeedDto

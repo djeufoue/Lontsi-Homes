@@ -19,5 +19,6 @@ namespace RentHub.Portal.ViewModels.Apartments
         public bool CanAddTenancy { get; set; }
         public bool CanEditTenancy { get; set; }
         public bool CanSendRentReminder { get; set; }
+        public bool CanManageRentReminderSettings { get; set; }
     }
 }

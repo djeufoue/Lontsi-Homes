@@ -24,7 +24,7 @@
     }
 </div>
 
-<form method="get" asp-action="@filterAction" class="rh-table-filter-grid mb-3">
+<form method="get" asp-action="@filterAction" class="rh-table-filter-grid rh-collapsible-filter mb-3">
     <input type="hidden" name="id" value="@tenancy.Id" />
     <input type="hidden" name="tenancyId" value="@tenancy.Id" />
     <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
@@ -65,8 +65,8 @@
 }
 else
 {
-    <div class="table-responsive">
-        <table class="table align-middle rh-table mb-0">
+<div class="table-responsive rh-responsive-table-wrap">
+    <table class="table align-middle rh-table rh-responsive-data-table mb-0">
             <thead>
                 <tr>
                     <th>@T["Period"]</th>
@@ -74,6 +74,7 @@ else
                     <th class="text-end">@T["Amount"]</th>
                     <th class="text-end">@T["Paid"]</th>
                     <th>@T["Status"]</th>
+                    <th>@T["Reminders"]</th>
                     <th>@T["Reference"]</th>
                     <th>@T["Action"]</th>
                 </tr>
@@ -82,13 +83,31 @@ else
                 @foreach (var period in Model.RentPeriods)
                 {
                     <tr>
-                        <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                        <td>@DateLabel(period.DueDate)</td>
-                        <td class="text-end">@period.Amount.ToString("N0")</td>
-                        <td class="text-end">@period.PaidAmount.ToString("N0")</td>
-                        <td><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
-                        <td><small>@(string.IsNullOrWhiteSpace(period.SystemReceiptNumber) ? (string.IsNullOrWhiteSpace(period.PaymentReference) ? "—" : period.PaymentReference) : period.SystemReceiptNumber)</small></td>
-                        <td>
+                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0") XAF</td>
+                <td class="text-end" data-label="@T["Paid"]">
+                    <strong>@period.PaidAmount.ToString("N0") XAF</strong>
+                    @if (period.PaidDate.HasValue)
+                    {
+                        <small class="d-block text-muted">@T["Paid on {0}", period.PaidDate.Value.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)]</small>
+                    }
+                </td>
+                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
+                <td data-label="@T["Reminders"]">
+                    @if (period.ReminderHistory.Any())
+                    {
+                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#rentReminderHistory-@period.Id">
+                            @T["View ({0})", period.ReminderHistory.Count]
+                        </button>
+                    }
+                    else
+                    {
+                        <span class="text-muted">@T["None sent"]</span>
+                    }
+                </td>
+                <td data-label="@T["Reference"]"><small>@(string.IsNullOrWhiteSpace(period.SystemReceiptNumber) ? (string.IsNullOrWhiteSpace(period.PaymentReference) ? "—" : period.PaymentReference) : period.SystemReceiptNumber)</small></td>
+                <td data-label="@T["Action"]">
                             @if (period.Status == RentPeriodStatusEnum.PendingPayment)
                             {
                                 @if (tenancy.CanCancelPendingPayment && period.CanCancelPendingPayment)
@@ -153,6 +172,55 @@ else
                 }
             </tbody>
         </table>
+    </div>
+}
+
+@foreach (var period in Model.RentPeriods.Where(item => item.ReminderHistory.Any()))
+{
+    <div class="modal fade" id="rentReminderHistory-@period.Id" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content rh-modal-content">
+                <div class="modal-header border-0">
+                    <div>
+                        <h5 class="modal-title">@T["Reminder history"]</h5>
+                        <p class="text-muted mb-0">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                </div>
+                <div class="modal-body pt-0">
+                    <div class="d-grid gap-2">
+                        @foreach (var reminder in period.ReminderHistory.OrderByDescending(item => item.SentAt ?? item.CreatedAt))
+                        {
+                            <article class="rh-card-spotlight p-3">
+                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                                    <div>
+                                        <strong>@T[reminder.CategoryLabel]</strong>
+                                        <small class="d-block text-muted">@(reminder.SentAt ?? reminder.CreatedAt).LocalDateTime.ToString("g", CultureInfo.CurrentCulture)</small>
+                                    </div>
+                                    <span class="rh-chip @(reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent ? "rh-chip-success" : reminder.Status == RentReminderStatusEnum.Failed ? "rh-chip-warning" : "rh-chip-info")">@T[reminder.StatusLabel]</span>
+                                </div>
+                                <div class="mt-2 small">
+                                    <span>@T["Amount due in that reminder"]: <strong>@reminder.OutstandingAmount.ToString("N0") XAF</strong></span>
+                                    <span class="ms-3">@T["{0} included period(s)", reminder.IncludedPeriodCount]</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(reminder.RecipientEmail))
+                                {
+                                    <small class="d-block text-muted mt-1">@T["Sent to"]: @reminder.RecipientEmail</small>
+                                }
+                                @if (reminder.IsManual && !string.IsNullOrWhiteSpace(reminder.RequestedByName))
+                                {
+                                    <small class="d-block text-muted">@T["Sent manually by {0}", reminder.RequestedByName]</small>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(reminder.FailureReason))
+                                {
+                                    <small class="d-block text-danger mt-1">@reminder.FailureReason</small>
+                                }
+                            </article>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 }
 

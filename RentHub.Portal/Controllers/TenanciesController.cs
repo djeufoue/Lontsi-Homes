@@ -675,6 +675,29 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> SendManualRentReminder(int tenancyId, string? returnUrl = null)
+        {
+            try
+            {
+                var result = await _api.PostAsync<object, SendManualRentReminderResultDto>(
+                    $"tenancies/{tenancyId}/rent-reminders/manual",
+                    new { });
+
+                TempData["Success"] = result.Status == RentReminderStatusEnum.Sent
+                    ? "Manual rent reminder sent."
+                    : "The reminder was recorded and queued for another delivery attempt.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual rent reminder failed in portal for tenancy {TenancyId}.", tenancyId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to send the rent reminder right now.");
+            }
+
+            return RedirectToRentPeriodSource(tenancyId, returnUrl);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> CancelPendingRentPayment(int tenancyId, int rentPeriodId, string? returnUrl = null)
         {
             try
@@ -1038,6 +1061,8 @@ namespace RentHub.Portal.Controllers
                     .ToList(),
                 RentPeriods = filteredList.Skip((rentPage - 1) * rentPageSize).Take(rentPageSize).ToList(),
                 AllRentPeriods = allRentPeriods,
+                RentSummary = overview.RentSummary ?? new RentSummaryDto(),
+                ReminderHistory = overview.ReminderHistory ?? new List<RentReminderHistoryDto>(),
                 MemberSearch = memberSearch,
                 RentStatus = rentStatus,
                 RentFrom = rentFrom,

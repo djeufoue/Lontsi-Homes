@@ -92,7 +92,13 @@ namespace Common.Helpers
                 2.8);
 
             const string brand = "LONTSI HOMES";
-            Text(sb, "F2", 15, (PageWidth - EstimateTextWidth(brand, 15)) / 2, 702, brand, ink);
+            const double brandFontSize = 15;
+            const double brandMarkSize = 26;
+            const double brandGap = 8;
+            var brandGroupWidth = brandMarkSize + brandGap + EstimateTextWidth(brand, brandFontSize);
+            var brandGroupLeft = (PageWidth - brandGroupWidth) / 2;
+            DrawBrandMark(sb, brandGroupLeft, 691, brandMarkSize, (0.541, 0.624, 0.235), ink, paper);
+            Text(sb, "F2", brandFontSize, brandGroupLeft + brandMarkSize + brandGap, 699, brand, ink);
             var tagline = isFrench ? "GESTION IMMOBILIERE ET SERVICES DE LOCATION" : "PROPERTY MANAGEMENT AND RENT SERVICES";
             var taglineSize = FitFontSize(tagline, 8, 6.5, width - 90);
             Text(sb, "F2", taglineSize, (PageWidth - EstimateTextWidth(tagline, taglineSize)) / 2, 683, tagline, muted, 0.9);
@@ -254,6 +260,53 @@ namespace Common.Helpers
 
                 FillRect(sb, left + x * scale, bottom + size - (y + h) * scale, w * scale, h * scale, 0.067, 0.094, 0.153);
             }
+        }
+
+        private static void DrawBrandMark(
+            StringBuilder sb,
+            double left,
+            double bottom,
+            double size,
+            (double R, double G, double B) olive,
+            (double R, double G, double B) charcoal,
+            (double R, double G, double B) knockout)
+        {
+            (double X, double Y) Point(double x, double y) => (left + x * size, bottom + y * size);
+
+            FillPolygon(
+                sb,
+                new[]
+                {
+                    Point(0.04, 0.67), Point(0.50, 1.00), Point(0.96, 0.68),
+                    Point(0.96, 0.49), Point(0.50, 0.80), Point(0.04, 0.48)
+                },
+                olive);
+
+            FillPolygon(
+                sb,
+                new[]
+                {
+                    Point(0.08, 0.13), Point(0.08, 0.63), Point(0.27, 0.53),
+                    Point(0.27, 0.31), Point(0.47, 0.31), Point(0.47, 0.13)
+                },
+                charcoal);
+
+            FillPolygon(
+                sb,
+                new[]
+                {
+                    Point(0.54, 0.64), Point(0.72, 0.54), Point(0.72, 0.38),
+                    Point(0.84, 0.38), Point(0.84, 0.56), Point(0.96, 0.49),
+                    Point(0.96, 0.13), Point(0.84, 0.13), Point(0.84, 0.25),
+                    Point(0.72, 0.25), Point(0.72, 0.13), Point(0.54, 0.13)
+                },
+                charcoal);
+
+            var windowSize = size * 0.075;
+            FillRect(sb, left + size * 0.30, bottom + size * 0.48, windowSize, windowSize, knockout.R, knockout.G, knockout.B);
+            FillRect(sb, left + size * 0.39, bottom + size * 0.48, windowSize, windowSize, knockout.R, knockout.G, knockout.B);
+            FillRect(sb, left + size * 0.30, bottom + size * 0.39, windowSize, windowSize, knockout.R, knockout.G, knockout.B);
+            FillRect(sb, left + size * 0.39, bottom + size * 0.39, windowSize, windowSize, knockout.R, knockout.G, knockout.B);
         }
 
         private static string MethodLabel(PaymentMethodEnum method, PlatformLanguage language)
@@ -457,6 +510,26 @@ namespace Common.Helpers
         {
             sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} rg\n", r, g, b);
             sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} {3:0.###} re f\n", x, y, width, height);
+        }
+
+        private static void FillPolygon(
+            StringBuilder sb,
+            IReadOnlyList<(double X, double Y)> points,
+            (double R, double G, double B) color)
+        {
+            if (points.Count < 3)
+            {
+                return;
+            }
+
+            sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} rg\n", color.R, color.G, color.B);
+            sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} m\n", points[0].X, points[0].Y);
+            for (var index = 1; index < points.Count; index++)
+            {
+                sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} l\n", points[index].X, points[index].Y);
+            }
+
+            sb.Append("h f\n");
         }
 
         private static void StrokeRect(StringBuilder sb, double x, double y, double width, double height, (double R, double G, double B) color)

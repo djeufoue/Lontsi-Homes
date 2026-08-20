@@ -57,6 +57,7 @@ namespace RentHub.API.Controllers
                 ApartmentCount = request.ApartmentCount,
                 TenantCount = request.TenantCount,
                 ProposedMonthlyPrice = request.ProposedMonthlyPrice,
+                CommitmentMonths = request.CommitmentMonths,
                 PublicAccessToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
                 CreatedAt = now,
                 LastMessageAt = now,
@@ -179,8 +180,8 @@ namespace RentHub.API.Controllers
                     admin.Email!,
                     isFrench ? $"Nouvelle demande pour le forfait {inquiry.PlanName}" : $"New {inquiry.PlanName} plan inquiry",
                     isFrench
-                        ? $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) demande le forfait {inquiry.PlanName}.\n\nPropriétés : {inquiry.PropertyCount}\nAppartements : {inquiry.ApartmentCount}\nLocataires : {inquiry.TenantCount}\nPrix mensuel proposé : {inquiry.ProposedMonthlyPrice:N2}\n\nMessage : {message}\n\nOuvrir la conversation : {url}"
-                        : $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) requested a {inquiry.PlanName} plan.\n\nProperties: {inquiry.PropertyCount}\nApartments: {inquiry.ApartmentCount}\nTenants: {inquiry.TenantCount}\nProposed monthly price: {inquiry.ProposedMonthlyPrice:N2}\n\nMessage: {message}\n\nOpen conversation: {url}");
+                        ? $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) demande le forfait {inquiry.PlanName}.\n\nPropriétés : {inquiry.PropertyCount}\nAppartements : {inquiry.ApartmentCount}\nLocataires : {inquiry.TenantCount}\nDurée : {inquiry.CommitmentMonths} mois\nPrix mensuel proposé : {inquiry.ProposedMonthlyPrice:N2}\nTotal proposé : {inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths:N2}\n\nMessage : {message}\n\nOuvrir la conversation : {url}"
+                        : $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) requested a {inquiry.PlanName} plan.\n\nProperties: {inquiry.PropertyCount}\nApartments: {inquiry.ApartmentCount}\nTenants: {inquiry.TenantCount}\nDuration: {inquiry.CommitmentMonths} months\nProposed monthly price: {inquiry.ProposedMonthlyPrice:N2}\nProposed total: {inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths:N2}\n\nMessage: {message}\n\nOpen conversation: {url}");
             }
         }
 
@@ -216,7 +217,7 @@ namespace RentHub.API.Controllers
             var unread = isAdmin
                 ? inquiry.Messages.Any(m => !m.SentByAdmin && (!inquiry.AdminLastReadAt.HasValue || m.CreatedAt > inquiry.AdminLastReadAt))
                 : inquiry.Messages.Any(m => m.SentByAdmin && (!inquiry.RequesterLastReadAt.HasValue || m.CreatedAt > inquiry.RequesterLastReadAt));
-            return new SubscriptionInquiryListItemDto { InquiryId = inquiry.Id, PlanName = inquiry.PlanName, RequesterName = inquiry.RequesterName, RequesterEmail = inquiry.RequesterEmail, ProposedMonthlyPrice = inquiry.ProposedMonthlyPrice, LastMessagePreview = latest?.Body ?? string.Empty, LastMessageAt = inquiry.LastMessageAt, HasUnreadMessages = unread };
+            return new SubscriptionInquiryListItemDto { InquiryId = inquiry.Id, PlanName = inquiry.PlanName, RequesterName = inquiry.RequesterName, RequesterEmail = inquiry.RequesterEmail, ProposedMonthlyPrice = inquiry.ProposedMonthlyPrice, CommitmentMonths = inquiry.CommitmentMonths, LastMessagePreview = latest?.Body ?? string.Empty, LastMessageAt = inquiry.LastMessageAt, HasUnreadMessages = unread };
         }
 
         private static SubscriptionInquiryThreadDto ToThread(SubscriptionInquiry inquiry, bool isAdmin, string? currentUserId) => new()
@@ -230,6 +231,7 @@ namespace RentHub.API.Controllers
             ApartmentCount = inquiry.ApartmentCount,
             TenantCount = inquiry.TenantCount,
             ProposedMonthlyPrice = inquiry.ProposedMonthlyPrice,
+            CommitmentMonths = inquiry.CommitmentMonths,
             CreatedAt = inquiry.CreatedAt,
             LastMessageAt = inquiry.LastMessageAt,
             Messages = inquiry.Messages.OrderBy(m => m.CreatedAt).Select(m => new SubscriptionInquiryMessageDto { MessageId = m.Id, SenderName = m.SenderName, Body = m.Body, SentAt = m.CreatedAt, SentByCurrentUser = isAdmin ? m.SentByAdmin : !m.SentByAdmin }).ToList()

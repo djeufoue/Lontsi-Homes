@@ -182,8 +182,8 @@
                     <div class="rh-inline-settings-note mb-3">@T["No unpaid rent period is currently available for payment."]</div>
                 }
 
-                <div class="table-responsive">
-                    <table class="table align-middle">
+                <div class="table-responsive rh-responsive-table-wrap">
+                    <table class="table align-middle rh-responsive-data-table">
                         <thead>
                             <tr>
                                 <th>@T["Period"]</th>
@@ -196,10 +196,10 @@
                             @foreach (var period in periods)
                             {
                                 <tr>
-                                    <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                    <td class="text-end">@period.Amount.ToString("N0")</td>
-                                    <td><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
-                                    <td>
+                                    <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                    <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0")</td>
+                                    <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T[period.StatusLabel]</span></td>
+                                    <td data-label="@T["Action"]">
                                         @if (period.IsPayable)
                                         {
                                             <span>@T["Available in payment selector"]</span>
@@ -239,8 +239,8 @@
                 @if (item.PaymentHistory.Any())
                 {
                     <h3 class="rh-section-title mt-4 mb-2">@T["Payment history"]</h3>
-                    <div class="table-responsive">
-                        <table class="table align-middle">
+                    <div class="table-responsive rh-responsive-table-wrap">
+                        <table class="table align-middle rh-responsive-data-table">
                             <thead>
                                 <tr>
                                     <th>@T["Date"]</th>
@@ -254,11 +254,11 @@
                                 @foreach (var payment in item.PaymentHistory.OrderByDescending(payment => payment.PaymentDate))
                                 {
                                     <tr>
-                                        <td>@DateLabel(payment.PaymentDate)</td>
-                                        <td>@payment.PeriodLabel</td>
-                                        <td class="text-end">@payment.Amount.ToString("N0") @payment.Currency</td>
-                                        <td>@T[payment.Status.ToString()]</td>
-                                        <td>
+                                        <td class="rh-mobile-card-title" data-label="@T["Date"]">@DateLabel(payment.PaymentDate)</td>
+                                        <td data-label="@T["Period"]">@payment.PeriodLabel</td>
+                                        <td class="text-end" data-label="@T["Amount"]">@payment.Amount.ToString("N0") @payment.Currency</td>
+                                        <td data-label="@T["Status"]">@T[payment.Status.ToString()]</td>
+                                        <td data-label="@T["Receipt"]">
                                             @if (payment.Status == PaymentStatusEnum.Success)
                                             {
                                                 <div class="d-flex flex-wrap gap-2">

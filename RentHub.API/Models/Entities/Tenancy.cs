@@ -52,6 +52,7 @@ namespace RentHub.API.Models.Entities
         public ICollection<TenancyMember> Members { get; set; } = new List<TenancyMember>();
         public ICollection<RentPeriod> RentPeriods { get; set; } = new List<RentPeriod>();
         public ICollection<TenancyExtensionRequest> ExtensionRequests { get; set; } = new List<TenancyExtensionRequest>();
+        public ICollection<RentReminder> RentReminders { get; set; } = new List<RentReminder>();
     }
 }
 

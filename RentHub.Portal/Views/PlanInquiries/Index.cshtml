@@ -5,22 +5,89 @@
     <div><p class="rh-kicker">Plan consultation</p><h1 class="rh-heading-title">Build a plan around your portfolio</h1><p class="rh-heading-subtitle">Tell us what you need and the price you propose. An administrator will review your request and continue the conversation with you.</p></div>
 </section>
 <section class="rh-panel rh-panel-elevated mx-auto" style="max-width:960px">
-    <form asp-action="Submit" method="post" class="row g-3">
+    <form asp-action="Submit" method="post" class="row g-3" id="custom-plan-inquiry-form">
         @Html.AntiForgeryToken()
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-        <div class="col-12"><label asp-for="PlanName" class="form-label">Plan</label><select asp-for="PlanName" class="form-select rh-input rh-select"><option>Starter</option><option>Growth</option><option>Manager</option><option>Agency</option><option>Portfolio</option><option>Enterprise Unlimited</option></select></div>
+        <div class="col-12"><label asp-for="PlanName" class="form-label">Plan</label><select asp-for="PlanName" class="form-select rh-input rh-select" required><option>Starter</option><option>Growth</option><option>Manager</option><option>Agency</option><option>Portfolio</option><option>Enterprise Unlimited</option></select><span asp-validation-for="PlanName" class="text-danger d-block"></span></div>
         @if (!Model.IsAuthenticated)
         {
-            <div class="col-md-6"><label asp-for="RequesterName" class="form-label">Name</label><input asp-for="RequesterName" class="form-control rh-input" /></div>
-            <div class="col-md-6"><label asp-for="RequesterEmail" class="form-label">Email</label><input asp-for="RequesterEmail" type="email" class="form-control rh-input" required /><span asp-validation-for="RequesterEmail" class="text-danger"></span></div>
+            <div class="col-md-6"><label asp-for="RequesterName" class="form-label">Name</label><input asp-for="RequesterName" class="form-control rh-input" required /><span asp-validation-for="RequesterName" class="text-danger d-block"></span></div>
+            <div class="col-md-6"><label asp-for="RequesterEmail" class="form-label">Email</label><input asp-for="RequesterEmail" type="email" class="form-control rh-input" required /><span asp-validation-for="RequesterEmail" class="text-danger d-block"></span></div>
         }
-        <div class="col-md-4"><label asp-for="PropertyCount" class="form-label">Properties to manage</label><input asp-for="PropertyCount" class="form-control rh-input" min="1" /></div>
-        <div class="col-md-4"><label asp-for="ApartmentCount" class="form-label">Apartments to manage</label><input asp-for="ApartmentCount" class="form-control rh-input" min="1" /></div>
-        <div class="col-md-4"><label asp-for="TenantCount" class="form-label">Tenants to manage</label><input asp-for="TenantCount" class="form-control rh-input" min="1" /></div>
-        <div class="col-12"><label asp-for="ProposedMonthlyPrice" class="form-label">Proposed monthly price</label><input asp-for="ProposedMonthlyPrice" class="form-control rh-input" min="0.01" step="0.01" /><span asp-validation-for="ProposedMonthlyPrice" class="text-danger"></span></div>
-        <div class="col-12"><label asp-for="Message" class="form-label">Your requirements</label><textarea asp-for="Message" class="form-control rh-input" rows="6" placeholder="Describe your portfolio, workflow and support requirements."></textarea><span asp-validation-for="Message" class="text-danger"></span></div>
-        <div class="col-12 d-flex justify-content-end"><button class="btn rh-btn-primary" type="submit">Send plan request</button></div>
+        <div class="col-md-4"><label asp-for="PropertyCount" class="form-label">Properties to manage</label><input asp-for="PropertyCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="PropertyCount" class="text-danger d-block"></span></div>
+        <div class="col-md-4"><label asp-for="ApartmentCount" class="form-label">Apartments to manage</label><input asp-for="ApartmentCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="ApartmentCount" class="text-danger d-block"></span></div>
+        <div class="col-md-4"><label asp-for="TenantCount" class="form-label">Tenants to manage</label><input asp-for="TenantCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="TenantCount" class="text-danger d-block"></span></div>
+        <div class="col-md-6"><label asp-for="ProposedMonthlyPrice" class="form-label">Proposed monthly price</label><input asp-for="ProposedMonthlyPrice" type="number" class="form-control rh-input" min="0.01" step="0.01" inputmode="decimal" required /><span asp-validation-for="ProposedMonthlyPrice" class="text-danger d-block"></span></div>
+        <div class="col-md-6">
+            <label asp-for="CommitmentMonths" class="form-label">Number of months</label>
+            <input asp-for="CommitmentMonths" type="number" class="form-control rh-input" min="6" max="1200" step="1" inputmode="numeric" required aria-describedby="commitment-months-error commitment-months-help" />
+            <span asp-validation-for="CommitmentMonths" class="text-danger d-block"></span>
+            <small id="commitment-months-error" class="text-danger d-block" aria-live="polite"></small>
+            <small id="commitment-months-help" class="form-text">Minimum commitment: 6 months. Whole numbers only.</small>
+        </div>
+        <div class="col-12">
+            <div class="rh-properties-stat-card" role="status" aria-live="polite">
+                <span>Proposed total</span>
+                <strong id="proposed-plan-total">—</strong>
+                <small>Proposed monthly price × number of months</small>
+            </div>
+        </div>
+        <div class="col-12"><label asp-for="Message" class="form-label">Your requirements</label><textarea asp-for="Message" class="form-control rh-input" rows="6" minlength="2" maxlength="3000" required placeholder="Describe your portfolio, workflow and support requirements."></textarea><span asp-validation-for="Message" class="text-danger d-block"></span></div>
+        <div class="col-12 d-flex justify-content-end"><button class="btn rh-btn-primary" id="custom-plan-submit" type="submit" disabled>Send plan request</button></div>
     </form>
 </section>
 
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const form = document.getElementById('custom-plan-inquiry-form');
+            const priceInput = document.getElementById('@Html.IdFor(model => model.ProposedMonthlyPrice)');
+            const monthsInput = document.getElementById('@Html.IdFor(model => model.CommitmentMonths)');
+            const monthsError = document.getElementById('commitment-months-error');
+            const totalOutput = document.getElementById('proposed-plan-total');
+            const submitButton = document.getElementById('custom-plan-submit');
+            if (!form || !priceInput || !monthsInput || !monthsError || !totalOutput || !submitButton) return;
+
+            const formatter = new Intl.NumberFormat(document.documentElement.lang || navigator.language, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+
+            const validateMonths = () => {
+                const rawValue = monthsInput.value.trim();
+                const months = monthsInput.valueAsNumber;
+                let message = '';
+                if (rawValue && (!Number.isInteger(months) || months < 6 || months > 1200)) {
+                    message = 'Enter a whole number between 6 and 1,200 months.';
+                }
+                monthsInput.setCustomValidity(message);
+                monthsError.textContent = message;
+            };
+
+            const updateForm = () => {
+                validateMonths();
+                const price = priceInput.valueAsNumber;
+                const months = monthsInput.valueAsNumber;
+                totalOutput.textContent = Number.isFinite(price) && price > 0 && Number.isInteger(months) && months >= 6
+                    ? formatter.format(price * months)
+                    : '—';
+                submitButton.disabled = !form.checkValidity();
+            };
+
+            form.addEventListener('input', updateForm);
+            form.addEventListener('change', updateForm);
+            form.addEventListener('submit', event => {
+                updateForm();
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    form.reportValidity();
+                    return;
+                }
+                submitButton.disabled = true;
+                submitButton.textContent = 'Sending...';
+            });
+            updateForm();
+        })();
+    </script>
+}

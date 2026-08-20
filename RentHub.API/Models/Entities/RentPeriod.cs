@@ -41,5 +41,8 @@ namespace RentHub.API.Models.Entities
         public DateTimeOffset? UpdatedAt { get; set; }
         public string? DeletedBy { get; set; }
         public DateTimeOffset? DeletedAt { get; set; }
+
+        public ICollection<RentReminderTrigger> ReminderTriggers { get; set; } = new List<RentReminderTrigger>();
+        public ICollection<RentReminderPeriod> ReminderPeriods { get; set; } = new List<RentReminderPeriod>();
     }
 }

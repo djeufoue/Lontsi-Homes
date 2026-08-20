@@ -91,8 +91,8 @@
                     </div>
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table align-middle">
+                <div class="table-responsive rh-responsive-table-wrap">
+                    <table class="table align-middle rh-responsive-data-table">
                         <thead>
                             <tr>
                                 <th>Period</th>
@@ -106,11 +106,11 @@
                             @foreach (var period in Model.RentPeriods)
                             {
                                 <tr>
-                                    <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                    <td>@DateLabel(period.DueDate)</td>
-                                    <td class="text-end">@period.Amount.ToString("N0")</td>
-                                    <td><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
-                                    <td>
+                                    <td class="rh-mobile-card-title" data-label="Period">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                    <td data-label="Due date">@DateLabel(period.DueDate)</td>
+                                    <td class="text-end" data-label="Amount">@period.Amount.ToString("N0")</td>
+                                    <td data-label="Status"><span class="rh-chip @StatusClass(period.Status)">@period.StatusLabel</span></td>
+                                    <td data-label="Receipt">
                                         @if (period.PaymentId.HasValue && !User.IsInRole("Admin"))
                                         {
                                             <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">View</a>

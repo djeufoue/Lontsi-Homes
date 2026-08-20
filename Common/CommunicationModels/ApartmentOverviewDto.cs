@@ -16,6 +16,7 @@ namespace Common.CommunicationModels
         public bool CanAddTenancy { get; set; }
         public bool CanEditTenancy { get; set; }
         public bool CanSendRentReminder { get; set; }
+        public bool CanManageRentReminderSettings { get; set; }
     }
 
     public class ApartmentDetailsDto
@@ -31,6 +32,9 @@ namespace Common.CommunicationModels
         public string Status { get; set; } = string.Empty;
         public int RentReminderDaysBeforeDue { get; set; }
         public int LeaseTerminationReminderDaysBeforeEnd { get; set; }
+        public int ManualRentReminderLimit { get; set; }
+        public int ManualRentReminderCooldownHours { get; set; }
+        public List<RentReminderRuleDto> RentReminderRules { get; set; } = new();
         public bool CanWrite { get; set; }
     }
 }

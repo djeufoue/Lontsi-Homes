@@ -15,6 +15,7 @@ namespace RentHub.API.Models.Entities
         public int ApartmentCount { get; set; }
         public int TenantCount { get; set; }
         public decimal ProposedMonthlyPrice { get; set; }
+        public int CommitmentMonths { get; set; } = 6;
         [Required, MaxLength(96)] public string PublicAccessToken { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset LastMessageAt { get; set; } = DateTimeOffset.UtcNow;

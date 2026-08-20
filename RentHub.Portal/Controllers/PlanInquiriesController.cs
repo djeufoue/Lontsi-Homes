@@ -28,6 +28,7 @@ namespace RentHub.Portal.Controllers
         public async Task<IActionResult> Submit(PlanInquiryVm model)
         {
             model.IsAuthenticated = User.Identity?.IsAuthenticated == true;
+            if (!model.IsAuthenticated && string.IsNullOrWhiteSpace(model.RequesterName)) ModelState.AddModelError(nameof(model.RequesterName), "Your name is required.");
             if (!model.IsAuthenticated && string.IsNullOrWhiteSpace(model.RequesterEmail)) ModelState.AddModelError(nameof(model.RequesterEmail), "A valid email address is required.");
             if (!ModelState.IsValid) return View("Index", model);
 
@@ -38,6 +39,7 @@ namespace RentHub.Portal.Controllers
                 ApartmentCount = model.ApartmentCount,
                 TenantCount = model.TenantCount,
                 ProposedMonthlyPrice = model.ProposedMonthlyPrice,
+                CommitmentMonths = model.CommitmentMonths!.Value,
                 RequesterName = model.RequesterName,
                 RequesterEmail = model.RequesterEmail,
                 Message = model.Message

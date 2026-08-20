@@ -14,7 +14,7 @@
     </section>
     <section class="rh-properties-filter-shell">
         <div class="rh-properties-filter-head"><div><p class="rh-kicker rh-kicker-ghost mb-1">@T["Essential filters"]</p><h2 class="rh-section-title mb-0">@T["Find a member"]</h2></div><small>@T["Search by name, email, role, or assigned workspace."]</small></div>
-        <form method="get" class="rh-properties-filter-grid">
+        <form method="get" class="rh-properties-filter-grid rh-collapsible-filter">
             <div class="rh-properties-filter-field rh-properties-filter-field-wide"><label class="form-label mb-1">@T["Search"]</label><input class="form-control rh-input" name="search" value="@Model.Search" placeholder="@T["Name, email, role, property, or apartment"]" /></div>
             <div class="rh-properties-filter-field"><label class="form-label mb-1">@T["Property"]</label><select class="form-select rh-input rh-select" name="propertyId"><option value="">@T["All properties"]</option>@foreach (var option in Model.Properties) { <option value="@option.Id" selected="@(Model.PropertyId == option.Id ? "selected" : null)">@option.Label</option> }</select></div>
             <div class="rh-properties-filter-field"><label class="form-label mb-1">@T["Role"]</label><select class="form-select rh-input rh-select" name="role"><option value="">@T["All roles"]</option>@foreach (var option in Model.Roles) { <option value="@option" selected="@(Model.Role == option ? "selected" : null)">@T[option]</option> }</select></div>
@@ -26,10 +26,20 @@
         @if (!Model.Items.Any()) { <div class="rh-empty">@T["No members match these filters."]</div> }
         else
         {
-            <div class="table-responsive"><table class="table align-middle mb-0 rh-table"><thead><tr><th>@T["Member"]</th><th>@T["Role"]</th><th>@T["Level"]</th><th>@T["Property"]</th><th>@T["Assigned area"]</th><th>@T["Landlord"]</th><th>@T["Permission"]</th><th>@T["Status"]</th><th class="text-end">@T["Action"]</th></tr></thead><tbody>
+            <div class="table-responsive rh-responsive-table-wrap"><table class="table align-middle mb-0 rh-table rh-responsive-data-table"><thead><tr><th>@T["Member"]</th><th>@T["Role"]</th><th>@T["Level"]</th><th>@T["Property"]</th><th>@T["Assigned area"]</th><th>@T["Landlord"]</th><th>@T["Permission"]</th><th>@T["Status"]</th><th class="text-end">@T["Action"]</th></tr></thead><tbody>
             @foreach (var item in Model.Items)
             {
-                <tr><td><strong>@item.FullName</strong><small class="d-block text-muted">@item.Email</small></td><td>@T[item.Role]</td><td>@T[item.Level]</td><td><a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a></td><td>@if (item.ApartmentId.HasValue) { <a class="rh-table-property-link" asp-controller="Apartments" asp-action="Overview" asp-route-id="@item.ApartmentId.Value">@item.ApartmentName</a> } else { <a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a> }</td><td>@item.LandlordName</td><td><span class="rh-chip rh-chip-info">@T[item.Permission]</span></td><td>@T[item.Status]</td><td class="text-end"><a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@item.UserId">@T["User overview"]</a></td></tr>
+                <tr>
+                    <td class="rh-mobile-card-title" data-label="@T["Member"]"><strong>@item.FullName</strong><small class="d-block text-muted">@item.Email</small></td>
+                    <td data-label="@T["Role"]">@T[item.Role]</td>
+                    <td data-label="@T["Level"]">@T[item.Level]</td>
+                    <td data-label="@T["Property"]"><a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a></td>
+                    <td data-label="@T["Assigned area"]">@if (item.ApartmentId.HasValue) { <a class="rh-table-property-link" asp-controller="Apartments" asp-action="Overview" asp-route-id="@item.ApartmentId.Value">@item.ApartmentName</a> } else { <a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a> }</td>
+                    <td data-label="@T["Landlord"]">@item.LandlordName</td>
+                    <td data-label="@T["Permission"]"><span class="rh-chip rh-chip-info">@T[item.Permission]</span></td>
+                    <td data-label="@T["Status"]">@T[item.Status]</td>
+                    <td data-label="@T["Action"]" class="text-end"><a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@item.UserId">@T["User overview"]</a></td>
+                </tr>
             }
             </tbody></table></div>
         }

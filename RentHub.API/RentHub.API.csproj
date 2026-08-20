@@ -42,4 +42,11 @@
 		<ProjectReference Include="..\Common\Common.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<Content Include="..\RentHub.Portal\wwwroot\assets\branding\logo-email.png"
+				 Link="assets\branding\logo-email.png"
+				 CopyToOutputDirectory="PreserveNewest"
+				 CopyToPublishDirectory="PreserveNewest" />
+	</ItemGroup>
+
 </Project>

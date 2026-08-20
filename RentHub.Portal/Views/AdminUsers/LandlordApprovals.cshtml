@@ -18,7 +18,7 @@
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" class="rh-table-filter-grid rh-auto-search-form">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form rh-collapsible-filter">
         <div class="col-md-9">
             <label class="form-label rh-auth-label" for="search">Search</label>
             <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
@@ -41,8 +41,8 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle rh-table mb-0">
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                 <thead>
                     <tr>
                         <th>Landlord</th>
@@ -58,20 +58,20 @@
                         var canReview = landlord.KycStatus == LandlordKycStatusEnum.Submitted;
                         var documentBackRequired = RequiresDocumentBack(landlord.DocumentType);
                         <tr>
-                            <td>
+                            <td class="rh-mobile-card-title" data-label="Landlord">
                                 <div class="fw-semibold">@TextOrFallback(landlord.FullName, "Unnamed landlord")</div>
                                 <small class="text-muted">@landlord.Email</small>
                             </td>
-                            <td>@KycChip(landlord.KycStatus)</td>
-                            <td>
+                            <td data-label="KYC">@KycChip(landlord.KycStatus)</td>
+                            <td data-label="Contract">
                                 @StatusChip(landlord.PlatformTermsAccepted)
                                 @if (landlord.PlatformTermsAcceptedAt.HasValue)
                                 {
                                     <small class="d-block text-muted">@landlord.PlatformTermsAcceptedAt.Value.LocalDateTime.ToString("yyyy-MM-dd")</small>
                                 }
                             </td>
-                            <td>@(landlord.KycSubmittedAt.HasValue ? landlord.KycSubmittedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm") : "Not submitted")</td>
-                            <td class="text-end">
+                            <td data-label="Submitted">@(landlord.KycSubmittedAt.HasValue ? landlord.KycSubmittedAt.Value.LocalDateTime.ToString("yyyy-MM-dd HH:mm") : "Not submitted")</td>
+                            <td class="text-end" data-label="Actions">
                                 <div class="rh-admin-action-stack">
                                     <a asp-action="Overview" asp-route-userId="@landlord.UserId" class="btn btn-sm rh-btn-subtle">Overview</a>
                                     <button type="button"

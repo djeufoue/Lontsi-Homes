@@ -61,7 +61,8 @@ public enum ManagerPermission : long
     SendMessages = 1L << 46,
     ViewDashboard = 1L << 47,
     AddProperty = 1L << 48,
-    ViewPropertyOverview = 1L << 49
+    ViewPropertyOverview = 1L << 49,
+    ManageRentReminderSettings = 1L << 50
 }
 
 public static class ManagerPermissionDefaults
@@ -86,5 +87,5 @@ public static class ManagerPermissionDefaults
         ManagerPermission.ViewMessages |
         ManagerPermission.ViewDashboard;
 
-    public const ManagerPermission All = (ManagerPermission)((1L << 50) - 1);
+    public const ManagerPermission All = (ManagerPermission)((1L << 51) - 1);
 }

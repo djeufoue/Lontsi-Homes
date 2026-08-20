@@ -1,0 +1,19 @@
+{
+  "name": "Lontsi Homes",
+  "short_name": "Lontsi Homes",
+  "icons": [
+    {
+      "src": "/assets/branding/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/branding/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#1F2522",
+  "background_color": "#F7F6EF",
+  "display": "standalone"
+}

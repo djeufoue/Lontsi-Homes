@@ -110,12 +110,26 @@
 
     backButton.addEventListener("click", () => showMainMenu(true));
 
-    dropdown.querySelectorAll("[data-theme-option]").forEach((option) => {
+    dropdownContainer?.addEventListener("hidden.bs.dropdown", () => showMainMenu(false));
+    updateThemeMenu();
+  };
+
+  const initThemeOptions = () => {
+    document.querySelectorAll("[data-theme-option]").forEach((option) => {
+      if (option.dataset.themeBound === "true") {
+        return;
+      }
+
+      option.dataset.themeBound = "true";
       option.addEventListener("click", () => applyTheme(option.dataset.themeOption));
     });
 
-    dropdownContainer?.addEventListener("hidden.bs.dropdown", () => showMainMenu(false));
     updateThemeMenu();
+  };
+
+  const initThemeControls = () => {
+    initThemeOptions();
+    initAppearanceMenu();
   };
 
   currentPreference = getSavedTheme();
@@ -140,8 +154,8 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initAppearanceMenu, { once: true });
+    document.addEventListener("DOMContentLoaded", initThemeControls, { once: true });
   } else {
-    initAppearanceMenu();
+    initThemeControls();
   }
 })();

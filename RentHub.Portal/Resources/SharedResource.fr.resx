@@ -1448,4 +1448,55 @@
   <data name="The scanned code does not match a valid system-generated rent invoice." xml:space="preserve"><value>Le code scanné ne correspond pas à une facture de loyer valide générée par le système.</value></data>
   <data name="Processing..." xml:space="preserve"><value>Traitement en cours...</value></data>
   <data name="Payment processing is in progress. Please wait." xml:space="preserve"><value>Le paiement est en cours de traitement. Veuillez patienter.</value></data>
+  <data name="Automatic rent reminders" xml:space="preserve"><value>Rappels de loyer automatiques</value></data>
+  <data name="Active rules for unpaid rent" xml:space="preserve"><value>Règles actives pour les loyers impayés</value></data>
+  <data name="Choose when automatic reminders are sent and how many immediate manual follow-ups are allowed." xml:space="preserve"><value>Choisissez quand les rappels automatiques sont envoyés et combien de relances manuelles immédiates sont autorisées.</value></data>
+  <data name="Each active rule is sent once per rent period. A future period is shown for information but is not included in the amount due." xml:space="preserve"><value>Chaque règle active est envoyée une seule fois par période de loyer. Une période future est affichée à titre informatif, sans être incluse dans le montant exigible.</value></data>
+  <data name="Add a rule" xml:space="preserve"><value>Ajouter une règle</value></data>
+  <data name="When" xml:space="preserve"><value>Quand</value></data>
+  <data name="Before the due date" xml:space="preserve"><value>Avant l’échéance</value></data>
+  <data name="On the due date" xml:space="preserve"><value>Le jour de l’échéance</value></data>
+  <data name="After the due date" xml:space="preserve"><value>Après l’échéance</value></data>
+  <data name="Number of days" xml:space="preserve"><value>Nombre de jours</value></data>
+  <data name="Immediate manual follow-ups allowed" xml:space="preserve"><value>Relances manuelles immédiates autorisées</value></data>
+  <data name="This limit applies to the oldest unpaid period and resets when that period is paid." xml:space="preserve"><value>Cette limite s’applique à la plus ancienne période impayée et se réinitialise lorsque cette période est payée.</value></data>
+  <data name="Hours between manual follow-ups" xml:space="preserve"><value>Heures entre les relances manuelles</value></data>
+  <data name="Use 0 only if authorized users may send follow-ups without a waiting period." xml:space="preserve"><value>Utilisez 0 uniquement si les utilisateurs autorisés peuvent relancer sans délai d’attente.</value></data>
+  <data name="Last paid month" xml:space="preserve"><value>Dernier mois payé</value></data>
+  <data name="No paid month yet" xml:space="preserve"><value>Aucun mois payé</value></data>
+  <data name="Paid on {0}" xml:space="preserve"><value>Payé le {0}</value></data>
+  <data name="Due now" xml:space="preserve"><value>À payer maintenant</value></data>
+  <data name="Nothing due" xml:space="preserve"><value>Rien à payer</value></data>
+  <data name="Next rent" xml:space="preserve"><value>Prochain loyer</value></data>
+  <data name="Last reminder sent" xml:space="preserve"><value>Dernier rappel envoyé</value></data>
+  <data name="No reminder sent" xml:space="preserve"><value>Aucun rappel envoyé</value></data>
+  <data name="Rent situation" xml:space="preserve"><value>Situation du loyer</value></data>
+  <data name="A simple view of the last payment, what is due now, the next rent period, and reminder activity." xml:space="preserve"><value>Une vue simple du dernier paiement, du montant exigible, du prochain loyer et des rappels.</value></data>
+  <data name="No payment date recorded" xml:space="preserve"><value>Aucune date de paiement enregistrée</value></data>
+  <data name="{0} unpaid period(s)" xml:space="preserve"><value>{0} période(s) impayée(s)</value></data>
+  <data name="No upcoming period" xml:space="preserve"><value>Aucune période à venir</value></data>
+  <data name="{0} reminder(s) recorded" xml:space="preserve"><value>{0} rappel(s) enregistré(s)</value></data>
+  <data name="Send a reminder now" xml:space="preserve"><value>Relancer maintenant</value></data>
+  <data name="Amounts due include only rent periods whose due date has arrived." xml:space="preserve"><value>Les montants exigibles comprennent uniquement les périodes dont l’échéance est arrivée.</value></data>
+  <data name="Manual follow-ups used: {0} of {1}" xml:space="preserve"><value>Relances manuelles utilisées : {0} sur {1}</value></data>
+  <data name="Reminders" xml:space="preserve"><value>Rappels</value></data>
+  <data name="View ({0})" xml:space="preserve"><value>Voir ({0})</value></data>
+  <data name="None sent" xml:space="preserve"><value>Aucun envoi</value></data>
+  <data name="Reminder history" xml:space="preserve"><value>Historique des rappels</value></data>
+  <data name="Before due date" xml:space="preserve"><value>Avant l’échéance</value></data>
+  <data name="After due date" xml:space="preserve"><value>Après l’échéance</value></data>
+  <data name="Manual follow-up" xml:space="preserve"><value>Relance manuelle</value></data>
+  <data name="Amount due in that reminder" xml:space="preserve"><value>Montant exigible dans ce rappel</value></data>
+  <data name="{0} included period(s)" xml:space="preserve"><value>{0} période(s) incluse(s)</value></data>
+  <data name="Sent to" xml:space="preserve"><value>Envoyé à</value></data>
+  <data name="Sent manually by {0}" xml:space="preserve"><value>Envoyé manuellement par {0}</value></data>
+  <data name="You do not have permission to send a rent reminder." xml:space="preserve"><value>Vous n’avez pas l’autorisation d’envoyer un rappel de loyer.</value></data>
+  <data name="No unpaid rent is currently due." xml:space="preserve"><value>Aucun loyer impayé n’est actuellement exigible.</value></data>
+  <data name="Manual rent reminders are disabled for this apartment." xml:space="preserve"><value>Les relances manuelles sont désactivées pour cet appartement.</value></data>
+  <data name="The manual reminder limit has been reached." xml:space="preserve"><value>La limite de relances manuelles est atteinte.</value></data>
+  <data name="The waiting period between manual reminders has not elapsed yet." xml:space="preserve"><value>Le délai d’attente entre les relances manuelles n’est pas encore écoulé.</value></data>
+  <data name="Manual rent reminder sent." xml:space="preserve"><value>La relance de loyer a été envoyée.</value></data>
+  <data name="The reminder was recorded and queued for another delivery attempt." xml:space="preserve"><value>Le rappel a été enregistré et remis en file d’attente pour une nouvelle tentative.</value></data>
+  <data name="Manage rent reminder settings" xml:space="preserve"><value>Gérer les paramètres des rappels de loyer</value></data>
+  <data name="{0:N0} XAF rent" xml:space="preserve"><value>Loyer de {0:N0} XAF</value></data>
 </root>

@@ -159,6 +159,8 @@ builder.Services.AddScoped<RentHub.API.Services.Permissions.IManagerPermissionSe
 builder.Services.AddScoped<RentHub.API.Services.Maps.IPropertyGeocodingService, RentHub.API.Services.Maps.GooglePropertyGeocodingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
 builder.Services.AddScoped<ITenancyRenewalEmailService, TenancyRenewalEmailService>();
+builder.Services.AddScoped<IOpenEndedTenancyRentPeriodService, OpenEndedTenancyRentPeriodService>();
+builder.Services.AddScoped<IRentReminderService, RentReminderService>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();
@@ -170,9 +172,6 @@ else
 {
     builder.Services.AddScoped<IEmailService, StubEmailService>();
 }
-
-// Rent reminder background worker
-builder.Services.AddHostedService<RentReminderHostedService>();
 
 ConfigureHangfire(builder.Services, builder.Configuration);
 
@@ -274,25 +273,52 @@ void ConfigureHangfire(IServiceCollection services, IConfiguration configuration
 
 void RegisterRecurringJobs(IServiceProvider services, IConfiguration configuration)
 {
-    if (!configuration.GetValue<bool?>("Subscriptions:EnableAutomaticRenewalJob").GetValueOrDefault(true))
-    {
-        return;
-    }
-
-    var intervalMinutes = Math.Clamp(
-        configuration.GetValue<int?>("Subscriptions:AutoRenewalCheckMinutes") ?? 60,
-        5,
-        1440);
-    var cron = intervalMinutes < 60
-        ? $"*/{intervalMinutes} * * * *"
-        : Cron.Hourly();
-
     using var scope = services.CreateScope();
     var recurringJobs = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
-    recurringJobs.AddOrUpdate<ISubscriptionAutoRenewalService>(
-        "landlord-subscription-card-renewal",
-        service => service.ProcessDueRenewalsAsync(),
-        cron);
+    recurringJobs.AddOrUpdate<IOpenEndedTenancyRentPeriodService>(
+        "open-ended-tenancy-rent-period-provisioning",
+        service => service.EnsureAllOpenEndedTenancyPeriodsAsync(),
+        Cron.Daily(),
+        new RecurringJobOptions
+        {
+            TimeZone = TimeZoneInfo.Utc
+        });
+
+    // Period provisioning runs first at midnight. Reminder processing starts
+    // five minutes later so newly-created open-ended periods are already visible.
+    recurringJobs.AddOrUpdate<IRentReminderService>(
+        "rent-reminder-processing",
+        service => service.ProcessDailyRemindersAsync(),
+        "5 0 * * *",
+        new RecurringJobOptions
+        {
+            TimeZone = TimeZoneInfo.Utc
+        });
+
+    // Run an idempotent catch-up after each deployment/startup so existing
+    // open-ended tenancies do not need to wait until the next midnight cycle.
+    var backgroundJobs = scope.ServiceProvider.GetRequiredService<IBackgroundJobClient>();
+    var provisioningJobId = backgroundJobs.Enqueue<IOpenEndedTenancyRentPeriodService>(
+        service => service.EnsureAllOpenEndedTenancyPeriodsAsync());
+    backgroundJobs.ContinueJobWith<IRentReminderService>(
+        provisioningJobId,
+        service => service.ProcessDailyRemindersAsync());
+
+    if (configuration.GetValue<bool?>("Subscriptions:EnableAutomaticRenewalJob").GetValueOrDefault(true))
+    {
+        var intervalMinutes = Math.Clamp(
+            configuration.GetValue<int?>("Subscriptions:AutoRenewalCheckMinutes") ?? 60,
+            5,
+            1440);
+        var cron = intervalMinutes < 60
+            ? $"*/{intervalMinutes} * * * *"
+            : Cron.Hourly();
+
+        recurringJobs.AddOrUpdate<ISubscriptionAutoRenewalService>(
+            "landlord-subscription-card-renewal",
+            service => service.ProcessDueRenewalsAsync(),
+            cron);
+    }
 }
 
 

@@ -24,7 +24,7 @@
             <div><p class="rh-kicker rh-kicker-ghost mb-1">@T["Essential filters"]</p><h2 class="rh-section-title mb-0">@T["Find an apartment"]</h2></div>
             <small>@T["Search by apartment, property, landlord, or type."]</small>
         </div>
-        <form method="get" class="rh-properties-filter-grid">
+        <form method="get" class="rh-properties-filter-grid rh-collapsible-filter">
             <div class="rh-properties-filter-field rh-properties-filter-field-wide">
                 <label class="form-label mb-1">@T["Search"]</label>
                 <input class="form-control rh-input" name="search" value="@Model.Search" placeholder="@T["Apartment, property, landlord, or type"]" />
@@ -56,10 +56,19 @@
         }
         else
         {
-            <div class="table-responsive"><table class="table align-middle mb-0 rh-table"><thead><tr><th>@T["Apartment"]</th><th>@T["Property"]</th><th>@T["Landlord"]</th><th>@T["Status"]</th><th>@T["Rent"]</th><th>@T["Tenancies"]</th><th>@T["Members"]</th><th class="text-end">@T["Action"]</th></tr></thead><tbody>
+            <div class="table-responsive rh-responsive-table-wrap"><table class="table align-middle mb-0 rh-table rh-responsive-data-table"><thead><tr><th>@T["Apartment"]</th><th>@T["Property"]</th><th>@T["Landlord"]</th><th>@T["Status"]</th><th>@T["Rent"]</th><th>@T["Tenancies"]</th><th>@T["Members"]</th><th class="text-end">@T["Action"]</th></tr></thead><tbody>
             @foreach (var item in Model.Items)
             {
-                <tr><td><a class="rh-table-property-link" asp-action="Overview" asp-route-id="@item.Id">@item.Name</a><small class="d-block text-muted">@T[item.Type] · @T["{0:N0} m²", item.Area]</small></td><td><a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a></td><td>@item.LandlordName</td><td><span class="rh-chip rh-chip-info">@T[item.Status]</span></td><td>@item.Rent.ToString("N0")</td><td>@T["{0} active", item.ActiveTenancies]</td><td>@item.MemberCount</td><td class="text-end"><a class="btn btn-sm rh-btn-primary" asp-action="Overview" asp-route-id="@item.Id">@T["Open"]</a></td></tr>
+                <tr>
+                    <td class="rh-mobile-card-title" data-label="@T["Apartment"]"><a class="rh-table-property-link" asp-action="Overview" asp-route-id="@item.Id">@item.Name</a><small class="d-block text-muted">@T[item.Type] · @T["{0:N0} m²", item.Area]</small></td>
+                    <td data-label="@T["Property"]"><a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a></td>
+                    <td data-label="@T["Landlord"]">@item.LandlordName</td>
+                    <td data-label="@T["Status"]"><span class="rh-chip rh-chip-info">@T[item.Status]</span></td>
+                    <td data-label="@T["Rent"]">@item.Rent.ToString("N0")</td>
+                    <td data-label="@T["Tenancies"]">@T["{0} active", item.ActiveTenancies]</td>
+                    <td data-label="@T["Members"]">@item.MemberCount</td>
+                    <td data-label="@T["Action"]" class="text-end"><a class="btn btn-sm rh-btn-primary" asp-action="Overview" asp-route-id="@item.Id">@T["Open"]</a></td>
+                </tr>
             }
             </tbody></table></div>
         }

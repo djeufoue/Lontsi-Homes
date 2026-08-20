@@ -42,6 +42,17 @@ namespace RentHub.API.Models.Entities
         public int RentReminderDaysBeforeDue { get; set; } = 10;
 
         /// <summary>
+        /// Maximum number of extra reminders that an authorized user can send manually
+        /// for the current oldest unpaid rent period. Automatic rules are not counted.
+        /// </summary>
+        public int ManualRentReminderLimit { get; set; } = 2;
+
+        /// <summary>
+        /// Minimum delay between two manual reminders for the same rent period.
+        /// </summary>
+        public int ManualRentReminderCooldownHours { get; set; } = 24;
+
+        /// <summary>
         /// Number of days before tenancy end date to notify the tenant about lease termination.
         /// </summary>
         public int LeaseTerminationReminderDaysBeforeEnd { get; set; } = 30;
@@ -89,5 +100,6 @@ namespace RentHub.API.Models.Entities
 
         // Navigational property for tenancies associated with this apartment
         public ICollection<Tenancy> Tenancies { get; set; } = new List<Tenancy>();
+        public ICollection<ApartmentRentReminderRule> RentReminderRules { get; set; } = new List<ApartmentRentReminderRule>();
     }
 }

@@ -451,7 +451,8 @@ namespace RentHub.Portal.Controllers
                 CanManageDocuments = overview.CanManageDocuments,
                 CanAddTenancy = overview.CanAddTenancy,
                 CanEditTenancy = overview.CanEditTenancy,
-                CanSendRentReminder = overview.CanSendRentReminder
+                CanSendRentReminder = overview.CanSendRentReminder,
+                CanManageRentReminderSettings = overview.CanManageRentReminderSettings
             };
         }
 

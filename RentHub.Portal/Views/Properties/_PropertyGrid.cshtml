@@ -53,13 +53,10 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle mb-0 rh-smart-table">
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle mb-0 rh-smart-table rh-responsive-data-table">
                 <thead>
                     <tr>
-                        <th class="rh-smart-table-check-col">
-                            <input class="form-check-input rh-table-check" type="checkbox" aria-label="@T["Select all visible properties"]" />
-                        </th>
                         <th>@T["Code"]</th>
                         <th>@T["Property"]</th>
                         <th>@T["City"]</th>
@@ -92,16 +89,13 @@
                         var propertyCode = $"PRP-{property.Id:D4}";
                         var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? T["Not assigned"].Value : property.LandlordName;
                     <tr>
-                        <td class="rh-smart-table-check-col">
-                            <input class="form-check-input rh-table-check" type="checkbox" aria-label="@T["Select {0}", property.Name ?? T["Property"].Value]" />
-                        </td>
-                        <td>
+                        <td data-label="@T["Code"]">
                             <div class="rh-row-code">
                                 <strong>@propertyCode</strong>
                                 <span>@T["ID {0}", property.Id]</span>
                             </div>
                         </td>
-                        <td>
+                        <td class="rh-mobile-card-title" data-label="@T["Property"]">
                             <div class="rh-table-property">
                                 <div class="rh-table-avatar">@initials</div>
                                 <div class="rh-table-property-copy">
@@ -110,28 +104,28 @@
                                 </div>
                             </div>
                         </td>
-                        <td>
+                        <td data-label="@T["City"]">
                             <span class="rh-table-city">@property.City</span>
                         </td>
-                        <td>
+                        <td data-label="@T["Country"]">
                             <span class="rh-chip rh-chip-info">@(string.IsNullOrWhiteSpace(property.CountryIsoCode) ? T["Not set"].Value : property.CountryIsoCode)</span>
                         </td>
-                        <td>
+                        <td data-label="@T["Units"]">
                             <div class="rh-row-metric">
                                 <strong>@property.ApartmentCount</strong>
                                 <span>@T["registered units"]</span>
                             </div>
                         </td>
-                        <td>
+                        <td data-label="@T["Landlord"]">
                             <div class="rh-row-landlord">
                                 <strong>@landlordName</strong>
                                 <span>@T["portfolio owner"]</span>
                             </div>
                         </td>
-                        <td>
+                        <td data-label="@T["Access"]">
                             <span class="rh-chip @(string.Equals(property.AccessSource, "Owned", StringComparison.OrdinalIgnoreCase) || string.Equals(property.AccessSource, "Owner", StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@T[property.AccessSource]</span>
                         </td>
-                        <td>
+                        <td data-label="@T["Permission"]">
                             @if (property.CanWrite)
                             {
                                 <span class="rh-chip rh-chip-primary">@T["Write Access"]</span>
@@ -143,7 +137,7 @@
                         </td>
                         @if (User.IsInRole("Admin"))
                         {
-                            <td>
+                            <td data-label="@T["Automatic payments"]">
                                 <button type="button"
                                         class="btn btn-sm @(property.AutomaticPaymentsEnabled ? "rh-btn-primary" : "rh-btn-subtle")"
                                         data-bs-toggle="modal"
@@ -156,7 +150,7 @@
                                 </button>
                             </td>
                         }
-                        <td class="text-end">
+                        <td class="text-end" data-label="@T["Action"]">
                             <a class="btn btn-sm rh-table-action" asp-controller="Properties" asp-action="Overview" asp-route-id="@property.Id">
                                 @T["Open"]
                             </a>

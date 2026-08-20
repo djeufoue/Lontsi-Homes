@@ -16,6 +16,10 @@ namespace Common.CommunicationModels
         public List<DocumentDto> Documents { get; set; } = new();
 
         public List<RentPeriodDto> RentPeriods { get; set; } = new();
+
+        public RentSummaryDto RentSummary { get; set; } = new();
+
+        public List<RentReminderHistoryDto> ReminderHistory { get; set; } = new();
     }
 
     public class TenancyDetailsDto
@@ -55,5 +59,6 @@ namespace Common.CommunicationModels
         public bool CanViewRent { get; set; }
         public bool CanMarkRentPaid { get; set; }
         public bool CanCancelPendingPayment { get; set; }
+        public bool CanSendRentReminder { get; set; }
     }
 }

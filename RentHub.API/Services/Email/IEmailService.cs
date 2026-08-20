@@ -30,5 +30,30 @@ namespace RentHub.API.Services.Email
         /// Sends an email with optional file attachments.
         /// </summary>
         Task SendEmailAsync(string to, string subject, string body, IReadOnlyCollection<EmailAttachment> attachments);
+
+        /// <summary>
+        /// Sends an email and returns a delivery-attempt result. This is used by audited
+        /// workflows such as rent reminders, where silently swallowing a provider error
+        /// would create an incorrect history entry.
+        /// </summary>
+        Task<EmailSendResult> TrySendEmailAsync(EmailMessage email);
+    }
+
+    public sealed class EmailMessage
+    {
+        public string To { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public string PlainTextBody { get; set; } = string.Empty;
+        public string HtmlBody { get; set; } = string.Empty;
+        public IReadOnlyCollection<EmailAttachment> Attachments { get; set; } = Array.Empty<EmailAttachment>();
+    }
+
+    public sealed class EmailSendResult
+    {
+        public bool Succeeded { get; init; }
+        public string Error { get; init; } = string.Empty;
+
+        public static EmailSendResult Success() => new() { Succeeded = true };
+        public static EmailSendResult Failure(string error) => new() { Succeeded = false, Error = error };
     }
 }

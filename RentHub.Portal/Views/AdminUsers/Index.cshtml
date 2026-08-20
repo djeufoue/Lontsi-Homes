@@ -60,7 +60,7 @@
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" class="rh-table-filter-grid rh-auto-search-form">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form rh-collapsible-filter">
         <div class="col-md-9">
             <label class="form-label rh-auth-label" for="search">Search</label>
             <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
@@ -83,8 +83,8 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle rh-table mb-0">
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                 <thead>
                     <tr>
                         <th>User</th>
@@ -105,50 +105,50 @@
                     {
                         var isAdmin = user.Roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                         <tr>
-                            <td>
+                            <td class="rh-mobile-card-title" data-label="User">
                                 <div class="fw-semibold">@(string.IsNullOrWhiteSpace(user.FullName) ? "N/A" : user.FullName)</div>
                                 <small class="text-muted">@user.Email</small>
                             </td>
-                            <td>
+                            <td data-label="Roles">
                                 @foreach (var role in user.Roles)
                                 {
                                     <span class="rh-chip rh-chip-info me-1">@role</span>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Status">
                                 <span class="rh-chip @(user.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
                                     @(user.IsOnboardingComplete ? "Complete" : user.NextOnboardingStep)
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="KYC">
                                 <span class="rh-chip @KycChipClass(user.KycStatus)">@user.KycStatus</span>
                             </td>
-                            <td>
+                            <td data-label="Contract">
                                 <span class="rh-chip @(user.PlatformTermsAccepted ? "rh-chip-success" : "rh-chip-warning")">
                                     @(user.PlatformTermsAccepted ? "Signed" : "Pending")
                                 </span>
                             </td>
-                            <td>@StatusChip(user.EmailConfirmed)</td>
-                            <td>
+                            <td data-label="Email">@StatusChip(user.EmailConfirmed)</td>
+                            <td data-label="Phone">
                                 <div>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "Not provided" : user.PhoneNumber)</div>
                                 @StatusChip(user.PhoneNumberConfirmed)
                             </td>
-                            <td>
+                            <td data-label="Subscription Payment">
                                 <div>@(string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) ? "Not provided" : user.SubscriptionPaymentPhoneNumber)</div>
                                 <small class="text-muted">@ChannelLabel(user.SubscriptionPaymentChannel)</small>
                                 @StatusChip(user.IsSubscriptionPaymentPhoneVerified)
                             </td>
-                            <td>
+                            <td data-label="Rent Payout">
                                 <div>@(string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) ? "Not provided" : user.PayoutPhoneNumber)</div>
                                 <small class="text-muted">@ChannelLabel(user.PayoutChannel)</small>
                                 @StatusChip(user.IsPayoutPhoneVerified)
                             </td>
-                            <td>
+                            <td data-label="WhatsApp">
                                 <div>@(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) ? "Not provided" : user.WhatsAppPhoneNumber)</div>
                                 @StatusChip(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) || user.IsWhatsAppPhoneVerified)
                             </td>
-                            <td class="text-end">
-                                <div class="d-inline-flex gap-2">
+                            <td class="text-end" data-label="Action">
+                                <div class="d-inline-flex flex-wrap gap-2">
                                     <a asp-action="Overview" asp-route-userId="@user.UserId" class="btn btn-sm rh-btn-subtle">
                                         Overview
                                     </a>

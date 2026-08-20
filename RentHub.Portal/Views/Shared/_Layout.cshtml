@@ -113,6 +113,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - Lontsi Homes</title>
+    <partial name="_BrandHead" />
 
     <script>window.rhI18n = @Html.Raw(JsonSerializer.Serialize(clientTranslations));</script>
     <script src="~/js/theme.js" asp-append-version="true"></script>
@@ -155,11 +156,7 @@
             <aside class="rh-sidebar" id="rhSidebar">
                 <div class="rh-sidebar-brand">
                     <a class="rh-sidebar-brand-link" asp-controller="Home" asp-action="Index">
-                        <span class="rh-sidebar-brand-mark">R</span>
-                        <span class="rh-sidebar-brand-copy">
-                            <strong>Lontsi Homes</strong>
-                            <small>@T["Operations console"]</small>
-                        </span>
+                        <partial name="_BrandLogo" model="@("rh-brand-logo--sidebar")" />
                     </a>
                     <button type="button" class="rh-sidebar-close" id="rhSidebarClose" aria-label="@T["Close menu"]">
                         &times;
@@ -286,11 +283,7 @@
                     @if (isMarketingPage)
                     {
                         <a class="rh-public-brand" asp-controller="Home" asp-action="Index" aria-label="Lontsi Homes home">
-                            <span class="rh-public-brand-mark">LH</span>
-                            <span class="rh-public-brand-copy">
-                                <strong>Lontsi Homes</strong>
-                                <small>@T["Property operations, simplified"]</small>
-                            </span>
+                            <partial name="_BrandLogo" model="@("rh-brand-logo--public rh-brand-logo--responsive")" />
                         </a>
                     }
                     else
@@ -311,6 +304,54 @@
                 <div class="rh-topbar-right">
                     @if (isAuthenticated)
                     {
+                        @if (isMarketingPage)
+                        {
+                            <nav class="rh-public-workspace-nav" aria-label="@T["Workspace"]">
+                                @if (canSeeTenantDashboard)
+                                {
+                                    <a class="rh-public-workspace-link" asp-controller="Tenant" asp-action="Index" aria-label="@T["Rent Dashboard"]" title="@T["Rent Dashboard"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-dashboard"></use></svg>
+                                        <span>@T["Rent Dashboard"]</span>
+                                    </a>
+                                }
+                                @if (canSeeProperties)
+                                {
+                                    <a class="rh-public-workspace-link" asp-controller="Properties" asp-action="Index" aria-label="@T["My Properties"]" title="@T["My Properties"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-properties"></use></svg>
+                                        <span>@T["My Properties"]</span>
+                                    </a>
+                                    <a class="rh-public-workspace-link" asp-controller="Apartments" asp-action="Index" aria-label="@T["Apartments"]" title="@T["Apartments"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-apartments"></use></svg>
+                                        <span>@T["Apartments"]</span>
+                                    </a>
+                                    <a class="rh-public-workspace-link" asp-controller="Tenancies" asp-action="Index" aria-label="@T["Tenancies"]" title="@T["Tenancies"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-tenancies"></use></svg>
+                                        <span>@T["Tenancies"]</span>
+                                    </a>
+                                    @if (canSeeMembersDirectory)
+                                    {
+                                        <a class="rh-public-workspace-link" asp-controller="Members" asp-action="Index" aria-label="@T["Members"]" title="@T["Members"]">
+                                            <svg aria-hidden="true"><use href="#rh-icon-users"></use></svg>
+                                            <span>@T["Members"]</span>
+                                        </a>
+                                    }
+                                }
+                                @if (canSeeMessages)
+                                {
+                                    <a class="rh-public-workspace-link" asp-controller="Conversations" asp-action="Index" aria-label="@T["Messages"]" title="@T["Messages"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
+                                        <span>@T["Messages"]</span>
+                                    </a>
+                                }
+                                @if (canSeeProfile)
+                                {
+                                    <a class="rh-public-workspace-link" asp-controller="Profile" asp-action="Index" aria-label="@T["View Profile"]" title="@T["View Profile"]">
+                                        <svg aria-hidden="true"><use href="#rh-icon-profile"></use></svg>
+                                        <span>@T["View Profile"]</span>
+                                    </a>
+                                }
+                            </nav>
+                        }
                         <div class="dropdown rh-account-menu">
                             <button class="rh-account-trigger" id="rhAccountMenuButton" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="@T["Open account menu for {0}", userName ?? T["current user"].Value]">
                                 <span class="rh-account-avatar">@userInitial</span>
@@ -419,6 +460,32 @@
                     }
                     else
                     {
+                        <div class="dropdown rh-public-theme-menu">
+                            <button class="rh-public-theme-trigger" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="@T["Appearance"]">
+                                <svg aria-hidden="true"><use href="#rh-icon-appearance"></use></svg>
+                                <span class="visually-hidden">@T["Appearance"]</span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end rh-public-theme-dropdown">
+                                <p class="rh-public-theme-heading">@T["Appearance"]</p>
+                                <div class="rh-appearance-options" role="radiogroup" aria-label="@T["Theme preference"]">
+                                    <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="system">
+                                        <svg aria-hidden="true"><use href="#rh-icon-device"></use></svg>
+                                        <span>@T["Use device theme"]</span>
+                                        <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
+                                    </button>
+                                    <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="dark">
+                                        <svg aria-hidden="true"><use href="#rh-icon-dark"></use></svg>
+                                        <span>@T["Dark theme"]</span>
+                                        <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
+                                    </button>
+                                    <button class="dropdown-item rh-theme-option" type="button" role="radio" aria-checked="false" data-theme-option="light">
+                                        <svg aria-hidden="true"><use href="#rh-icon-light"></use></svg>
+                                        <span>@T["Light theme"]</span>
+                                        <svg class="rh-theme-check" data-theme-check aria-hidden="true" hidden><use href="#rh-icon-check"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <a class="btn rh-btn-subtle btn-sm me-2" asp-controller="Auth" asp-action="Login">@T["Login"]</a>
                         <a class="btn rh-btn-primary btn-sm" asp-controller="Auth" asp-action="Register">@T["Become a Landlord"]</a>
                     }

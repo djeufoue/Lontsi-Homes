@@ -17,7 +17,7 @@
 </section>
 
 <section class="rh-panel rh-panel-elevated mb-3">
-    <form method="get" class="rh-table-filter-grid rh-auto-search-form">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form rh-collapsible-filter">
         <div class="col-md-9">
             <label class="form-label rh-auth-label" for="search">Search</label>
             <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
@@ -40,8 +40,8 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle rh-table mb-0">
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                 <thead>
                     <tr>
                         <th>Landlord</th>
@@ -63,36 +63,36 @@
                         var stripeDisabledReason = FriendlyStripeMessage(landlord.StripePayoutDisabledReason);
                         var stripeRequirementsSummary = FriendlyStripeMessage(landlord.StripePayoutRequirementsSummary);
                         <tr>
-                            <td>
+                            <td class="rh-mobile-card-title" data-label="Landlord">
                                 <div class="fw-semibold">@(string.IsNullOrWhiteSpace(landlord.FullName) ? "N/A" : landlord.FullName)</div>
                                 <small class="text-muted">@landlord.Email</small>
                             </td>
-                            <td>
+                            <td data-label="Country">
                                 <div class="fw-semibold">@CountryLabel(landlord)</div>
                                 <small class="text-muted">@(!string.IsNullOrWhiteSpace(landlord.CountryCode) ? landlord.CountryCode : "No dialing code")</small>
                             </td>
-                            <td>
+                            <td data-label="Status">
                                 <span class="rh-chip @(landlord.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
                                     @(landlord.IsOnboardingComplete ? "Complete" : landlord.NextOnboardingStep)
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="KYC">
                                 <span class="rh-chip @KycChipClass(landlord.KycStatus)">@landlord.KycStatus</span>
                                 @if (landlord.KycReviewedAt.HasValue)
                                 {
                                     <small class="d-block text-muted">@FormatDate(landlord.KycReviewedAt)</small>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Contract">
                                 <span class="rh-chip @(landlord.PlatformTermsAccepted ? "rh-chip-success" : "rh-chip-warning")">
                                     @(landlord.PlatformTermsAccepted ? "Signed" : "Pending")
                                 </span>
                             </td>
-                            <td>
+                            <td data-label="Phone">
                                 <div>@(string.IsNullOrWhiteSpace(landlord.PhoneNumber) ? "Not provided" : landlord.PhoneNumber)</div>
                                 @StatusChip(landlord.PhoneNumberConfirmed)
                             </td>
-                            <td>
+                            <td data-label="Stripe payout">
                                 <span class="rh-chip @StripeChipClass(landlord)">
                                     @StripeStatusLabel(landlord)
                                 </span>
@@ -105,15 +105,15 @@
                                     <small class="d-block text-muted">@stripeRequirementsSummary</small>
                                 }
                             </td>
-                            <td>
+                            <td data-label="Stripe concluded">
                                 <div>@(landlord.StripePayoutSetupComplete ? "Completed" : "Not completed")</div>
                                 <small class="text-muted">@FormatDate(landlord.StripePayoutSetupCompletedAt ?? landlord.StripePayoutStatusUpdatedAt)</small>
                             </td>
-                            <td>
+                            <td data-label="Mobile money">
                                 <div>@MobileMoneySummary(landlord)</div>
                                 <small class="text-muted">@WhatsAppSummary(landlord)</small>
                             </td>
-                            <td>
+                            <td data-label="Subscription">
                                 <form asp-action="UpdateSubscriptionExemption"
                                       method="post"
                                       class="rh-table-setting-toggle"
@@ -138,8 +138,8 @@
                                     </div>
                                 </form>
                             </td>
-                            <td class="text-end">
-                                <div class="d-inline-flex gap-2">
+                            <td class="text-end" data-label="Action">
+                                <div class="d-inline-flex flex-wrap gap-2">
                                     <a asp-action="Overview" asp-route-userId="@landlord.UserId" class="btn btn-sm rh-btn-subtle">Overview</a>
                                     <form asp-action="RestartValidation" method="post" class="d-inline">
                                         @Html.AntiForgeryToken()

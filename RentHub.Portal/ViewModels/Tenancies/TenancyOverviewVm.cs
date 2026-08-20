@@ -9,6 +9,8 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public List<DocumentDto> Documents { get; set; } = new();
         public List<RentPeriodDto> RentPeriods { get; set; } = new();
         public List<RentPeriodDto> AllRentPeriods { get; set; } = new();
+        public RentSummaryDto RentSummary { get; set; } = new();
+        public List<RentReminderHistoryDto> ReminderHistory { get; set; } = new();
 
         public string? MemberSearch { get; set; }
         public string? RentStatus { get; set; }

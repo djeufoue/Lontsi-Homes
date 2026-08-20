@@ -13,6 +13,7 @@
     var apartmentDocuments = documents.Where(doc => doc.DocumentType != DocumentTypeEnum.ApartmentImage).ToList();
     var owners = Model.Owners ?? new List<Common.CommunicationModels.ApartmentOwnerDto>();
     var tenancies = Model.Tenancies ?? new List<Common.CommunicationModels.TenancyDto>();
+    var reminderRules = apartment.RentReminderRules.OrderBy(rule => rule.SortOrder).ToList();
     var today = DateTimeOffset.UtcNow.Date;
 
     string GetTenancyState(Common.CommunicationModels.TenancyDto tenancy)
@@ -122,9 +123,9 @@
                 <small>@T["Operational apartment state"]</small>
             </div>
             <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Rent reminder"]</span>
-                <strong>@apartment.RentReminderDaysBeforeDue day(s)</strong>
-                <small>@T["Lead time before the next due date"]</small>
+                <span>@T["Automatic rent reminders"]</span>
+                <strong>@reminderRules.Count(rule => rule.IsEnabled)</strong>
+                <small>@T["Active rules for unpaid rent"]</small>
             </div>
         </div>
     </section>
@@ -199,9 +200,9 @@
                 <div class="rh-overview-panel-head align-start">
                     <div>
                         <h2 class="rh-dashboard-panel-title">@T["Apartment reminder settings"]</h2>
-                        <p class="rh-dashboard-panel-copy">@T["Control how early tenants are reminded about rent due dates and lease termination."]</p>
+                        <p class="rh-dashboard-panel-copy">@T["Choose when automatic reminders are sent and how many immediate manual follow-ups are allowed."]</p>
                     </div>
-                    @if (Model.CanSendRentReminder)
+                    @if (Model.CanManageRentReminderSettings)
                     {
                         <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="@T["Edit apartment reminder settings"]" aria-label="@T["Edit apartment reminder settings"]">
                             <span class="rh-icon-pencil"></span>
@@ -212,24 +213,84 @@
                 <form method="post" asp-action="UpdateReminderSettings" class="rh-inline-settings-grid rh-inline-editor-form" id="apartmentReminderForm" data-inline-editor="locked">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="apartmentId" value="@apartment.Id" />
+                    <input type="hidden" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" />
 
-                    <div>
-                        <label class="form-label">@T["Rent reminder lead days"]</label>
-                        <input class="form-control rh-input" type="number" min="0" max="365" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" @(Model.CanSendRentReminder ? "readonly" : "disabled") required />
-                        <small class="text-muted">@T["Example: 10 means the main tenant is reminded 10 days before the next unpaid due date."]</small>
+                    <div class="col-12 rh-reminder-rules-field">
+                        <div class="rh-overview-panel-head align-start mb-2">
+                            <div>
+                                <label class="form-label mb-1">@T["Automatic rent reminders"]</label>
+                                <small class="text-muted d-block">@T["Each active rule is sent once per rent period. A future period is shown for information but is not included in the amount due."]</small>
+                            </div>
+                            @if (Model.CanManageRentReminderSettings)
+                            {
+                                <button type="button" class="btn btn-sm rh-btn-subtle" data-reminder-rule-add hidden>@T["Add a rule"]</button>
+                            }
+                        </div>
+
+                        <div class="d-grid gap-2" data-reminder-rules>
+                            @for (var ruleIndex = 0; ruleIndex < reminderRules.Count; ruleIndex++)
+                            {
+                                var rule = reminderRules[ruleIndex];
+                                <div class="rh-card-spotlight p-3" data-reminder-rule-row>
+                                    <input type="hidden" data-reminder-field="Id" name="RentReminderRules[@ruleIndex].Id" value="@rule.Id" />
+                                    <input type="hidden" data-reminder-field="SmsEnabled" name="RentReminderRules[@ruleIndex].SmsEnabled" value="false" />
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-4">
+                                            <label class="form-label">@T["When"]</label>
+                                            <select class="form-select rh-input" data-reminder-editable data-reminder-timing data-reminder-field="Timing" name="RentReminderRules[@ruleIndex].Timing">
+                                                <option value="0" selected="@(rule.Timing == RentReminderTimingEnum.BeforeDue)">@T["Before the due date"]</option>
+                                                <option value="1" selected="@(rule.Timing == RentReminderTimingEnum.OnDueDate)">@T["On the due date"]</option>
+                                                <option value="2" selected="@(rule.Timing == RentReminderTimingEnum.AfterDue)">@T["After the due date"]</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">@T["Number of days"]</label>
+                                            <input class="form-control rh-input" data-reminder-editable data-reminder-days data-reminder-field="Days" type="number" min="0" max="365" name="RentReminderRules[@ruleIndex].Days" value="@rule.Days" required />
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" data-reminder-editable data-reminder-field="IsEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].IsEnabled" value="true" checked="@rule.IsEnabled" />
+                                                <label class="form-check-label">@T["Active"]</label>
+                                            </div>
+                                            <input type="hidden" data-reminder-field="IsEnabled" name="RentReminderRules[@ruleIndex].IsEnabled" value="false" />
+                                            <div class="form-check">
+                                                <input class="form-check-input" data-reminder-editable data-reminder-field="EmailEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].EmailEnabled" value="true" checked="@rule.EmailEnabled" />
+                                                <label class="form-check-label">@T["Email"]</label>
+                                            </div>
+                                            <input type="hidden" data-reminder-field="EmailEnabled" name="RentReminderRules[@ruleIndex].EmailEnabled" value="false" />
+                                        </div>
+                                        <div class="col-md-2 text-md-end">
+                                            <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
                     </div>
 
                     <div>
                         <label class="form-label">@T["Lease termination lead days"]</label>
-                        <input class="form-control rh-input" type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" @(Model.CanSendRentReminder ? "readonly" : "disabled") required />
+                        <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" required />
                         <small class="text-muted">@T["If the tenancy has an end date, the tenant will be notified this many days before the lease ends."]</small>
+                    </div>
+
+                    <div>
+                        <label class="form-label">@T["Immediate manual follow-ups allowed"]</label>
+                        <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="20" name="ManualRentReminderLimit" value="@apartment.ManualRentReminderLimit" required />
+                        <small class="text-muted">@T["This limit applies to the oldest unpaid period and resets when that period is paid."]</small>
+                    </div>
+
+                    <div>
+                        <label class="form-label">@T["Hours between manual follow-ups"]</label>
+                        <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="168" name="ManualRentReminderCooldownHours" value="@apartment.ManualRentReminderCooldownHours" required />
+                        <small class="text-muted">@T["Use 0 only if authorized users may send follow-ups without a waiting period."]</small>
                     </div>
 
                     <div class="rh-inline-settings-note">
                         @T["Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted."]
                     </div>
 
-                    @if (Model.CanSendRentReminder)
+                    @if (Model.CanManageRentReminderSettings)
                     {
                         <div class="col-12 rh-inline-editor-actions" hidden>
                             <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -239,6 +300,41 @@
                         </div>
                     }
                 </form>
+
+                <template id="apartmentReminderRuleTemplate">
+                    <div class="rh-card-spotlight p-3" data-reminder-rule-row>
+                        <input type="hidden" data-reminder-field="SmsEnabled" value="false" />
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label">@T["When"]</label>
+                                <select class="form-select rh-input" data-reminder-editable data-reminder-timing data-reminder-field="Timing">
+                                    <option value="0">@T["Before the due date"]</option>
+                                    <option value="1">@T["On the due date"]</option>
+                                    <option value="2" selected>@T["After the due date"]</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">@T["Number of days"]</label>
+                                <input class="form-control rh-input" data-reminder-editable data-reminder-days data-reminder-field="Days" type="number" min="0" max="365" value="5" required />
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" data-reminder-editable data-reminder-field="IsEnabled" type="checkbox" value="true" checked />
+                                    <label class="form-check-label">@T["Active"]</label>
+                                </div>
+                                <input type="hidden" data-reminder-field="IsEnabled" value="false" />
+                                <div class="form-check">
+                                    <input class="form-check-input" data-reminder-editable data-reminder-field="EmailEnabled" type="checkbox" value="true" checked />
+                                    <label class="form-check-label">@T["Email"]</label>
+                                </div>
+                                <input type="hidden" data-reminder-field="EmailEnabled" value="false" />
+                            </div>
+                            <div class="col-md-2 text-md-end">
+                                <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
             </article>
         </div>
 
@@ -368,7 +464,7 @@
                                 <div class="rh-unit-card-meta rh-tenancy-card-meta">
                                     @if (Model.CanViewFinancialInformation)
                                     {
-                                    <span>@T["Monthly rent"] <strong>@tenancy.MonthlyRent.ToString("N0", CultureInfo.CurrentCulture)</strong></span>
+                                    <span>@T["Monthly rent"] <strong>@tenancy.MonthlyRent.ToString("N0", CultureInfo.CurrentCulture) XAF</strong></span>
                                     }
                                     <span>@T["Apartment"] <strong>@tenancy.ApartmentName</strong></span>
                                     <span>@T["Max members"] <strong>@tenancy.MaxMembers</strong></span>
@@ -377,9 +473,24 @@
                                 @if (Model.CanViewFinancialInformation)
                                 {
                                 <div class="rh-unit-card-schedule">
-                                    <span>@T["Paid through"] <strong>@(tenancy.PaidThroughDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not yet covered"].Value)</strong></span>
-                                    <span>@T["Next due"] <strong>@(tenancy.NextRentDueDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong></span>
-                                    <span>@T["Reminder"] <strong>@(tenancy.NextRentReminderDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong></span>
+                                    <span>
+                                        @T["Last paid month"]
+                                        <strong>@(tenancy.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture) ?? T["No paid month yet"].Value)</strong>
+                                        @if (tenancy.LastPaidAt.HasValue)
+                                        {
+                                            <small>@T["Paid on {0}", tenancy.LastPaidAt.Value.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)]</small>
+                                        }
+                                    </span>
+                                    <span>@T["Due now"] <strong>@(tenancy.DueNowPeriodCount > 0 ? $"{tenancy.DueNowAmount.ToString("N0", CultureInfo.CurrentCulture)} XAF" : T["Nothing due"].Value)</strong></span>
+                                    <span>
+                                        @T["Next rent"]
+                                        <strong>@(tenancy.NextUpcomingPeriodStart?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong>
+                                        @if (tenancy.NextUpcomingAmount.HasValue)
+                                        {
+                                            <small>@tenancy.NextUpcomingAmount.Value.ToString("N0", CultureInfo.CurrentCulture) XAF</small>
+                                        }
+                                    </span>
+                                    <span>@T["Last reminder sent"] <strong>@(tenancy.LastReminderSentAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? T["No reminder sent"].Value)</strong></span>
                                     <span>@T["Lease alert"] <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["No lease end"].Value)</strong></span>
                                 </div>
                                 }

@@ -48,8 +48,8 @@
         <small class="text-muted">Newest request first</small>
     </div>
 
-    <div class="table-responsive">
-        <table class="table align-middle rh-table mb-0">
+    <div class="table-responsive rh-responsive-table-wrap">
+        <table class="table align-middle rh-table rh-responsive-data-table mb-0">
             <thead>
                 <tr>
                     <th>Requested</th>
@@ -65,22 +65,22 @@
                 @foreach (var item in Model.History)
                 {
                     <tr class="@(item.Id == selected.Id ? "table-active" : string.Empty)">
-                        <td>@item.CreatedAt.LocalDateTime.ToString("dd MMM yyyy HH:mm")</td>
-                        <td>
+                        <td class="rh-mobile-card-title" data-label="Requested">@item.CreatedAt.LocalDateTime.ToString("dd MMM yyyy HH:mm")</td>
+                        <td data-label="Plan">
                             <strong>@item.PlanName</strong>
                             <small class="text-muted d-block">@item.DurationMonths month(s)</small>
                         </td>
-                        <td><span class="rh-chip @ChipClass(item.Status)">@item.Status</span></td>
-                        <td>
+                        <td data-label="Status"><span class="rh-chip @ChipClass(item.Status)">@item.Status</span></td>
+                        <td data-label="Payment">
                             @item.PaymentMethod
                             <small class="text-muted d-block">@item.PaymentStatus</small>
                         </td>
-                        <td class="text-end">@item.PlanPrice.ToString("N0") XAF</td>
-                        <td>
+                        <td class="text-end" data-label="Price">@item.PlanPrice.ToString("N0") XAF</td>
+                        <td data-label="Coverage">
                             @item.StartDate.LocalDateTime.ToString("dd MMM yyyy")
                             <small class="text-muted d-block">to @item.EndDate.LocalDateTime.ToString("dd MMM yyyy")</small>
                         </td>
-                        <td><small>@item.PaymentReference</small></td>
+                        <td data-label="Reference"><small>@item.PaymentReference</small></td>
                     </tr>
                 }
             </tbody>

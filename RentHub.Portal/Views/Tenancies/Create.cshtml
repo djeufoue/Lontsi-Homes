@@ -174,8 +174,8 @@
                 <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">@T["Edit details"]</a>
             </div>
 
-            <div class="table-responsive">
-                <table class="table align-middle">
+            <div class="table-responsive rh-responsive-table-wrap">
+                <table class="table align-middle rh-responsive-data-table">
                     <thead>
                         <tr>
                             <th>@T["Period"]</th>
@@ -188,10 +188,10 @@
                         @foreach (var period in periods)
                         {
                             <tr>
-                                <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                <td>@DateLabel(period.DueDate)</td>
-                                <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                <td><span class="rh-chip @StatusClass(period.Status)">@T["Pending setup"]</span></td>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T["Pending setup"]</span></td>
                             </tr>
                         }
                     </tbody>
@@ -294,8 +294,8 @@
                 </div>
 
                 <div class="col-12">
-                    <div class="table-responsive">
-                        <table class="table align-middle">
+                    <div class="table-responsive rh-responsive-table-wrap">
+                        <table class="table align-middle rh-responsive-data-table">
                             <thead>
                                 <tr>
                                     <th>@T["Period"]</th>
@@ -308,10 +308,10 @@
                                 @foreach (var period in periods)
                                 {
                                     <tr>
-                                        <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                        <td>@DateLabel(period.DueDate)</td>
-                                        <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                        <td><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                                        <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                        <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                                        <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                        <td data-label="@T["Status after import"]"><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -414,8 +414,8 @@
                 </div>
             }
 
-            <div class="table-responsive mb-4">
-                <table class="table align-middle">
+            <div class="table-responsive rh-responsive-table-wrap mb-4">
+                <table class="table align-middle rh-responsive-data-table">
                     <thead>
                         <tr>
                             <th>@T["Period"]</th>
@@ -427,9 +427,9 @@
                         @foreach (var period in periods)
                         {
                             <tr>
-                                <td>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                <td class="text-end">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                <td><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                             </tr>
                         }
                     </tbody>

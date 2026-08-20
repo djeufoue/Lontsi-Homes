@@ -27,7 +27,7 @@
     <section class="rh-landing-hero-block">
         <div class="rh-landing-hero-surface">
             <div class="rh-landing-hero-topline">
-                <span class="rh-landing-brand-mark">Lontsi Homes / Landlord Workspace</span>
+                <partial name="_BrandLogo" model="@("rh-brand-logo--landing rh-brand-logo--responsive rh-brand-logo--on-dark")" />
                 <nav class="rh-landing-anchor-nav" aria-label="Landing sections">
                     <a href="#operations">Operations</a>
                     <a href="#workflow">Workflow</a>
@@ -54,7 +54,10 @@
                             <a class="btn rh-btn-primary" asp-controller="Auth" asp-action="Register">Create Landlord Account</a>
                         }
 
-                        <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login">Log In</a>
+                        @if (!Model.IsAuthenticated)
+                        {
+                            <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login">Log In</a>
+                        }
                     </div>
 
                     <ul class="rh-landing-hero-list">
@@ -355,7 +358,10 @@
                 <a class="btn rh-btn-primary" asp-controller="Auth" asp-action="Register">Create Landlord Account</a>
             }
 
-            <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login">Already have an account?</a>
+            @if (!Model.IsAuthenticated)
+            {
+                <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login">Already have an account?</a>
+            }
         </div>
     </section>
 </section>

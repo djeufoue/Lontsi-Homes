@@ -66,7 +66,7 @@
             <small>@T["Filter by search, city, access scope, and page size."]</small>
         </div>
 
-        <form method="get" asp-action="Index" class="rh-properties-filter-grid">
+        <form method="get" asp-action="Index" class="rh-properties-filter-grid rh-collapsible-filter">
             <div class="rh-properties-filter-field rh-properties-filter-field-wide">
                 <label class="form-label mb-1">@T["Search"]</label>
                 <input class="form-control rh-input" type="text" name="search" value="@Model.Search" placeholder="@T["Name, address, city, or country"]" />
@@ -137,8 +137,8 @@
                 <small>@T["Plan limits and approval state for each landlord scope."]</small>
             </div>
 
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0 rh-table rh-smart-meta-table">
+            <div class="table-responsive rh-responsive-table-wrap">
+                <table class="table table-sm align-middle mb-0 rh-table rh-smart-meta-table rh-responsive-data-table">
                     <thead>
                         <tr>
                             <th>@T["Landlord"]</th>
@@ -152,11 +152,11 @@
                         @foreach (var scope in Model.CreationScopes)
                         {
                             <tr>
-                                <td>@scope.LandlordName</td>
-                                <td>@scope.CurrentProperties</td>
-                                <td>@(scope.MaxProperties.HasValue ? scope.MaxProperties.Value : T["Unlimited"].Value)</td>
-                                <td>@(scope.SubscriptionApproved ? T["Approved"].Value : T["Pending/Inactive"].Value)</td>
-                                <td>@T[scope.StatusMessage]</td>
+                                <td class="rh-mobile-card-title" data-label="@T["Landlord"]">@scope.LandlordName</td>
+                                <td data-label="@T["Current"]">@scope.CurrentProperties</td>
+                                <td data-label="@T["Limit"]">@(scope.MaxProperties.HasValue ? scope.MaxProperties.Value : T["Unlimited"].Value)</td>
+                                <td data-label="@T["Subscription"]">@(scope.SubscriptionApproved ? T["Approved"].Value : T["Pending/Inactive"].Value)</td>
+                                <td data-label="@T["Status"]">@T[scope.StatusMessage]</td>
                             </tr>
                         }
                     </tbody>

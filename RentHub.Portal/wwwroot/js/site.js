@@ -1101,15 +1101,77 @@
       return;
     }
 
-    const setMode = (isEditing) => {
-      form.dataset.inlineEditor = isEditing ? "editing" : "locked";
-      form.querySelectorAll("input[name]").forEach((field) => {
-        if (field.name === "__RequestVerificationToken" || field.name === "apartmentId") {
-          return;
+    const rulesContainer = form.querySelector("[data-reminder-rules]");
+    const ruleTemplate = root.querySelector("#apartmentReminderRuleTemplate");
+    const addRuleButton = form.querySelector("[data-reminder-rule-add]");
+    const initialRulesMarkup = rulesContainer?.innerHTML ?? "";
+    let editing = false;
+
+    const reindexRules = () => {
+      const rows = Array.from(rulesContainer?.querySelectorAll("[data-reminder-rule-row]") ?? []);
+      rows.forEach((row, index) => {
+        row.querySelectorAll("[data-reminder-field]").forEach((field) => {
+          field.name = `RentReminderRules[${index}].${field.dataset.reminderField}`;
+        });
+      });
+
+      if (addRuleButton) {
+        addRuleButton.disabled = rows.length >= 6;
+      }
+    };
+
+    const updateDaysField = (row) => {
+      const timing = row.querySelector("[data-reminder-timing]");
+      const days = row.querySelector("[data-reminder-days]");
+      if (!timing || !days) {
+        return;
+      }
+
+      const isDueDate = timing.value === "1";
+      if (isDueDate) {
+        days.value = "0";
+      }
+      days.min = isDueDate ? "0" : "1";
+      days.readOnly = !editing || isDueDate;
+    };
+
+    const bindRuleRows = () => {
+      rulesContainer?.querySelectorAll("[data-reminder-rule-row]").forEach((row) => {
+        const timing = row.querySelector("[data-reminder-timing]");
+        if (timing && timing.dataset.bound !== "true") {
+          timing.dataset.bound = "true";
+          timing.addEventListener("change", () => updateDaysField(row));
         }
 
-        field.readOnly = !isEditing;
+        const removeButton = row.querySelector("[data-reminder-rule-remove]");
+        if (removeButton && removeButton.dataset.bound !== "true") {
+          removeButton.dataset.bound = "true";
+          removeButton.addEventListener("click", () => {
+            row.remove();
+            reindexRules();
+          });
+        }
+
+        updateDaysField(row);
       });
+      reindexRules();
+    };
+
+    const setMode = (isEditing) => {
+      editing = isEditing;
+      form.dataset.inlineEditor = isEditing ? "editing" : "locked";
+      form.querySelectorAll("[data-reminder-editable]").forEach((field) => {
+        if (field.matches("select, input[type='checkbox'], button")) {
+          field.disabled = !isEditing;
+        } else {
+          field.readOnly = !isEditing;
+        }
+      });
+
+      form.querySelectorAll("[data-reminder-rule-row]").forEach(updateDaysField);
+      if (addRuleButton) {
+        addRuleButton.hidden = !isEditing;
+      }
 
       const actionRow = form.querySelector(".rh-inline-editor-actions");
       if (actionRow) {
@@ -1120,6 +1182,20 @@
     const editToggle = root.querySelector("#apartmentReminderEditToggle");
     const cancelButton = root.querySelector("#apartmentReminderCancel");
 
+    if (addRuleButton && addRuleButton.dataset.bound !== "true") {
+      addRuleButton.dataset.bound = "true";
+      addRuleButton.addEventListener("click", () => {
+        const count = rulesContainer?.querySelectorAll("[data-reminder-rule-row]").length ?? 0;
+        if (!rulesContainer || !ruleTemplate || count >= 6) {
+          return;
+        }
+
+        rulesContainer.appendChild(ruleTemplate.content.cloneNode(true));
+        bindRuleRows();
+        setMode(true);
+      });
+    }
+
     if (editToggle && editToggle.dataset.bound !== "true") {
       editToggle.dataset.bound = "true";
       editToggle.addEventListener("click", () => setMode(true));
@@ -1129,10 +1205,15 @@
       cancelButton.dataset.bound = "true";
       cancelButton.addEventListener("click", () => {
         form.reset();
+        if (rulesContainer) {
+          rulesContainer.innerHTML = initialRulesMarkup;
+          bindRuleRows();
+        }
         setMode(false);
       });
     }
 
+    bindRuleRows();
     setMode(false);
   };
 
@@ -1308,6 +1389,42 @@
     }, 60 * 1000);
   };
 
+  const initMobileFilters = (root = document) => {
+    root.querySelectorAll(".rh-collapsible-filter").forEach((filter, index) => {
+      if (filter.dataset.mobileFilterBound === "true") {
+        return;
+      }
+
+      if (!filter.id) {
+        filter.id = `rh-mobile-filter-${index + 1}`;
+      }
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "rh-mobile-filter-toggle";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-controls", filter.id);
+
+      const label = document.createElement("span");
+      label.textContent = filter.dataset.mobileFilterLabel
+        || (document.documentElement.lang?.toLowerCase().startsWith("fr") ? "Filtres" : "Filters");
+
+      const icon = document.createElement("span");
+      icon.className = "rh-mobile-filter-toggle-icon";
+      icon.setAttribute("aria-hidden", "true");
+
+      toggle.append(label, icon);
+      filter.before(toggle);
+
+      toggle.addEventListener("click", () => {
+        const isOpen = filter.classList.toggle("is-open");
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      });
+
+      filter.dataset.mobileFilterBound = "true";
+    });
+  };
+
   const setSidebarOpen = (isOpen) => {
     body.classList.toggle("sidebar-open", isOpen);
     toggle?.setAttribute("aria-expanded", isOpen ? "true" : "false");
@@ -1452,6 +1569,7 @@
   initCountrySelectors(document);
   initDatePickers(document);
   initRentPeriodPickers(document);
+  initMobileFilters(document);
   initSessionKeepAlive();
 })();
 

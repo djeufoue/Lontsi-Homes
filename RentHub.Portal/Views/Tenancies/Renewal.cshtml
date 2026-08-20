@@ -125,8 +125,8 @@
         }
         else
         {
-            <div class="table-responsive">
-                <table class="table align-middle rh-table mb-0">
+                <div class="table-responsive rh-responsive-table-wrap">
+                    <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                     <thead>
                         <tr>
                             <th>@T["Requested by"]</th>
@@ -141,12 +141,12 @@
                         @foreach (var request in workspace.Requests)
                         {
                             <tr>
-                                <td>@request.RequestedByName</td>
-                                <td>@DateLabel(request.CreatedAt)</td>
-                                <td>@(request.OriginalEndDate.HasValue ? DateLabel(request.OriginalEndDate.Value) : T["Not recorded"].Value)</td>
-                                <td>@DateLabel(request.ProposedEndDate)</td>
-                                <td><span class="rh-chip @(request.Status == TenancyExtensionStatusEnum.Pending ? "rh-chip-warning" : request.Status == TenancyExtensionStatusEnum.Approved ? "rh-chip-primary" : "rh-chip-info")">@T[request.Status.ToString()]</span></td>
-                                <td>
+                                    <td class="rh-mobile-card-title" data-label="@T["Requested by"]">@request.RequestedByName</td>
+                                    <td data-label="@T["Submitted"]">@DateLabel(request.CreatedAt)</td>
+                                    <td data-label="@T["Previous end date"]">@(request.OriginalEndDate.HasValue ? DateLabel(request.OriginalEndDate.Value) : T["Not recorded"].Value)</td>
+                                    <td data-label="@T["Proposed end date"]">@DateLabel(request.ProposedEndDate)</td>
+                                    <td data-label="@T["Status"]"><span class="rh-chip @(request.Status == TenancyExtensionStatusEnum.Pending ? "rh-chip-warning" : request.Status == TenancyExtensionStatusEnum.Approved ? "rh-chip-primary" : "rh-chip-info")">@T[request.Status.ToString()]</span></td>
+                                    <td data-label="@T["Decision"]">
                                     @if (request.ReviewedAt.HasValue)
                                     {
                                         <div>@DateLabel(request.ReviewedAt.Value)</div>

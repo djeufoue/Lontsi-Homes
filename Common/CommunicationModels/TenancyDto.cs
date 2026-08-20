@@ -25,6 +25,18 @@ namespace Common.CommunicationModels
         public DateTimeOffset? NextRentReminderDate { get; set; }
         public DateTimeOffset? LeaseTerminationReminderDate { get; set; }
         public bool IsPaidInAdvance { get; set; }
+        public DateTimeOffset? LastPaidPeriodStart { get; set; }
+        public DateTimeOffset? LastPaidPeriodEnd { get; set; }
+        public DateTimeOffset? LastPaidAt { get; set; }
+        public decimal DueNowAmount { get; set; }
+        public int DueNowPeriodCount { get; set; }
+        public DateTimeOffset? OldestUnpaidDueDate { get; set; }
+        public DateTimeOffset? NextUpcomingPeriodStart { get; set; }
+        public DateTimeOffset? NextUpcomingPeriodEnd { get; set; }
+        public decimal? NextUpcomingAmount { get; set; }
+        public DateTimeOffset? LastReminderSentAt { get; set; }
+        public RentReminderCategoryEnum? LastReminderCategory { get; set; }
+        public int ReminderCount { get; set; }
         /// <summary>
         /// Indicates whether the current authenticated user is the landlord/owner of the apartment.
         /// </summary>

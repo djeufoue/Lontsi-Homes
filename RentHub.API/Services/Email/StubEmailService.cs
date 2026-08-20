@@ -21,5 +21,12 @@ namespace RentHub.API.Services.Email
             // Intentionally do nothing.  For demonstration, emails are not sent.
             await Task.CompletedTask;
         }
+
+        public Task<EmailSendResult> TrySendEmailAsync(EmailMessage email)
+        {
+            // The stub represents a successful local delivery so idempotent workflows can
+            // be exercised without repeatedly retrying a provider that is intentionally absent.
+            return Task.FromResult(EmailSendResult.Success());
+        }
     }
 }

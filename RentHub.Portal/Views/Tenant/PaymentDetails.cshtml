@@ -56,17 +56,17 @@
         }
         else
         {
-            <div class="table-responsive">
-                <table class="table align-middle rh-table mb-0">
+            <div class="table-responsive rh-responsive-table-wrap">
+                <table class="table align-middle rh-table rh-responsive-data-table mb-0">
                     <thead><tr><th>@T["Period"]</th><th>@T["Due date"]</th><th class="text-end">@T["Balance"]</th><th>@T["Status"]</th></tr></thead>
                     <tbody>
                     @foreach (var period in unpaidPeriods)
                     {
                         <tr>
-                            <td>@period.PeriodStart.LocalDateTime.ToString("d") - @period.PeriodEnd.LocalDateTime.ToString("d")</td>
-                            <td>@period.DueDate.LocalDateTime.ToString("d")</td>
-                            <td class="text-end">@(period.Amount - period.PaidAmount).ToString("N0")</td>
-                            <td>@T[period.StatusLabel]</td>
+                            <td class="rh-mobile-card-title" data-label="@T["Period"]">@period.PeriodStart.LocalDateTime.ToString("d") - @period.PeriodEnd.LocalDateTime.ToString("d")</td>
+                            <td data-label="@T["Due date"]">@period.DueDate.LocalDateTime.ToString("d")</td>
+                            <td class="text-end" data-label="@T["Balance"]">@(period.Amount - period.PaidAmount).ToString("N0")</td>
+                            <td data-label="@T["Status"]">@T[period.StatusLabel]</td>
                         </tr>
                     }
                     </tbody>

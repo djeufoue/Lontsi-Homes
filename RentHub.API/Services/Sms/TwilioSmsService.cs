@@ -31,34 +31,38 @@ namespace RentHub.API.Services.Sms
 
         public async Task SendSmsAsync(string to, string message)
         {
-            // If any of the Twilio settings are missing, simply do nothing.  This
-            // allows the application to run even when Twilio is not configured.  In
-            // production, administrators should supply valid credentials.
+            await TrySendSmsAsync(to, message);
+        }
+
+        public async Task<SmsSendResult> TrySendSmsAsync(string to, string message)
+        {
             if (string.IsNullOrWhiteSpace(_accountSid) || string.IsNullOrWhiteSpace(_authToken) || string.IsNullOrWhiteSpace(_fromNumber))
             {
-                // Nothing to send; return completed task.
-                _logger.LogWarning("SMS provider not configured. OTP SMS to {Recipient} was skipped.", to);
-                await Task.CompletedTask;
-                return;
+                const string error = "SMS provider is not configured.";
+                _logger.LogWarning("{Error} Message to {Recipient} was skipped.", error, to);
+                return SmsSendResult.Failure(error);
             }
+
             try
             {
-                // Dynamically load Twilio's REST client to avoid referencing the
-                // package if not available.  If the package is installed, this
-                // section will compile and send the SMS.  Otherwise, catch and
-                // ignore errors so as not to crash the app.
 #if TWILIO
                 Twilio.TwilioClient.Init(_accountSid, _authToken);
-                var messageResponse = await Twilio.Rest.Api.V2010.Account.MessageResource.CreateAsync(
+                await Twilio.Rest.Api.V2010.Account.MessageResource.CreateAsync(
                     body: message,
                     from: new Twilio.Types.PhoneNumber(_fromNumber),
                     to: new Twilio.Types.PhoneNumber(to));
-#endif
+                return SmsSendResult.Success();
+#else
                 await Task.CompletedTask;
+                const string error = "SMS delivery is not included in this application build.";
+                _logger.LogWarning("{Error} Message to {Recipient} was skipped.", error, to);
+                return SmsSendResult.Failure(error);
+#endif
             }
-            catch
+            catch (Exception exception)
             {
-                _logger.LogWarning("Failed to deliver SMS to {Recipient}.", to);
+                _logger.LogWarning(exception, "Failed to deliver SMS to {Recipient}.", to);
+                return SmsSendResult.Failure(exception.Message);
             }
         }
 

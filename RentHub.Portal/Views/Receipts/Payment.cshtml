@@ -43,7 +43,11 @@
     <article class="rh-rent-invoice" aria-label="@T["Rent invoice"]">
         <header class="rh-rent-invoice__masthead">
             <p class="rh-rent-invoice__title">@T["Rent invoice"].Value.ToUpper(culture)</p>
-            <strong>Lontsi Homes</strong>
+            <img class="rh-rent-invoice__brand-logo"
+                 src="~/assets/branding/logo-light.png"
+                 alt="Lontsi Homes"
+                 width="1600"
+                 height="339" />
             <span>@T["Property management and rent services"]</span>
         </header>
 
@@ -74,8 +78,8 @@
             </div>
         </section>
 
-        <div class="table-responsive rh-rent-invoice__table-wrap">
-            <table class="rh-rent-invoice__table">
+        <div class="table-responsive rh-responsive-table-wrap rh-rent-invoice__table-wrap">
+            <table class="rh-responsive-data-table rh-rent-invoice__table">
                 <thead>
                     <tr>
                         <th>@T["Description"]</th>
@@ -86,10 +90,10 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>@T["Rent for the rental unit"]</td>
-                        <td>@PeriodLabel()</td>
-                        <td class="text-center">1</td>
-                        <td class="text-end">@Model.Amount.ToString("N0", culture) @Model.Currency</td>
+                        <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Rent for the rental unit"]</td>
+                        <td data-label="@T["Period"]">@PeriodLabel()</td>
+                        <td class="text-center" data-label="@T["Quantity"]">1</td>
+                        <td class="text-end" data-label="@T["Total"]">@Model.Amount.ToString("N0", culture) @Model.Currency</td>
                     </tr>
                 </tbody>
             </table>
@@ -168,8 +172,13 @@
         font-weight: 500;
     }
 
-    .rh-rent-invoice__masthead strong {
-        font-size: 1.55rem;
+    .rh-rent-invoice__brand-logo {
+        display: block;
+        width: clamp(12rem, 42%, 20rem);
+        max-width: 100%;
+        height: auto;
+        margin: 0 auto;
+        object-fit: contain;
     }
 
     .rh-rent-invoice__masthead span {

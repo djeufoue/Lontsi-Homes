@@ -39,6 +39,10 @@ namespace RentHub.API.Data
         // Extension requests and settings
         public DbSet<TenancyExtensionRequest> TenancyExtensionRequests => Set<TenancyExtensionRequest>();
         public DbSet<ReminderSettings> ReminderSettings => Set<ReminderSettings>();
+        public DbSet<ApartmentRentReminderRule> ApartmentRentReminderRules => Set<ApartmentRentReminderRule>();
+        public DbSet<RentReminder> RentReminders => Set<RentReminder>();
+        public DbSet<RentReminderTrigger> RentReminderTriggers => Set<RentReminderTrigger>();
+        public DbSet<RentReminderPeriod> RentReminderPeriods => Set<RentReminderPeriod>();
 
         // Delegated user assignments
         public DbSet<ApartmentOwner> ApartmentOwners => Set<ApartmentOwner>();
@@ -165,6 +169,80 @@ namespace RentHub.API.Data
                     .HasFilter("[IsDeleted] = 0");
 
                 entity.HasIndex(rp => new { rp.TenancyId, rp.Status, rp.DueDate });
+            });
+
+            builder.Entity<ApartmentRentReminderRule>(entity =>
+            {
+                entity.HasOne(rule => rule.Apartment)
+                    .WithMany(apartment => apartment.RentReminderRules)
+                    .HasForeignKey(rule => rule.ApartmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(rule => new { rule.ApartmentId, rule.Timing, rule.Days })
+                    .IsUnique()
+                    .HasFilter("[IsDeleted] = 0");
+
+                entity.HasIndex(rule => new { rule.IsEnabled, rule.Timing, rule.Days });
+            });
+
+            builder.Entity<RentReminder>(entity =>
+            {
+                entity.Property(reminder => reminder.OutstandingAmountSnapshot)
+                    .HasPrecision(14, 2);
+
+                entity.HasOne(reminder => reminder.Tenancy)
+                    .WithMany(tenancy => tenancy.RentReminders)
+                    .HasForeignKey(reminder => reminder.TenancyId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(reminder => new { reminder.TenancyId, reminder.SentAt });
+                entity.HasIndex(reminder => new { reminder.Status, reminder.ScheduledFor });
+            });
+
+            builder.Entity<RentReminderTrigger>(entity =>
+            {
+                entity.Property(trigger => trigger.TriggerKey)
+                    .HasMaxLength(160);
+
+                entity.HasOne(trigger => trigger.RentReminder)
+                    .WithMany(reminder => reminder.Triggers)
+                    .HasForeignKey(trigger => trigger.RentReminderId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(trigger => trigger.RentPeriod)
+                    .WithMany(period => period.ReminderTriggers)
+                    .HasForeignKey(trigger => trigger.RentPeriodId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(trigger => trigger.ApartmentRentReminderRule)
+                    .WithMany()
+                    .HasForeignKey(trigger => trigger.ApartmentRentReminderRuleId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(trigger => trigger.TriggerKey).IsUnique();
+                entity.HasIndex(trigger => new { trigger.RentPeriodId, trigger.Category });
+            });
+
+            builder.Entity<RentReminderPeriod>(entity =>
+            {
+                entity.Property(period => period.AmountSnapshot).HasPrecision(14, 2);
+                entity.Property(period => period.PaidAmountSnapshot).HasPrecision(14, 2);
+                entity.Property(period => period.OutstandingAmountSnapshot).HasPrecision(14, 2);
+
+                entity.HasOne(period => period.RentReminder)
+                    .WithMany(reminder => reminder.Periods)
+                    .HasForeignKey(period => period.RentReminderId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(period => period.RentPeriod)
+                    .WithMany(rentPeriod => rentPeriod.ReminderPeriods)
+                    .HasForeignKey(period => period.RentPeriodId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(period => new { period.RentReminderId, period.RentPeriodId })
+                    .IsUnique();
+
+                entity.HasIndex(period => period.RentPeriodId);
             });
 
             builder.Entity<UserSubscription>(entity =>
@@ -403,7 +481,12 @@ namespace RentHub.API.Data
 
             // Apply global query filters to soft-delete entities
             builder.Entity<Property>().HasQueryFilter(p => !p.IsDeleted);
-            builder.Entity<Apartment>().HasQueryFilter(a => !a.IsDeleted);
+            builder.Entity<Apartment>(entity =>
+            {
+                entity.HasQueryFilter(apartment => !apartment.IsDeleted);
+                entity.Property(apartment => apartment.ManualRentReminderLimit).HasDefaultValue(2);
+                entity.Property(apartment => apartment.ManualRentReminderCooldownHours).HasDefaultValue(24);
+            });
             builder.Entity<Tenancy>().HasQueryFilter(t => !t.IsDeleted);
             builder.Entity<TenancyMember>().HasQueryFilter(tm => !tm.IsDeleted);
             builder.Entity<RentPeriod>().HasQueryFilter(rp => !rp.IsDeleted);
@@ -415,6 +498,7 @@ namespace RentHub.API.Data
             builder.Entity<ApartmentOwner>().HasQueryFilter(o => !o.IsDeleted);
             builder.Entity<PropertyManagerAssignment>().HasQueryFilter(m => !m.IsDeleted);
             builder.Entity<ReminderSettings>().HasQueryFilter(rs => !rs.IsDeleted);
+            builder.Entity<ApartmentRentReminderRule>().HasQueryFilter(rule => !rule.IsDeleted);
 
             // Apply soft-delete filter to extension requests if desired
             builder.Entity<TenancyExtensionRequest>().HasQueryFilter(er => !er.IsDeleted);

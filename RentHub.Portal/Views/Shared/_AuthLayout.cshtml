@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@ViewData["Title"] - Lontsi Homes</title>
+    <partial name="_BrandHead" />
     <script src="~/js/theme.js" asp-append-version="true"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,6 +13,9 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 <body class="rh-auth-body">
+    <a class="rh-auth-brand-home" asp-controller="Home" asp-action="Index" aria-label="Lontsi Homes home">
+        <partial name="_BrandLogo" model="@("rh-brand-logo--auth rh-brand-logo--responsive")" />
+    </a>
     @RenderBody()
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
