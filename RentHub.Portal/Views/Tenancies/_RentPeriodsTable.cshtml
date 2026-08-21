@@ -5,6 +5,18 @@
     var tenancy = Model.Tenancy;
     var filterAction = Model.IsRentPeriodsPage ? "RentPeriods" : "Overview";
     var returnUrl = Context.Request.Path + Context.Request.QueryString;
+
+    string DaysLabel(int days) => days == 1 ? T["1 day"].Value : T["{0} days", days].Value;
+
+    string DeliveryStatusLabel(ReminderDeliveryStatusEnum status) => status switch
+    {
+        ReminderDeliveryStatusEnum.NotRequested => T["Not requested"].Value,
+        ReminderDeliveryStatusEnum.Pending => T["Pending"].Value,
+        ReminderDeliveryStatusEnum.Sent => T["Sent"].Value,
+        ReminderDeliveryStatusEnum.Failed => T["Failed"].Value,
+        ReminderDeliveryStatusEnum.Skipped => T["Skipped"].Value,
+        _ => T[status.ToString()].Value
+    };
 }
 
 <div class="rh-overview-panel-head align-start">
@@ -178,7 +190,7 @@ else
 @foreach (var period in Model.RentPeriods.Where(item => item.ReminderHistory.Any()))
 {
     <div class="modal fade" id="rentReminderHistory-@period.Id" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content rh-modal-content">
                 <div class="modal-header border-0">
                     <div>
@@ -188,32 +200,147 @@ else
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
                 <div class="modal-body pt-0">
+                    <div class="rh-inline-settings-note mb-3">
+                        @T["Each entry shows the rule, dates, and amounts recorded when the reminder was created. The apartment's current settings may have changed since then."]
+                        @T["Only reminders triggered by this rent period are shown here."]
+                    </div>
                     <div class="d-grid gap-2">
                         @foreach (var reminder in period.ReminderHistory.OrderByDescending(item => item.SentAt ?? item.CreatedAt))
                         {
-                            <article class="rh-card-spotlight p-3">
-                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                            var periodSnapshots = reminder.Periods
+                                .Where(item => item.RentPeriodId == period.Id)
+                                .OrderBy(item => item.PeriodStart)
+                                .ToList();
+                            var triggerPeriod = periodSnapshots.FirstOrDefault(item =>
+                                item.IsTrigger && !item.IsUpcomingInformation);
+                            var periodSnapshot = triggerPeriod ?? periodSnapshots.FirstOrDefault();
+                            var scheduledOffsetDays = triggerPeriod == null
+                                ? 0
+                                : (reminder.ScheduledFor.Date - triggerPeriod.DueDate.Date).Days;
+                            var absoluteOffsetDays = Math.Abs(scheduledOffsetDays);
+                            var appliedRuleLabel = reminder.IsManual
+                                ? T["Manual follow-up requested by an authorized user"].Value
+                                : scheduledOffsetDays < 0
+                                    ? T["{0} before the due date", DaysLabel(absoluteOffsetDays)].Value
+                                    : scheduledOffsetDays > 0
+                                        ? T["{0} after the due date", DaysLabel(absoluteOffsetDays)].Value
+                                        : T["On the due date"].Value;
+                            var calculationLabel = reminder.IsManual
+                                ? T["No automatic calculation: this reminder was requested manually."].Value
+                                : triggerPeriod == null
+                                    ? T["The triggering rent period is not available in this historical snapshot."].Value
+                                    : scheduledOffsetDays == 0
+                                        ? T["Due date {0} = scheduled reminder {1}", DateLabel(triggerPeriod.DueDate), DateLabel(reminder.ScheduledFor)].Value
+                                        : T["Due date {0} {1} {2} = scheduled reminder {3}", DateLabel(triggerPeriod.DueDate), scheduledOffsetDays < 0 ? "−" : "+", DaysLabel(absoluteOffsetDays), DateLabel(reminder.ScheduledFor)].Value;
+                            var recordedAt = reminder.SentAt ?? reminder.CreatedAt;
+
+                            <article class="rh-reminder-history-card">
+                                <div class="rh-reminder-history-heading">
                                     <div>
-                                        <strong>@T[reminder.CategoryLabel]</strong>
-                                        <small class="d-block text-muted">@(reminder.SentAt ?? reminder.CreatedAt).LocalDateTime.ToString("g", CultureInfo.CurrentCulture)</small>
+                                        <span class="rh-reminder-history-kicker">@T[reminder.CategoryLabel]</span>
+                                        <strong>@(reminder.SentAt.HasValue ? T["Sent on {0}", DateTimeLabel(recordedAt)].Value : T["Recorded on {0}", DateTimeLabel(recordedAt)].Value)</strong>
                                     </div>
                                     <span class="rh-chip @(reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent ? "rh-chip-success" : reminder.Status == RentReminderStatusEnum.Failed ? "rh-chip-warning" : "rh-chip-info")">@T[reminder.StatusLabel]</span>
                                 </div>
-                                <div class="mt-2 small">
-                                    <span>@T["Amount due in that reminder"]: <strong>@reminder.OutstandingAmount.ToString("N0") XAF</strong></span>
-                                    <span class="ms-3">@T["{0} included period(s)", reminder.IncludedPeriodCount]</span>
+
+                                <section class="rh-reminder-calculation" aria-label="@T["Reminder schedule calculation"]">
+                                    <div class="rh-reminder-calculation-item">
+                                        <span>@T["Applied rule"]</span>
+                                        <strong>@appliedRuleLabel</strong>
+                                    </div>
+                                    <div class="rh-reminder-calculation-item">
+                                        <span>@T["Triggering due date"]</span>
+                                        <strong>@(triggerPeriod == null ? "—" : DateLabel(triggerPeriod.DueDate))</strong>
+                                    </div>
+                                    <div class="rh-reminder-calculation-item">
+                                        <span>@T["Scheduled for"]</span>
+                                        <strong>@DateLabel(reminder.ScheduledFor)</strong>
+                                    </div>
+                                    <div class="rh-reminder-calculation-equation">
+                                        <span>@T["Calculation"]</span>
+                                        <strong>@calculationLabel</strong>
+                                    </div>
+                                </section>
+
+                                <div class="rh-reminder-amount-summary">
+                                    <div>
+                                        <span>@T["Outstanding amount for this period"]</span>
+                                        <strong>@(periodSnapshot == null ? "—" : $"{periodSnapshot.OutstandingAmount:N0} XAF")</strong>
+                                    </div>
+                                    <div>
+                                        <span>@T["Period covered by this history"]</span>
+                                        <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                    </div>
                                 </div>
-                                @if (!string.IsNullOrWhiteSpace(reminder.RecipientEmail))
+
+                                @if (periodSnapshots.Count > 0)
                                 {
-                                    <small class="d-block text-muted mt-1">@T["Sent to"]: @reminder.RecipientEmail</small>
+                                    <div class="table-responsive rh-reminder-periods-wrap">
+                                        <table class="table table-sm align-middle mb-0 rh-reminder-periods-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>@T["Period"]</th>
+                                                    <th>@T["Due date"]</th>
+                                                    <th class="text-end">@T["Rent"]</th>
+                                                    <th class="text-end">@T["Already paid"]</th>
+                                                    <th class="text-end">@T["Outstanding"]</th>
+                                                    <th>@T["Included as"]</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var snapshot in periodSnapshots)
+                                                {
+                                                    <tr>
+                                                        <td>@DateLabel(snapshot.PeriodStart) - @DateLabel(snapshot.PeriodEnd)</td>
+                                                        <td>@DateLabel(snapshot.DueDate)</td>
+                                                        <td class="text-end">@snapshot.Amount.ToString("N0") XAF</td>
+                                                        <td class="text-end">@snapshot.PaidAmount.ToString("N0") XAF</td>
+                                                        <td class="text-end"><strong>@snapshot.OutstandingAmount.ToString("N0") XAF</strong></td>
+                                                        <td>
+                                                            <span class="rh-chip @(snapshot.IsUpcomingInformation ? "rh-chip-info" : "rh-chip-primary")">
+                                                                @(snapshot.IsUpcomingInformation ? T["Information only"] : T["Amount due"])
+                                                            </span>
+                                                            @if (snapshot.IsTrigger)
+                                                            {
+                                                                <small class="d-block text-muted mt-1">@T["Trigger period"]</small>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 }
-                                @if (reminder.IsManual && !string.IsNullOrWhiteSpace(reminder.RequestedByName))
-                                {
-                                    <small class="d-block text-muted">@T["Sent manually by {0}", reminder.RequestedByName]</small>
-                                }
+
+                                <div class="rh-reminder-delivery-summary">
+                                    @if (!string.IsNullOrWhiteSpace(reminder.RecipientEmail))
+                                    {
+                                        <div>
+                                            <span>@T["Email recipient"]</span>
+                                            <strong>@reminder.RecipientEmail</strong>
+                                            <small>@T["Email status"] : @DeliveryStatusLabel(reminder.EmailStatus)</small>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(reminder.RecipientPhone) || reminder.SmsStatus != ReminderDeliveryStatusEnum.NotRequested)
+                                    {
+                                        <div>
+                                            <span>@T["SMS recipient"]</span>
+                                            <strong>@(string.IsNullOrWhiteSpace(reminder.RecipientPhone) ? "—" : reminder.RecipientPhone)</strong>
+                                            <small>@T["SMS status"] : @DeliveryStatusLabel(reminder.SmsStatus)</small>
+                                        </div>
+                                    }
+                                    @if (reminder.IsManual && !string.IsNullOrWhiteSpace(reminder.RequestedByName))
+                                    {
+                                        <div>
+                                            <span>@T["Requested by"]</span>
+                                            <strong>@reminder.RequestedByName</strong>
+                                        </div>
+                                    }
+                                </div>
+
                                 @if (!string.IsNullOrWhiteSpace(reminder.FailureReason))
                                 {
-                                    <small class="d-block text-danger mt-1">@reminder.FailureReason</small>
+                                    <div class="rh-reminder-failure"><strong>@T["Delivery problem"]</strong><span>@reminder.FailureReason</span></div>
                                 }
                             </article>
                         }
@@ -258,6 +385,8 @@ else
 
 @functions {
     private static string DateLabel(DateTimeOffset value) => value.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
+
+    private static string DateTimeLabel(DateTimeOffset value) => value.ToLocalTime().ToString("dd MMM yyyy · HH:mm", CultureInfo.CurrentCulture);
 
     private static string StatusClass(RentPeriodStatusEnum status)
     {

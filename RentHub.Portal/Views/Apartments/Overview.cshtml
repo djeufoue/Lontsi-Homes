@@ -15,6 +15,59 @@
     var tenancies = Model.Tenancies ?? new List<Common.CommunicationModels.TenancyDto>();
     var reminderRules = apartment.RentReminderRules.OrderBy(rule => rule.SortOrder).ToList();
     var today = DateTimeOffset.UtcNow.Date;
+    var localToday = DateTime.Today;
+
+    string GetRelativeDateLabel(DateTimeOffset value)
+    {
+        var date = value.LocalDateTime.Date;
+        var dayDifference = (date - localToday).Days;
+
+        if (dayDifference == 0)
+        {
+            return T["Today"].Value;
+        }
+
+        if (dayDifference == 1)
+        {
+            return T["Tomorrow"].Value;
+        }
+
+        if (dayDifference == -1)
+        {
+            return T["Yesterday"].Value;
+        }
+
+        var isFuture = dayDifference > 0;
+        var earlierDate = isFuture ? localToday : date;
+        var laterDate = isFuture ? date : localToday;
+        var months = ((laterDate.Year - earlierDate.Year) * 12) + laterDate.Month - earlierDate.Month;
+
+        if (earlierDate.AddMonths(months) > laterDate)
+        {
+            months--;
+        }
+
+        var days = (laterDate - earlierDate.AddMonths(months)).Days;
+        var monthLabel = months switch
+        {
+            0 => string.Empty,
+            1 => T["1 month"].Value,
+            _ => T["{0} months", months].Value
+        };
+        var dayLabel = days switch
+        {
+            0 => string.Empty,
+            1 => T["1 day"].Value,
+            _ => T["{0} days", days].Value
+        };
+        var durationLabel = !string.IsNullOrWhiteSpace(monthLabel) && !string.IsNullOrWhiteSpace(dayLabel)
+            ? T["{0} and {1}", monthLabel, dayLabel].Value
+            : monthLabel + dayLabel;
+
+        return isFuture
+            ? T["In {0}", durationLabel].Value
+            : T["{0} ago", durationLabel].Value;
+    }
 
     string GetTenancyState(Common.CommunicationModels.TenancyDto tenancy)
     {
@@ -84,7 +137,10 @@
         </div>
 
         <div class="rh-overview-hero-actions">
-            <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Map" asp-route-id="@apartment.PropertyId">@T["Property Map"]</a>
+            @if (apartment.PropertyMapEnabled)
+            {
+                <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Map" asp-route-id="@apartment.PropertyId">@T["Property Map"]</a>
+            }
             <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">@T["Property Workspace"]</a>
         </div>
     </section>
@@ -454,10 +510,15 @@
                                     <div class="rh-tenancy-datepill start">
                                         <span>@T["Start date"]</span>
                                         <strong>@startDateLabel</strong>
+                                        <small class="rh-relative-date">@GetRelativeDateLabel(tenancy.StartDate)</small>
                                     </div>
                                     <div class="rh-tenancy-datepill end">
                                         <span>@T["End date"]</span>
                                         <strong>@endDateLabel</strong>
+                                        @if (tenancy.EndDate.HasValue)
+                                        {
+                                            <small class="rh-relative-date">@GetRelativeDateLabel(tenancy.EndDate.Value)</small>
+                                        }
                                     </div>
                                 </div>
 
@@ -470,35 +531,6 @@
                                     <span>@T["Max members"] <strong>@tenancy.MaxMembers</strong></span>
                                 </div>
 
-                                @if (Model.CanViewFinancialInformation)
-                                {
-                                <div class="rh-unit-card-schedule">
-                                    <span>
-                                        @T["Last paid month"]
-                                        <strong>@(tenancy.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture) ?? T["No paid month yet"].Value)</strong>
-                                        @if (tenancy.LastPaidAt.HasValue)
-                                        {
-                                            <small>@T["Paid on {0}", tenancy.LastPaidAt.Value.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)]</small>
-                                        }
-                                    </span>
-                                    <span>@T["Due now"] <strong>@(tenancy.DueNowPeriodCount > 0 ? $"{tenancy.DueNowAmount.ToString("N0", CultureInfo.CurrentCulture)} XAF" : T["Nothing due"].Value)</strong></span>
-                                    <span>
-                                        @T["Next rent"]
-                                        <strong>@(tenancy.NextUpcomingPeriodStart?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not scheduled"].Value)</strong>
-                                        @if (tenancy.NextUpcomingAmount.HasValue)
-                                        {
-                                            <small>@tenancy.NextUpcomingAmount.Value.ToString("N0", CultureInfo.CurrentCulture) XAF</small>
-                                        }
-                                    </span>
-                                    <span>@T["Last reminder sent"] <strong>@(tenancy.LastReminderSentAt?.LocalDateTime.ToString("g", CultureInfo.CurrentCulture) ?? T["No reminder sent"].Value)</strong></span>
-                                    <span>@T["Lease alert"] <strong>@(tenancy.LeaseTerminationReminderDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["No lease end"].Value)</strong></span>
-                                </div>
-                                }
-
-                                @if (tenancy.IsPaidInAdvance)
-                                {
-                                    <div class="rh-inline-hint">@T["Tenant is currently covered in advance. Upcoming rent reminders will wait until the paid coverage window is almost finished."]</div>
-                                }
                             </article>
                         }
                     </div>

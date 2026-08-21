@@ -37,4 +37,10 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public int ProgressPercent { get; set; }
         public RentPeriodDto? NextPayablePeriod { get; set; }
     }
+
+    public class RentSummaryCardsVm
+    {
+        public RentSummaryDto Summary { get; set; } = new();
+        public DateTimeOffset? LeaseTerminationReminderDate { get; set; }
+    }
 }

@@ -9,7 +9,6 @@ using Common.CommunicationModels;
 using RentHub.API.Services.Storage;
 using RentHub.API.Helpers;
 using RentHub.API.Services.Users;
-using Common.Helpers;
 using RentHub.API.Services.Permissions;
 
 namespace RentHub.API.Controllers
@@ -209,71 +208,21 @@ namespace RentHub.API.Controllers
                     .OrderByDescending(t => t.StartDate)
                     .ToListAsync();
 
-                var tenancyPayments = canViewFinancialInformation
-                    ? await _context.Payments
-                        .Where(payment => payment.TenancyId != null && tenancies.Select(t => t.Id).Contains(payment.TenancyId.Value))
-                        .ToListAsync()
-                    : new List<Payment>();
-
-                var tenancyRentPeriods = canViewFinancialInformation
-                    ? await _context.RentPeriods
-                        .Where(period => tenancies.Select(t => t.Id).Contains(period.TenancyId) && !period.IsDeleted)
-                        .ToListAsync()
-                    : new List<RentPeriod>();
-
-                var tenancyIds = tenancies.Select(tenancy => tenancy.Id).ToList();
-                var tenancyReminders = canViewFinancialInformation && tenancyIds.Count > 0
-                    ? await _context.RentReminders
-                        .AsNoTracking()
-                        .Where(reminder => tenancyIds.Contains(reminder.TenancyId) &&
-                                           (reminder.Status == RentReminderStatusEnum.Sent ||
-                                            reminder.Status == RentReminderStatusEnum.PartiallySent))
-                        .ToListAsync()
-                    : new List<RentReminder>();
-
                 var tenanciesDto = tenancies
-                    .Select(tenancy =>
+                    .Select(tenancy => new TenancyDto
                     {
-                        var dto = new TenancyDto
-                        {
-                            Id = tenancy.Id,
-                            ApartmentName = apt.Name,
-                            PropertyName = apt.Property!.Name,
-                            StartDate = tenancy.StartDate,
-                            EndDate = tenancy.EndDate,
-                            MonthlyRent = canViewFinancialInformation ? tenancy.MonthlyRent : 0,
-                            MaxMembers = tenancy.MaxMembers,
-                            RentDueDay = tenancy.RentDueDay,
-                            EndBehavior = tenancy.EndBehavior,
-                            TerminatedAt = tenancy.TerminatedAt,
-                            Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
-                            IsOwner = isAdmin || apt.Property!.LandlordId == userId
-                        };
-
-                        var periods = tenancyRentPeriods
-                            .Where(period => period.TenancyId == tenancy.Id)
-                            .OrderBy(period => period.PeriodStart)
-                            .ToList();
-
-                        if (canViewFinancialInformation && periods.Any())
-                        {
-                            return ApplyRentPeriodSnapshot(
-                                dto,
-                                periods,
-                                apt,
-                                tenancyReminders.Where(reminder => reminder.TenancyId == tenancy.Id).ToList(),
-                                DateTimeOffset.UtcNow);
-                        }
-
-                        var snapshot = TenancyReminderHelpers.BuildSnapshot(
-                            tenancy,
-                            apt,
-                            tenancyPayments.Where(payment => payment.TenancyId == tenancy.Id),
-                            apt.RentReminderDaysBeforeDue,
-                            apt.LeaseTerminationReminderDaysBeforeEnd,
-                            DateTimeOffset.UtcNow);
-
-                        return snapshot.ApplyTo(dto);
+                        Id = tenancy.Id,
+                        ApartmentName = apt.Name,
+                        PropertyName = apt.Property!.Name,
+                        StartDate = tenancy.StartDate,
+                        EndDate = tenancy.EndDate,
+                        MonthlyRent = canViewFinancialInformation ? tenancy.MonthlyRent : 0,
+                        MaxMembers = tenancy.MaxMembers,
+                        RentDueDay = tenancy.RentDueDay,
+                        EndBehavior = tenancy.EndBehavior,
+                        TerminatedAt = tenancy.TerminatedAt,
+                        Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
+                        IsOwner = isAdmin || apt.Property!.LandlordId == userId
                     })
                     .ToList();
 
@@ -310,6 +259,7 @@ namespace RentHub.API.Controllers
                         Id = apt.Id,
                         PropertyId = apt.PropertyId,
                         PropertyName = apt.Property.Name,
+                        PropertyMapEnabled = apt.Property.MapEnabled,
                         Name = apt.Name,
                         Type = apt.Type.ToString(),
                         Price = canViewFinancialInformation ? apt.Price : 0,
@@ -881,55 +831,6 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
-        }
-
-        private static TenancyDto ApplyRentPeriodSnapshot(
-            TenancyDto dto,
-            IReadOnlyList<RentPeriod> periods,
-            Apartment apartment,
-            IReadOnlyList<RentReminder> reminders,
-            DateTimeOffset nowUtc)
-        {
-            var lastPaid = periods
-                .Where(period => period.Status is RentPeriodStatusEnum.Paid
-                    or RentPeriodStatusEnum.PaidBeforeRentHub
-                    or RentPeriodStatusEnum.PaidInAdvance)
-                .OrderByDescending(period => period.PeriodEnd)
-                .FirstOrDefault();
-
-            var nextUnpaid = periods
-                .OrderBy(period => period.PeriodStart)
-                .FirstOrDefault(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status));
-            var duePeriods = periods
-                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.DueDate <= nowUtc)
-                .OrderBy(period => period.DueDate)
-                .ToList();
-            var nextUpcoming = periods
-                .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.DueDate > nowUtc)
-                .OrderBy(period => period.DueDate)
-                .FirstOrDefault();
-            var lastReminder = reminders
-                .OrderByDescending(reminder => reminder.SentAt)
-                .FirstOrDefault();
-
-            dto.PaidThroughDate = lastPaid?.PeriodEnd;
-            dto.NextRentDueDate = nextUnpaid?.DueDate;
-            dto.NextRentReminderDate = nextUnpaid?.DueDate.AddDays(-Math.Max(0, apartment.RentReminderDaysBeforeDue));
-            dto.LeaseTerminationReminderDate = dto.EndDate?.AddDays(-Math.Max(0, apartment.LeaseTerminationReminderDaysBeforeEnd));
-            dto.IsPaidInAdvance = nextUnpaid != null && nextUnpaid.DueDate.Date > nowUtc.Date;
-            dto.LastPaidPeriodStart = lastPaid?.PeriodStart;
-            dto.LastPaidPeriodEnd = lastPaid?.PeriodEnd;
-            dto.LastPaidAt = lastPaid?.PaidDate;
-            dto.DueNowAmount = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount));
-            dto.DueNowPeriodCount = duePeriods.Count;
-            dto.OldestUnpaidDueDate = duePeriods.FirstOrDefault()?.DueDate;
-            dto.NextUpcomingPeriodStart = nextUpcoming?.PeriodStart;
-            dto.NextUpcomingPeriodEnd = nextUpcoming?.PeriodEnd;
-            dto.NextUpcomingAmount = nextUpcoming?.Amount;
-            dto.LastReminderSentAt = lastReminder?.SentAt;
-            dto.LastReminderCategory = lastReminder?.Category;
-            dto.ReminderCount = reminders.Count;
-            return dto;
         }
 
         private static string ResolveTenancyStatus(Tenancy tenancy, DateTimeOffset nowUtc)

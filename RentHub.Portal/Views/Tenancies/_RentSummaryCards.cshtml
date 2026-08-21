@@ -1,0 +1,93 @@
+@model RentHub.Portal.ViewModels.Tenancies.RentSummaryCardsVm
+@using System
+@using System.Globalization
+@{
+    var summary = Model.Summary;
+    var localToday = DateTime.Today;
+
+    string LongDateLabel(DateTimeOffset value) =>
+        value.LocalDateTime.ToString("dddd d MMMM yyyy", CultureInfo.CurrentCulture);
+
+    string TimeLabel(DateTimeOffset value) =>
+        value.LocalDateTime.ToString("t", CultureInfo.CurrentCulture);
+
+    string RelativeDayLabel(DateTimeOffset value)
+    {
+        var dayDifference = (value.LocalDateTime.Date - localToday).Days;
+        return dayDifference switch
+        {
+            0 => T["Today"].Value,
+            1 => T["Tomorrow"].Value,
+            -1 => T["Yesterday"].Value,
+            > 1 => T["In {0}", T["{0} days", dayDifference].Value].Value,
+            _ => T["{0} ago", T["{0} days", Math.Abs(dayDifference)].Value].Value
+        };
+    }
+}
+
+<div class="rh-apartment-commanddeck-grid rh-rent-summary-grid">
+    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card">
+        <span>@T["Last paid month"]</span>
+        <strong>@(summary.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture) ?? T["No paid month yet"].Value)</strong>
+        @if (summary.LastPaidAt.HasValue)
+        {
+            <small class="rh-rent-summary-detail">@T["Paid on {0}", LongDateLabel(summary.LastPaidAt.Value)]</small>
+            <small class="rh-rent-summary-meta">@TimeLabel(summary.LastPaidAt.Value)</small>
+            <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.LastPaidAt.Value)</small>
+        }
+        else
+        {
+            <small>@T["No payment date recorded"]</small>
+        }
+    </article>
+
+    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card @(summary.DueNowPeriodCount > 0 ? "is-due" : "is-clear")">
+        <span>@T["Due now"]</span>
+        <strong>@summary.DueNowAmount.ToString("N0", CultureInfo.CurrentCulture) XAF</strong>
+        <small>@(summary.DueNowPeriodCount == 0 ? T["Nothing due"].Value : T["{0} unpaid period(s)", summary.DueNowPeriodCount].Value)</small>
+        @if (summary.DueNowPeriodCount > 0 && summary.OldestUnpaidDueDate.HasValue)
+        {
+            <small class="rh-rent-summary-detail">@T["Due on {0}", LongDateLabel(summary.OldestUnpaidDueDate.Value)]</small>
+            <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.OldestUnpaidDueDate.Value)</small>
+        }
+    </article>
+
+    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card is-upcoming">
+        <span>@T["Next rent"]</span>
+        @if (summary.NextPeriodDueDate.HasValue)
+        {
+            <strong>@LongDateLabel(summary.NextPeriodDueDate.Value)</strong>
+            <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.NextPeriodDueDate.Value)</small>
+            <small class="rh-rent-summary-meta">@(summary.NextPeriodAmount.HasValue ? $"{summary.NextPeriodAmount.Value.ToString("N0", CultureInfo.CurrentCulture)} XAF" : T["No upcoming period"].Value)</small>
+        }
+        else
+        {
+            <strong>@T["Not scheduled"]</strong>
+            <small>@T["No upcoming period"]</small>
+        }
+    </article>
+
+    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card is-reminder">
+        <span>@T["Last reminder sent"]</span>
+        @if (summary.LastReminderSentAt.HasValue)
+        {
+            <strong>@LongDateLabel(summary.LastReminderSentAt.Value)</strong>
+            <small class="rh-rent-summary-meta">@TimeLabel(summary.LastReminderSentAt.Value)</small>
+            <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.LastReminderSentAt.Value)</small>
+        }
+        else
+        {
+            <strong>@T["No reminder sent"]</strong>
+        }
+        <small>@T["{0} reminder(s) recorded", summary.ReminderCount]</small>
+    </article>
+
+    @if (Model.LeaseTerminationReminderDate.HasValue)
+    {
+        <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card is-lease-alert">
+            <span>@T["Lease alert"]</span>
+            <strong>@LongDateLabel(Model.LeaseTerminationReminderDate.Value)</strong>
+            <small class="rh-rent-summary-relative">@RelativeDayLabel(Model.LeaseTerminationReminderDate.Value)</small>
+        </article>
+    }
+</div>

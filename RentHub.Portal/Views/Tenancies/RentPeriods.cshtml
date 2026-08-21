@@ -32,7 +32,13 @@
             <div class="d-flex flex-column align-items-end gap-2">
                 @if (summary.CanSendManualReminder)
                 {
-                    <form method="post" asp-action="SendManualRentReminder">
+                    <form method="post"
+                          asp-action="SendManualRentReminder"
+                          data-confirm-modal="true"
+                          data-confirm-title="@T["Send this rent reminder now?"]"
+                          data-confirm-message="@T["A reminder attempt will start immediately for {0} unpaid period(s), totaling {1} XAF. This action counts toward the manual follow-up limit.", summary.DueNowPeriodCount, summary.DueNowAmount.ToString("N0")]"
+                          data-confirm-proceed="@T["Send the reminder"]"
+                          data-confirm-style="primary">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                         <input type="hidden" name="returnUrl" value="@returnUrl" />
@@ -46,28 +52,10 @@
                 <small class="text-muted">@T["Manual follow-ups used: {0} of {1}", summary.ManualReminderCount, summary.ManualReminderLimit]</small>
             </div>
         </div>
-        <div class="rh-apartment-commanddeck-grid">
-            <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Last paid month"]</span>
-                <strong>@(summary.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy") ?? T["No paid month yet"].Value)</strong>
-                <small>@(summary.LastPaidAt.HasValue ? T["Paid on {0}", summary.LastPaidAt.Value.LocalDateTime.ToString("g")].Value : T["No payment date recorded"].Value)</small>
-            </div>
-            <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Due now"]</span>
-                <strong>@summary.DueNowAmount.ToString("N0") XAF</strong>
-                <small>@T["{0} unpaid period(s)", summary.DueNowPeriodCount]</small>
-            </div>
-            <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Next rent"]</span>
-                <strong>@(summary.NextPeriodDueDate?.LocalDateTime.ToString("d") ?? T["Not scheduled"].Value)</strong>
-                <small>@(summary.NextPeriodAmount.HasValue ? $"{summary.NextPeriodAmount.Value:N0} XAF" : T["No upcoming period"].Value)</small>
-            </div>
-            <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Last reminder sent"]</span>
-                <strong>@(summary.LastReminderSentAt?.LocalDateTime.ToString("g") ?? T["No reminder sent"].Value)</strong>
-                <small>@T["{0} reminder(s) recorded", summary.ReminderCount]</small>
-            </div>
-        </div>
+        <partial name="_RentSummaryCards" model="@(new RentHub.Portal.ViewModels.Tenancies.RentSummaryCardsVm
+            {
+                Summary = summary
+            })" />
     </section>
 
     <section class="rh-panel rh-panel-elevated">

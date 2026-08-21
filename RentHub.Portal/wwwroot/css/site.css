@@ -2589,8 +2589,22 @@ body.rh-body {
 }
 
 .modal-content .btn-close {
+  filter: none;
+  opacity: 0.72;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+html:not([data-bs-theme="light"]) .modal-content .btn-close {
   filter: invert(1) grayscale(1) brightness(1.8);
-  opacity: 0.68;
+}
+
+.modal-content .btn-close:hover,
+.modal-content .btn-close:focus-visible {
+  opacity: 1;
+}
+
+.modal-content .btn-close:hover {
+  transform: scale(1.08);
 }
 
 /* Auth */
@@ -5755,6 +5769,75 @@ body.rh-auth-body {
   line-height: 1.45;
 }
 
+.rh-apartment-commanddeck-grid.rh-rent-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rh-rent-summary-card {
+  min-height: 205px;
+  gap: 0.38rem;
+}
+
+.rh-rent-summary-card strong {
+  font-size: clamp(1.35rem, 1.8vw, 1.9rem);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.rh-rent-summary-card .rh-rent-summary-detail {
+  margin-top: 0.18rem;
+  color: var(--rh-text);
+  font-weight: 650;
+}
+
+.rh-rent-summary-card .rh-rent-summary-meta {
+  font-size: 0.86rem;
+}
+
+.rh-rent-summary-card .rh-rent-summary-relative {
+  width: fit-content;
+  margin-top: 0.18rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  color: var(--rh-text);
+  background: color-mix(in srgb, var(--rh-primary) 14%, transparent);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.rh-rent-summary-card.is-due {
+  border-color: color-mix(in srgb, var(--rh-warning) 42%, var(--rh-border));
+  background: color-mix(in srgb, var(--rh-warning) 8%, var(--rh-surface-strong));
+}
+
+.rh-rent-summary-card.is-clear {
+  border-color: color-mix(in srgb, var(--rh-success) 34%, var(--rh-border));
+}
+
+.rh-rent-summary-card.is-upcoming {
+  border-color: color-mix(in srgb, var(--rh-info) 34%, var(--rh-border));
+  background: color-mix(in srgb, var(--rh-info) 7%, var(--rh-surface-strong));
+}
+
+.rh-rent-summary-card.is-lease-alert {
+  grid-column: 1 / -1;
+  min-height: auto;
+  border-color: color-mix(in srgb, var(--rh-primary) 28%, var(--rh-border));
+  background: color-mix(in srgb, var(--rh-primary) 5%, var(--rh-surface-strong));
+}
+
+@media (max-width: 1200px) {
+  .rh-apartment-commanddeck-grid.rh-rent-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .rh-apartment-commanddeck-grid.rh-rent-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .rh-apartment-mastgrid,
 .rh-apartment-workgrid {
   align-items: start;
@@ -6006,31 +6089,116 @@ body.rh-auth-body {
     color: var(--rh-muted);
 }
 
-.rh-unit-card-schedule {
+.rh-reminder-history-card {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.6rem 1rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--rh-border);
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--rh-border);
+    border-radius: 18px;
+    background: var(--rh-bg-soft);
 }
 
-.rh-unit-card-schedule span {
+.rh-reminder-history-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.rh-reminder-history-heading > div,
+.rh-reminder-delivery-summary > div {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.rh-reminder-history-kicker,
+.rh-reminder-calculation-item span,
+.rh-reminder-calculation-equation span,
+.rh-reminder-amount-summary span,
+.rh-reminder-delivery-summary span {
     color: var(--rh-muted);
-    font-size: 0.92rem;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
-.rh-unit-card-schedule strong {
-    display: block;
-    margin-top: 0.12rem;
-    color: var(--rh-text);
-    font-weight: 700;
+.rh-reminder-calculation {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
 }
 
-.rh-unit-card-schedule small {
-    display: block;
-    margin-top: 0.15rem;
+.rh-reminder-calculation-item,
+.rh-reminder-calculation-equation,
+.rh-reminder-amount-summary > div,
+.rh-reminder-delivery-summary > div {
+    padding: 0.8rem;
+    border: 1px solid var(--rh-border);
+    border-radius: 14px;
+    background: var(--rh-surface-strong);
+}
+
+.rh-reminder-calculation-item,
+.rh-reminder-calculation-equation,
+.rh-reminder-amount-summary > div {
+    display: grid;
+    gap: 0.3rem;
+}
+
+.rh-reminder-calculation-equation {
+    grid-column: 1 / -1;
+    border-color: color-mix(in srgb, var(--rh-primary) 38%, var(--rh-border));
+    background: color-mix(in srgb, var(--rh-primary) 9%, var(--rh-surface-strong));
+}
+
+.rh-reminder-amount-summary,
+.rh-reminder-delivery-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.7rem;
+}
+
+.rh-reminder-amount-summary strong {
+    font-size: 1.1rem;
+}
+
+.rh-reminder-periods-wrap {
+    border: 1px solid var(--rh-border);
+    border-radius: 14px;
+}
+
+.rh-reminder-periods-table th {
+    white-space: nowrap;
+}
+
+.rh-reminder-periods-table td {
+    vertical-align: middle;
+}
+
+.rh-reminder-delivery-summary small {
     color: var(--rh-muted);
+}
+
+.rh-reminder-failure {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--rh-danger) 45%, var(--rh-border));
+    border-radius: 14px;
+    color: var(--rh-danger);
+    background: color-mix(in srgb, var(--rh-danger) 8%, var(--rh-surface-strong));
+}
+
+@media (max-width: 767.98px) {
+    .rh-reminder-calculation {
+        grid-template-columns: 1fr;
+    }
+
+    .rh-reminder-calculation-equation {
+        grid-column: auto;
+    }
 }
 
 .rh-tenancy-card-grid {
@@ -6084,6 +6252,14 @@ body.rh-auth-body {
     font-size: 1.25rem;
     line-height: 1.1;
     font-weight: 800;
+}
+
+.rh-relative-date {
+    display: block;
+    color: var(--rh-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
 }
 
 .rh-tenancy-datepill.start {

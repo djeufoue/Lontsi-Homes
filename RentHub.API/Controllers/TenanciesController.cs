@@ -975,6 +975,8 @@ namespace RentHub.API.Controllers
                         PropertyName = tenancy.Apartment.Property.Name,
                         StartDate = tenancy.StartDate,
                         EndDate = tenancy.EndDate,
+                        LeaseTerminationReminderDate = tenancy.EndDate?.AddDays(
+                            -Math.Max(0, tenancy.Apartment.LeaseTerminationReminderDaysBeforeEnd)),
                         MonthlyRent = tenancy.MonthlyRent,
                         MaxMembers = tenancy.MaxMembers,
                         RentDueDay = tenancy.RentDueDay,
@@ -1122,6 +1124,8 @@ namespace RentHub.API.Controllers
                                 PropertyName = tenancy.Apartment?.Property?.Name ?? string.Empty,
                                 StartDate = tenancy.StartDate,
                                 EndDate = tenancy.EndDate,
+                                LeaseTerminationReminderDate = tenancy.EndDate?.AddDays(
+                                    -Math.Max(0, tenancy.Apartment?.LeaseTerminationReminderDaysBeforeEnd ?? 30)),
                                 MonthlyRent = tenancy.MonthlyRent,
                                 MaxMembers = tenancy.MaxMembers,
                                 RentDueDay = tenancy.RentDueDay,
@@ -1508,7 +1512,10 @@ namespace RentHub.API.Controllers
                 var isPaid = RentPeriodScheduleHelper.IsPaidStatus(status);
                 var isPayable = !isPaid && firstUnpaidId == period.Id && status != RentPeriodStatusEnum.PendingPayment;
                 var periodReminders = reminderHistory?
-                    .Where(reminder => reminder.Periods.Any(snapshot => snapshot.RentPeriodId == period.Id))
+                    .Where(reminder => reminder.Periods.Any(snapshot =>
+                        snapshot.RentPeriodId == period.Id
+                        && snapshot.IsTrigger
+                        && !snapshot.IsUpcomingInformation))
                     .OrderByDescending(reminder => reminder.SentAt ?? reminder.CreatedAt)
                     .ToList() ?? new List<RentReminderHistoryDto>();
                 var successfulPeriodReminders = periodReminders
