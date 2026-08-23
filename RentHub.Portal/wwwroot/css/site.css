@@ -2608,7 +2608,7 @@ html:not([data-bs-theme="light"]) .modal-content .btn-close {
 }
 
 /* Auth */
-body.rh-auth-body {
+html.rh-auth-document body.rh-auth-body {
   margin: 0;
   height: 100dvh;
   min-height: 0;
