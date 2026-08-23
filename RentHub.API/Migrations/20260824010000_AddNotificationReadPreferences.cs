@@ -1,48 +1,58 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RentHub.API.Data;
 
 #nullable disable
 
 namespace RentHub.API.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260824010000_AddNotificationReadPreferences")]
     public partial class AddNotificationReadPreferences : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "ConversationEmailNotificationsEnabled",
-                table: "AspNetUsers",
-                type: "bit",
-                nullable: false,
-                defaultValue: true);
+            migrationBuilder.Sql(
+                """
+                IF COL_LENGTH('AspNetUsers', 'ConversationEmailNotificationsEnabled') IS NULL
+                BEGIN
+                    ALTER TABLE [AspNetUsers]
+                    ADD [ConversationEmailNotificationsEnabled] bit NOT NULL
+                        CONSTRAINT [DF_AspNetUsers_ConversationEmailNotificationsEnabled] DEFAULT(1) WITH VALUES;
+                END
 
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "DecisionViewedAt",
-                table: "TenancyExtensionRequests",
-                type: "datetimeoffset",
-                nullable: true);
+                IF OBJECT_ID(N'[TenancyExtensionRequests]', N'U') IS NOT NULL
+                   AND COL_LENGTH('TenancyExtensionRequests', 'DecisionViewedAt') IS NULL
+                BEGIN
+                    ALTER TABLE [TenancyExtensionRequests]
+                    ADD [DecisionViewedAt] datetimeoffset NULL;
+                END
 
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "DecisionViewedAt",
-                table: "TenancyTerminationRequests",
-                type: "datetimeoffset",
-                nullable: true);
+                IF OBJECT_ID(N'[TenancyTerminationRequests]', N'U') IS NOT NULL
+                   AND COL_LENGTH('TenancyTerminationRequests', 'DecisionViewedAt') IS NULL
+                BEGIN
+                    ALTER TABLE [TenancyTerminationRequests]
+                    ADD [DecisionViewedAt] datetimeoffset NULL;
+                END
+                """);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "ConversationEmailNotificationsEnabled",
-                table: "AspNetUsers");
+            migrationBuilder.Sql(
+                """
+                IF COL_LENGTH('AspNetUsers', 'ConversationEmailNotificationsEnabled') IS NOT NULL
+                    ALTER TABLE [AspNetUsers] DROP COLUMN [ConversationEmailNotificationsEnabled];
 
-            migrationBuilder.DropColumn(
-                name: "DecisionViewedAt",
-                table: "TenancyExtensionRequests");
+                IF OBJECT_ID(N'[TenancyExtensionRequests]', N'U') IS NOT NULL
+                   AND COL_LENGTH('TenancyExtensionRequests', 'DecisionViewedAt') IS NOT NULL
+                    ALTER TABLE [TenancyExtensionRequests] DROP COLUMN [DecisionViewedAt];
 
-            migrationBuilder.DropColumn(
-                name: "DecisionViewedAt",
-                table: "TenancyTerminationRequests");
+                IF OBJECT_ID(N'[TenancyTerminationRequests]', N'U') IS NOT NULL
+                   AND COL_LENGTH('TenancyTerminationRequests', 'DecisionViewedAt') IS NOT NULL
+                    ALTER TABLE [TenancyTerminationRequests] DROP COLUMN [DecisionViewedAt];
+                """);
         }
     }
 }
