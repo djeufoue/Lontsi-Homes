@@ -20,7 +20,10 @@ namespace RentHub.API.Migrations
                     ADD [IsPropertyBroadcast] bit NOT NULL
                         CONSTRAINT [DF_ConversationMessages_IsPropertyBroadcast] DEFAULT(0) WITH VALUES;
                 END;
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF OBJECT_ID(N'[dbo].[ConversationReadStates]', N'U') IS NULL
                 BEGIN
                     CREATE TABLE [ConversationReadStates]
@@ -35,14 +38,20 @@ namespace RentHub.API.Migrations
                             FOREIGN KEY ([UserId]) REFERENCES [AspNetUsers]([Id])
                     );
                 END;
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.indexes
                     WHERE [name] = N'IX_ConversationReadStates_ConversationId_UserId'
                       AND [object_id] = OBJECT_ID(N'[dbo].[ConversationReadStates]'))
                     CREATE UNIQUE INDEX [IX_ConversationReadStates_ConversationId_UserId]
                     ON [ConversationReadStates]([ConversationId], [UserId]);
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.indexes
                     WHERE [name] = N'IX_ConversationReadStates_UserId'
@@ -58,14 +67,20 @@ namespace RentHub.API.Migrations
                 """
                 IF OBJECT_ID(N'[dbo].[ConversationReadStates]', N'U') IS NOT NULL
                     DROP TABLE [ConversationReadStates];
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF EXISTS (
                     SELECT 1 FROM sys.default_constraints
                     WHERE [name] = N'DF_ConversationMessages_IsPropertyBroadcast'
                       AND [parent_object_id] = OBJECT_ID(N'[dbo].[ConversationMessages]'))
                     ALTER TABLE [ConversationMessages]
                     DROP CONSTRAINT [DF_ConversationMessages_IsPropertyBroadcast];
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF COL_LENGTH('dbo.ConversationMessages', 'IsPropertyBroadcast') IS NOT NULL
                     ALTER TABLE [ConversationMessages] DROP COLUMN [IsPropertyBroadcast];
                 """);

@@ -20,11 +20,17 @@ namespace RentHub.API.Migrations
                     ADD [AutoExtensionMonths] int NOT NULL
                         CONSTRAINT [DF_Tenancies_AutoExtensionMonths] DEFAULT(1) WITH VALUES;
                 END;
+                """);
 
+            migrationBuilder.Sql(
+                """
                 UPDATE [Tenancies]
                 SET [EndBehavior] = 3, [EndDate] = NULL
                 WHERE [EndBehavior] = 2;
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF NOT EXISTS (
                     SELECT 1
                     FROM sys.check_constraints
@@ -48,14 +54,20 @@ namespace RentHub.API.Migrations
                     WHERE [name] = N'CK_Tenancies_AutoExtensionMonths'
                       AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]'))
                     ALTER TABLE [Tenancies] DROP CONSTRAINT [CK_Tenancies_AutoExtensionMonths];
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF EXISTS (
                     SELECT 1
                     FROM sys.default_constraints
                     WHERE [name] = N'DF_Tenancies_AutoExtensionMonths'
                       AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]'))
                     ALTER TABLE [Tenancies] DROP CONSTRAINT [DF_Tenancies_AutoExtensionMonths];
+                """);
 
+            migrationBuilder.Sql(
+                """
                 IF COL_LENGTH('dbo.Tenancies', 'AutoExtensionMonths') IS NOT NULL
                     ALTER TABLE [Tenancies] DROP COLUMN [AutoExtensionMonths];
                 """);
