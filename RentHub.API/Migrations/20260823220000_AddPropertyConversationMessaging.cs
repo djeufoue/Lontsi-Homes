@@ -1,63 +1,74 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RentHub.API.Data;
 
 #nullable disable
 
 namespace RentHub.API.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260823220000_AddPropertyConversationMessaging")]
     public partial class AddPropertyConversationMessaging : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsPropertyBroadcast",
-                table: "ConversationMessages",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+            migrationBuilder.Sql(
+                """
+                IF COL_LENGTH('dbo.ConversationMessages', 'IsPropertyBroadcast') IS NULL
+                BEGIN
+                    ALTER TABLE [ConversationMessages]
+                    ADD [IsPropertyBroadcast] bit NOT NULL
+                        CONSTRAINT [DF_ConversationMessages_IsPropertyBroadcast] DEFAULT(0) WITH VALUES;
+                END;
 
-            migrationBuilder.CreateTable(
-                name: "ConversationReadStates",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ConversationId = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    LastReadAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ConversationReadStates", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ConversationReadStates_ApartmentConversations_ConversationId",
-                        column: x => x.ConversationId,
-                        principalTable: "ApartmentConversations",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ConversationReadStates_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                });
+                IF OBJECT_ID(N'[dbo].[ConversationReadStates]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [ConversationReadStates]
+                    (
+                        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ConversationReadStates] PRIMARY KEY,
+                        [ConversationId] int NOT NULL,
+                        [UserId] nvarchar(450) NOT NULL,
+                        [LastReadAt] datetimeoffset NOT NULL,
+                        CONSTRAINT [FK_ConversationReadStates_ApartmentConversations_ConversationId]
+                            FOREIGN KEY ([ConversationId]) REFERENCES [ApartmentConversations]([Id]) ON DELETE CASCADE,
+                        CONSTRAINT [FK_ConversationReadStates_AspNetUsers_UserId]
+                            FOREIGN KEY ([UserId]) REFERENCES [AspNetUsers]([Id])
+                    );
+                END;
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ConversationReadStates_ConversationId_UserId",
-                table: "ConversationReadStates",
-                columns: new[] { "ConversationId", "UserId" },
-                unique: true);
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ConversationReadStates_ConversationId_UserId'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ConversationReadStates]'))
+                    CREATE UNIQUE INDEX [IX_ConversationReadStates_ConversationId_UserId]
+                    ON [ConversationReadStates]([ConversationId], [UserId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ConversationReadStates_UserId",
-                table: "ConversationReadStates",
-                column: "UserId");
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ConversationReadStates_UserId'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ConversationReadStates]'))
+                    CREATE INDEX [IX_ConversationReadStates_UserId]
+                    ON [ConversationReadStates]([UserId]);
+                """);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(name: "ConversationReadStates");
-            migrationBuilder.DropColumn(name: "IsPropertyBroadcast", table: "ConversationMessages");
+            migrationBuilder.Sql(
+                """
+                IF OBJECT_ID(N'[dbo].[ConversationReadStates]', N'U') IS NOT NULL
+                    DROP TABLE [ConversationReadStates];
+
+                IF EXISTS (
+                    SELECT 1 FROM sys.default_constraints
+                    WHERE [name] = N'DF_ConversationMessages_IsPropertyBroadcast'
+                      AND [parent_object_id] = OBJECT_ID(N'[dbo].[ConversationMessages]'))
+                    ALTER TABLE [ConversationMessages]
+                    DROP CONSTRAINT [DF_ConversationMessages_IsPropertyBroadcast];
+
+                IF COL_LENGTH('dbo.ConversationMessages', 'IsPropertyBroadcast') IS NOT NULL
+                    ALTER TABLE [ConversationMessages] DROP COLUMN [IsPropertyBroadcast];
+                """);
         }
     }
 }

@@ -1,47 +1,70 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RentHub.API.Data;
 
 #nullable disable
 
 namespace RentHub.API.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260823235900_AddInternalPropertyTeamConversations")]
     public partial class AddInternalPropertyTeamConversations : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_ApartmentConversations_ApartmentId_VisitorId",
-                table: "ApartmentConversations");
+            migrationBuilder.Sql(
+                """
+                IF EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ApartmentConversations_ApartmentId_VisitorId'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ApartmentConversations]'))
+                    DROP INDEX [IX_ApartmentConversations_ApartmentId_VisitorId]
+                    ON [ApartmentConversations];
 
-            migrationBuilder.AddColumn<bool>(
-                name: "IsPropertyTeamConversation",
-                table: "ApartmentConversations",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+                IF COL_LENGTH('dbo.ApartmentConversations', 'IsPropertyTeamConversation') IS NULL
+                BEGIN
+                    ALTER TABLE [ApartmentConversations]
+                    ADD [IsPropertyTeamConversation] bit NOT NULL
+                        CONSTRAINT [DF_ApartmentConversations_IsPropertyTeamConversation] DEFAULT(0) WITH VALUES;
+                END;
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation",
-                table: "ApartmentConversations",
-                columns: new[] { "ApartmentId", "VisitorId", "IsPropertyTeamConversation" },
-                unique: true);
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ApartmentConversations]'))
+                    CREATE UNIQUE INDEX [IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation]
+                    ON [ApartmentConversations]([ApartmentId], [VisitorId], [IsPropertyTeamConversation]);
+                """);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation",
-                table: "ApartmentConversations");
+            migrationBuilder.Sql(
+                """
+                IF EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ApartmentConversations]'))
+                    DROP INDEX [IX_ApartmentConversations_ApartmentId_VisitorId_IsPropertyTeamConversation]
+                    ON [ApartmentConversations];
 
-            migrationBuilder.DropColumn(
-                name: "IsPropertyTeamConversation",
-                table: "ApartmentConversations");
+                IF EXISTS (
+                    SELECT 1 FROM sys.default_constraints
+                    WHERE [name] = N'DF_ApartmentConversations_IsPropertyTeamConversation'
+                      AND [parent_object_id] = OBJECT_ID(N'[dbo].[ApartmentConversations]'))
+                    ALTER TABLE [ApartmentConversations]
+                    DROP CONSTRAINT [DF_ApartmentConversations_IsPropertyTeamConversation];
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ApartmentConversations_ApartmentId_VisitorId",
-                table: "ApartmentConversations",
-                columns: new[] { "ApartmentId", "VisitorId" },
-                unique: true);
+                IF COL_LENGTH('dbo.ApartmentConversations', 'IsPropertyTeamConversation') IS NOT NULL
+                    ALTER TABLE [ApartmentConversations] DROP COLUMN [IsPropertyTeamConversation];
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE [name] = N'IX_ApartmentConversations_ApartmentId_VisitorId'
+                      AND [object_id] = OBJECT_ID(N'[dbo].[ApartmentConversations]'))
+                    CREATE UNIQUE INDEX [IX_ApartmentConversations_ApartmentId_VisitorId]
+                    ON [ApartmentConversations]([ApartmentId], [VisitorId]);
+                """);
         }
     }
 }
