@@ -123,7 +123,7 @@ namespace RentHub.API.Controllers
                 var isManager = roles.Contains("Manager");
 
                 var managed = await _context.PropertyManagerAssignments
-                    .Where(m => m.ManagerId == userId)
+                    .Where(m => !m.IsDeleted && m.ManagerId == userId)
                     .Select(m => new { m.PropertyId, m.PermissionFlags })
                     .ToListAsync();
 
@@ -137,14 +137,14 @@ namespace RentHub.API.Controllers
                     .ToHashSet();
 
                 var ownerPropertyIds = await _context.ApartmentOwners
-                    .Where(o => o.OwnerId == userId)
+                    .Where(o => !o.IsDeleted && o.OwnerId == userId)
                     .Select(o => o.Apartment!.PropertyId)
                     .Distinct()
                     .ToListAsync();
                 var ownerProps = ownerPropertyIds.ToHashSet();
 
                 var tenantPropertyIds = await _context.Tenancies
-                    .Where(t => t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId))
+                    .Where(t => !t.IsDeleted && t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId))
                     .Select(t => t.Apartment!.PropertyId)
                     .Distinct()
                     .ToListAsync();
@@ -153,6 +153,7 @@ namespace RentHub.API.Controllers
                 var query = _context.Properties
                     .Include(p => p.Apartments)
                     .Include(p => p.Landlord)
+                    .Where(p => !p.IsDeleted)
                     .AsQueryable();
 
                 if (!isAdmin)
@@ -257,7 +258,7 @@ namespace RentHub.API.Controllers
                 if (isManager)
                 {
                     var managerLandlords = await _context.PropertyManagerAssignments
-                        .Where(m => m.ManagerId == userId &&
+                        .Where(m => !m.IsDeleted && m.ManagerId == userId &&
                                     (m.PermissionFlags & (long)ManagerPermission.AddProperty) != 0)
                         .Join(_context.Properties.Include(p => p.Landlord), m => m.PropertyId, p => p.Id, (m, p) => new
                         {
@@ -351,10 +352,6 @@ namespace RentHub.API.Controllers
 
                 var roles = (await _userManager.GetRolesAsync(user)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var isAdmin = roles.Contains("Admin");
-                var restrictToTenantAssignments = roles.Contains("Tenant") &&
-                                                  !roles.Contains("Admin") &&
-                                                  !roles.Contains("Landlord") &&
-                                                  !roles.Contains("Manager");
 
                 var property = await _context.Properties
                     .Include(p => p.Apartments)
@@ -365,15 +362,34 @@ namespace RentHub.API.Controllers
 
                 if (property == null) return NotFound("Property not found.");
 
+                var hasManagerAssignment = await _context.PropertyManagerAssignments.AnyAsync(assignment =>
+                    !assignment.IsDeleted && assignment.PropertyId == id && assignment.ManagerId == userId);
+                var hasApartmentOwnerAssignment = await _context.ApartmentOwners.AnyAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.OwnerId == userId &&
+                    assignment.Apartment != null &&
+                    assignment.Apartment.PropertyId == id);
+                var hasTenantAssignment = property.Apartments.Any(apartment =>
+                    !apartment.IsDeleted &&
+                    apartment.Tenancies.Any(tenancy =>
+                        !tenancy.IsDeleted &&
+                        tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId)));
+                var restrictToTenantAssignments = roles.Contains("Tenant") &&
+                                                  !isAdmin &&
+                                                  property.LandlordId != userId &&
+                                                  !hasManagerAssignment &&
+                                                  !hasApartmentOwnerAssignment;
+
                 var hasAccess = await PropertyHelpers.CanAccessPropertyAsync(_context, id, userId, isAdmin);
                 if (!hasAccess) return Forbid();
-                if (roles.Contains("Manager") && !isAdmin && property.LandlordId != userId &&
+                if (hasManagerAssignment && !hasTenantAssignment && !hasApartmentOwnerAssignment &&
+                    !isAdmin && property.LandlordId != userId &&
                     !await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.ViewProperty, false))
                 {
                     return Forbid();
                 }
 
-                var managerApartmentIds = roles.Contains("Manager") && !isAdmin && property.LandlordId != userId
+                var managerApartmentIds = hasManagerAssignment && !isAdmin && property.LandlordId != userId
                     ? await _permissionService.GetAccessibleApartmentIdsAsync(userId, id, ManagerPermission.ViewApartments, false)
                     : null;
 
@@ -914,10 +930,6 @@ namespace RentHub.API.Controllers
 
                 var roles = (await _userManager.GetRolesAsync(user)).ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var isAdmin = roles.Contains("Admin");
-                var restrictToTenantAssignments = roles.Contains("Tenant") &&
-                                                  !roles.Contains("Admin") &&
-                                                  !roles.Contains("Landlord") &&
-                                                  !roles.Contains("Manager");
 
                 var property = await _context.Properties
                     .Include(p => p.Apartments)
@@ -928,11 +940,32 @@ namespace RentHub.API.Controllers
 
                 if (property == null) return NotFound("Property not found.");
 
-                var isRestrictedManager = roles.Contains("Manager") && !isAdmin && property.LandlordId != userId;
-                var hasAccess = isRestrictedManager
-                    ? await _permissionService.HasPropertyPermissionAsync(
-                        userId, id, ManagerPermission.ViewPropertyOverview, false)
-                    : await PropertyHelpers.CanAccessPropertyAsync(_context, id, userId, isAdmin);
+                var hasManagerAssignment = await _context.PropertyManagerAssignments.AnyAsync(assignment =>
+                    !assignment.IsDeleted && assignment.PropertyId == id && assignment.ManagerId == userId);
+                var hasApartmentOwnerAssignment = await _context.ApartmentOwners.AnyAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.OwnerId == userId &&
+                    assignment.Apartment != null &&
+                    assignment.Apartment.PropertyId == id);
+                var hasTenantAssignment = property.Apartments.Any(apartment =>
+                    !apartment.IsDeleted &&
+                    apartment.Tenancies.Any(tenancy =>
+                        !tenancy.IsDeleted &&
+                        tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId)));
+                var restrictToTenantAssignments = roles.Contains("Tenant") &&
+                                                  !isAdmin &&
+                                                  property.LandlordId != userId &&
+                                                  !hasManagerAssignment &&
+                                                  !hasApartmentOwnerAssignment;
+                var isRestrictedManager = hasManagerAssignment && !isAdmin && property.LandlordId != userId;
+                var managerCanViewOverview = isRestrictedManager &&
+                    await _permissionService.HasPropertyPermissionAsync(
+                        userId, id, ManagerPermission.ViewPropertyOverview, false);
+                var hasAccess = isAdmin ||
+                                property.LandlordId == userId ||
+                                hasApartmentOwnerAssignment ||
+                                hasTenantAssignment ||
+                                managerCanViewOverview;
                 if (!hasAccess)
                 {
                     return Forbid();

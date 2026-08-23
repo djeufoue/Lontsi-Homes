@@ -24,19 +24,26 @@ namespace RentHub.Portal.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Verify(string code)
         {
-            if (User.Identity?.IsAuthenticated == true && User.IsInRole("Admin"))
+            if (User.Identity?.IsAuthenticated != true)
             {
-                return Forbid();
+                return ReceiptAccessDenied();
             }
 
             try
             {
-                var receipt = await _api.GetAnonymousAsync<RentReceiptVerificationDto>($"receipts/verify/{Uri.EscapeDataString(code ?? string.Empty)}");
+                var receipt = await _api.GetAsync<RentReceiptVerificationDto>($"receipts/verify/{Uri.EscapeDataString(code ?? string.Empty)}");
+                ViewData["ReceiptAccessAuthorized"] = true;
                 return View(receipt);
+            }
+            catch (Exception ex) when (ex.Message.Contains("RECEIPT_ACCESS_DENIED", StringComparison.OrdinalIgnoreCase) ||
+                                       ex.Message.Contains("AUTH_SESSION_EXPIRED", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Receipt verification access was denied for the current user.");
+                return ReceiptAccessDenied();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Public receipt verification failed for code {Code}.", code);
+                _logger.LogWarning(ex, "Receipt verification failed for the current user.");
                 return View(new RentReceiptVerificationDto { IsValid = false });
             }
         }
@@ -89,6 +96,13 @@ namespace RentHub.Portal.Controllers
             }
 
             return fallback;
+        }
+
+        private IActionResult ReceiptAccessDenied()
+        {
+            Response.StatusCode = StatusCodes.Status403Forbidden;
+            ViewData["ReceiptAccessAuthorized"] = false;
+            return View("Verify", new RentReceiptVerificationDto { IsValid = false });
         }
     }
 }

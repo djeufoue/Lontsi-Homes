@@ -132,10 +132,7 @@ namespace RentHub.API.Controllers
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
                 var isAdmin = User.IsInRole("Admin");
-                var restrictToTenantAssignments = User.IsInRole("Tenant") &&
-                                                  !User.IsInRole("Admin") &&
-                                                  !User.IsInRole("Landlord") &&
-                                                  !User.IsInRole("Manager");
+                var isTenantWorkspace = User.IsInRole("Tenant") && !isAdmin && !User.IsInRole("Landlord");
 
                 var apt = await _context.Apartments
                     .Include(a => a.Property)
@@ -144,7 +141,20 @@ namespace RentHub.API.Controllers
 
                 if (apt == null) return NotFound("Apartment not found.");
                 if (apt.Property == null) return NotFound("Property not found.");
-                var isRestrictedManager = User.IsInRole("Manager") &&
+                var hasManagerAssignment = await _context.PropertyManagerAssignments.AnyAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.PropertyId == apt.PropertyId &&
+                    assignment.ManagerId == userId);
+                var hasApartmentOwnerAssignment = await _context.ApartmentOwners.AnyAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.ApartmentId == id &&
+                    assignment.OwnerId == userId);
+                var restrictToTenantAssignments = User.IsInRole("Tenant") &&
+                                                  !isAdmin &&
+                                                  apt.Property.LandlordId != userId &&
+                                                  !hasManagerAssignment &&
+                                                  !hasApartmentOwnerAssignment;
+                var isRestrictedManager = hasManagerAssignment &&
                                           !isAdmin &&
                                           apt.Property.LandlordId != userId;
 
@@ -189,13 +199,14 @@ namespace RentHub.API.Controllers
                     userId, id, ManagerPermission.EditTenancy, isAdmin);
                 var canSendRentReminder = await _permissionService.HasApartmentPermissionAsync(
                     userId, id, ManagerPermission.SendRentReminder, isAdmin);
-                var canManageRentReminderSettings = await _permissionService.HasApartmentPermissionAsync(
-                    userId, id, ManagerPermission.ManageRentReminderSettings, isAdmin) ||
-                    await _context.ApartmentOwners.AnyAsync(owner =>
-                        owner.ApartmentId == id &&
-                        owner.OwnerId == userId &&
-                        !owner.IsDeleted &&
-                        owner.Permission == PermissionLevelEnum.ReadWrite);
+                var canManageRentReminderSettings = !isTenantWorkspace &&
+                    (await _permissionService.HasApartmentPermissionAsync(
+                        userId, id, ManagerPermission.ManageRentReminderSettings, isAdmin) ||
+                     await _context.ApartmentOwners.AnyAsync(owner =>
+                         owner.ApartmentId == id &&
+                         owner.OwnerId == userId &&
+                         !owner.IsDeleted &&
+                         owner.Permission == PermissionLevelEnum.ReadWrite));
 
                 var canViewTenancies = await _permissionService.HasApartmentPermissionAsync(
                     userId, id, ManagerPermission.ViewTenancies, isAdmin);
@@ -203,9 +214,10 @@ namespace RentHub.API.Controllers
                     .Where(t =>
                         t.ApartmentId == id &&
                         !t.IsDeleted &&
-                        (canViewTenancies || !User.IsInRole("Manager")) &&
+                        (canViewTenancies || !isRestrictedManager) &&
                         (!restrictToTenantAssignments || t.Members.Any(member => !member.IsDeleted && member.MemberId == userId)))
                     .OrderByDescending(t => t.StartDate)
+                    .ThenByDescending(t => t.Id)
                     .ToListAsync();
 
                 var tenanciesDto = tenancies
@@ -220,11 +232,48 @@ namespace RentHub.API.Controllers
                         MaxMembers = tenancy.MaxMembers,
                         RentDueDay = tenancy.RentDueDay,
                         EndBehavior = tenancy.EndBehavior,
+                        AutoExtensionMonths = tenancy.AutoExtensionMonths,
                         TerminatedAt = tenancy.TerminatedAt,
                         Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                         IsOwner = isAdmin || apt.Property!.LandlordId == userId
                     })
                     .ToList();
+
+                var latestTenancy = tenancies.FirstOrDefault();
+                var latestTenancyDto = latestTenancy == null
+                    ? null
+                    : tenanciesDto.FirstOrDefault(tenancy => tenancy.Id == latestTenancy.Id);
+                var canViewLatestTenancyMembers = latestTenancy != null &&
+                    (!isRestrictedManager || await _permissionService.HasTenancyPermissionAsync(
+                        userId,
+                        latestTenancy.Id,
+                        ManagerPermission.ViewTenancyMembers,
+                        false));
+                var latestTenancyMembers = latestTenancy == null || !canViewLatestTenancyMembers
+                    ? new List<TenancyMemberDto>()
+                    : await _context.TenancyMembers
+                        .Include(member => member.Member)
+                        .Where(member => member.TenancyId == latestTenancy.Id && !member.IsDeleted)
+                        .OrderBy(member => member.Role == TenancyMemberRoleEnum.MainTenant ? 0 : 1)
+                        .ThenByDescending(member => member.CreatedAt)
+                        .Select(member => new TenancyMemberDto
+                        {
+                            Id = member.Id,
+                            TenancyId = member.TenancyId,
+                            MemberId = member.MemberId,
+                            Role = member.Role.ToString(),
+                            FullName = member.Member != null
+                                ? (member.Member.FullName ?? member.Member.Email ?? string.Empty)
+                                : string.Empty,
+                            Email = member.Member != null ? member.Member.Email ?? string.Empty : string.Empty,
+                            CountryCode = member.Member != null ? member.Member.CountryCode ?? string.Empty : string.Empty,
+                            PhoneNumber = member.Member != null ? member.Member.PhoneNumber ?? string.Empty : string.Empty,
+                            WhatsAppPhoneNumber = member.Member != null ? member.Member.WhatsAppPhoneNumber ?? string.Empty : string.Empty,
+                            EmailConfirmed = member.Member != null && member.Member.EmailConfirmed,
+                            WhatsAppPhoneVerified = member.Member != null && member.Member.IsWhatsAppPhoneVerified,
+                            CreatedAt = member.CreatedAt
+                        })
+                        .ToListAsync();
 
                 var owners = restrictToTenantAssignments || !canViewMembers
                     ? new List<ApartmentOwnerDto>()
@@ -265,31 +314,36 @@ namespace RentHub.API.Controllers
                         Price = canViewFinancialInformation ? apt.Price : 0,
                         Area = apt.Area,
                         Status = ApartmentStatusResolver.Resolve(tenancies, DateTimeOffset.UtcNow).ToString(),
-                        RentReminderDaysBeforeDue = apt.RentReminderDaysBeforeDue,
-                        LeaseTerminationReminderDaysBeforeEnd = apt.LeaseTerminationReminderDaysBeforeEnd,
-                        ManualRentReminderLimit = apt.ManualRentReminderLimit,
-                        ManualRentReminderCooldownHours = apt.ManualRentReminderCooldownHours,
-                        RentReminderRules = apt.RentReminderRules
-                            .OrderBy(rule => rule.SortOrder)
-                            .Select(rule => new RentReminderRuleDto
-                            {
-                                Id = rule.Id,
-                                Timing = rule.Timing,
-                                Days = rule.Days,
-                                IsEnabled = rule.IsEnabled,
-                                EmailEnabled = rule.EmailEnabled,
-                                SmsEnabled = rule.SmsEnabled,
-                                SortOrder = rule.SortOrder
-                            })
-                            .ToList(),
+                        RentReminderDaysBeforeDue = isTenantWorkspace ? 0 : apt.RentReminderDaysBeforeDue,
+                        LeaseTerminationReminderDaysBeforeEnd = isTenantWorkspace ? 0 : apt.LeaseTerminationReminderDaysBeforeEnd,
+                        ManualRentReminderLimit = isTenantWorkspace ? 0 : apt.ManualRentReminderLimit,
+                        ManualRentReminderCooldownHours = isTenantWorkspace ? 0 : apt.ManualRentReminderCooldownHours,
+                        RentReminderRules = isTenantWorkspace
+                            ? new List<RentReminderRuleDto>()
+                            : apt.RentReminderRules
+                                .OrderBy(rule => rule.SortOrder)
+                                .Select(rule => new RentReminderRuleDto
+                                {
+                                    Id = rule.Id,
+                                    Timing = rule.Timing,
+                                    Days = rule.Days,
+                                    IsEnabled = rule.IsEnabled,
+                                    EmailEnabled = rule.EmailEnabled,
+                                    SmsEnabled = rule.SmsEnabled,
+                                    SortOrder = rule.SortOrder
+                                })
+                                .ToList(),
                         CanWrite = canWrite
                     },
                     Tenancies = tenanciesDto,
+                    LatestTenancy = latestTenancyDto,
+                    LatestTenancyMembers = latestTenancyMembers,
                     Owners = owners,
                     Documents = docs,
                     CanViewFinancialInformation = canViewFinancialInformation,
                     CanEditFinancialInformation = canEditFinancialInformation,
                     CanManageMembers = canManageMembers,
+                    CanViewLatestTenancyMembers = canViewLatestTenancyMembers,
                     CanManageDocuments = canManageDocuments,
                     CanAddTenancy = canAddTenancy,
                     CanEditTenancy = canEditTenancy,
@@ -454,6 +508,10 @@ namespace RentHub.API.Controllers
 
                 var userId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrEmpty(userId)) return Unauthorized();
+                if (User.IsInRole("Tenant") && !User.IsInRole("Admin") && !User.IsInRole("Landlord"))
+                {
+                    return Forbid();
+                }
 
                 var apartment = await _context.Apartments
                     .Include(a => a.Property)
@@ -835,7 +893,7 @@ namespace RentHub.API.Controllers
 
         private static string ResolveTenancyStatus(Tenancy tenancy, DateTimeOffset nowUtc)
         {
-            if (tenancy.TerminatedAt.HasValue)
+            if (tenancy.TerminatedAt.HasValue && tenancy.TerminatedAt.Value.Date < nowUtc.Date)
             {
                 return "Terminated";
             }
@@ -843,6 +901,11 @@ namespace RentHub.API.Controllers
             if (tenancy.StartDate.Date > nowUtc.Date)
             {
                 return "Upcoming";
+            }
+
+            if (tenancy.TerminatedAt.HasValue)
+            {
+                return "Ending";
             }
 
             if (tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < nowUtc.Date)

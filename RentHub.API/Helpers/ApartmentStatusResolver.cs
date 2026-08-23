@@ -13,7 +13,9 @@ namespace RentHub.API.Helpers
         public static ApartmentStatusEnum Resolve(IEnumerable<Tenancy>? tenancies, DateTimeOffset nowUtc)
         {
             var tenancyList = tenancies?
-                .Where(tenancy => !tenancy.IsDeleted && !tenancy.TerminatedAt.HasValue)
+                .Where(tenancy =>
+                    !tenancy.IsDeleted &&
+                    (!tenancy.TerminatedAt.HasValue || tenancy.TerminatedAt.Value.Date >= nowUtc.Date))
                 .ToList() ?? new List<Tenancy>();
 
             if (tenancyList.Any(tenancy => IsCurrent(tenancy, nowUtc)))

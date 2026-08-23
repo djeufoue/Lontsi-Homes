@@ -33,11 +33,13 @@ namespace RentHub.API.Data
         public DbSet<PlatformPaymentSettings> PlatformPaymentSettings => Set<PlatformPaymentSettings>();
         public DbSet<ApartmentConversation> ApartmentConversations => Set<ApartmentConversation>();
         public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
+        public DbSet<ConversationReadState> ConversationReadStates => Set<ConversationReadState>();
         public DbSet<SubscriptionInquiry> SubscriptionInquiries => Set<SubscriptionInquiry>();
         public DbSet<SubscriptionInquiryMessage> SubscriptionInquiryMessages => Set<SubscriptionInquiryMessage>();
 
         // Extension requests and settings
         public DbSet<TenancyExtensionRequest> TenancyExtensionRequests => Set<TenancyExtensionRequest>();
+        public DbSet<TenancyTerminationRequest> TenancyTerminationRequests => Set<TenancyTerminationRequest>();
         public DbSet<ReminderSettings> ReminderSettings => Set<ReminderSettings>();
         public DbSet<ApartmentRentReminderRule> ApartmentRentReminderRules => Set<ApartmentRentReminderRule>();
         public DbSet<RentReminder> RentReminders => Set<RentReminder>();
@@ -80,6 +82,9 @@ namespace RentHub.API.Data
 
                 entity.Property(u => u.EmailLanguage)
                     .HasDefaultValue(PlatformLanguage.English);
+
+                entity.Property(u => u.ConversationEmailNotificationsEnabled)
+                    .HasDefaultValue(true);
 
                 entity.Property(u => u.CountryIsoCode)
                     .HasMaxLength(2);
@@ -125,6 +130,13 @@ namespace RentHub.API.Data
 
             builder.Entity<Tenancy>(entity =>
             {
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_Tenancies_AutoExtensionMonths",
+                    "[AutoExtensionMonths] >= 1 AND [AutoExtensionMonths] <= 12"));
+
+                entity.Property(t => t.AutoExtensionMonths)
+                    .HasDefaultValue(1);
+
                 entity.Property(t => t.TerminationNotes)
                     .HasMaxLength(512);
             });
@@ -137,6 +149,33 @@ namespace RentHub.API.Data
                 entity.HasOne(request => request.Tenancy)
                     .WithMany(tenancy => tenancy.ExtensionRequests)
                     .HasForeignKey(request => request.TenancyId);
+
+                entity.HasIndex(request => request.TenancyId)
+                    .IsUnique()
+                    .HasFilter("[Status] = 0 AND [IsDeleted] = 0");
+            });
+
+            builder.Entity<TenancyTerminationRequest>(entity =>
+            {
+                entity.Property(request => request.Reason)
+                    .HasMaxLength(1000);
+
+                entity.Property(request => request.RejectionReason)
+                    .HasMaxLength(1000);
+
+                entity.HasOne(request => request.Tenancy)
+                    .WithMany(tenancy => tenancy.TerminationRequests)
+                    .HasForeignKey(request => request.TenancyId);
+
+                entity.HasOne(request => request.RequestedBy)
+                    .WithMany()
+                    .HasForeignKey(request => request.RequestedById)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasOne(request => request.ReviewedBy)
+                    .WithMany()
+                    .HasForeignKey(request => request.ReviewedById)
+                    .OnDelete(DeleteBehavior.NoAction);
 
                 entity.HasIndex(request => request.TenancyId)
                     .IsUnique()
@@ -418,7 +457,7 @@ namespace RentHub.API.Data
                 .ValueGeneratedNever();
 
             builder.Entity<ApartmentConversation>()
-                .HasIndex(c => new { c.ApartmentId, c.VisitorId })
+                .HasIndex(c => new { c.ApartmentId, c.VisitorId, c.IsPropertyTeamConversation })
                 .IsUnique();
 
             builder.Entity<ApartmentConversation>()
@@ -432,6 +471,26 @@ namespace RentHub.API.Data
                 .WithMany(c => c.Messages)
                 .HasForeignKey(m => m.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<ConversationMessage>()
+                .HasOne(m => m.ReplyToMessage)
+                .WithMany()
+                .HasForeignKey(m => m.ReplyToMessageId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<ConversationReadState>(entity =>
+            {
+                entity.HasIndex(state => new { state.ConversationId, state.UserId }).IsUnique();
+                entity.HasIndex(state => state.UserId);
+                entity.HasOne(state => state.Conversation)
+                    .WithMany(conversation => conversation.ReadStates)
+                    .HasForeignKey(state => state.ConversationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(state => state.User)
+                    .WithMany()
+                    .HasForeignKey(state => state.UserId)
+                    .OnDelete(DeleteBehavior.NoAction);
+            });
 
             builder.Entity<SubscriptionInquiry>(entity =>
             {
@@ -502,6 +561,7 @@ namespace RentHub.API.Data
 
             // Apply soft-delete filter to extension requests if desired
             builder.Entity<TenancyExtensionRequest>().HasQueryFilter(er => !er.IsDeleted);
+            builder.Entity<TenancyTerminationRequest>().HasQueryFilter(request => !request.IsDeleted);
         }
     }
 }

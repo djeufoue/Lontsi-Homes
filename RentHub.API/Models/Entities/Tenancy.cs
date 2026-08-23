@@ -34,6 +34,9 @@ namespace RentHub.API.Models.Entities
 
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
+        [Range(1, 12)]
+        public int AutoExtensionMonths { get; set; } = 1;
+
         public DateTimeOffset? TerminatedAt { get; set; }
         public TenancyTerminationReasonEnum? TerminationReason { get; set; }
         public string? TerminationNotes { get; set; }
@@ -52,6 +55,7 @@ namespace RentHub.API.Models.Entities
         public ICollection<TenancyMember> Members { get; set; } = new List<TenancyMember>();
         public ICollection<RentPeriod> RentPeriods { get; set; } = new List<RentPeriod>();
         public ICollection<TenancyExtensionRequest> ExtensionRequests { get; set; } = new List<TenancyExtensionRequest>();
+        public ICollection<TenancyTerminationRequest> TerminationRequests { get; set; } = new List<TenancyTerminationRequest>();
         public ICollection<RentReminder> RentReminders { get; set; } = new List<RentReminder>();
     }
 }

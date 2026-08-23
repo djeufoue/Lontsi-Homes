@@ -28,6 +28,11 @@
                 <div class="alert alert-info py-2">@authInfo</div>
             }
 
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
             <form asp-action="Login" method="post" class="rh-auth-form">
                 @Html.AntiForgeryToken()
                 <input asp-for="ReturnUrl" type="hidden" />
@@ -40,7 +45,10 @@
                 </div>
 
                 <div class="mb-4">
-                    <label asp-for="Password" class="form-label rh-auth-label"></label>
+                    <div class="d-flex align-items-center justify-content-between gap-3">
+                        <label asp-for="Password" class="form-label rh-auth-label"></label>
+                        <a asp-action="ForgotPassword" asp-route-email="@Model.Email" class="rh-auth-secondary-link">Forgot password?</a>
+                    </div>
                     <input asp-for="Password" type="password" class="form-control rh-auth-input" autocomplete="current-password" placeholder="Enter your password" />
                     <span asp-validation-for="Password" class="text-danger small"></span>
                 </div>

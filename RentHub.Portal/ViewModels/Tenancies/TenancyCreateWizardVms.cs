@@ -17,6 +17,7 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public int MaxMembers { get; set; } = 1;
         public int RentDueDay { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public int AutoExtensionMonths { get; set; } = 1;
         public RentPaymentImportModeEnum? ImportMode { get; set; }
         public bool HasSelectedImportMode { get; set; }
         public DateTimeOffset? UnpaidFrom { get; set; }
@@ -60,6 +61,9 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public int RentDueDay { get; set; } = 1;
 
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+
+        [Range(1, 12)]
+        public int AutoExtensionMonths { get; set; } = 1;
 
         public IFormFile? ContractDocument { get; set; }
     }

@@ -11,6 +11,7 @@ using RentHub.API.Services.Auth;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
+using System.Net;
 using System.Security.Claims;
 using System.Linq;
 using System.Text.Json;
@@ -2243,7 +2244,7 @@ namespace RentHub.API.Controllers
                     return Unauthorized("Invalid email or password.");
                 }
 
-                var roles = (await _userManager.GetRolesAsync(user)).ToList();
+                var roles = (await _tokenService.GetEffectiveRolesAsync(user)).ToList();
                 var isAdmin = roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                 var isVisitor = roles.Any(r => string.Equals(r, "Visitor", StringComparison.OrdinalIgnoreCase));
                 var isLandlord = roles.Any(r => string.Equals(r, "Landlord", StringComparison.OrdinalIgnoreCase));
@@ -2352,46 +2353,57 @@ namespace RentHub.API.Controllers
 
         [HttpGet("profile-overview")]
         [Authorize]
-        public async Task<IActionResult> GetProfileOverview()
+        public async Task<IActionResult> GetProfileOverview(
+            [FromQuery(Name = "userId")] string? requestedUserId = null,
+            [FromQuery] int? tenancyId = null)
         {
             try
             {
-                var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrWhiteSpace(userId))
+                var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
                 {
                     return Unauthorized();
+                }
+
+                var userId = string.IsNullOrWhiteSpace(requestedUserId)
+                    ? currentUserId
+                    : requestedUserId.Trim();
+                if (!string.Equals(currentUserId, userId, StringComparison.Ordinal) &&
+                    !await CanAccessTargetProfileAsync(currentUserId, userId, tenancyId))
+                {
+                    return Forbid();
                 }
 
                 var user = await _userManager.Users.FirstOrDefaultAsync(u => u.Id == userId);
                 if (user == null)
                 {
-                    return Unauthorized();
+                    return NotFound("User was not found.");
                 }
 
-                var roles = (await _userManager.GetRolesAsync(user)).ToList();
+                var roles = (await _tokenService.GetEffectiveRolesAsync(user)).ToList();
                 var isAdmin = roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
                 var now = DateTimeOffset.UtcNow;
 
                 var ownedPropertyIds = await _context.Properties
-                    .Where(p => p.LandlordId == userId)
+                    .Where(p => !p.IsDeleted && p.LandlordId == userId)
                     .Select(p => p.Id)
                     .ToListAsync();
 
                 var managedPropertyIds = await _context.PropertyManagerAssignments
-                    .Where(m => m.ManagerId == userId)
+                    .Where(m => !m.IsDeleted && m.ManagerId == userId)
                     .Select(m => m.PropertyId)
                     .ToListAsync();
 
                 var ownerPropertyIds = await _context.ApartmentOwners
-                    .Where(o => o.OwnerId == userId)
+                    .Where(o => !o.IsDeleted && o.OwnerId == userId)
                     .Join(_context.Apartments, o => o.ApartmentId, a => a.Id, (o, a) => a.PropertyId)
                     .Distinct()
                     .ToListAsync();
 
                 var tenantPropertyIds = await _context.Tenancies
                     .Where(t =>
-                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userId) &&
-                        (t.EndDate == null || t.EndDate > now))
+                        !t.IsDeleted &&
+                        t.Members.Any(m => !m.IsDeleted && m.MemberId == userId))
                     .Join(_context.Apartments, t => t.ApartmentId, a => a.Id, (t, a) => a.PropertyId)
                     .Distinct()
                     .ToListAsync();
@@ -2400,6 +2412,7 @@ namespace RentHub.API.Controllers
                 if (isAdmin)
                 {
                     accessiblePropertyIds = await _context.Properties
+                        .Where(p => !p.IsDeleted)
                         .Select(p => p.Id)
                         .ToListAsync();
                 }
@@ -2429,7 +2442,7 @@ namespace RentHub.API.Controllers
                 }
 
                 var properties = await _context.Properties
-                    .Where(p => accessiblePropertyIds.Contains(p.Id))
+                    .Where(p => !p.IsDeleted && accessiblePropertyIds.Contains(p.Id))
                     .OrderBy(p => p.Name)
                     .Select(p => new ProfilePropertyDto
                     {
@@ -2533,6 +2546,7 @@ namespace RentHub.API.Controllers
                     IsSubscriptionExempt = user.IsSubscriptionExempt,
                     Language = user.Language,
                     EmailLanguage = user.EmailLanguage,
+                    ConversationEmailNotificationsEnabled = user.ConversationEmailNotificationsEnabled,
                     KycDocumentType = landlordStatus?.KycDocumentType,
                     KycStatus = landlordStatus?.KycStatus ?? LandlordKycStatusEnum.NotStarted,
                     IsKycSubmitted = landlordStatus?.IsKycSubmitted ?? false,
@@ -2650,16 +2664,25 @@ namespace RentHub.API.Controllers
 
             try
             {
-                var userId = UserHelpers.GetUserId(User);
-                if (string.IsNullOrWhiteSpace(userId))
+                var currentUserId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(currentUserId))
                 {
                     return Unauthorized();
                 }
 
-                var user = await _userManager.FindByIdAsync(userId);
+                var targetUserId = string.IsNullOrWhiteSpace(request.UserId)
+                    ? currentUserId
+                    : request.UserId.Trim();
+                if (!string.Equals(currentUserId, targetUserId, StringComparison.Ordinal) &&
+                    !await CanAccessTargetProfileAsync(currentUserId, targetUserId, request.TenancyId))
+                {
+                    return Forbid();
+                }
+
+                var user = await _userManager.FindByIdAsync(targetUserId);
                 if (user == null)
                 {
-                    return Unauthorized();
+                    return NotFound("User was not found.");
                 }
 
                 user.EmailLanguage = request.EmailLanguage;
@@ -2678,6 +2701,81 @@ namespace RentHub.API.Controllers
             {
                 return ServerError(ex, "UpdateEmailLanguage", "Unable to update your email language preference right now. Please try again.");
             }
+        }
+
+        [HttpPost("conversation-email-notifications")]
+        [Authorize]
+        public async Task<IActionResult> UpdateConversationEmailNotifications(
+            [FromBody] UpdateConversationEmailNotificationsRequest request)
+        {
+            try
+            {
+                var userId = UserHelpers.GetUserId(User);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return Unauthorized();
+                }
+
+                user.ConversationEmailNotificationsEnabled = request.Enabled;
+                var result = await _userManager.UpdateAsync(user);
+                if (!result.Succeeded)
+                {
+                    return BadRequest(result.Errors);
+                }
+
+                return Ok(new UpdateConversationEmailNotificationsResponse
+                {
+                    Enabled = user.ConversationEmailNotificationsEnabled
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServerError(ex, "UpdateConversationEmailNotifications", "Unable to update your message email notification preference right now. Please try again.");
+            }
+        }
+
+        private async Task<bool> CanAccessTargetProfileAsync(
+            string currentUserId,
+            string targetUserId,
+            int? tenancyId)
+        {
+            if (string.Equals(currentUserId, targetUserId, StringComparison.Ordinal) || User.IsInRole("Admin"))
+            {
+                return true;
+            }
+
+            if (!tenancyId.HasValue)
+            {
+                return false;
+            }
+
+            var tenancy = await _context.Tenancies
+                .AsNoTracking()
+                .Where(item =>
+                    !item.IsDeleted &&
+                    item.Id == tenancyId.Value &&
+                    item.Members.Any(member => !member.IsDeleted && member.MemberId == targetUserId))
+                .Select(item => new
+                {
+                    item.Id,
+                    item.ApartmentId,
+                    PropertyId = item.Apartment!.PropertyId
+                })
+                .FirstOrDefaultAsync();
+
+            return tenancy != null && await PropertyHelpers.CanAccessTenancyAsync(
+                _context,
+                tenancy.Id,
+                tenancy.ApartmentId,
+                tenancy.PropertyId,
+                currentUserId,
+                false);
         }
 
         /// <summary>
@@ -2716,56 +2814,116 @@ namespace RentHub.API.Controllers
         }
 
         /// <summary>
-        /// Generates a password reset token and returns it. In production this token should be emailed.
+        /// Emails a one-time password recovery link when the supplied address belongs to an account.
+        /// The response is deliberately identical for known and unknown addresses.
         /// </summary>
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
         {
+            const string responseMessage = "If an account exists for that email, a password reset link has been sent.";
+
             try
             {
-                var user = await _userManager.FindByEmailAsync(request.Email);
-                if (user == null)
+                var email = request.Email.Trim();
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user == null || string.IsNullOrWhiteSpace(user.Email))
                 {
-                    return Ok(new { Message = "If the email exists, a reset token has been generated." });
+                    return Ok(new { Message = responseMessage });
+                }
+
+                var portalBaseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
+                if (!Uri.TryCreate(portalBaseUrl, UriKind.Absolute, out var portalUri) ||
+                    (portalUri.Scheme != Uri.UriSchemeHttps && portalUri.Scheme != Uri.UriSchemeHttp))
+                {
+                    _logger.LogError("Password reset email was not sent because Portal:BaseUrl is missing or invalid.");
+                    return Ok(new { Message = responseMessage });
                 }
 
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                return Ok(new { Token = token });
+                var resetUrl = $"{portalBaseUrl}/Auth/ResetPassword?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
+                var encodedResetUrl = WebUtility.HtmlEncode(resetUrl);
+                var isFrench = user.EmailLanguage == PlatformLanguage.French;
+
+                var message = new EmailMessage
+                {
+                    To = user.Email,
+                    Subject = isFrench
+                        ? "Réinitialisez votre mot de passe Lontsi Homes"
+                        : "Reset your Lontsi Homes password",
+                    PlainTextBody = isFrench
+                        ? string.Join(Environment.NewLine,
+                            "Nous avons reçu une demande de réinitialisation de votre mot de passe Lontsi Homes.",
+                            string.Empty,
+                            "Choisissez un nouveau mot de passe à l’aide de ce lien :",
+                            resetUrl,
+                            string.Empty,
+                            "Ce lien est à usage unique et expirera. Si vous n’avez pas demandé cette modification, vous pouvez ignorer ce courriel.")
+                        : string.Join(Environment.NewLine,
+                            "We received a request to reset your Lontsi Homes password.",
+                            string.Empty,
+                            "Choose a new password using this link:",
+                            resetUrl,
+                            string.Empty,
+                            "This link can only be used once and will expire. If you did not request this change, you can ignore this email."),
+                    HtmlBody = isFrench
+                        ? $"<p>Nous avons reçu une demande de réinitialisation de votre mot de passe Lontsi Homes.</p><p><a href=\"{encodedResetUrl}\" style=\"display:inline-block;padding:12px 20px;border-radius:10px;background:#9da85e;color:#1f2522;font-weight:700;text-decoration:none;\">Choisir un nouveau mot de passe</a></p><p>Ce lien est à usage unique et expirera. Si vous n’avez pas demandé cette modification, vous pouvez ignorer ce courriel.</p>"
+                        : $"<p>We received a request to reset your Lontsi Homes password.</p><p><a href=\"{encodedResetUrl}\" style=\"display:inline-block;padding:12px 20px;border-radius:10px;background:#9da85e;color:#1f2522;font-weight:700;text-decoration:none;\">Choose a new password</a></p><p>This link can only be used once and will expire. If you did not request this change, you can ignore this email.</p>"
+                };
+
+                var delivery = await _emailService.TrySendEmailAsync(message);
+                if (!delivery.Succeeded)
+                {
+                    _logger.LogWarning("Password reset email delivery failed for user {UserId}.", user.Id);
+                }
+
+                return Ok(new { Message = responseMessage });
             }
             catch (Exception ex)
             {
-                return ServerError(ex, "ForgotPassword", "Unable to process password reset right now. Please try again.");
+                // A generic success response prevents account discovery and avoids exposing
+                // transient provider failures to anonymous callers.
+                _logger.LogError(ex, "ForgotPassword failed while processing a password reset request.");
+                return Ok(new { Message = responseMessage });
             }
         }
 
         /// <summary>
-        /// Resets the password using a token obtained from ForgotPassword.
+        /// Resets an existing account password using the token sent by ForgotPassword.
         /// </summary>
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+            => await ResetPasswordInternal(request, confirmEmail: false);
+
+        /// <summary>
+        /// Sets the initial password for an invited account and confirms its invitation email.
+        /// </summary>
+        [HttpPost("set-invited-password")]
+        public async Task<IActionResult> SetInvitedPassword([FromBody] ResetPasswordRequest request)
+            => await ResetPasswordInternal(request, confirmEmail: true);
+
+        private async Task<IActionResult> ResetPasswordInternal(ResetPasswordRequest request, bool confirmEmail)
         {
             try
             {
-                var user = await _userManager.FindByEmailAsync(request.Email);
+                var user = await _userManager.FindByEmailAsync(request.Email.Trim());
                 if (user == null)
                 {
-                    return BadRequest("Invalid email.");
+                    return BadRequest(new { Message = "This password reset link is invalid or has expired." });
+                }
+
+                var wasEmailConfirmed = user.EmailConfirmed;
+                if (confirmEmail)
+                {
+                    // ResetPasswordAsync persists the whole user, keeping password creation and
+                    // invitation confirmation in a single Identity update.
+                    user.EmailConfirmed = true;
                 }
 
                 var result = await _userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
                 if (!result.Succeeded)
                 {
-                    return BadRequest(result.Errors);
-                }
-
-                if (!user.EmailConfirmed)
-                {
-                    user.EmailConfirmed = true;
-                    var confirmationResult = await _userManager.UpdateAsync(user);
-                    if (!confirmationResult.Succeeded)
-                    {
-                        return BadRequest(confirmationResult.Errors);
-                    }
+                    user.EmailConfirmed = wasEmailConfirmed;
+                    return BadRequest(new { Message = "This password reset link is invalid or has expired." });
                 }
 
                 return Ok(new { Message = "Password has been reset successfully." });

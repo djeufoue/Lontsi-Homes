@@ -70,7 +70,18 @@ namespace RentHub.API.Controllers
 
             var nowUtc = DateTimeOffset.UtcNow;
             var hasPendingRequest = requests.Any(request => request.Status == TenancyExtensionStatusEnum.Pending);
-            var unavailableReason = ResolveRequestUnavailableReason(tenancy, isRequestingTenant, hasPendingRequest, nowUtc);
+            var hasPendingTerminationRequest = await _context.TenancyTerminationRequests
+                .AsNoTracking()
+                .AnyAsync(request =>
+                    request.TenancyId == tenancyId &&
+                    request.Status == TenancyTerminationRequestStatusEnum.Pending,
+                    cancellationToken);
+            var unavailableReason = ResolveRequestUnavailableReason(
+                tenancy,
+                isRequestingTenant,
+                hasPendingRequest,
+                hasPendingTerminationRequest,
+                nowUtc);
 
             return Ok(new TenancyRenewalWorkspaceDto
             {
@@ -117,9 +128,16 @@ namespace RentHub.API.Controllers
             var hasPendingRequest = await _context.TenancyExtensionRequests.AnyAsync(existing =>
                 existing.TenancyId == tenancyId && existing.Status == TenancyExtensionStatusEnum.Pending,
                 cancellationToken);
-            var unavailableReason = ResolveRequestUnavailableReason(tenancy, true, hasPendingRequest, nowUtc);
+            var unavailableReason = ResolveRequestUnavailableReason(tenancy, true, hasPendingRequest, false, nowUtc);
             if (!string.IsNullOrEmpty(unavailableReason))
                 return Conflict(new { Message = unavailableReason });
+            if (await _context.TenancyTerminationRequests.AnyAsync(existing =>
+                    existing.TenancyId == tenancyId &&
+                    existing.Status == TenancyTerminationRequestStatusEnum.Pending,
+                    cancellationToken))
+            {
+                return Conflict(new { Message = "Review or cancel the pending tenancy end request before requesting a renewal." });
+            }
 
             if (!tenancy.EndDate.HasValue)
                 return BadRequest(new { Message = "A tenancy without an end date cannot be renewed." });
@@ -153,7 +171,7 @@ namespace RentHub.API.Controllers
                 return Conflict(new { Message = "A renewal request is already pending for this tenancy." });
             }
 
-            await _renewalEmailService.SendRequestSubmittedAsync(extensionRequest, cancellationToken);
+            await TrySendSubmissionEmailAsync(extensionRequest, cancellationToken);
             return Ok(new { Message = "Renewal request submitted.", RequestId = extensionRequest.Id });
         }
 
@@ -176,6 +194,13 @@ namespace RentHub.API.Controllers
                     return Conflict(new { Message = "This renewal request has already been reviewed." });
 
                 var tenancy = request.Tenancy!;
+                if (await _context.TenancyTerminationRequests.AnyAsync(existing =>
+                        existing.TenancyId == tenancyId &&
+                        existing.Status == TenancyTerminationRequestStatusEnum.Pending,
+                        cancellationToken))
+                {
+                    return Conflict(new { Message = "The pending tenancy end request must be reviewed before this renewal request." });
+                }
                 var canWrite = await _permissionService.HasTenancyPermissionAsync(
                     userId, tenancy.Id, ManagerPermission.RenewTenancy, User.IsInRole("Admin"));
                 if (!canWrite) return Forbid();
@@ -214,8 +239,8 @@ namespace RentHub.API.Controllers
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
-                await _renewalEmailService.SendDecisionAsync(request, cancellationToken);
 
+                await TrySendDecisionEmailAsync(request, cancellationToken);
                 return Ok(new { Message = "Renewal request approved.", TenancyId = tenancy.Id, NewEndDate = tenancy.EndDate });
             }
             catch (Exception ex)
@@ -256,13 +281,15 @@ namespace RentHub.API.Controllers
                 request.Status = TenancyExtensionStatusEnum.Rejected;
                 request.ApprovedById = userId;
                 request.ApprovedAt = nowUtc;
-                request.RejectionReason = string.IsNullOrWhiteSpace(decision.Reason) ? null : decision.Reason.Trim();
+                if (string.IsNullOrWhiteSpace(decision.Reason))
+                    return BadRequest(new { Message = "A rejection reason is required." });
+                request.RejectionReason = decision.Reason.Trim();
                 request.UpdatedBy = userId;
                 request.UpdatedAt = nowUtc;
 
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
-                await _renewalEmailService.SendDecisionAsync(request, cancellationToken);
+                await TrySendDecisionEmailAsync(request, cancellationToken);
                 return Ok(new { Message = "Renewal request rejected." });
             }
             catch (Exception ex)
@@ -270,6 +297,45 @@ namespace RentHub.API.Controllers
                 await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to reject renewal request {RequestId} for tenancy {TenancyId}.", requestId, tenancyId);
                 return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "Unable to reject the renewal request right now." });
+            }
+        }
+
+        [HttpPut("{requestId}/withdraw")]
+        [Authorize]
+        public async Task<IActionResult> WithdrawPendingRequest(
+            int tenancyId,
+            int requestId,
+            CancellationToken cancellationToken)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            try
+            {
+                var request = await LoadRequestForDecisionAsync(tenancyId, requestId, cancellationToken);
+                if (request == null) return NotFound("Renewal request not found.");
+                if (!string.Equals(request.RequestedById, userId, StringComparison.Ordinal)) return Forbid();
+                if (request.Status != TenancyExtensionStatusEnum.Pending)
+                {
+                    return Conflict(new { Message = "Only a renewal request awaiting a decision can be cancelled." });
+                }
+
+                var nowUtc = DateTimeOffset.UtcNow;
+                request.Status = TenancyExtensionStatusEnum.Cancelled;
+                request.UpdatedBy = userId;
+                request.UpdatedAt = nowUtc;
+                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                await TrySendWithdrawalEmailAsync(request, cancellationToken);
+                return Ok(new { Message = "Renewal request cancelled." });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Failed to cancel renewal request {RequestId} for tenancy {TenancyId}.", requestId, tenancyId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Message = "Unable to cancel the renewal request right now." });
             }
         }
 
@@ -290,6 +356,7 @@ namespace RentHub.API.Controllers
             Tenancy tenancy,
             bool isRequestingTenant,
             bool hasPendingRequest,
+            bool hasPendingTerminationRequest,
             DateTimeOffset nowUtc)
         {
             if (!isRequestingTenant) return "Only a main tenant or co-tenant can request a renewal.";
@@ -297,6 +364,7 @@ namespace RentHub.API.Controllers
             if (!tenancy.EndDate.HasValue) return "A tenancy without an end date cannot be renewed.";
             if (tenancy.EndDate.Value.Date < nowUtc.Date) return "An expired tenancy cannot be renewed.";
             if (hasPendingRequest) return "A renewal request is already pending for this tenancy.";
+            if (hasPendingTerminationRequest) return "A tenancy end request is already pending for this tenancy.";
             return string.Empty;
         }
 
@@ -316,6 +384,48 @@ namespace RentHub.API.Controllers
                 RejectionReason = request.RejectionReason,
                 CreatedAt = request.CreatedAt
             };
+        }
+
+        private async Task TrySendSubmissionEmailAsync(
+            TenancyExtensionRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _renewalEmailService.SendRequestSubmittedAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Renewal request {RequestId} was saved but its notification email failed.", request.Id);
+            }
+        }
+
+        private async Task TrySendDecisionEmailAsync(
+            TenancyExtensionRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _renewalEmailService.SendDecisionAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Renewal request {RequestId} was decided but its notification email failed.", request.Id);
+            }
+        }
+
+        private async Task TrySendWithdrawalEmailAsync(
+            TenancyExtensionRequest request,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _renewalEmailService.SendRequestWithdrawnAsync(request, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Renewal request {RequestId} was cancelled but its notification email failed.", request.Id);
+            }
         }
     }
 }

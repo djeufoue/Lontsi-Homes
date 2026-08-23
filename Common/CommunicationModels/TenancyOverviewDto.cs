@@ -40,6 +40,7 @@ namespace Common.CommunicationModels
         public int MaxMembers { get; set; }
         public int RentDueDay { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public int AutoExtensionMonths { get; set; } = 1;
         public DateTimeOffset? TerminatedAt { get; set; }
         public TenancyTerminationReasonEnum? TerminationReason { get; set; }
         public string? TerminationNotes { get; set; }
@@ -50,6 +51,8 @@ namespace Common.CommunicationModels
         public bool CanDelete { get; set; }
         public bool CanTerminate { get; set; }
         public bool CanRenew { get; set; }
+        public bool CanRequestTermination { get; set; }
+        public bool CanRequestRenewal { get; set; }
         public bool CanViewMembers { get; set; }
         public bool CanAddMembers { get; set; }
         public bool CanEditMembers { get; set; }
@@ -58,6 +61,7 @@ namespace Common.CommunicationModels
         public bool CanUploadDocuments { get; set; }
         public bool CanDeleteDocuments { get; set; }
         public bool CanViewRent { get; set; }
+        public bool CanViewRentReminderHistory { get; set; }
         public bool CanMarkRentPaid { get; set; }
         public bool CanCancelPendingPayment { get; set; }
         public bool CanSendRentReminder { get; set; }

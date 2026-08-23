@@ -6,6 +6,7 @@
 @{
     ViewData["Title"] = T["Apartment Overview"];
     var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
+    var isTenantWorkspace = User.IsInRole("Tenant") && !User.IsInRole("Admin") && !User.IsInRole("Landlord");
 
     var apartment = Model.Apartment;
     var documents = Model.Documents?.OrderByDescending(doc => doc.UploadedAt).ToList() ?? new List<Common.CommunicationModels.DocumentDto>();
@@ -13,9 +14,16 @@
     var apartmentDocuments = documents.Where(doc => doc.DocumentType != DocumentTypeEnum.ApartmentImage).ToList();
     var owners = Model.Owners ?? new List<Common.CommunicationModels.ApartmentOwnerDto>();
     var tenancies = Model.Tenancies ?? new List<Common.CommunicationModels.TenancyDto>();
+    var latestTenancy = Model.LatestTenancy;
+    var latestTenancyMembers = Model.LatestTenancyMembers ?? new List<Common.CommunicationModels.TenancyMemberDto>();
     var reminderRules = apartment.RentReminderRules.OrderBy(rule => rule.SortOrder).ToList();
     var today = DateTimeOffset.UtcNow.Date;
     var localToday = DateTime.Today;
+
+    string MemberRoleLabel(string role) =>
+        string.Equals(role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase)
+            ? T["Main Tenant"].Value
+            : T[role].Value;
 
     string GetRelativeDateLabel(DateTimeOffset value)
     {
@@ -111,7 +119,7 @@
         .ToList();
 
     var activeTenancies = tenancies.Count(tenancy => GetTenancyState(tenancy) == "Active");
-    var memberCount = owners.Count;
+    var memberCount = Model.LatestTenancyMemberCount;
     var currentApartmentImage = apartmentImages.FirstOrDefault();
     var averageRent = tenancies.Any() ? tenancies.Average(tenancy => tenancy.MonthlyRent) : apartment.Price;
 }
@@ -136,13 +144,12 @@
             </div>
         </div>
 
-        <div class="rh-overview-hero-actions">
-            @if (apartment.PropertyMapEnabled)
-            {
+        @if (apartment.PropertyMapEnabled)
+        {
+            <div class="rh-overview-hero-actions">
                 <a class="btn rh-btn-subtle" asp-controller="Properties" asp-action="Map" asp-route-id="@apartment.PropertyId">@T["Property Map"]</a>
-            }
-            <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">@T["Property Workspace"]</a>
-        </div>
+            </div>
+        }
     </section>
 
     <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
@@ -178,11 +185,14 @@
                 <strong>@T[apartment.Status ?? string.Empty]</strong>
                 <small>@T["Operational apartment state"]</small>
             </div>
-            <div class="rh-apartment-stat-card rh-card-spotlight">
-                <span>@T["Automatic rent reminders"]</span>
-                <strong>@reminderRules.Count(rule => rule.IsEnabled)</strong>
-                <small>@T["Active rules for unpaid rent"]</small>
-            </div>
+            @if (!isTenantWorkspace)
+            {
+                <div class="rh-apartment-stat-card rh-card-spotlight">
+                    <span>@T["Automatic rent reminders"]</span>
+                    <strong>@reminderRules.Count(rule => rule.IsEnabled)</strong>
+                    <small>@T["Active rules for unpaid rent"]</small>
+                </div>
+            }
         </div>
     </section>
 
@@ -252,6 +262,8 @@
                 }
             </article>
 
+            @if (!isTenantWorkspace)
+            {
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
                 <div class="rh-overview-panel-head align-start">
                     <div>
@@ -392,66 +404,125 @@
                     </div>
                 </template>
             </article>
+            }
         </div>
 
         <div class="rh-overview-sidecolumn rh-overview-sidecolumn-priority">
             <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="members">
                 <div class="rh-overview-panel-head align-start">
                     <div>
-                        <h2 class="rh-dashboard-panel-title">@T["Apartment members"]</h2>
-                        <p class="rh-dashboard-panel-copy">@T["Owners and collaborators with apartment-level access."]</p>
+                        <h2 class="rh-dashboard-panel-title">@T["Latest tenancy members"]</h2>
+                        @if (latestTenancy != null)
+                        {
+                            <p class="rh-dashboard-panel-copy">@T["All members from tenancy #{0}, regardless of whether it is active or closed.", latestTenancy.Id]</p>
+                        }
+                        else
+                        {
+                            <p class="rh-dashboard-panel-copy">@T["Members from the most recent tenancy will appear here."]</p>
+                        }
                     </div>
 
-                    @if (Model.CanManageMembers)
-                    {
-                        <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentMemberModal">@T["Add+"]</button>
-                    }
                 </div>
 
-                <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="members">
-                    <input type="hidden" name="id" value="@apartment.Id" />
-                    <input type="hidden" name="tenancySearch" value="@Model.TenancySearch" />
-                    <div class="rh-search-input-wrap">
-                        <span class="rh-search-icon"></span>
-                        <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="@T["Search apartment members"]" autocomplete="off" />
-                    </div>
-                </form>
-                @if (!owners.Any())
+                @if (latestTenancy != null && Model.CanViewLatestTenancyMembers)
                 {
-                    <div class="rh-empty">@T["No apartment members assigned yet."]</div>
+                    <form method="get" asp-action="Overview" class="rh-overview-searchbar rh-auto-search-form" data-section-search="members">
+                        <input type="hidden" name="id" value="@apartment.Id" />
+                        <input type="hidden" name="tenancySearch" value="@Model.TenancySearch" />
+                        <div class="rh-search-input-wrap">
+                            <span class="rh-search-icon"></span>
+                            <input class="form-control rh-input js-auto-submit" type="text" name="memberSearch" value="@Model.MemberSearch" placeholder="@T["Search latest tenancy members"]" autocomplete="off" />
+                        </div>
+                    </form>
+                }
+
+                @if (latestTenancy == null)
+                {
+                    <div class="rh-empty">@T["No tenancy records linked to this apartment yet."]</div>
+                }
+                else if (!Model.CanViewLatestTenancyMembers)
+                {
+                    <div class="rh-empty">@T["You do not have permission to view the members of this tenancy."]</div>
+                }
+                else if (!latestTenancyMembers.Any())
+                {
+                    <div class="rh-empty">@(string.IsNullOrWhiteSpace(Model.MemberSearch) ? T["No tenancy members added yet."] : T["No tenancy members match this search."])</div>
                 }
                 else
                 {
                     <div class="rh-member-stack">
-                        @foreach (var owner in owners.OrderBy(item => item.Role == ApartmentMemberRoleEnum.Owner ? 0 : 1).ThenByDescending(item => item.AssignedAt))
+                        @foreach (var member in latestTenancyMembers)
                         {
                             <article class="rh-member-card rh-card-spotlight">
                                 <div class="rh-member-card-copy">
-                                    <strong>@owner.OwnerName</strong>
-                                    <small>@T[owner.Role.ToString()] • @T["Assigned {0}", owner.AssignedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)]</small>
+                                    <strong>@member.FullName</strong>
+                                    <small>@MemberRoleLabel(member.Role) • @(string.IsNullOrWhiteSpace(member.Email) ? T["No email saved"].Value : member.Email)</small>
+                                    <small>@(member.EmailConfirmed ? T["Email confirmed"].Value : T["Email activation pending"].Value)</small>
                                 </div>
 
                                 <div class="rh-member-card-actions">
-                                    <span class="rh-chip rh-chip-info">@T[owner.Role.ToString()]</span>
-                                    <span class="rh-chip @(owner.Permission == PermissionLevelEnum.ReadWrite ? "rh-chip-primary" : "rh-chip-warning")">@T[owner.Permission.ToString()]</span>
+                                    <span class="rh-chip @(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@MemberRoleLabel(member.Role)</span>
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Profile" asp-action="Index" asp-route-userId="@member.MemberId" asp-route-tenancyId="@latestTenancy.Id">@T["View information"]</a>
                                     @if (canOpenUserOverview)
                                     {
-                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@owner.OwnerId">@T["User overview"]</a>
-                                    }
-                                    @if (Model.CanManageMembers)
-                                    {
-                                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editApartmentMemberModal-@owner.Id">@T["Edit"]</button>
-                                        <form method="post" asp-action="RemoveOwner" data-confirm-modal="true" data-confirm-title="@T["Remove apartment member?"]" data-confirm-message="@T["This member will lose apartment access."]" data-confirm-proceed="@T["Remove member"]">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="apartmentId" value="@apartment.Id" />
-                                            <input type="hidden" name="assignmentId" value="@owner.Id" />
-                                            <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
-                                        </form>
+                                        <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@member.MemberId">@T["User overview"]</a>
                                     }
                                 </div>
                             </article>
                         }
                     </div>
+                }
+
+                @if (owners.Any() || Model.CanManageMembers)
+                {
+                    <details class="rh-apartment-access-disclosure">
+                        <summary>@T["Apartment access"] <span class="rh-chip rh-chip-info">@owners.Count</span></summary>
+                        <div class="rh-apartment-access-content">
+                            <div class="rh-overview-panel-head align-start">
+                                <p class="rh-dashboard-panel-copy">@T["Owners and collaborators with apartment-level access."]</p>
+                                @if (Model.CanManageMembers)
+                                {
+                                    <button type="button" class="btn btn-sm rh-btn-primary" data-bs-toggle="modal" data-bs-target="#addApartmentMemberModal">@T["Add+"]</button>
+                                }
+                            </div>
+                            @if (!owners.Any())
+                            {
+                                <div class="rh-empty">@T["No apartment members assigned yet."]</div>
+                            }
+                            else
+                            {
+                                <div class="rh-member-stack">
+                                    @foreach (var owner in owners.OrderBy(item => item.Role == ApartmentMemberRoleEnum.Owner ? 0 : 1).ThenByDescending(item => item.AssignedAt))
+                                    {
+                                        <article class="rh-member-card rh-card-spotlight">
+                                            <div class="rh-member-card-copy">
+                                                <strong>@owner.OwnerName</strong>
+                                                <small>@T[owner.Role.ToString()] • @T["Assigned {0}", owner.AssignedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)]</small>
+                                            </div>
+                                            <div class="rh-member-card-actions">
+                                                <span class="rh-chip rh-chip-info">@T[owner.Role.ToString()]</span>
+                                                <span class="rh-chip @(owner.Permission == PermissionLevelEnum.ReadWrite ? "rh-chip-primary" : "rh-chip-warning")">@T[owner.Permission.ToString()]</span>
+                                                @if (canOpenUserOverview)
+                                                {
+                                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@owner.OwnerId">@T["User overview"]</a>
+                                                }
+                                                @if (Model.CanManageMembers)
+                                                {
+                                                    <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editApartmentMemberModal-@owner.Id">@T["Edit"]</button>
+                                                    <form method="post" asp-action="RemoveOwner" data-confirm-modal="true" data-confirm-title="@T["Remove apartment member?"]" data-confirm-message="@T["This member will lose apartment access."]" data-confirm-proceed="@T["Remove member"]">
+                                                        @Html.AntiForgeryToken()
+                                                        <input type="hidden" name="apartmentId" value="@apartment.Id" />
+                                                        <input type="hidden" name="assignmentId" value="@owner.Id" />
+                                                        <button class="btn btn-sm rh-btn-outline-danger" type="submit">@T["Remove"]</button>
+                                                    </form>
+                                                }
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </details>
                 }
             </article>
 
@@ -590,9 +661,9 @@
     @foreach (var tenancy in sortedTenancies)
     {
         <div class="modal fade" id="editTenancyModal-@tenancy.Id" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                 <div class="modal-content rh-modal-content">
-                    <form method="post" asp-action="UpdateTenancy">
+                    <form method="post" asp-action="UpdateTenancy" data-edit-tenancy-form>
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="ApartmentId" value="@apartment.Id" />
                         <input type="hidden" name="TenancyId" value="@tenancy.Id" />
@@ -604,49 +675,63 @@
 
                         <div class="modal-body row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">@T["Start date"]</label>
-                                <input class="form-control rh-input" type="date" name="StartDate" value="@tenancy.StartDate.ToString("yyyy-MM-dd")" required />
+                                <label class="form-label">@T["Start date"] <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input class="form-control rh-input" type="date" name="StartDate" value="@tenancy.StartDate.ToString("yyyy-MM-dd")" required data-edit-start-date />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">@T["End date"]</label>
-                                <input class="form-control rh-input" type="date" name="EndDate" value="@(tenancy.EndDate?.ToString("yyyy-MM-dd") ?? string.Empty)" />
+                                <label class="form-label">@T["End date"] <span class="text-danger" data-edit-end-date-required hidden aria-hidden="true">*</span></label>
+                                <input class="form-control rh-input" type="date" name="EndDate" value="@(tenancy.EndDate?.ToString("yyyy-MM-dd") ?? string.Empty)" data-edit-end-date />
                             </div>
 
                             @if (Model.CanViewFinancialInformation)
                             {
                                 <div class="col-md-6">
-                                    <label class="form-label">@T["Monthly rent"]</label>
-                                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0" step="0.01" value="@tenancy.MonthlyRent" disabled="@(!Model.CanEditFinancialInformation)" required />
+                                    <label class="form-label">@T["Monthly rent"] @if (Model.CanEditFinancialInformation) { <span class="text-danger" aria-hidden="true">*</span> }</label>
+                                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@tenancy.MonthlyRent" disabled="@(!Model.CanEditFinancialInformation)" required data-edit-monthly-rent />
                                 </div>
                             }
 
                             <div class="col-md-6">
-                                <label class="form-label">@T["Max members"]</label>
-                                <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@tenancy.MaxMembers" required />
+                                <label class="form-label">@T["Max members"] <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@tenancy.MaxMembers" required data-edit-max-members />
                                 <small class="text-muted">@T["The selected dates must not overlap another tenancy for this apartment."]</small>
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">@T["Rent due day"]</label>
-                                <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@tenancy.RentDueDay" required />
+                                <label class="form-label">@T["Rent due day"] <span class="text-danger" aria-hidden="true">*</span></label>
+                                <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@tenancy.RentDueDay" required data-edit-rent-due-day />
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">@T["After end date"]</label>
+                                <label class="form-label">@T["After end date"] <span class="text-danger" aria-hidden="true">*</span></label>
                                 <div class="rh-select-wrap">
-                                    <select class="form-select rh-input rh-select" name="EndBehavior">
+                                    <select class="form-select rh-input rh-select" name="EndBehavior" required data-edit-end-behavior>
+                                        <option value="NoEndDate" selected="@(tenancy.EndBehavior is TenancyEndBehaviorEnum.NoEndDate or TenancyEndBehaviorEnum.ContinueMonthToMonth ? "selected" : null)">@T["No end date"]</option>
                                         <option value="ExpireAutomatically" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "selected" : null)">@T["Expire automatically"]</option>
-                                        <option value="ContinueMonthToMonth" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "selected" : null)">@T["Continue month-to-month"]</option>
-                                        <option value="NoEndDate" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "selected" : null)">@T["No end date"]</option>
                                     </select>
                                 </div>
+                                <small class="text-muted" data-edit-no-end-copy>@T["The tenancy stays active until it is terminated. When the final period is reached, the rent schedule is automatically extended by the selected number of months."]</small>
+                                <small class="text-muted" data-edit-expiry-copy hidden>@T["No new rent is generated automatically after the end date."]</small>
+                            </div>
+
+                            <div class="col-md-6" data-edit-auto-extension-container>
+                                <label class="form-label">@T["Automatic extension period"] <span class="text-danger" aria-hidden="true">*</span></label>
+                                <div class="rh-select-wrap">
+                                    <select class="form-select rh-input rh-select" name="AutoExtensionMonths" required data-edit-auto-extension>
+                                        @for (var monthCount = 1; monthCount <= 12; monthCount++)
+                                        {
+                                            <option value="@monthCount" selected="@(tenancy.AutoExtensionMonths == monthCount ? "selected" : null)">@T["{0} month(s)", monthCount]</option>
+                                        }
+                                    </select>
+                                </div>
+                                <small class="text-muted">@T["Used when the tenancy has no end date."]</small>
                             </div>
                         </div>
 
                         <div class="modal-footer border-0 pt-0">
                             <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
-                            <button type="submit" class="btn rh-btn-primary">@T["Save tenancy"]</button>
+                            <button type="submit" class="btn rh-btn-primary" data-edit-tenancy-submit disabled>@T["Save tenancy"]</button>
                         </div>
                     </form>
                 </div>
@@ -911,5 +996,73 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const noEndDateValue = "NoEndDate";
+
+            document.querySelectorAll("[data-edit-tenancy-form]").forEach(form => {
+                const startInput = form.querySelector("[data-edit-start-date]");
+                const endInput = form.querySelector("[data-edit-end-date]");
+                const endRequiredMarker = form.querySelector("[data-edit-end-date-required]");
+                const behaviorInput = form.querySelector("[data-edit-end-behavior]");
+                const rentInput = form.querySelector("[data-edit-monthly-rent]");
+                const membersInput = form.querySelector("[data-edit-max-members]");
+                const dueDayInput = form.querySelector("[data-edit-rent-due-day]");
+                const extensionContainer = form.querySelector("[data-edit-auto-extension-container]");
+                const extensionInput = form.querySelector("[data-edit-auto-extension]");
+                const noEndCopy = form.querySelector("[data-edit-no-end-copy]");
+                const expiryCopy = form.querySelector("[data-edit-expiry-copy]");
+                const submitButton = form.querySelector("[data-edit-tenancy-submit]");
+
+                const sync = () => {
+                    const noEndDate = behaviorInput?.value === noEndDateValue;
+                    const start = startInput?.value ?? "";
+                    const end = endInput?.value ?? "";
+
+                    if (endInput) {
+                        endInput.min = start;
+                        endInput.disabled = noEndDate;
+                        endInput.required = !noEndDate;
+                        if (noEndDate) endInput.value = "";
+                    }
+                    if (endRequiredMarker) endRequiredMarker.hidden = noEndDate;
+                    if (extensionContainer) extensionContainer.hidden = !noEndDate;
+                    if (extensionInput) {
+                        extensionInput.disabled = !noEndDate;
+                        extensionInput.required = noEndDate;
+                    }
+                    if (noEndCopy) noEndCopy.hidden = !noEndDate;
+                    if (expiryCopy) expiryCopy.hidden = noEndDate;
+
+                    const rent = Number.parseFloat(rentInput?.value ?? "");
+                    const members = Number.parseInt(membersInput?.value ?? "", 10);
+                    const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
+                    const extensionMonths = Number.parseInt(extensionInput?.value ?? "", 10);
+                    const rentIsValid = !rentInput || rentInput.disabled || (Number.isFinite(rent) && rent > 0);
+                    const dateRangeIsValid = noEndDate || (!!endInput?.value && (!start || endInput.value >= start));
+                    const extensionIsValid = !noEndDate || (Number.isInteger(extensionMonths) && extensionMonths >= 1 && extensionMonths <= 12);
+                    const isValid = !!start
+                        && dateRangeIsValid
+                        && rentIsValid
+                        && Number.isInteger(members) && members >= 1
+                        && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
+                        && extensionIsValid
+                        && form.checkValidity();
+
+                    if (submitButton) {
+                        submitButton.disabled = !isValid;
+                        submitButton.setAttribute("aria-disabled", isValid ? "false" : "true");
+                    }
+                };
+
+                form.addEventListener("input", sync);
+                form.addEventListener("change", sync);
+                sync();
+            });
+        })();
+    </script>
+}
 
 

@@ -4,6 +4,8 @@ using Microsoft.IdentityModel.Tokens;
 using Common.Enums;
 using RentHub.API.Models.Entities;
 using RentHub.API.Models.Settings;
+using RentHub.API.Data;
+using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -18,11 +20,37 @@ namespace RentHub.API.Services.Auth
     {
         private readonly JwtSettings _jwtSettings;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly ApplicationDbContext _context;
 
-        public TokenService(IOptions<JwtSettings> jwtOptions, UserManager<ApplicationUser> userManager)
+        public TokenService(
+            IOptions<JwtSettings> jwtOptions,
+            UserManager<ApplicationUser> userManager,
+            ApplicationDbContext context)
         {
             _jwtSettings = jwtOptions.Value;
             _userManager = userManager;
+            _context = context;
+        }
+
+        public async Task<IReadOnlyList<string>> GetEffectiveRolesAsync(ApplicationUser user)
+        {
+            var roles = (await _userManager.GetRolesAsync(user)).ToList();
+            if (roles.Any(role => string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase)))
+            {
+                var hasActiveManagerAssignment = await _context.PropertyManagerAssignments
+                    .AnyAsync(assignment => !assignment.IsDeleted && assignment.ManagerId == user.Id) ||
+                    await _context.ApartmentOwners.AnyAsync(assignment =>
+                        !assignment.IsDeleted &&
+                        assignment.OwnerId == user.Id &&
+                        assignment.Role == ApartmentMemberRoleEnum.Manager);
+
+                if (!hasActiveManagerAssignment)
+                {
+                    roles.RemoveAll(role => string.Equals(role, "Manager", StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            return roles;
         }
 
         public async Task<string> GenerateTokenAsync(ApplicationUser user)
@@ -38,7 +66,7 @@ namespace RentHub.API.Services.Auth
                 new Claim(PlatformLanguageOptions.ClaimType, user.Language.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
-            var roles = await _userManager.GetRolesAsync(user);
+            var roles = await GetEffectiveRolesAsync(user);
             authClaims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SigningKey));

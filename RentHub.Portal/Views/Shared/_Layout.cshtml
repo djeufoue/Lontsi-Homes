@@ -4,23 +4,25 @@
 @using System.Text.Json
 @using RentHub.Portal.Helpers
 @{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
+    var suppressSuccessFeedback = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
     var rawSuccessMessage = TempData["Success"] as string;
     var rawInfoMessage = TempData["Info"] as string;
     var rawErrorMessage = TempData["Error"] as string;
     var successDialog = SuccessDialogHelper.GetActive(Context.Session);
-    var successMessage = !successDialog.ShowSuccessMessages || string.IsNullOrWhiteSpace(rawSuccessMessage)
+    var successMessage = suppressSuccessFeedback || !successDialog.ShowSuccessMessages || string.IsNullOrWhiteSpace(rawSuccessMessage)
         ? null
         : T[rawSuccessMessage].Value;
     var infoMessage = string.IsNullOrWhiteSpace(rawInfoMessage) ? null : T[rawInfoMessage].Value;
     var errorMessage = string.IsNullOrWhiteSpace(rawErrorMessage) ? null : T[rawErrorMessage].Value;
 
-    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
-    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty;
     var isHome = string.Equals(currentController, "Home", StringComparison.OrdinalIgnoreCase);
     var isMarketingPage = isHome;
     var isProperties = string.Equals(currentController, "Properties", StringComparison.OrdinalIgnoreCase);
     var isApartments = string.Equals(currentController, "Apartments", StringComparison.OrdinalIgnoreCase);
     var isTenancies = string.Equals(currentController, "Tenancies", StringComparison.OrdinalIgnoreCase);
+    var isTenancyRequests = string.Equals(currentController, "TenancyRequests", StringComparison.OrdinalIgnoreCase);
     var isMembers = string.Equals(currentController, "Members", StringComparison.OrdinalIgnoreCase);
     var isMessages = string.Equals(currentController, "Conversations", StringComparison.OrdinalIgnoreCase);
     var isAdminSubscriptionsController = string.Equals(currentController, "AdminSubscriptions", StringComparison.OrdinalIgnoreCase);
@@ -33,14 +35,19 @@
     var isProfile = string.Equals(currentController, "Profile", StringComparison.OrdinalIgnoreCase);
     var isProfileHome = isProfile && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
     var isProfilePayments = isProfile && string.Equals(currentAction, "Payments", StringComparison.OrdinalIgnoreCase);
-    var isTenantDashboard = string.Equals(currentController, "Tenant", StringComparison.OrdinalIgnoreCase);
 
     var userPrincipal = User;
     var isAuthenticated = userPrincipal?.Identity?.IsAuthenticated == true;
+    var isTenantWorkspace = userPrincipal?.IsInRole("Tenant") == true &&
+                            userPrincipal?.IsInRole("Admin") != true &&
+                            userPrincipal?.IsInRole("Landlord") != true;
     var canSeeProperties = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true || userPrincipal?.IsInRole("Tenant") == true;
-    var canSeeMembersDirectory = userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true;
-    var canSeeMessages = userPrincipal?.IsInRole("Visitor") == true || userPrincipal?.IsInRole("Landlord") == true;
-    var canSeeTenantDashboard = userPrincipal?.IsInRole("Tenant") == true;
+    var canSeeMembersDirectory = !isTenantWorkspace &&
+                                 (userPrincipal?.IsInRole("Landlord") == true || userPrincipal?.IsInRole("Manager") == true || userPrincipal?.IsInRole("Admin") == true);
+    var canSeeMessages = userPrincipal?.IsInRole("Tenant") == true ||
+                         userPrincipal?.IsInRole("Visitor") == true ||
+                         userPrincipal?.IsInRole("Landlord") == true ||
+                         userPrincipal?.IsInRole("Manager") == true;
     var showSidebar = isAuthenticated && !isMarketingPage;
     var canSeeProfile = isAuthenticated && userPrincipal?.IsInRole("Visitor") != true;
     var hasSubscriptionExemption = string.Equals(
@@ -55,16 +62,16 @@
     var userInitial = !string.IsNullOrWhiteSpace(userName) ? userName.Trim()[0].ToString().ToUpperInvariant() : "U";
     var userRoleName =
         userPrincipal?.IsInRole("Admin") == true ? T["Administrator"].Value :
-        userPrincipal?.IsInRole("Manager") == true ? T["Manager"].Value :
         userPrincipal?.IsInRole("Landlord") == true ? T["Landlord"].Value :
         userPrincipal?.IsInRole("Tenant") == true ? T["Tenant"].Value :
+        userPrincipal?.IsInRole("Manager") == true ? T["Manager"].Value :
         userPrincipal?.IsInRole("Visitor") == true ? T["Visitor"].Value :
         T["Account"].Value;
     var userRoleLabel =
         userPrincipal?.IsInRole("Admin") == true ? T["Administrator workspace"].Value :
-        userPrincipal?.IsInRole("Manager") == true ? T["Manager workspace"].Value :
         userPrincipal?.IsInRole("Landlord") == true ? T["Landlord workspace"].Value :
         userPrincipal?.IsInRole("Tenant") == true ? T["Tenant workspace"].Value :
+        userPrincipal?.IsInRole("Manager") == true ? T["Manager workspace"].Value :
         userPrincipal?.IsInRole("Visitor") == true ? T["Visitor workspace"].Value :
         T["Workspace profile"].Value;
     var clientTranslations = new Dictionary<string, string>
@@ -104,7 +111,11 @@
         ["Light"] = T["Light"].Value,
         ["Device"] = T["Device"].Value,
         ["Pay {0} period through {1}"] = T["Pay {0} period through {1}"].Value,
-        ["Pay {0} periods through {1}"] = T["Pay {0} periods through {1}"].Value
+        ["Pay {0} periods through {1}"] = T["Pay {0} periods through {1}"].Value,
+        ["{0} request(s) awaiting a decision"] = T["{0} request(s) awaiting a decision"].Value,
+        ["Requests awaiting a decision"] = T["Requests awaiting a decision"].Value,
+        ["New decision on your tenancy request"] = T["New decision on your tenancy request"].Value,
+        ["{0} new request decision(s)"] = T["{0} new request decision(s)"].Value
     };
 }
 <!DOCTYPE html>
@@ -191,6 +202,11 @@
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-tenancies"></use></svg>
                                 <span>@T["Tenancies"]</span>
                             </a>
+                            <a class="rh-nav-link @(isTenancyRequests ? "active" : null)" asp-controller="TenancyRequests" asp-action="Index" aria-current="@(isTenancyRequests ? "page" : null)">
+                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
+                                <span>@T["Tenancy requests"]</span>
+                                @await Component.InvokeAsync("TenancyRequestPendingCount")
+                            </a>
                             @if (canSeeMembersDirectory)
                             {
                                 <a class="rh-nav-link @(isMembers ? "active" : null)" asp-controller="Members" asp-action="Index" aria-current="@(isMembers ? "page" : null)">
@@ -202,18 +218,11 @@
 
                         @if (canSeeMessages)
                         {
-                            <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index" aria-current="@(isMessages ? "page" : null)">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
-                                <span>@T["Conversations"]</span>
-                            </a>
-                        }
-
-                        @if (canSeeTenantDashboard)
-                        {
-                            <a class="rh-nav-link @(isTenantDashboard ? "active" : null)" asp-controller="Tenant" asp-action="Index" aria-current="@(isTenantDashboard ? "page" : null)">
-                                <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-dashboard"></use></svg>
-                                <span>@T["Rent Dashboard"]</span>
-                            </a>
+                             <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index" aria-current="@(isMessages ? "page" : null)">
+                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
+                                 <span>@T["Conversations"]</span>
+                                 @await Component.InvokeAsync("ConversationUnreadCount")
+                             </a>
                         }
 
                         <a class="rh-nav-link @(isHome ? "active" : null)" asp-controller="Home" asp-action="Index" aria-current="@(isHome ? "page" : null)">
@@ -240,6 +249,7 @@
                             <a class="rh-nav-link @(isMessages ? "active" : null)" asp-controller="Conversations" asp-action="Index" asp-route-kind="subscription">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
                                 <span>@T["Conversations"]</span>
+                                @await Component.InvokeAsync("ConversationUnreadCount")
                             </a>
                             <a class="rh-nav-link @(isSubscriptionsAdmin ? "active" : null)" asp-controller="AdminSubscriptions" asp-action="Index">
                                 <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-settings"></use></svg>
@@ -307,13 +317,6 @@
                         @if (isMarketingPage)
                         {
                             <nav class="rh-public-workspace-nav" aria-label="@T["Workspace"]">
-                                @if (canSeeTenantDashboard)
-                                {
-                                    <a class="rh-public-workspace-link" asp-controller="Tenant" asp-action="Index" aria-label="@T["Rent Dashboard"]" title="@T["Rent Dashboard"]">
-                                        <svg aria-hidden="true"><use href="#rh-icon-dashboard"></use></svg>
-                                        <span>@T["Rent Dashboard"]</span>
-                                    </a>
-                                }
                                 @if (canSeeProperties)
                                 {
                                     <a class="rh-public-workspace-link" asp-controller="Properties" asp-action="Index" aria-label="@T["My Properties"]" title="@T["My Properties"]">

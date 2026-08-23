@@ -286,7 +286,7 @@ namespace Common.Helpers
                 RentPeriodStatusEnum.Overdue => "Overdue",
                 RentPeriodStatusEnum.PendingPayment => "Pending payment",
                 RentPeriodStatusEnum.Paid => "Paid",
-                RentPeriodStatusEnum.PaidBeforeRentHub => "Paid before RentHub",
+                RentPeriodStatusEnum.PaidBeforeRentHub => "Historical payment",
                 RentPeriodStatusEnum.PaidInAdvance => "Paid in advance",
                 RentPeriodStatusEnum.Waived => "Waived",
                 RentPeriodStatusEnum.Cancelled => "Cancelled",

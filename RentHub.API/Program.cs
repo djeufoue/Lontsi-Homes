@@ -25,6 +25,7 @@ using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
 using RentHub.API.Services.Subscriptions;
 using RentHub.API.Services.Receipts;
+using RentHub.API.Services.Conversations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -159,8 +160,10 @@ builder.Services.AddScoped<RentHub.API.Services.Permissions.IManagerPermissionSe
 builder.Services.AddScoped<RentHub.API.Services.Maps.IPropertyGeocodingService, RentHub.API.Services.Maps.GooglePropertyGeocodingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
 builder.Services.AddScoped<ITenancyRenewalEmailService, TenancyRenewalEmailService>();
+builder.Services.AddScoped<ITenancyTerminationEmailService, TenancyTerminationEmailService>();
 builder.Services.AddScoped<IOpenEndedTenancyRentPeriodService, OpenEndedTenancyRentPeriodService>();
 builder.Services.AddScoped<IRentReminderService, RentReminderService>();
+builder.Services.AddScoped<IConversationNotificationJob, ConversationNotificationJob>();
 
 // SMS & Email
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();

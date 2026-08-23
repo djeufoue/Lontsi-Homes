@@ -27,7 +27,7 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public IActionResult Login(string? returnUrl = null)
+        public IActionResult Login(string? returnUrl = null, string? email = null)
         {
             if (User.Identity?.IsAuthenticated == true)
                 return RedirectToLocal(returnUrl);
@@ -35,7 +35,10 @@ namespace RentHub.Portal.Controllers
             if (TempData["AuthInfo"] is string info)
                 ViewBag.AuthInfo = info;
 
-            return View(new LoginVm { ReturnUrl = returnUrl });
+            if (TempData["AuthError"] is string error)
+                ViewBag.AuthError = error;
+
+            return View(new LoginVm { ReturnUrl = returnUrl, Email = email?.Trim() ?? string.Empty });
         }
 
         [HttpPost]
@@ -998,6 +1001,94 @@ namespace RentHub.Portal.Controllers
 
         [HttpGet]
         [AllowAnonymous]
+        public IActionResult ForgotPassword(string? email = null)
+        {
+            if (User.Identity?.IsAuthenticated == true)
+                return RedirectToAction("Index", "Home");
+
+            return View(new ForgotPasswordVm { Email = email?.Trim() ?? string.Empty });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordVm vm)
+        {
+            if (!ModelState.IsValid)
+                return View(vm);
+
+            try
+            {
+                await _api.PostAnonymousAsync<ForgotPasswordRequest>(
+                    "Account/forgot-password",
+                    new ForgotPasswordRequest { Email = vm.Email.Trim() });
+            }
+            catch (Exception ex)
+            {
+                // Keep this response identical to the success path so the portal cannot be
+                // used to discover accounts or email-provider availability.
+                _logger.LogWarning(ex, "Password recovery request could not be completed by the API.");
+            }
+
+            return RedirectToAction(nameof(ForgotPasswordConfirmation));
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult ForgotPasswordConfirmation()
+            => View();
+
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult ResetPassword(string email, string token)
+        {
+            Response.Headers.CacheControl = "no-store, no-cache";
+            Response.Headers.Pragma = "no-cache";
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token))
+            {
+                TempData["AuthError"] = "This password reset link is invalid or incomplete. Request a new link and try again.";
+                return RedirectToAction(nameof(Login));
+            }
+
+            return View(new ResetPasswordVm { Email = email.Trim(), Token = token });
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ResetPasswordVm vm)
+        {
+            Response.Headers.CacheControl = "no-store, no-cache";
+            Response.Headers.Pragma = "no-cache";
+
+            if (!ModelState.IsValid)
+                return View(vm);
+
+            try
+            {
+                await _api.PostAnonymousAsync<ResetPasswordRequest>(
+                    "Account/reset-password",
+                    new ResetPasswordRequest
+                    {
+                        Email = vm.Email.Trim(),
+                        Token = vm.Token,
+                        NewPassword = vm.NewPassword
+                    });
+
+                TempData["AuthInfo"] = "Your password has been reset. You can now sign in.";
+                return RedirectToAction(nameof(Login), new { email = vm.Email.Trim() });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Password reset failed for an invalid or expired recovery link.");
+                ModelState.AddModelError(string.Empty, "This password reset link is invalid or has expired. Request a new link and try again.");
+                return View(vm);
+            }
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
         public IActionResult SetPassword(string email, string token)
         {
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token))
@@ -1018,7 +1109,7 @@ namespace RentHub.Portal.Controllers
             try
             {
                 await _api.PostAnonymousAsync<ResetPasswordRequest, JsonElement>(
-                    "Account/reset-password",
+                    "Account/set-invited-password",
                     new ResetPasswordRequest
                     {
                         Email = vm.Email,

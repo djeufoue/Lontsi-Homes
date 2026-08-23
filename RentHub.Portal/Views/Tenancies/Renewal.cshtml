@@ -16,7 +16,7 @@
             }
             else
             {
-                <a class="rh-overview-backlink" asp-controller="Tenant" asp-action="Index">&#8592; @T["Back to rent dashboard"]</a>
+                <a class="rh-overview-backlink" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@workspace.TenancyId">&#8592; @T["Back to tenancy overview"]</a>
             }
             <p class="rh-kicker">@T["Renewal workflow"]</p>
             <h1 class="rh-heading-title">@T["Tenancy renewal"]</h1>

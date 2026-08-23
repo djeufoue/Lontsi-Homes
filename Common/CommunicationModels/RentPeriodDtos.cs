@@ -60,6 +60,7 @@ namespace Common.CommunicationModels
         public int MaxMembers { get; set; } = 1;
         public int RentDueDay { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public int AutoExtensionMonths { get; set; } = 1;
         public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
         public TenantInvitationRequest MainTenant { get; set; } = new();
     }
@@ -152,8 +153,6 @@ namespace Common.CommunicationModels
     {
         public DateTimeOffset TerminationDate { get; set; }
         public TenancyTerminationReasonEnum Reason { get; set; } = TenancyTerminationReasonEnum.Other;
-        public FutureRentHandlingEnum FutureRentHandling { get; set; } = FutureRentHandlingEnum.CancelFutureUnpaidPeriods;
         public string? Notes { get; set; }
-        public List<int> WaivedRentPeriodIds { get; set; } = new();
     }
 }

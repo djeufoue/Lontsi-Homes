@@ -442,7 +442,7 @@ namespace RentHub.API.Services.Users
                 user.Email ?? string.Empty,
                 isVisitor: false,
                 useGeneralAccountPage: isTenantActivation,
-                returnUrl: isTenantActivation ? "/Tenant" : null);
+                returnUrl: isTenantActivation ? "/Tenancies" : null);
             var lines = new List<string>
             {
                 isFrench ? $"Bonjour {greetingName}," : $"Hello {greetingName},",

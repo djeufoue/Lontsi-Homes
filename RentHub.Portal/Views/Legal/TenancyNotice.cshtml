@@ -1,0 +1,54 @@
+@using Common.Helpers
+@{
+    ViewData["Title"] = T["Cameroon tenancy notice"].Value;
+}
+
+<section class="rh-overview-shell rh-tenancy-shell">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            <p class="rh-kicker">@T["LEGAL INFORMATION"]</p>
+            <h1 class="rh-heading-title">@T["Ending a residential tenancy in Cameroon"]</h1>
+            <p class="rh-heading-subtitle">@T["A practical summary of the notice safeguards used by Lontsi Homes."]</p>
+        </div>
+    </section>
+
+    <section class="rh-panel rh-panel-elevated">
+        <div class="alert alert-danger">
+            <strong>@T["Important"]</strong>
+            <div>@T["This page provides general information, not legal advice. The signed tenancy, the circumstances of the termination, local practice and current Cameroonian law may change the required process."]</div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <article class="rh-card-spotlight p-3 h-100">
+                    <h2 class="rh-dashboard-panel-title">@T["Platform notice guardrail"]</h2>
+                    <p>@T["For an ordinary decision initiated by a landlord, Lontsi Homes requires a termination date at least {0} months after the notice is recorded.", CameroonTenancyNoticePolicy.StandardLandlordNoticeMonths]</p>
+                    <p class="mb-0">@T["The guardrail is deliberately conservative. It does not automatically validate an eviction, a contractual exception or a shorter notice period."]</p>
+                </article>
+            </div>
+            <div class="col-lg-6">
+                <article class="rh-card-spotlight p-3 h-100">
+                    <h2 class="rh-dashboard-panel-title">@T["What the Civil Code says"]</h2>
+                    <p>@T["Article 1736 states that notice for a tenancy made without a written agreement follows the time limits established by local practice."]</p>
+                    <p class="mb-0">@T["Article 1737 states that a written fixed-term tenancy ends automatically at the agreed term, without notice being required solely to reach that term."]</p>
+                </article>
+            </div>
+        </div>
+
+        <article class="rh-card-spotlight p-3 mt-3">
+            <h2 class="rh-dashboard-panel-title">@T["Recommended notice record"]</h2>
+            <ul class="mb-0">
+                <li>@T["Identify the landlord, tenant and rented home clearly."]</li>
+                <li>@T["State the notice date, intended end date and reason."]</li>
+                <li>@T["Check the signed tenancy for a notice clause or an early-termination clause."]</li>
+                <li>@T["Keep proof that the tenant received the notice; the supplied guidance recommends registered delivery with acknowledgement of receipt."]</li>
+                <li>@T["Seek qualified Cameroonian legal advice before relying on an exception or pursuing eviction."]</li>
+            </ul>
+        </article>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+            <a class="btn rh-btn-primary" href="https://legecam.cm/?download_id=8452&amp;sdm_process_download=1" target="_blank" rel="noopener noreferrer">@T["Consult the Cameroonian Civil Code source"]</a>
+            <a class="btn rh-btn-subtle" asp-controller="Tenancies" asp-action="Index">@T["Back to tenancies"]</a>
+        </div>
+    </section>
+</section>

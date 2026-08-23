@@ -74,7 +74,6 @@ namespace RentHub.API.Services.Tenancies
             CancellationToken cancellationToken,
             bool retryOnDuplicate = true)
         {
-            var targetEnd = EndOfMonth(StartOfMonth(nowUtc).AddMonths(1));
             var eligibleTenancies = _context.Tenancies
                 .AsNoTracking()
                 .Where(tenancy =>
@@ -98,6 +97,7 @@ namespace RentHub.API.Services.Tenancies
                     StartDate = tenancy.StartDate,
                     MonthlyRent = tenancy.MonthlyRent,
                     RentDueDay = tenancy.RentDueDay,
+                    AutoExtensionMonths = tenancy.AutoExtensionMonths,
                     LatestPeriodEnd = tenancy.RentPeriods
                         .OrderByDescending(period => period.PeriodStart)
                         .Select(period => (DateTimeOffset?)period.PeriodEnd)
@@ -113,14 +113,14 @@ namespace RentHub.API.Services.Tenancies
             var schedulesToExtend = schedules
                 .Where(schedule =>
                     schedule.LatestPeriodEnd == null ||
-                    schedule.LatestPeriodEnd.Value.Date < targetEnd.Date ||
+                    schedule.LatestPeriodEnd.Value.Date < ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths).Date ||
                     !schedule.HasOpenPeriod)
                 .ToList();
 
             var newPeriods = new List<RentPeriod>();
             foreach (var schedule in schedulesToExtend)
             {
-                var scheduleTargetEnd = targetEnd;
+                var scheduleTargetEnd = ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths);
                 if (!schedule.HasOpenPeriod && schedule.LatestPeriodEnd.HasValue)
                 {
                     var nextPeriodEnd = EndOfMonth(schedule.LatestPeriodEnd.Value.AddDays(1));
@@ -206,7 +206,9 @@ namespace RentHub.API.Services.Tenancies
                 "Created {PeriodCount} rent period(s) for {TenancyCount} open-ended tenancy schedule(s), through at least {TargetEnd:yyyy-MM-dd}.",
                 newPeriods.Count,
                 schedulesToExtend.Count,
-                targetEnd);
+                schedulesToExtend.Count == 0
+                    ? ResolveTargetEnd(nowUtc, 1)
+                    : schedulesToExtend.Max(schedule => ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths)));
 
             return new ProvisioningResult(schedules.Count, newPeriods.Count);
         }
@@ -228,12 +230,18 @@ namespace RentHub.API.Services.Tenancies
             return StartOfMonth(value).AddMonths(1).AddDays(-1);
         }
 
+        private static DateTimeOffset ResolveTargetEnd(DateTimeOffset nowUtc, int autoExtensionMonths)
+        {
+            return EndOfMonth(StartOfMonth(nowUtc).AddMonths(Math.Clamp(autoExtensionMonths, 1, 12)));
+        }
+
         private sealed class OpenEndedTenancySchedule
         {
             public int TenancyId { get; init; }
             public DateTimeOffset StartDate { get; init; }
             public decimal MonthlyRent { get; init; }
             public int RentDueDay { get; init; }
+            public int AutoExtensionMonths { get; init; }
             public DateTimeOffset? LatestPeriodEnd { get; init; }
             public bool HasOpenPeriod { get; init; }
         }

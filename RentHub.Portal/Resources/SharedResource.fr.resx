@@ -344,7 +344,6 @@
   <data name="Rent payment information" xml:space="preserve"><value>Renseignements sur le paiement du loyer</value></data>
   <data name="Review what is due and contact your landlord to arrange an offline payment." xml:space="preserve"><value>Consultez les sommes dues et communiquez avec votre propriétaire pour organiser un paiement hors ligne.</value></data>
   <data name="Back to rent dashboard" xml:space="preserve"><value>Retour au tableau de bord des loyers</value></data>
-  <data name="Automatic card, Orange Money and MTN payments are temporarily unavailable for this property. Do not enter payment credentials on another page." xml:space="preserve"><value>Les paiements automatiques par carte, Orange Money et MTN sont temporairement indisponibles pour cette propriété. Ne saisissez pas vos données de paiement sur une autre page.</value></data>
   <data name="Outstanding balance" xml:space="preserve"><value>Solde impayé</value></data>
   <data name="Across unpaid rent periods" xml:space="preserve"><value>Pour l'ensemble des périodes de loyer impayées</value></data>
   <data name="Next due date" xml:space="preserve"><value>Prochaine échéance</value></data>
@@ -352,6 +351,7 @@
   <data name="Oldest unpaid period" xml:space="preserve"><value>Période impayée la plus ancienne</value></data>
   <data name="How to continue" xml:space="preserve"><value>Comment continuer</value></data>
   <data name="Contact the landlord using the email shown above." xml:space="preserve"><value>Communiquez avec le propriétaire à l'adresse courriel indiquée ci-dessus.</value></data>
+  <data name="Contact the landlord" xml:space="preserve"><value>Communiquer avec le propriétaire</value></data>
   <data name="Agree on the accepted offline payment method." xml:space="preserve"><value>Convenez d'un mode de paiement hors ligne accepté.</value></data>
   <data name="Ask the landlord to record the cash payment in Lontsi Homes and provide your receipt." xml:space="preserve"><value>Demandez au propriétaire d'enregistrer le paiement en espèces dans Lontsi Homes et de vous remettre votre reçu.</value></data>
   <data name="Unpaid periods" xml:space="preserve"><value>Périodes impayées</value></data>
@@ -403,7 +403,7 @@
   <data name="Waived" xml:space="preserve"><value>Dispensé</value></data>
   <data name="Cancelled" xml:space="preserve"><value>Annulé</value></data>
   <data name="Paid" xml:space="preserve"><value>Payé</value></data>
-  <data name="PaidBeforeRentHub" xml:space="preserve"><value>Payé avant Lontsi Homes</value></data>
+  <data name="PaidBeforeRentHub" xml:space="preserve"><value>Paiement antérieur</value></data>
   <data name="PaidInAdvance" xml:space="preserve"><value>Payé d'avance</value></data>
   <data name="Tenancy Overview" xml:space="preserve"><value>Aperçu de la location</value></data>
   <data name="Back to apartment overview" xml:space="preserve"><value>Retour à l'aperçu de l'appartement</value></data>
@@ -477,6 +477,25 @@
   <data name="Phone number" xml:space="preserve"><value>Numéro de téléphone</value></data>
   <data name="Optional" xml:space="preserve"><value>Facultatif</value></data>
   <data name="MainTenant" xml:space="preserve"><value>Locataire principal</value></data>
+  <data name="Main Tenant" xml:space="preserve"><value>Locataire principal</value></data>
+  <data name="Tenant Profile" xml:space="preserve"><value>Profil du locataire</value></data>
+  <data name="Unnamed tenant" xml:space="preserve"><value>Locataire sans nom</value></data>
+  <data name="{0} / {1} rent period(s) complete" xml:space="preserve"><value>{0} / {1} période(s) de loyer payée(s)</value></data>
+  <data name="Tenant overview" xml:space="preserve"><value>Aperçu du locataire</value></data>
+  <data name="Contact, activation, and rent progress for this tenancy member." xml:space="preserve"><value>Coordonnées, activation et progression des loyers pour ce membre de la location.</value></data>
+  <data name="Live member view" xml:space="preserve"><value>Vue en direct du membre</value></data>
+  <data name="Activated account" xml:space="preserve"><value>Compte activé</value></data>
+  <data name="Waiting for activation" xml:space="preserve"><value>En attente d’activation</value></data>
+  <data name="Open rent balance" xml:space="preserve"><value>Solde de loyer impayé</value></data>
+  <data name="Rent payment progress" xml:space="preserve"><value>Progression du paiement des loyers</value></data>
+  <data name="{0} of {1} periods complete" xml:space="preserve"><value>{0} période(s) payée(s) sur {1}</value></data>
+  <data name="Next payable" xml:space="preserve"><value>Prochaine période à payer</value></data>
+  <data name="No unlocked rent period" xml:space="preserve"><value>Aucune période de loyer payable</value></data>
+  <data name="Payment status for every generated period in this tenancy." xml:space="preserve"><value>État des paiements pour chaque période de loyer générée dans cette location.</value></data>
+  <data name="Contact details" xml:space="preserve"><value>Coordonnées</value></data>
+  <data name="Stored contact details for reminders and tenancy communication." xml:space="preserve"><value>Coordonnées enregistrées pour les rappels et les communications liées à la location.</value></data>
+  <data name="Not verified yet" xml:space="preserve"><value>Pas encore vérifié</value></data>
+  <data name="Added to tenancy" xml:space="preserve"><value>Ajouté à la location</value></data>
   <data name="CoTenant" xml:space="preserve"><value>Colocataire</value></data>
   <data name="Children" xml:space="preserve"><value>Enfant</value></data>
   <data name="Add member" xml:space="preserve"><value>Ajouter le membre</value></data>
@@ -1255,7 +1274,7 @@
   <data name="ResidencePermit" xml:space="preserve"><value>Titre de séjour</value></data>
   <data name="Not due yet" xml:space="preserve"><value>Pas encore exigible</value></data>
   <data name="Pending payment" xml:space="preserve"><value>Paiement en attente</value></data>
-  <data name="Paid before RentHub" xml:space="preserve"><value>Payé avant Lontsi Homes</value></data>
+  <data name="Paid before RentHub" xml:space="preserve"><value>Paiement antérieur</value></data>
   <data name="Paid in advance" xml:space="preserve"><value>Payé d’avance</value></data>
   <data name="Pay previous periods first" xml:space="preserve"><value>Payez d’abord les périodes précédentes</value></data>
   <data name="Unknown" xml:space="preserve"><value>Inconnu</value></data>
@@ -1444,7 +1463,10 @@
   <data name="Rental unit" xml:space="preserve"><value>Logement</value></data>
   <data name="Rent period" xml:space="preserve"><value>Période de loyer</value></data>
   <data name="Invalid invoice" xml:space="preserve"><value>Facture invalide</value></data>
-  <data name="Invoice not found" xml:space="preserve"><value>Facture introuvable</value></data>
+    <data name="Invoice not found" xml:space="preserve"><value>Facture introuvable</value></data>
+    <data name="Invoice access denied" xml:space="preserve"><value>Accès à la facture refusé</value></data>
+    <data name="Access denied" xml:space="preserve"><value>Accès refusé</value></data>
+    <data name="You are not authorized to view this invoice. Sign in with the tenant, landlord, or property manager account linked to it." xml:space="preserve"><value>Vous n’êtes pas autorisé à consulter cette facture. Connectez-vous avec le compte du locataire, du bailleur ou du gestionnaire de la propriété qui y est associé.</value></data>
   <data name="The scanned code does not match a valid system-generated rent invoice." xml:space="preserve"><value>Le code scanné ne correspond pas à une facture de loyer valide générée par le système.</value></data>
   <data name="Processing..." xml:space="preserve"><value>Traitement en cours...</value></data>
   <data name="Payment processing is in progress. Please wait." xml:space="preserve"><value>Le paiement est en cours de traitement. Veuillez patienter.</value></data>
@@ -1547,4 +1569,217 @@
   <data name="Outstanding amount for this period" xml:space="preserve"><value>Montant impayé pour cette période</value></data>
   <data name="Period covered by this history" xml:space="preserve"><value>Période concernée par cet historique</value></data>
   <data name="Due on {0}" xml:space="preserve"><value>Échéance le {0}</value></data>
+  <data name="Choose a tenancy to review its rent periods, payment history, documents, and payment options." xml:space="preserve"><value>Choisissez une location pour consulter ses périodes de loyer, son historique de paiement, ses documents et ses options de paiement.</value></data>
+  <data name="My tenancies" xml:space="preserve"><value>Mes locations</value></data>
+  <data name="Each apartment has its own rent balance, periods, payment history, and documents." xml:space="preserve"><value>Chaque appartement possède son propre solde, ses périodes de loyer, son historique de paiement et ses documents.</value></data>
+  <data name="Open tenancy" xml:space="preserve"><value>Ouvrir la location</value></data>
+  <data name="paid periods" xml:space="preserve"><value>payées</value></data>
+  <data name="periods unpaid" xml:space="preserve"><value>impayées</value></data>
+  <data name="My tenancy" xml:space="preserve"><value>Ma location</value></data>
+  <data name="Tenant tenancy workspace" xml:space="preserve"><value>Espace de location du locataire</value></data>
+  <data name="Full tenancy workspace" xml:space="preserve"><value>Espace complet de la location</value></data>
+  <data name="Tenancy at a glance" xml:space="preserve"><value>Aperçu de la location</value></data>
+  <data name="The key rent and contact information for this apartment." xml:space="preserve"><value>Les principaux renseignements sur le loyer et les contacts de cet appartement.</value></data>
+  <data name="Rent progress" xml:space="preserve"><value>Progression des loyers</value></data>
+  <data name="Paid rent periods" xml:space="preserve"><value>Périodes de loyer payées</value></data>
+  <data name="Pay the oldest outstanding period first or contact your landlord when online payment is unavailable." xml:space="preserve"><value>Payez d’abord la plus ancienne période impayée ou communiquez avec votre propriétaire lorsque le paiement en ligne est indisponible.</value></data>
+  <data name="No rent period is currently recorded." xml:space="preserve"><value>Aucune période de loyer n’est actuellement enregistrée.</value></data>
+  <data name="Recorded payments for this tenancy and their receipts." xml:space="preserve"><value>Paiements enregistrés pour cette location et leurs reçus.</value></data>
+  <data name="No payment has been recorded for this tenancy yet." xml:space="preserve"><value>Aucun paiement n’a encore été enregistré pour cette location.</value></data>
+  <data name="The current contract registered for this tenancy." xml:space="preserve"><value>Le contrat actuellement enregistré pour cette location.</value></data>
+  <data name="Document" xml:space="preserve"><value>Document</value></data>
+  <data name="Uploaded" xml:space="preserve"><value>Téléversé le</value></data>
+  <data name="Latest tenancy members" xml:space="preserve"><value>Membres de la dernière location</value></data>
+  <data name="All members from tenancy #{0}, regardless of whether it is active or closed." xml:space="preserve"><value>Tous les membres de la location no {0}, qu’elle soit active ou terminée.</value></data>
+  <data name="Members from the most recent tenancy will appear here." xml:space="preserve"><value>Les membres de la location la plus récente apparaîtront ici.</value></data>
+  <data name="Search latest tenancy members" xml:space="preserve"><value>Rechercher dans les membres de la dernière location</value></data>
+  <data name="You do not have permission to view the members of this tenancy." xml:space="preserve"><value>Vous n’avez pas l’autorisation de consulter les membres de cette location.</value></data>
+  <data name="No tenancy members match this search." xml:space="preserve"><value>Aucun membre de la location ne correspond à cette recherche.</value></data>
+  <data name="View information" xml:space="preserve"><value>Voir les informations</value></data>
+  <data name="Apartment access" xml:space="preserve"><value>Accès à l’appartement</value></data>
+  <data name="Tenancy requests" xml:space="preserve"><value>Demandes liées aux baux</value></data>
+  <data name="Tenancy workflow" xml:space="preserve"><value>Gestion des baux</value></data>
+  <data name="Track renewal and end-of-tenancy requests for every apartment available to you." xml:space="preserve"><value>Suivez les demandes de renouvellement et de fin de bail pour tous les appartements auxquels vous avez accès.</value></data>
+  <data name="{0} request(s)" xml:space="preserve"><value>{0} demande(s)</value></data>
+  <data name="Submit a request. The tenancy changes only after an authorized person approves it." xml:space="preserve"><value>Soumettez une demande. Le bail ne change qu’après l’approbation d’une personne autorisée.</value></data>
+  <data name="Request the end of this tenancy" xml:space="preserve"><value>Demander la fin de ce bail</value></data>
+  <data name="Choose your preferred end date. Your landlord or an authorized manager must approve it." xml:space="preserve"><value>Choisissez la date de fin souhaitée. Le bailleur ou un gestionnaire autorisé doit l’approuver.</value></data>
+  <data name="Requested end date" xml:space="preserve"><value>Date de fin souhaitée</value></data>
+  <data name="Reason optional" xml:space="preserve"><value>Motif facultatif</value></data>
+  <data name="Add any useful context for the landlord" xml:space="preserve"><value>Ajoutez toute information utile pour le bailleur</value></data>
+  <data name="Submit end-of-tenancy request" xml:space="preserve"><value>Soumettre la demande de fin de bail</value></data>
+  <data name="This option is available because the tenancy has a fixed end date." xml:space="preserve"><value>Cette option est disponible parce que le bail possède une date de fin définie.</value></data>
+  <data name="Request register" xml:space="preserve"><value>Registre des demandes</value></data>
+  <data name="Managers with view access can read requests. Decision buttons appear only when they have the required permission." xml:space="preserve"><value>Les gestionnaires disposant d’un accès en lecture peuvent consulter les demandes. Les actions de décision apparaissent uniquement avec l’autorisation requise.</value></data>
+  <data name="Request type" xml:space="preserve"><value>Type de demande</value></data>
+  <data name="All request types" xml:space="preserve"><value>Tous les types de demande</value></data>
+  <data name="End of tenancy" xml:space="preserve"><value>Fin de bail</value></data>
+  <data name="No tenancy request matches these filters." xml:space="preserve"><value>Aucune demande liée aux baux ne correspond à ces filtres.</value></data>
+  <data name="Property / apartment" xml:space="preserve"><value>Propriété / appartement</value></data>
+  <data name="Request" xml:space="preserve"><value>Demande</value></data>
+  <data name="Requested date" xml:space="preserve"><value>Date demandée</value></data>
+  <data name="Submitted {0}" xml:space="preserve"><value>Soumise le {0}</value></data>
+  <data name="View only" xml:space="preserve"><value>Lecture seule</value></data>
+  <data name="Approve this request?" xml:space="preserve"><value>Approuver cette demande ?</value></data>
+  <data name="The tenancy end date and rent schedule will be extended immediately." xml:space="preserve"><value>La date de fin du bail et l’échéancier des loyers seront prolongés immédiatement.</value></data>
+  <data name="The requested end date will be applied to the tenancy immediately." xml:space="preserve"><value>La date de fin demandée sera appliquée immédiatement au bail.</value></data>
+  <data name="Reject this request?" xml:space="preserve"><value>Refuser cette demande ?</value></data>
+  <data name="The tenancy will remain unchanged. The reason will be sent to the tenant." xml:space="preserve"><value>Le bail restera inchangé. Le motif sera envoyé au locataire.</value></data>
+  <data name="Rejection reason" xml:space="preserve"><value>Motif du refus</value></data>
+  <data name="Confirm rejection" xml:space="preserve"><value>Confirmer le refus</value></data>
+  <data name="Your tenancy requests" xml:space="preserve"><value>Vos demandes liées au bail</value></data>
+  <data name="You can request an earlier tenancy end or ask to renew this fixed-term tenancy. Nothing changes until the request is approved." xml:space="preserve"><value>Vous pouvez demander une fin anticipée ou le renouvellement de ce bail à durée déterminée. Rien ne change avant l’approbation de la demande.</value></data>
+  <data name="This tenancy has no scheduled end date. You can request an end date; renewal is not needed for an open-ended tenancy." xml:space="preserve"><value>Ce bail n’a pas de date de fin prévue. Vous pouvez demander une date de fin ; un renouvellement n’est pas nécessaire pour un bail à durée indéterminée.</value></data>
+  <data name="Open tenancy requests" xml:space="preserve"><value>Ouvrir les demandes liées au bail</value></data>
+  <data name="Ending" xml:space="preserve"><value>Fin planifiée</value></data>
+  <data name="Tenancy end request submitted." xml:space="preserve"><value>Demande de fin de bail soumise.</value></data>
+  <data name="A rejection reason is required." xml:space="preserve"><value>Le motif du refus est obligatoire.</value></data>
+  <data name="Tenancy end request approved." xml:space="preserve"><value>Demande de fin de bail approuvée.</value></data>
+  <data name="Tenancy end request rejected." xml:space="preserve"><value>Demande de fin de bail refusée.</value></data>
+  <data name="Unable to load tenancy requests right now." xml:space="preserve"><value>Impossible de charger les demandes liées aux baux pour le moment.</value></data>
+  <data name="Unable to submit the tenancy end request right now." xml:space="preserve"><value>Impossible de soumettre la demande de fin de bail pour le moment.</value></data>
+  <data name="Unable to approve the request right now." xml:space="preserve"><value>Impossible d’approuver la demande pour le moment.</value></data>
+  <data name="Unable to reject the request right now." xml:space="preserve"><value>Impossible de refuser la demande pour le moment.</value></data>
+  <data name="Choose the requested tenancy end date." xml:space="preserve"><value>Choisissez la date de fin de bail souhaitée.</value></data>
+  <data name="The rejection reason cannot exceed 1000 characters." xml:space="preserve"><value>Le motif du refus ne peut pas dépasser 1 000 caractères.</value></data>
+  <data name="The request reason cannot exceed 1000 characters." xml:space="preserve"><value>Le motif de la demande ne peut pas dépasser 1 000 caractères.</value></data>
+  <data name="1 year" xml:space="preserve"><value>1 an</value></data>
+  <data name="{0} years" xml:space="preserve"><value>{0} ans</value></data>
+  <data name="1 hour" xml:space="preserve"><value>1 heure</value></data>
+  <data name="{0} hours" xml:space="preserve"><value>{0} heures</value></data>
+  <data name="1 minute" xml:space="preserve"><value>1 minute</value></data>
+  <data name="{0} minutes" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="1 second" xml:space="preserve"><value>1 seconde</value></data>
+  <data name="{0} seconds" xml:space="preserve"><value>{0} secondes</value></data>
+  <data name="Historical payment" xml:space="preserve"><value>Paiement antérieur</value></data>
+  <data name="Paid before this tenancy was recorded in Lontsi Homes." xml:space="preserve"><value>Payé avant l’enregistrement de ce bail dans Lontsi Homes.</value></data>
+  <data name="Future periods to pay" xml:space="preserve"><value>Périodes futures à payer</value></data>
+  <data name="Classify generated periods as unpaid, historical payments, or prepaid." xml:space="preserve"><value>Classez les périodes générées comme impayées, paiements antérieurs ou paiements anticipés.</value></data>
+  <data name="All past periods are historical payments" xml:space="preserve"><value>Toutes les périodes antérieures sont des paiements antérieurs</value></data>
+  <data name="Use this when those periods were already paid before the tenancy was recorded in Lontsi Homes." xml:space="preserve"><value>Utilisez cette option lorsque ces périodes avaient déjà été payées avant l’enregistrement du bail dans Lontsi Homes.</value></data>
+  <data name="Choose one continuous unpaid range; earlier periods are recorded as historical payments." xml:space="preserve"><value>Choisissez une plage continue impayée ; les périodes précédentes seront enregistrées comme paiements antérieurs.</value></data>
+  <data name="Choose the effective date. Rent tracking and automatic reminders will stop on that date." xml:space="preserve"><value>Choisissez la date d’effet. Le suivi des loyers et les rappels automatiques s’arrêteront à cette date.</value></data>
+  <data name="Important notice rule" xml:space="preserve"><value>Règle importante sur le préavis</value></data>
+  <data name="Lontsi Homes applies a conservative minimum notice period of three months to a landlord decision. The tenancy contract and applicable Cameroonian law must also be checked." xml:space="preserve"><value>Lontsi Homes applique un délai de préavis conservateur d’au moins trois mois à une décision du bailleur. Le contrat de location et le droit camerounais applicable doivent également être vérifiés.</value></data>
+  <data name="Read the Cameroon tenancy notice summary" xml:space="preserve"><value>Lire le résumé sur le préavis au Cameroun</value></data>
+  <data name="Tenancy termination decision recorded. Rent tracking will stop on the selected date." xml:space="preserve"><value>La décision de résiliation a été enregistrée. Le suivi des loyers s’arrêtera à la date choisie.</value></data>
+  <data name="Direct landlord decision" xml:space="preserve"><value>Décision directe du bailleur</value></data>
+  <data name="Cancel termination decision" xml:space="preserve"><value>Annuler la décision de résiliation</value></data>
+  <data name="Cancel the termination decision?" xml:space="preserve"><value>Annuler la décision de résiliation ?</value></data>
+  <data name="Choose whether to restore the current tenancy or create its replacement." xml:space="preserve"><value>Choisissez de rétablir le bail actuel ou de créer un bail de remplacement.</value></data>
+  <data name="How should the tenancy continue?" xml:space="preserve"><value>Comment le bail doit-il se poursuivre ?</value></data>
+  <data name="Restore and extend the current tenancy" xml:space="preserve"><value>Rétablir et prolonger le bail actuel</value></data>
+  <data name="Create a replacement tenancy" xml:space="preserve"><value>Créer un bail de remplacement</value></data>
+  <data name="Replacement start date" xml:space="preserve"><value>Date de début du bail de remplacement</value></data>
+  <data name="The replacement must begin after the recorded termination date." xml:space="preserve"><value>Le bail de remplacement doit commencer après la date de résiliation enregistrée.</value></data>
+  <data name="New duration" xml:space="preserve"><value>Nouvelle durée</value></data>
+  <data name="No fixed end date" xml:space="preserve"><value>Durée indéterminée</value></data>
+  <data name="Fixed end date" xml:space="preserve"><value>Date de fin déterminée</value></data>
+  <data name="New end date" xml:space="preserve"><value>Nouvelle date de fin</value></data>
+  <data name="Note optional" xml:space="preserve"><value>Note facultative</value></data>
+  <data name="This action immediately updates tenancy dates and the rent schedule. It cannot overlap another tenancy for the apartment." xml:space="preserve"><value>Cette action met immédiatement à jour les dates du bail et l’échéancier des loyers. Elle ne peut pas chevaucher un autre bail de l’appartement.</value></data>
+  <data name="Keep termination" xml:space="preserve"><value>Conserver la résiliation</value></data>
+  <data name="Confirm cancellation" xml:space="preserve"><value>Confirmer l’annulation</value></data>
+  <data name="Tenancy termination decision cancelled." xml:space="preserve"><value>La décision de résiliation a été annulée.</value></data>
+  <data name="Choose the new tenancy end date or select an open-ended tenancy." xml:space="preserve"><value>Choisissez la nouvelle date de fin du bail ou sélectionnez une durée indéterminée.</value></data>
+  <data name="Choose the replacement tenancy start date." xml:space="preserve"><value>Choisissez la date de début du bail de remplacement.</value></data>
+  <data name="The cancellation note cannot exceed 1000 characters." xml:space="preserve"><value>La note d’annulation ne peut pas dépasser 1 000 caractères.</value></data>
+  <data name="Unable to cancel the termination decision right now." xml:space="preserve"><value>Impossible d’annuler la décision de résiliation pour le moment.</value></data>
+  <data name="Cameroon tenancy notice" xml:space="preserve"><value>Préavis locatif au Cameroun</value></data>
+  <data name="LEGAL INFORMATION" xml:space="preserve"><value>INFORMATIONS JURIDIQUES</value></data>
+  <data name="Ending a residential tenancy in Cameroon" xml:space="preserve"><value>Mettre fin à un bail d’habitation au Cameroun</value></data>
+  <data name="A practical summary of the notice safeguards used by Lontsi Homes." xml:space="preserve"><value>Un résumé pratique des garde-fous de préavis utilisés par Lontsi Homes.</value></data>
+  <data name="Important" xml:space="preserve"><value>Important</value></data>
+  <data name="This page provides general information, not legal advice. The signed tenancy, the circumstances of the termination, local practice and current Cameroonian law may change the required process." xml:space="preserve"><value>Cette page fournit des informations générales et non un avis juridique. Le bail signé, les circonstances de la résiliation, les usages locaux et le droit camerounais en vigueur peuvent modifier la procédure requise.</value></data>
+  <data name="Platform notice guardrail" xml:space="preserve"><value>Garde-fou de préavis de la plateforme</value></data>
+  <data name="For an ordinary decision initiated by a landlord, Lontsi Homes requires a termination date at least {0} months after the notice is recorded." xml:space="preserve"><value>Pour une décision ordinaire prise par un bailleur, Lontsi Homes exige une date de résiliation située au moins {0} mois après l’enregistrement du préavis.</value></data>
+  <data name="The guardrail is deliberately conservative. It does not automatically validate an eviction, a contractual exception or a shorter notice period." xml:space="preserve"><value>Ce garde-fou est volontairement conservateur. Il ne valide pas automatiquement une expulsion, une exception contractuelle ou un délai de préavis plus court.</value></data>
+  <data name="What the Civil Code says" xml:space="preserve"><value>Ce que prévoit le Code civil</value></data>
+  <data name="Article 1736 states that notice for a tenancy made without a written agreement follows the time limits established by local practice." xml:space="preserve"><value>L’article 1736 indique que le congé d’un bail conclu sans écrit respecte les délais fixés par l’usage des lieux.</value></data>
+  <data name="Article 1737 states that a written fixed-term tenancy ends automatically at the agreed term, without notice being required solely to reach that term." xml:space="preserve"><value>L’article 1737 indique qu’un bail écrit à durée déterminée cesse de plein droit au terme convenu, sans qu’un congé soit nécessaire uniquement pour atteindre ce terme.</value></data>
+  <data name="Recommended notice record" xml:space="preserve"><value>Contenu recommandé du préavis</value></data>
+  <data name="Identify the landlord, tenant and rented home clearly." xml:space="preserve"><value>Identifiez clairement le bailleur, le locataire et le logement loué.</value></data>
+  <data name="State the notice date, intended end date and reason." xml:space="preserve"><value>Indiquez la date du préavis, la date de fin prévue et le motif.</value></data>
+  <data name="Check the signed tenancy for a notice clause or an early-termination clause." xml:space="preserve"><value>Vérifiez si le bail signé comporte une clause de préavis ou de résiliation anticipée.</value></data>
+  <data name="Keep proof that the tenant received the notice; the supplied guidance recommends registered delivery with acknowledgement of receipt." xml:space="preserve"><value>Conservez une preuve de réception par le locataire ; le guide fourni recommande un envoi recommandé avec accusé de réception.</value></data>
+  <data name="Seek qualified Cameroonian legal advice before relying on an exception or pursuing eviction." xml:space="preserve"><value>Consultez un juriste camerounais qualifié avant d’invoquer une exception ou d’engager une procédure d’expulsion.</value></data>
+  <data name="Consult the Cameroonian Civil Code source" xml:space="preserve"><value>Consulter la source du Code civil camerounais</value></data>
+  <data name="Back to tenancies" xml:space="preserve"><value>Retour aux locations</value></data>
+  <data name="Make a renewal request" xml:space="preserve"><value>Faire une demande de renouvellement</value></data>
+  <data name="Make an end-of-tenancy request" xml:space="preserve"><value>Faire une demande de fin de bail</value></data>
+  <data name="Choose the tenancy concerned" xml:space="preserve"><value>Choisissez le bail concerné</value></data>
+  <data name="All apartments" xml:space="preserve"><value>Tous les appartements</value></data>
+  <data name="No new rent is generated automatically after the end date." xml:space="preserve"><value>Aucun nouveau loyer n’est généré automatiquement après la date de fin.</value></data>
+  <data name="The tenancy stays active until it is terminated. When the final period is reached, the rent schedule is automatically extended by the selected number of months." xml:space="preserve"><value>La location demeure active jusqu’à sa résiliation. À l’arrivée de la dernière période, l’échéancier des loyers est automatiquement prolongé du nombre de mois sélectionné.</value></data>
+  <data name="Automatic extension period" xml:space="preserve"><value>Période de prolongation automatique</value></data>
+  <data name="{0} month(s)" xml:space="preserve"><value>{0} mois</value></data>
+  <data name="When the last available rent period is reached, the system adds this many monthly periods automatically." xml:space="preserve"><value>Lorsque la dernière période de loyer disponible est atteinte, le système ajoute automatiquement ce nombre de périodes mensuelles.</value></data>
+  <data name="Used when the tenancy has no end date." xml:space="preserve"><value>Utilisé lorsque le bail n’a pas de date de fin.</value></data>
+  <data name="From {0} to {1}" xml:space="preserve"><value>Du {0} au {1}</value></data>
+  <data name="Payment history treatment" xml:space="preserve"><value>Traitement de l’historique des paiements</value></data>
+  <data name="Property messaging" xml:space="preserve"><value>Messagerie de la propriété</value></data>
+  <data name="Private messages between tenants and the property team. Tenant replies are never visible to other tenants." xml:space="preserve"><value>Messages privés entre les locataires et l'équipe de la propriété. Les réponses d'un locataire ne sont jamais visibles par les autres locataires.</value></data>
+  <data name="New message" xml:space="preserve"><value>Nouveau message</value></data>
+  <data name="New property announcement" xml:space="preserve"><value>Nouvelle annonce à la propriété</value></data>
+  <data name="Private conversation" xml:space="preserve"><value>Conversation privée</value></data>
+  <data name="Contact the property team" xml:space="preserve"><value>Contacter l'équipe de la propriété</value></data>
+  <data name="Choose the apartment concerned. Your message will be visible only to you and the authorized property team." xml:space="preserve"><value>Choisissez l'appartement concerné. Votre message sera visible uniquement par vous et l'équipe autorisée de la propriété.</value></data>
+  <data name="Write your message" xml:space="preserve"><value>Rédigez votre message</value></data>
+  <data name="Send message" xml:space="preserve"><value>Envoyer le message</value></data>
+  <data name="Property announcement" xml:space="preserve"><value>Annonce de la propriété</value></data>
+  <data name="Send to every current tenant" xml:space="preserve"><value>Envoyer à tous les locataires actuels</value></data>
+  <data name="Each tenant receives the announcement in a private thread. Their replies remain private." xml:space="preserve"><value>Chaque locataire reçoit l'annonce dans une conversation privée. Ses réponses restent privées.</value></data>
+  <data name="Announcement" xml:space="preserve"><value>Annonce</value></data>
+  <data name="Write the property announcement" xml:space="preserve"><value>Rédigez l'annonce de la propriété</value></data>
+  <data name="Send property announcement" xml:space="preserve"><value>Envoyer l'annonce</value></data>
+  <data name="Unread" xml:space="preserve"><value>Non lu</value></data>
+  <data name="Private tenant thread" xml:space="preserve"><value>Conversation privée du locataire</value></data>
+  <data name="Only this tenant and the authorized property team can see this conversation." xml:space="preserve"><value>Seuls ce locataire et l'équipe autorisée de la propriété peuvent voir cette conversation.</value></data>
+  <data name="Property team" xml:space="preserve"><value>Équipe de la propriété</value></data>
+  <data name="Read" xml:space="preserve"><value>Lu</value></data>
+  <data name="Your reply" xml:space="preserve"><value>Votre réponse</value></data>
+  <data name="Replies are sent only inside Lontsi Homes." xml:space="preserve"><value>Les réponses sont envoyées uniquement dans Lontsi Homes.</value></data>
+  <data name="You have read-only access to this conversation." xml:space="preserve"><value>Vous disposez d'un accès en lecture seule à cette conversation.</value></data>
+  <data name="Unread conversations are marked with a counter in the inbox." xml:space="preserve"><value>Les conversations non lues sont signalées par un compteur dans la boîte de réception.</value></data>
+  <data name="Send a first private message to your property team." xml:space="preserve"><value>Envoyez un premier message privé à l'équipe de votre propriété.</value></data>
+  <data name="Send a property announcement to start tenant threads." xml:space="preserve"><value>Envoyez une annonce à la propriété pour démarrer les conversations avec les locataires.</value></data>
+  <data name="Property announcement sent." xml:space="preserve"><value>Annonce de la propriété envoyée.</value></data>
+  <data name="{0} active tenant(s)" xml:space="preserve"><value>{0} locataire(s) actif(s)</value></data>
+  <data name="{0} unread message(s)" xml:space="preserve"><value>{0} message(s) non lu(s)</value></data>
+  <data name="We couldn't send this property announcement right now." xml:space="preserve"><value>Impossible d'envoyer cette annonce à la propriété pour le moment.</value></data>
+  <data name="Requests awaiting a decision" xml:space="preserve"><value>Demandes en attente d’une décision</value></data>
+  <data name="{0} request(s) awaiting a decision" xml:space="preserve"><value>{0} demande(s) en attente d’une décision</value></data>
+  <data name="View tenancy" xml:space="preserve"><value>Voir le bail</value></data>
+  <data name="Cancel request" xml:space="preserve"><value>Annuler la demande</value></data>
+  <data name="Cancel this request?" xml:space="preserve"><value>Annuler cette demande ?</value></data>
+  <data name="This request is still awaiting a decision. Cancelling it will leave the tenancy unchanged." xml:space="preserve"><value>Cette demande attend encore une décision. Son annulation laissera le bail inchangé.</value></data>
+  <data name="Renewal request cancelled." xml:space="preserve"><value>La demande de renouvellement a été annulée.</value></data>
+  <data name="Tenancy end request cancelled." xml:space="preserve"><value>La demande de fin de bail a été annulée.</value></data>
+  <data name="Unable to cancel the request right now." xml:space="preserve"><value>Impossible d’annuler la demande pour le moment.</value></data>
+  <data name="Internal team message" xml:space="preserve"><value>Message interne</value></data>
+  <data name="Internal property team" xml:space="preserve"><value>Équipe interne de la propriété</value></data>
+  <data name="Message landlords, managers and administrators" xml:space="preserve"><value>Écrire aux bailleurs, gestionnaires et administrateurs</value></data>
+  <data name="This internal conversation is never visible to tenants." xml:space="preserve"><value>Cette conversation interne n’est jamais visible par les locataires.</value></data>
+  <data name="Write your internal message" xml:space="preserve"><value>Rédigez votre message interne</value></data>
+  <data name="Internal team" xml:space="preserve"><value>Équipe interne</value></data>
+  <data name="Tenant-invisible internal conversation" xml:space="preserve"><value>Conversation interne invisible aux locataires</value></data>
+  <data name="Only the landlord, authorized managers and administrators can see this conversation. Tenants never receive it." xml:space="preserve"><value>Seuls le bailleur, les gestionnaires autorisés et les administrateurs peuvent voir cette conversation. Les locataires ne la reçoivent jamais.</value></data>
+  <data name="Read by" xml:space="preserve"><value>Lu par</value></data>
+  <data name="New decision on your tenancy request" xml:space="preserve"><value>Nouvelle décision concernant votre demande liée au bail</value></data>
+  <data name="{0} new request decision(s)" xml:space="preserve"><value>{0} nouvelle(s) décision(s) concernant vos demandes</value></data>
+  <data name="Message email notifications" xml:space="preserve"><value>Notifications de messagerie par courriel</value></data>
+  <data name="Choose whether a follow-up email is sent when a new message is waiting for you in Lontsi Homes." xml:space="preserve"><value>Choisissez si un courriel supplémentaire doit être envoyé lorsqu’un nouveau message vous attend dans Lontsi Homes.</value></data>
+  <data name="Receive an email for new messages" xml:space="preserve"><value>Recevoir un courriel pour les nouveaux messages</value></data>
+  <data name="Disabling this option does not block messages in the platform. It only stops the additional email notification." xml:space="preserve"><value>La désactivation de cette option ne bloque pas les messages dans la plateforme. Elle empêche uniquement l’envoi du courriel de notification supplémentaire.</value></data>
+  <data name="Save notification preference" xml:space="preserve"><value>Enregistrer la préférence de notification</value></data>
+  <data name="Message email notifications have been enabled." xml:space="preserve"><value>Les notifications de messagerie par courriel ont été activées.</value></data>
+  <data name="Message email notifications have been disabled." xml:space="preserve"><value>Les notifications de messagerie par courriel ont été désactivées.</value></data>
+  <data name="Unable to update your message email notification preference right now. Please try again." xml:space="preserve"><value>Impossible de mettre à jour votre préférence de notification par courriel pour le moment. Veuillez réessayer.</value></data>
+  <data name="Write" xml:space="preserve"><value>Écrire</value></data>
+  <data name="Private message" xml:space="preserve"><value>Message privé</value></data>
+  <data name="Internal message" xml:space="preserve"><value>Message interne</value></data>
+  <data name="Close message composer" xml:space="preserve"><value>Fermer la rédaction du message</value></data>
+  <data name="Reply to this message" xml:space="preserve"><value>Répondre à ce message</value></data>
+  <data name="Replying to" xml:space="preserve"><value>Réponse à</value></data>
+  <data name="Cancel reply" xml:space="preserve"><value>Annuler la réponse</value></data>
 </root>

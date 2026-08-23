@@ -231,6 +231,9 @@ namespace RentHub.API.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("IsPropertyTeamConversation")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LandlordId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -260,7 +263,7 @@ namespace RentHub.API.Migrations
 
                     b.HasIndex("VisitorId");
 
-                    b.HasIndex("ApartmentId", "VisitorId")
+                    b.HasIndex("ApartmentId", "VisitorId", "IsPropertyTeamConversation")
                         .IsUnique();
 
                     b.ToTable("ApartmentConversations");
@@ -417,6 +420,11 @@ namespace RentHub.API.Migrations
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("ConversationEmailNotificationsEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("CountryCode")
                         .HasColumnType("nvarchar(max)");
@@ -597,6 +605,12 @@ namespace RentHub.API.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<bool>("IsPropertyBroadcast")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ReplyToMessageId")
+                        .HasColumnType("int");
+
                     b.Property<string>("SenderId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -605,9 +619,39 @@ namespace RentHub.API.Migrations
 
                     b.HasIndex("ConversationId");
 
+                    b.HasIndex("ReplyToMessageId");
+
                     b.HasIndex("SenderId");
 
                     b.ToTable("ConversationMessages");
+                });
+
+            modelBuilder.Entity("RentHub.API.Models.Entities.ConversationReadState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("LastReadAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ConversationId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("ConversationReadStates");
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.Document", b =>
@@ -1864,6 +1908,11 @@ namespace RentHub.API.Migrations
                     b.Property<int>("ApartmentId")
                         .HasColumnType("int");
 
+                    b.Property<int>("AutoExtensionMonths")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -1927,7 +1976,10 @@ namespace RentHub.API.Migrations
 
                     b.HasIndex("ApartmentId");
 
-                    b.ToTable("Tenancies");
+                    b.ToTable("Tenancies", t =>
+                        {
+                            t.HasCheckConstraint("CK_Tenancies_AutoExtensionMonths", "[AutoExtensionMonths] >= 1 AND [AutoExtensionMonths] <= 12");
+                        });
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.TenancyExtensionRequest", b =>
@@ -1949,6 +2001,9 @@ namespace RentHub.API.Migrations
 
                     b.Property<string>("CreatedBy")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DecisionViewedAt")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset?>("DeletedAt")
                         .HasColumnType("datetimeoffset");
@@ -2044,6 +2099,81 @@ namespace RentHub.API.Migrations
                     b.HasIndex("TenancyId");
 
                     b.ToTable("TenancyMembers");
+                });
+
+            modelBuilder.Entity("RentHub.API.Models.Entities.TenancyTerminationRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("DecisionViewedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("OriginalEndDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RequestedById")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTimeOffset>("RequestedEndDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ReviewedById")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TenancyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestedById");
+
+                    b.HasIndex("ReviewedById");
+
+                    b.HasIndex("TenancyId")
+                        .IsUnique()
+                        .HasFilter("[Status] = 0 AND [IsDeleted] = 0");
+
+                    b.ToTable("TenancyTerminationRequests");
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.UserSubscription", b =>
@@ -2312,6 +2442,11 @@ namespace RentHub.API.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("RentHub.API.Models.Entities.ConversationMessage", "ReplyToMessage")
+                        .WithMany()
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
@@ -2320,7 +2455,28 @@ namespace RentHub.API.Migrations
 
                     b.Navigation("Conversation");
 
+                    b.Navigation("ReplyToMessage");
+
                     b.Navigation("Sender");
+                });
+
+            modelBuilder.Entity("RentHub.API.Models.Entities.ConversationReadState", b =>
+                {
+                    b.HasOne("RentHub.API.Models.Entities.ApartmentConversation", "Conversation")
+                        .WithMany("ReadStates")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.Document", b =>
@@ -2644,6 +2800,32 @@ namespace RentHub.API.Migrations
                     b.Navigation("Tenancy");
                 });
 
+            modelBuilder.Entity("RentHub.API.Models.Entities.TenancyTerminationRequest", b =>
+                {
+                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedById")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("RentHub.API.Models.Entities.Tenancy", "Tenancy")
+                        .WithMany("TerminationRequests")
+                        .HasForeignKey("TenancyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RequestedBy");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("Tenancy");
+                });
+
             modelBuilder.Entity("RentHub.API.Models.Entities.UserSubscription", b =>
                 {
                     b.HasOne("RentHub.API.Models.Entities.SubscriptionPlan", "SubscriptionPlan")
@@ -2673,6 +2855,8 @@ namespace RentHub.API.Migrations
             modelBuilder.Entity("RentHub.API.Models.Entities.ApartmentConversation", b =>
                 {
                     b.Navigation("Messages");
+
+                    b.Navigation("ReadStates");
                 });
 
             modelBuilder.Entity("RentHub.API.Models.Entities.ApplicationUser", b =>
@@ -2720,6 +2904,8 @@ namespace RentHub.API.Migrations
                     b.Navigation("RentPeriods");
 
                     b.Navigation("RentReminders");
+
+                    b.Navigation("TerminationRequests");
                 });
 #pragma warning restore 612, 618
         }

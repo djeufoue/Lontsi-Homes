@@ -130,22 +130,27 @@ namespace RentHub.API.Helpers
         {
             if (isAdmin) return true;
 
-            var isLandlord = await context.Properties.AnyAsync(p => p.Id == propertyId && p.LandlordId == userId);
+            var isLandlord = await context.Properties.AnyAsync(p => !p.IsDeleted && p.Id == propertyId && p.LandlordId == userId);
             if (isLandlord) return true;
 
-            var isManager = await context.PropertyManagerAssignments.AnyAsync(m => m.PropertyId == propertyId && m.ManagerId == userId);
+            var isManager = await context.PropertyManagerAssignments.AnyAsync(m =>
+                !m.IsDeleted && m.PropertyId == propertyId && m.ManagerId == userId);
             if (isManager)
             {
-                return await context.PropertyManagerAssignments.AnyAsync(m =>
+                var canAccessAsManager = await context.PropertyManagerAssignments.AnyAsync(m =>
                     m.PropertyId == propertyId &&
                     m.ManagerId == userId &&
+                    !m.IsDeleted &&
                     (m.PermissionFlags & (long)ManagerPermission.ViewProperty) != 0);
+                if (canAccessAsManager) return true;
             }
 
-            var isOwner = await context.ApartmentOwners.AnyAsync(o => o.OwnerId == userId && o.Apartment!.PropertyId == propertyId);
+            var isOwner = await context.ApartmentOwners.AnyAsync(o =>
+                !o.IsDeleted && o.OwnerId == userId && o.Apartment!.PropertyId == propertyId);
             if (isOwner) return true;
 
             return await context.Tenancies.AnyAsync(t =>
+                !t.IsDeleted &&
                 t.Apartment!.PropertyId == propertyId &&
                 t.Members.Any(mm => !mm.IsDeleted && mm.MemberId == userId));
         }
@@ -158,12 +163,13 @@ namespace RentHub.API.Helpers
         {
             if (isAdmin) return true;
 
-            var isLandlord = await context.Properties.AnyAsync(p => p.Id == propertyId && p.LandlordId == userId);
+            var isLandlord = await context.Properties.AnyAsync(p => !p.IsDeleted && p.Id == propertyId && p.LandlordId == userId);
             if (isLandlord) return true;
 
             return await context.PropertyManagerAssignments.AnyAsync(m =>
                 m.PropertyId == propertyId &&
                 m.ManagerId == userId &&
+                !m.IsDeleted &&
                 (m.PermissionFlags & (long)ManagerPermission.EditProperty) != 0);
         }
 
@@ -180,7 +186,10 @@ namespace RentHub.API.Helpers
             if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
             var managerAssignment = await context.PropertyManagerAssignments
                 .AsNoTracking()
-                .FirstOrDefaultAsync(assignment => assignment.PropertyId == propertyId && assignment.ManagerId == userId);
+                .FirstOrDefaultAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.PropertyId == propertyId &&
+                    assignment.ManagerId == userId);
             if (managerAssignment != null)
             {
                 var apartmentOverride = await context.ManagerApartmentPermissionOverrides
@@ -209,7 +218,10 @@ namespace RentHub.API.Helpers
             if (await context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId)) return true;
             var managerAssignment = await context.PropertyManagerAssignments
                 .AsNoTracking()
-                .FirstOrDefaultAsync(assignment => assignment.PropertyId == propertyId && assignment.ManagerId == userId);
+                .FirstOrDefaultAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.PropertyId == propertyId &&
+                    assignment.ManagerId == userId);
             if (managerAssignment != null)
             {
                 var apartmentOverride = await context.ManagerApartmentPermissionOverrides
@@ -232,9 +244,9 @@ namespace RentHub.API.Helpers
         {
             if (roles.Contains("Admin")) return "Admin";
             if (roles.Contains("Landlord")) return "Landlord";
+            if (roles.Contains("Tenant")) return "Tenant";
             if (roles.Contains("Manager")) return "Manager";
             if (roles.Contains("Owner")) return "Owner";
-            if (roles.Contains("Tenant")) return "Tenant";
             return "User";
         }
 

@@ -5,6 +5,7 @@
     Layout = null;
 
     var culture = CultureInfo.CurrentCulture;
+    var accessAuthorized = ViewData["ReceiptAccessAuthorized"] as bool? ?? true;
     string DateLabel(DateTimeOffset? value) => value.HasValue
         ? value.Value.LocalDateTime.ToString("dd MMM yyyy", culture)
         : T["Unavailable"].Value;
@@ -151,7 +152,13 @@
             <img class="light" src="~/assets/branding/logo-light.png" alt="Lontsi Homes" width="1600" height="339" />
             <img class="dark" src="~/assets/branding/logo-dark.png" alt="" width="1600" height="339" aria-hidden="true" />
         </a>
-        @if (Model.IsValid)
+        @if (!accessAuthorized)
+        {
+            <span class="status">@T["Access denied"]</span>
+            <h1>@T["Invoice access denied"]</h1>
+            <p>@T["You are not authorized to view this invoice. Sign in with the tenant, landlord, or property manager account linked to it."]</p>
+        }
+        else if (Model.IsValid)
         {
             <span class="status">@T["Valid system invoice"]</span>
             <h1>@Model.ReceiptNumber</h1>

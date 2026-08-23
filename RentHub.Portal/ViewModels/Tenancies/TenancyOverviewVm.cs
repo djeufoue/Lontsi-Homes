@@ -25,19 +25,6 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public bool IsRentPeriodsPage { get; set; }
     }
 
-    public class TenancyMemberProfileVm
-    {
-        public TenancyDetailsDto Tenancy { get; set; } = new();
-        public TenancyMemberDto Member { get; set; } = new();
-        public List<RentPeriodDto> RentPeriods { get; set; } = new();
-
-        public decimal OutstandingBalance { get; set; }
-        public int PaidPeriods { get; set; }
-        public int TotalPeriods { get; set; }
-        public int ProgressPercent { get; set; }
-        public RentPeriodDto? NextPayablePeriod { get; set; }
-    }
-
     public class RentSummaryCardsVm
     {
         public RentSummaryDto Summary { get; set; } = new();

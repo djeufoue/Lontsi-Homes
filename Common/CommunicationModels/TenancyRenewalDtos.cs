@@ -7,8 +7,9 @@ namespace Common.CommunicationModels
 {
     public class RejectTenancyExtensionRequest
     {
+        [Required]
         [MaxLength(512)]
-        public string? Reason { get; set; }
+        public string Reason { get; set; } = string.Empty;
     }
 
     public class TenancyExtensionRequestDto

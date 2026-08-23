@@ -2,8 +2,6 @@
 @{
     ViewData["Title"] = T["Rent periods"].Value;
     var tenancy = Model.Tenancy;
-    var summary = Model.RentSummary;
-    var returnUrl = Context.Request.Path + Context.Request.QueryString;
 }
 
 <section class="rh-overview-shell rh-tenancy-shell">
@@ -18,44 +16,6 @@
                 <span class="rh-chip @(tenancy.CanMarkRentPaid || tenancy.CanCancelPendingPayment ? "rh-chip-primary" : "rh-chip-info")">@(tenancy.CanMarkRentPaid || tenancy.CanCancelPendingPayment ? T["Payment management"] : T["Read Access"])</span>
             </div>
         </div>
-        <div class="rh-overview-hero-actions">
-            <a class="btn rh-btn-primary" asp-action="Overview" asp-route-id="@tenancy.Id">@T["Tenancy Workspace"]</a>
-        </div>
-    </section>
-
-    <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
-        <div class="rh-overview-panel-head align-start">
-            <div>
-                <h2 class="rh-dashboard-panel-title">@T["Rent situation"]</h2>
-                <p class="rh-dashboard-panel-copy">@T["Amounts due include only rent periods whose due date has arrived."]</p>
-            </div>
-            <div class="d-flex flex-column align-items-end gap-2">
-                @if (summary.CanSendManualReminder)
-                {
-                    <form method="post"
-                          asp-action="SendManualRentReminder"
-                          data-confirm-modal="true"
-                          data-confirm-title="@T["Send this rent reminder now?"]"
-                          data-confirm-message="@T["A reminder attempt will start immediately for {0} unpaid period(s), totaling {1} XAF. This action counts toward the manual follow-up limit.", summary.DueNowPeriodCount, summary.DueNowAmount.ToString("N0")]"
-                          data-confirm-proceed="@T["Send the reminder"]"
-                          data-confirm-style="primary">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
-                        <input type="hidden" name="returnUrl" value="@returnUrl" />
-                        <button type="submit" class="btn btn-sm rh-btn-primary">@T["Send a reminder now"]</button>
-                    </form>
-                }
-                else if (tenancy.CanSendRentReminder && !string.IsNullOrWhiteSpace(summary.ManualReminderUnavailableReason))
-                {
-                    <small class="text-muted text-end">@T[summary.ManualReminderUnavailableReason]</small>
-                }
-                <small class="text-muted">@T["Manual follow-ups used: {0} of {1}", summary.ManualReminderCount, summary.ManualReminderLimit]</small>
-            </div>
-        </div>
-        <partial name="_RentSummaryCards" model="@(new RentHub.Portal.ViewModels.Tenancies.RentSummaryCardsVm
-            {
-                Summary = summary
-            })" />
     </section>
 
     <section class="rh-panel rh-panel-elevated">

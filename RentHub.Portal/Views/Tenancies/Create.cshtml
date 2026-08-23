@@ -22,6 +22,7 @@
         && draft.MonthlyRent > 0
         && draft.MaxMembers >= 1
         && draft.RentDueDay is >= 1 and <= 31
+        && draft.AutoExtensionMonths is >= 1 and <= 12
         && draft.HasSelectedImportMode
         && draft.ImportMode.HasValue
         && !string.IsNullOrWhiteSpace(draft.MainTenant.Email);
@@ -39,10 +40,12 @@
         .FirstOrDefault();
 
     string DateValue(DateTimeOffset? value) => value?.ToString("yyyy-MM-dd") ?? string.Empty;
-    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("d", CultureInfo.CurrentCulture);
+    string DateLabel(DateTimeOffset value) => value.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string LongDateLabel(DateTimeOffset value) => value.Date.ToString("dddd d MMMM yyyy", CultureInfo.CurrentCulture);
     string StatusClass(RentPeriodStatusEnum status) => status switch
     {
-        RentPeriodStatusEnum.PaidBeforeRentHub or RentPeriodStatusEnum.PaidInAdvance or RentPeriodStatusEnum.Paid => "rh-chip-primary",
+        RentPeriodStatusEnum.PaidInAdvance or RentPeriodStatusEnum.Paid => "rh-chip-primary",
+        RentPeriodStatusEnum.PaidBeforeRentHub => "rh-chip-info",
         RentPeriodStatusEnum.Overdue or RentPeriodStatusEnum.Due => "rh-chip-warning",
         RentPeriodStatusEnum.Cancelled or RentPeriodStatusEnum.Waived => "rh-chip-info",
         _ => "rh-chip-info"
@@ -106,45 +109,53 @@
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
                 <div class="col-md-6">
-                    <label class="form-label">@T["Start date"]</label>
+                    <label class="form-label">@T["Start date"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="date" name="StartDate" value="@DateValue(draft.StartDate)" required data-details-start />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">@T["End date"]</label>
+                    <label class="form-label">@T["End date"] <span class="text-danger" data-end-date-required hidden aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="date" name="EndDate" value="@DateValue(draft.EndDate)" data-end-date-input data-details-end />
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">@T["Monthly rent"]</label>
+                    <label class="form-label">@T["Monthly rent"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@draft.MonthlyRent" required data-details-rent />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">@T["Max members"]</label>
+                    <label class="form-label">@T["Max members"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@draft.MaxMembers" required data-details-members />
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">@T["Rent due day"]</label>
+                    <label class="form-label">@T["Rent due day"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@draft.RentDueDay" required data-details-due-day />
                 </div>
 
                 <div class="col-12">
-                    <label class="form-label">@T["After end date behavior"]</label>
-                    <div class="rh-guided-option-grid">
+                    <label class="form-label">@T["After end date behavior"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="rh-guided-option-grid rh-guided-option-grid-two">
                         <label class="rh-guided-option">
-                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ExpireAutomatically)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "checked" : null) data-end-behavior />
-                            <span>@T["Expire automatically"]</span>
-                            <small>@T["No new rent is generated after the end date."]</small>
-                        </label>
-                        <label class="rh-guided-option">
-                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ContinueMonthToMonth)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "checked" : null) data-end-behavior />
-                            <span>@T["Continue month-to-month"]</span>
-                            <small>@T["Rent and reminders continue after the end date."]</small>
-                        </label>
-                        <label class="rh-guided-option">
-                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.NoEndDate)" @(draft.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? "checked" : null) data-end-behavior />
+                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.NoEndDate)" @(draft.EndBehavior is TenancyEndBehaviorEnum.NoEndDate or TenancyEndBehaviorEnum.ContinueMonthToMonth ? "checked" : null) required data-end-behavior />
                             <span>@T["No end date"]</span>
-                            <small>@T["The tenancy stays active until it is terminated."]</small>
+                            <small>@T["The tenancy stays active until it is terminated. When the final period is reached, the rent schedule is automatically extended by the selected number of months."]</small>
+                        </label>
+                        <label class="rh-guided-option">
+                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ExpireAutomatically)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "checked" : null) required data-end-behavior />
+                            <span>@T["Expire automatically"]</span>
+                            <small>@T["No new rent is generated automatically after the end date."]</small>
                         </label>
                     </div>
+                </div>
+
+                <div class="col-md-6" data-auto-extension-months>
+                    <label class="form-label" for="autoExtensionMonths">@T["Automatic extension period"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="rh-select-wrap">
+                        <select class="form-select rh-input rh-select" id="autoExtensionMonths" name="AutoExtensionMonths" required data-details-extension-months>
+                            @for (var monthCount = 1; monthCount <= 12; monthCount++)
+                            {
+                                <option value="@monthCount" selected="@(draft.AutoExtensionMonths == monthCount ? "selected" : null)">@T["{0} month(s)", monthCount]</option>
+                            }
+                        </select>
+                    </div>
+                    <small class="text-muted">@T["When the last available rent period is reached, the system adds this many monthly periods automatically."]</small>
                 </div>
 
                 <div class="col-12">
@@ -188,8 +199,14 @@
                         @foreach (var period in periods)
                         {
                             <tr>
-                                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                    <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                    <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                </td>
+                                <td data-label="@T["Due date"]">
+                                    <strong>@DateLabel(period.DueDate)</strong>
+                                    <small class="d-block text-muted">@LongDateLabel(period.DueDate)</small>
+                                </td>
                                 <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
                                 <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T["Pending setup"]</span></td>
                             </tr>
@@ -228,7 +245,7 @@
             <div class="rh-overview-panel-head align-start">
                 <div>
                     <h2 class="rh-dashboard-panel-title">@T["Payment history import"]</h2>
-                    <p class="rh-dashboard-panel-copy">@T["Tell RentHub which generated periods are unpaid, paid before RentHub, or already prepaid."]</p>
+                    <p class="rh-dashboard-panel-copy">@T["Classify generated periods as unpaid, historical payments, or prepaid."]</p>
                 </div>
             </div>
 
@@ -237,24 +254,25 @@
                 <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
 
                 <div class="col-12">
+                    <label class="form-label">@T["Payment history treatment"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <div class="rh-guided-option-grid">
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) required data-import-mode />
                             <span>@T["All generated periods are unpaid"]</span>
                             <small>@T["Use this when nothing was paid before entering the system."]</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub ? "checked" : null) data-import-mode />
-                            <span>@T["All past periods were paid before RentHub"]</span>
-                            <small>@T["Past months are recorded as already paid outside the platform."]</small>
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub ? "checked" : null) required data-import-mode />
+                            <span>@T["All past periods are historical payments"]</span>
+                            <small>@T["Use this when those periods were already paid before the tenancy was recorded in Lontsi Homes."]</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) required data-import-mode />
                             <span>@T["Some periods were already paid"]</span>
-                            <small>@T["Choose one continuous unpaid range; earlier periods become paid before RentHub."]</small>
+                            <small>@T["Choose one continuous unpaid range; earlier periods are recorded as historical payments."]</small>
                         </label>
                         <label class="rh-guided-option">
-                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) data-import-mode />
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) required data-import-mode />
                             <span>@T["Tenant paid in advance"]</span>
                             <small>@T["Mark future periods as paid in advance."]</small>
                         </label>
@@ -308,10 +326,16 @@
                                 @foreach (var period in periods)
                                 {
                                     <tr>
-                                        <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
-                                        <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                                        <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                            <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                            <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                        </td>
+                                        <td data-label="@T["Due date"]">
+                                            <strong>@DateLabel(period.DueDate)</strong>
+                                            <small class="d-block text-muted">@LongDateLabel(period.DueDate)</small>
+                                        </td>
                                         <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                        <td data-label="@T["Status after import"]"><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                                        <td data-label="@T["Status after import"]"><span class="rh-chip @StatusClass(period.Status)" title="@(period.Status == RentPeriodStatusEnum.PaidBeforeRentHub ? T["Paid before this tenancy was recorded in Lontsi Homes."].Value : null)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -343,7 +367,7 @@
                 <input type="hidden" name="Role" value="@TenancyMemberRoleEnum.MainTenant" />
 
                 <div class="col-md-6">
-                    <label class="form-label">@T["Tenant email"]</label>
+                    <label class="form-label">@T["Tenant email"] <span class="text-danger" aria-hidden="true">*</span></label>
                     <input class="form-control rh-input" type="email" name="Email" value="@draft.MainTenant.Email" required data-tenant-email />
                 </div>
                 <div class="col-md-6">
@@ -427,9 +451,12 @@
                         @foreach (var period in periods)
                         {
                             <tr>
-                                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                    <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                    <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                </td>
                                 <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
-                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)" title="@(period.Status == RentPeriodStatusEnum.PaidBeforeRentHub ? T["Paid before this tenancy was recorded in Lontsi Homes."].Value : null)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
                             </tr>
                         }
                     </tbody>
@@ -452,6 +479,9 @@
     <script>
         (() => {
             const endDateInput = document.querySelector("[data-end-date-input]");
+            const endDateRequired = document.querySelector("[data-end-date-required]");
+            const autoExtensionContainer = document.querySelector("[data-auto-extension-months]");
+            const autoExtensionInput = document.querySelector("[data-details-extension-months]");
             const endBehaviorInputs = Array.from(document.querySelectorAll("[data-end-behavior]"));
             const importModeInputs = Array.from(document.querySelectorAll("[data-import-mode]"));
             const unpaidRange = document.querySelector("[data-unpaid-range]");
@@ -489,7 +519,14 @@
                 const selected = selectedValue(endBehaviorInputs);
                 const noEndDate = selected === noEndDateValue;
                 endDateInput.disabled = noEndDate;
+                endDateInput.required = !noEndDate;
+                if (endDateRequired) endDateRequired.hidden = noEndDate;
                 if (noEndDate) endDateInput.value = "";
+                if (autoExtensionContainer) autoExtensionContainer.hidden = !noEndDate;
+                if (autoExtensionInput) {
+                    autoExtensionInput.disabled = !noEndDate;
+                    autoExtensionInput.required = noEndDate;
+                }
                 syncDetailsForm();
             };
 
@@ -507,6 +544,7 @@
                 const rentInput = detailsForm.querySelector("[data-details-rent]");
                 const membersInput = detailsForm.querySelector("[data-details-members]");
                 const dueDayInput = detailsForm.querySelector("[data-details-due-day]");
+                const extensionMonthsInput = detailsForm.querySelector("[data-details-extension-months]");
                 const submitButton = detailsForm.querySelector("[data-details-submit]");
                 const selectedBehavior = selectedValue(endBehaviorInputs);
 
@@ -515,6 +553,7 @@
                 const rent = Number.parseFloat(rentInput?.value ?? "");
                 const members = Number.parseInt(membersInput?.value ?? "", 10);
                 const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
+                const extensionMonths = Number.parseInt(extensionMonthsInput?.value ?? "", 10);
 
                 if (startInput && endInput) {
                     endInput.min = startInput.value || "";
@@ -530,6 +569,7 @@
                     && Number.isInteger(members) && members >= 1
                     && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
                     && !!selectedBehavior
+                    && (selectedBehavior !== noEndDateValue || (Number.isInteger(extensionMonths) && extensionMonths >= 1 && extensionMonths <= 12))
                     && (!needsEndDate || !!end)
                     && dateRangeValid
                     && detailsForm.checkValidity();

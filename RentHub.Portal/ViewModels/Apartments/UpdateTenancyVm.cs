@@ -27,5 +27,8 @@ namespace RentHub.Portal.ViewModels.Apartments
         public int RentDueDay { get; set; } = 1;
 
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+
+        [Range(1, 12)]
+        public int AutoExtensionMonths { get; set; } = 1;
     }
 }

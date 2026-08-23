@@ -79,7 +79,7 @@ namespace RentHub.API.Services.Reminders
                     on tenancy.Id equals period.TenancyId
                 where rule.IsEnabled
                       && (rule.EmailEnabled || rule.SmsEnabled)
-                      && !tenancy.TerminatedAt.HasValue
+                      && (!tenancy.TerminatedAt.HasValue || tenancy.TerminatedAt.Value.Date > today)
                       && (!tenancy.EndDate.HasValue
                           || tenancy.EndDate.Value >= nowUtc
                           || tenancy.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth)
@@ -154,8 +154,6 @@ namespace RentHub.API.Services.Reminders
                 .GroupBy(period => period.TenancyId)
                 .ToDictionary(group => group.Key, group => group.ToList());
 
-            var automaticPaymentsEnabled = await PaymentAvailabilityHelper
-                .IsPlatformAutomaticPaymentEnabledAsync(_context);
             var reminders = new List<RentReminder>();
 
             foreach (var group in candidates.GroupBy(candidate => candidate.TenancyId))
@@ -195,7 +193,6 @@ namespace RentHub.API.Services.Reminders
                     requestEmail,
                     requestSms,
                     null,
-                    automaticPaymentsEnabled && tenancy.Apartment.Property.AutomaticPaymentsEnabled,
                     nowUtc);
 
                 foreach (var candidate in groupCandidates)
@@ -257,6 +254,12 @@ namespace RentHub.API.Services.Reminders
             if (tenancy.Apartment?.Property == null)
             {
                 throw new InvalidOperationException("The tenancy apartment or property is unavailable.");
+            }
+
+            if (tenancy.TerminatedAt.HasValue && tenancy.TerminatedAt.Value.Date <= nowUtc.Date)
+            {
+                throw new InvalidOperationException(
+                    "Rent reminders are disabled on and after the tenancy termination date.");
             }
 
             var tenant = ResolvePrimaryTenant(tenancy)
@@ -326,8 +329,6 @@ namespace RentHub.API.Services.Reminders
             var sequence = manualTriggers.Count == 0
                 ? 1
                 : manualTriggers.Max(trigger => trigger.ManualSequence) + 1;
-            var automaticPaymentsEnabled = await PaymentAvailabilityHelper
-                .IsPlatformAutomaticPaymentEnabledAsync(_context);
             var reminder = BuildReminder(
                 tenancy,
                 tenant,
@@ -339,7 +340,6 @@ namespace RentHub.API.Services.Reminders
                 true,
                 false,
                 requestedByUserId,
-                automaticPaymentsEnabled && apartment.Property.AutomaticPaymentsEnabled,
                 nowUtc);
             reminder.Triggers.Add(new RentReminderTrigger
             {
@@ -538,7 +538,6 @@ namespace RentHub.API.Services.Reminders
             bool requestEmail,
             bool requestSms,
             string? requestedByUserId,
-            bool automaticPaymentsEnabled,
             DateTimeOffset nowUtc)
         {
             var duePeriods = openPeriods
@@ -554,8 +553,7 @@ namespace RentHub.API.Services.Reminders
                 tenant,
                 duePeriods,
                 nextPeriod,
-                category,
-                automaticPaymentsEnabled);
+                category);
             var reminder = new RentReminder
             {
                 TenancyId = tenancy.Id,
@@ -604,8 +602,7 @@ namespace RentHub.API.Services.Reminders
             ApplicationUser tenant,
             IReadOnlyList<RentPeriod> duePeriods,
             RentPeriod? nextPeriod,
-            RentReminderCategoryEnum category,
-            bool automaticPaymentsEnabled)
+            RentReminderCategoryEnum category)
         {
             var apartment = tenancy.Apartment!;
             var property = apartment.Property!;
@@ -616,9 +613,7 @@ namespace RentHub.API.Services.Reminders
                 ? (isFrench ? string.Empty : "there")
                 : tenant.FullName.Trim();
             var totalDue = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount));
-            var paymentUrl = automaticPaymentsEnabled
-                ? BuildPortalUrl("/Tenant")
-                : BuildPortalUrl($"/Tenant/PaymentDetails?tenancyId={tenancy.Id}");
+            var paymentUrl = BuildPortalUrl($"/Tenant/Tenancy?tenancyId={tenancy.Id}");
             var subject = BuildSubject(category, apartment.Name, duePeriods.Count, isFrench);
 
             var plain = new StringBuilder();
@@ -655,7 +650,7 @@ namespace RentHub.API.Services.Reminders
             plain.AppendLine(isFrench
                 ? "Les loyers sont affectés à la plus ancienne période impayée en premier."
                 : "Rent payments are applied to the oldest unpaid period first.");
-            plain.AppendLine(isFrench ? $"Consulter les détails : {paymentUrl}" : $"Review payment details: {paymentUrl}");
+            plain.AppendLine(isFrench ? $"Ouvrir la location : {paymentUrl}" : $"Open tenancy: {paymentUrl}");
             plain.AppendLine();
             plain.AppendLine(isFrench ? "Merci," : "Thank you,");
 
@@ -735,7 +730,7 @@ namespace RentHub.API.Services.Reminders
                 {{table}}
                 {{upcoming}}
                 <p>{{(isFrench ? "Les loyers sont affectés à la plus ancienne période impayée en premier." : "Rent payments are applied to the oldest unpaid period first.")}}</p>
-                <p><a href="{{E(paymentUrl)}}" style="display:inline-block;padding:11px 18px;background:#c9d45a;color:#20240f;text-decoration:none;border-radius:9px;font-weight:700;">{{(isFrench ? "Consulter les détails" : "Review payment details")}}</a></p>
+                <p><a href="{{E(paymentUrl)}}" style="display:inline-block;padding:11px 18px;background:#c9d45a;color:#20240f;text-decoration:none;border-radius:9px;font-weight:700;">{{(isFrench ? "Ouvrir la location" : "Open tenancy")}}</a></p>
                 <p>{{(isFrench ? "Merci," : "Thank you,")}}</p>
                 """;
         }

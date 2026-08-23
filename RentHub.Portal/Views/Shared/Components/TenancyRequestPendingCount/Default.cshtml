@@ -1,0 +1,15 @@
+@model Common.CommunicationModels.TenancyRequestPendingCountDto
+@{
+    var tooltip = Model.ShowsDecisionResponses
+        ? T["New decision on your tenancy request"].Value
+        : T["Requests awaiting a decision"].Value;
+    var ariaLabel = Model.ShowsDecisionResponses
+        ? T["{0} new request decision(s)", Model.Count].Value
+        : T["{0} request(s) awaiting a decision", Model.Count].Value;
+}
+<span class="rh-nav-unread-badge"
+      data-tenancy-request-pending-count
+      data-shows-decision-responses="@(Model.ShowsDecisionResponses.ToString().ToLowerInvariant())"
+      title="@tooltip"
+      aria-label="@ariaLabel"
+      hidden="@(Model.Count <= 0 ? "hidden" : null)">@(Model.Count > 99 ? "99+" : Model.Count)</span>

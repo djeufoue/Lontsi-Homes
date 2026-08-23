@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
 namespace RentHub.Portal.Hubs
 {
+    [Authorize]
     public class WorkspaceHub : Hub
     {
         public Task JoinPropertyGroup(int propertyId)

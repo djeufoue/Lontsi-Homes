@@ -59,10 +59,56 @@ namespace RentHub.API.Controllers
         }
 
         [HttpGet("verify/{verificationCode}")]
-        [AllowAnonymous]
+        [Authorize]
         public async Task<ActionResult<RentReceiptVerificationDto>> Verify(string verificationCode)
         {
-            var receipt = await _receiptService.VerifyReceiptAsync(verificationCode);
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized();
+            }
+
+            var normalizedCode = verificationCode?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedCode))
+            {
+                return Ok(new RentReceiptVerificationDto { IsValid = false });
+            }
+
+            var payment = await _context.Payments
+                .AsNoTracking()
+                .Include(item => item.Tenancy)
+                .ThenInclude(tenancy => tenancy!.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(item =>
+                    !item.IsDeleted &&
+                    item.ReceiptVerificationCode == normalizedCode &&
+                    item.Status == PaymentStatusEnum.Success);
+
+            if (payment == null)
+            {
+                return Ok(new RentReceiptVerificationDto { IsValid = false });
+            }
+
+            var property = payment.Tenancy?.Apartment?.Property;
+            var isTenant = string.Equals(payment.TenantId, userId, StringComparison.Ordinal);
+            var isLandlord = property != null &&
+                string.Equals(property.LandlordId, userId, StringComparison.Ordinal);
+            var isPropertyManager = property != null &&
+                await _context.PropertyManagerAssignments.AnyAsync(assignment =>
+                    !assignment.IsDeleted &&
+                    assignment.PropertyId == property.Id &&
+                    assignment.ManagerId == userId);
+
+            if (!isTenant && !isLandlord && !isPropertyManager)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    Code = "RECEIPT_ACCESS_DENIED",
+                    Message = "You are not authorized to view this invoice."
+                });
+            }
+
+            var receipt = await _receiptService.VerifyReceiptAsync(normalizedCode);
             if (receipt == null)
             {
                 return Ok(new RentReceiptVerificationDto { IsValid = false });

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using Common.CommunicationModels;
-using Common.Enums;
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
-using RentHub.API.Services.Email;
+using RentHub.API.Services.Conversations;
 
 namespace RentHub.API.Controllers
 {
@@ -19,15 +19,13 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly IEmailService _emailService;
-        private readonly IConfiguration _configuration;
+        private readonly IBackgroundJobClient _backgroundJobs;
 
-        public SubscriptionInquiriesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IEmailService emailService, IConfiguration configuration)
+        public SubscriptionInquiriesController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IBackgroundJobClient backgroundJobs)
         {
             _context = context;
             _userManager = userManager;
-            _emailService = emailService;
-            _configuration = configuration;
+            _backgroundJobs = backgroundJobs;
         }
 
         [HttpPost]
@@ -64,7 +62,7 @@ namespace RentHub.API.Controllers
                 RequesterLastReadAt = now
             };
 
-            inquiry.Messages.Add(new SubscriptionInquiryMessage
+            var initialMessage = new SubscriptionInquiryMessage
             {
                 SenderUserId = requester?.Id,
                 SenderName = name,
@@ -72,11 +70,13 @@ namespace RentHub.API.Controllers
                 SentByAdmin = false,
                 Body = request.Message.Trim(),
                 CreatedAt = now
-            });
+            };
+            inquiry.Messages.Add(initialMessage);
 
             _context.SubscriptionInquiries.Add(inquiry);
             await _context.SaveChangesAsync();
-            await NotifyAdminsAsync(inquiry, request.Message.Trim());
+            _backgroundJobs.Enqueue<IConversationNotificationJob>(job =>
+                job.SendSubscriptionInquiryNotificationsAsync(initialMessage.Id));
 
             return Ok(new SubscriptionInquiryCreatedDto { InquiryId = inquiry.Id, PublicAccessToken = inquiry.PublicAccessToken });
         }
@@ -152,7 +152,7 @@ namespace RentHub.API.Controllers
         private async Task AddMessageAsync(SubscriptionInquiry inquiry, string? senderId, string senderName, string senderEmail, bool isAdmin, string body)
         {
             var now = DateTimeOffset.UtcNow;
-            inquiry.Messages.Add(new SubscriptionInquiryMessage
+            var message = new SubscriptionInquiryMessage
             {
                 SenderUserId = senderId,
                 SenderName = senderName,
@@ -160,52 +160,13 @@ namespace RentHub.API.Controllers
                 SentByAdmin = isAdmin,
                 Body = body,
                 CreatedAt = now
-            });
+            };
+            inquiry.Messages.Add(message);
             inquiry.LastMessageAt = now;
             if (isAdmin) inquiry.AdminLastReadAt = now; else inquiry.RequesterLastReadAt = now;
             await _context.SaveChangesAsync();
-
-            if (isAdmin) await NotifyRequesterAsync(inquiry, body);
-            else await NotifyAdminsAsync(inquiry, body);
-        }
-
-        private async Task NotifyAdminsAsync(SubscriptionInquiry inquiry, string message)
-        {
-            var admins = await _userManager.GetUsersInRoleAsync("Admin");
-            var url = PortalUrl($"/Conversations?kind=subscription&conversationId={inquiry.Id}");
-            foreach (var admin in admins.Where(a => !string.IsNullOrWhiteSpace(a.Email)))
-            {
-                var isFrench = admin.EmailLanguage == PlatformLanguage.French;
-                await _emailService.SendEmailAsync(
-                    admin.Email!,
-                    isFrench ? $"Nouvelle demande pour le forfait {inquiry.PlanName}" : $"New {inquiry.PlanName} plan inquiry",
-                    isFrench
-                        ? $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) demande le forfait {inquiry.PlanName}.\n\nPropriétés : {inquiry.PropertyCount}\nAppartements : {inquiry.ApartmentCount}\nLocataires : {inquiry.TenantCount}\nDurée : {inquiry.CommitmentMonths} mois\nPrix mensuel proposé : {inquiry.ProposedMonthlyPrice:N2}\nTotal proposé : {inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths:N2}\n\nMessage : {message}\n\nOuvrir la conversation : {url}"
-                        : $"{inquiry.RequesterName} ({inquiry.RequesterEmail}) requested a {inquiry.PlanName} plan.\n\nProperties: {inquiry.PropertyCount}\nApartments: {inquiry.ApartmentCount}\nTenants: {inquiry.TenantCount}\nDuration: {inquiry.CommitmentMonths} months\nProposed monthly price: {inquiry.ProposedMonthlyPrice:N2}\nProposed total: {inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths:N2}\n\nMessage: {message}\n\nOpen conversation: {url}");
-            }
-        }
-
-        private async Task NotifyRequesterAsync(SubscriptionInquiry inquiry, string message)
-        {
-            var path = inquiry.RequesterUserId == null
-                ? $"/PlanInquiries/Thread?token={Uri.EscapeDataString(inquiry.PublicAccessToken)}"
-                : $"/Conversations?kind=subscription&conversationId={inquiry.Id}";
-            var requester = string.IsNullOrWhiteSpace(inquiry.RequesterUserId)
-                ? null
-                : await _userManager.FindByIdAsync(inquiry.RequesterUserId);
-            var isFrench = requester?.EmailLanguage == PlatformLanguage.French;
-            await _emailService.SendEmailAsync(
-                inquiry.RequesterEmail,
-                isFrench ? $"Réponse à votre demande pour le forfait {inquiry.PlanName}" : $"Reply to your {inquiry.PlanName} plan inquiry",
-                isFrench
-                    ? $"Un administrateur a répondu à votre demande de forfait.\n\nMessage : {message}\n\nOuvrir la conversation : {PortalUrl(path)}"
-                    : $"An administrator replied to your plan request.\n\nMessage: {message}\n\nOpen conversation: {PortalUrl(path)}");
-        }
-
-        private string PortalUrl(string path)
-        {
-            var baseUrl = _configuration["Portal:BaseUrl"]?.Trim().TrimEnd('/');
-            return string.IsNullOrWhiteSpace(baseUrl) ? path : baseUrl + path;
+            _backgroundJobs.Enqueue<IConversationNotificationJob>(job =>
+                job.SendSubscriptionInquiryNotificationsAsync(message.Id));
         }
 
         private async Task<SubscriptionInquiry?> LoadAsync(int id) => await _context.SubscriptionInquiries.Include(i => i.Messages).FirstOrDefaultAsync(i => i.Id == id);

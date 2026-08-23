@@ -36,11 +36,11 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string? userId = null, int? tenancyId = null)
         {
             try
             {
-                return View(await BuildProfileIndexVmAsync());
+                return View(await BuildProfileIndexVmAsync(userId, tenancyId));
             }
             catch (Exception ex)
             {
@@ -117,14 +117,19 @@ namespace RentHub.Portal.Controllers
             if (!ModelState.IsValid || !PlatformLanguageOptions.IsSupported(model.EmailLanguage))
             {
                 TempData["Error"] = _localizer["Select a supported email language."].Value;
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Index), new { userId = model.UserId, tenancyId = model.TenancyId });
             }
 
             try
             {
                 var response = await _api.PostAsync<UpdateEmailLanguageRequest, UpdateEmailLanguageResponse>(
                     "Account/email-language",
-                    new UpdateEmailLanguageRequest { EmailLanguage = model.EmailLanguage });
+                    new UpdateEmailLanguageRequest
+                    {
+                        EmailLanguage = model.EmailLanguage,
+                        UserId = model.UserId,
+                        TenancyId = model.TenancyId
+                    });
 
                 if (!PlatformLanguageOptions.IsSupported(response.EmailLanguage))
                 {
@@ -137,6 +142,29 @@ namespace RentHub.Portal.Controllers
             {
                 _logger.LogError(ex, "Failed to update the authenticated user's email language preference");
                 TempData["Error"] = _localizer["Unable to update your email language preference right now. Please try again."].Value;
+            }
+
+            return RedirectToAction(nameof(Index), new { userId = model.UserId, tenancyId = model.TenancyId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateConversationEmailNotifications(UpdateConversationEmailNotificationsVm model)
+        {
+            try
+            {
+                var response = await _api.PostAsync<UpdateConversationEmailNotificationsRequest, UpdateConversationEmailNotificationsResponse>(
+                    "Account/conversation-email-notifications",
+                    new UpdateConversationEmailNotificationsRequest { Enabled = model.Enabled });
+
+                TempData["Success"] = response.Enabled
+                    ? _localizer["Message email notifications have been enabled."].Value
+                    : _localizer["Message email notifications have been disabled."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update the authenticated user's message email notification preference");
+                TempData["Error"] = _localizer["Unable to update your message email notification preference right now. Please try again."].Value;
             }
 
             return RedirectToAction(nameof(Index));
@@ -770,13 +798,23 @@ namespace RentHub.Portal.Controllers
             return null;
         }
 
-        private async Task<ProfileIndexVm> BuildProfileIndexVmAsync()
+        private async Task<ProfileIndexVm> BuildProfileIndexVmAsync(
+            string? requestedUserId = null,
+            int? tenancyId = null)
         {
-            var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isOwnProfile = string.IsNullOrWhiteSpace(requestedUserId) ||
+                               string.Equals(currentUserId, requestedUserId, StringComparison.Ordinal);
+            var endpoint = isOwnProfile
+                ? "Account/profile-overview"
+                : $"Account/profile-overview?userId={Uri.EscapeDataString(requestedUserId!.Trim())}&tenancyId={tenancyId}";
+            var overview = await _api.GetAsync<ProfileOverviewDto>(endpoint);
             return new ProfileIndexVm
             {
                 Overview = overview,
-                NowUtc = DateTimeOffset.UtcNow
+                NowUtc = DateTimeOffset.UtcNow,
+                IsOwnProfile = isOwnProfile,
+                AccessTenancyId = tenancyId
             };
         }
 

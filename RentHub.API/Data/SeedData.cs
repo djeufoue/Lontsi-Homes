@@ -1161,15 +1161,77 @@ END
                         [ConversationId] int NOT NULL,
                         [SenderId] nvarchar(450) NOT NULL,
                         [Body] nvarchar(1500) NOT NULL,
+                        [ReplyToMessageId] int NULL,
                         [CreatedAt] datetimeoffset NOT NULL,
                         CONSTRAINT [FK_ConversationMessages_ApartmentConversations_ConversationId]
                             FOREIGN KEY ([ConversationId]) REFERENCES [ApartmentConversations]([Id]) ON DELETE CASCADE,
                         CONSTRAINT [FK_ConversationMessages_AspNetUsers_SenderId]
-                            FOREIGN KEY ([SenderId]) REFERENCES [AspNetUsers]([Id])
+                            FOREIGN KEY ([SenderId]) REFERENCES [AspNetUsers]([Id]),
+                        CONSTRAINT [FK_ConversationMessages_ConversationMessages_ReplyToMessageId]
+                            FOREIGN KEY ([ReplyToMessageId]) REFERENCES [ConversationMessages]([Id])
                     );
 
                     CREATE INDEX [IX_ConversationMessages_ConversationId]
                         ON [ConversationMessages]([ConversationId]);
+
+                    CREATE INDEX [IX_ConversationMessages_ReplyToMessageId]
+                        ON [ConversationMessages]([ReplyToMessageId]);
+                END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                IF OBJECT_ID('[ConversationMessages]', 'U') IS NOT NULL
+                   AND COL_LENGTH('ConversationMessages', 'IsPropertyBroadcast') IS NULL
+                BEGIN
+                    ALTER TABLE [ConversationMessages]
+                    ADD [IsPropertyBroadcast] bit NOT NULL
+                        CONSTRAINT [DF_ConversationMessages_IsPropertyBroadcast] DEFAULT(0);
+                END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                IF OBJECT_ID('[ConversationMessages]', 'U') IS NOT NULL
+                   AND COL_LENGTH('ConversationMessages', 'ReplyToMessageId') IS NULL
+                BEGIN
+                    ALTER TABLE [ConversationMessages] ADD [ReplyToMessageId] int NULL;
+                END
+
+                IF OBJECT_ID('[ConversationMessages]', 'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ConversationMessages_ReplyToMessageId' AND object_id = OBJECT_ID('[ConversationMessages]'))
+                BEGIN
+                    CREATE INDEX [IX_ConversationMessages_ReplyToMessageId]
+                        ON [ConversationMessages]([ReplyToMessageId]);
+                END
+
+                IF OBJECT_ID('[ConversationMessages]', 'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_ConversationMessages_ConversationMessages_ReplyToMessageId')
+                BEGIN
+                    ALTER TABLE [ConversationMessages]
+                    ADD CONSTRAINT [FK_ConversationMessages_ConversationMessages_ReplyToMessageId]
+                        FOREIGN KEY ([ReplyToMessageId]) REFERENCES [ConversationMessages]([Id]);
+                END
+            ");
+
+            context.Database.ExecuteSqlRaw(@"
+                IF OBJECT_ID('[ConversationReadStates]', 'U') IS NULL
+                BEGIN
+                    CREATE TABLE [ConversationReadStates]
+                    (
+                        [Id] int IDENTITY(1,1) NOT NULL CONSTRAINT [PK_ConversationReadStates] PRIMARY KEY,
+                        [ConversationId] int NOT NULL,
+                        [UserId] nvarchar(450) NOT NULL,
+                        [LastReadAt] datetimeoffset NOT NULL,
+                        CONSTRAINT [FK_ConversationReadStates_ApartmentConversations_ConversationId]
+                            FOREIGN KEY ([ConversationId]) REFERENCES [ApartmentConversations]([Id]) ON DELETE CASCADE,
+                        CONSTRAINT [FK_ConversationReadStates_AspNetUsers_UserId]
+                            FOREIGN KEY ([UserId]) REFERENCES [AspNetUsers]([Id])
+                    );
+
+                    CREATE UNIQUE INDEX [IX_ConversationReadStates_ConversationId_UserId]
+                        ON [ConversationReadStates]([ConversationId], [UserId]);
+
+                    CREATE INDEX [IX_ConversationReadStates_UserId]
+                        ON [ConversationReadStates]([UserId]);
                 END
             ");
         }

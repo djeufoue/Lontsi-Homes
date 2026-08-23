@@ -41,6 +41,7 @@ namespace RentHub.API.Models.Entities
         public bool IsSubscriptionExempt { get; set; }
         public PlatformLanguage Language { get; set; } = PlatformLanguage.English;
         public PlatformLanguage EmailLanguage { get; set; } = PlatformLanguage.English;
+        public bool ConversationEmailNotificationsEnabled { get; set; } = true;
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation properties

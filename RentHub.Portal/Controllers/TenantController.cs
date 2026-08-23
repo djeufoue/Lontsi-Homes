@@ -21,25 +21,25 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index()
+        public IActionResult Index() => RedirectToAction("Index", "Tenancies");
+
+        [HttpGet]
+        public IActionResult PaymentDetails(int tenancyId)
         {
-            try
-            {
-                var dashboard = await _api.GetAsync<TenantDashboardDto>("tenancies/tenant-dashboard");
-                return View(dashboard);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Tenant dashboard failed to load.");
-                TempData["Error"] = "Unable to load your tenant dashboard right now. Please try again.";
-                return RedirectToAction("Index", "Home");
-            }
+            return tenancyId <= 0
+                ? RedirectToAction("Index", "Tenancies")
+                : RedirectToAction(nameof(Tenancy), new { tenancyId });
         }
 
         [HttpGet]
-        public async Task<IActionResult> PaymentDetails(int tenancyId)
+        public async Task<IActionResult> Tenancy(
+            int tenancyId,
+            int periodPage = 1,
+            int periodPageSize = 10,
+            int historyPage = 1,
+            int historyPageSize = 10)
         {
-            if (tenancyId <= 0) return RedirectToAction(nameof(Index));
+            if (tenancyId <= 0) return RedirectToAction("Index", "Tenancies");
 
             try
             {
@@ -48,15 +48,49 @@ namespace RentHub.Portal.Controllers
                 if (tenancy == null)
                 {
                     TempData["Error"] = "The requested tenancy could not be found.";
-                    return RedirectToAction(nameof(Index));
+                    return RedirectToAction("Index", "Tenancies");
                 }
 
-                return View(tenancy);
+                periodPageSize = NormalizePageSize(periodPageSize);
+                historyPageSize = NormalizePageSize(historyPageSize);
+
+                var rentPeriods = tenancy.RentPeriods
+                    .OrderByDescending(period => period.PeriodStart)
+                    .ToList();
+                var paymentHistory = tenancy.PaymentHistory
+                    .OrderByDescending(payment => payment.PaymentDate)
+                    .ToList();
+
+                var totalPeriodPages = PageCount(rentPeriods.Count, periodPageSize);
+                var totalHistoryPages = PageCount(paymentHistory.Count, historyPageSize);
+                periodPage = Math.Clamp(periodPage, 1, totalPeriodPages);
+                historyPage = Math.Clamp(historyPage, 1, totalHistoryPages);
+
+                return View(new TenantTenancyVm
+                {
+                    Item = tenancy,
+                    RentPeriods = rentPeriods
+                        .Skip((periodPage - 1) * periodPageSize)
+                        .Take(periodPageSize)
+                        .ToList(),
+                    PeriodPage = periodPage,
+                    PeriodPageSize = periodPageSize,
+                    TotalRentPeriods = rentPeriods.Count,
+                    TotalPeriodPages = totalPeriodPages,
+                    PaymentHistory = paymentHistory
+                        .Skip((historyPage - 1) * historyPageSize)
+                        .Take(historyPageSize)
+                        .ToList(),
+                    HistoryPage = historyPage,
+                    HistoryPageSize = historyPageSize,
+                    TotalPayments = paymentHistory.Count,
+                    TotalHistoryPages = totalHistoryPages
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to load manual payment details for tenancy {TenancyId}.", tenancyId);
-                TempData["Error"] = "Unable to load payment details right now.";
+                _logger.LogError(ex, "Failed to load tenant tenancy workspace for tenancy {TenancyId}.", tenancyId);
+                TempData["Error"] = "Unable to load your tenancy right now.";
                 return RedirectToAction(nameof(Index));
             }
         }
@@ -67,13 +101,13 @@ namespace RentHub.Portal.Controllers
             if (tenancyId <= 0 || numberOfPeriods <= 0)
             {
                 TempData["Error"] = "Please choose the rent periods to pay.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Tenancy), new { tenancyId });
             }
 
             if (paymentMethod == PaymentMethodEnum.Cash)
             {
                 TempData["Error"] = "Cash payments must be recorded by the landlord.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction(nameof(Tenancy), new { tenancyId });
             }
 
             try
@@ -94,7 +128,7 @@ namespace RentHub.Portal.Controllers
                     if (string.IsNullOrWhiteSpace(session.PaymentReference))
                     {
                         TempData["Error"] = "Card checkout could not be started. Please try again.";
-                        return RedirectToAction(nameof(Index));
+                        return RedirectToAction(nameof(Tenancy), new { tenancyId });
                     }
 
                     return RedirectToAction(nameof(RentCardCheckout), new { reference = session.PaymentReference });
@@ -112,7 +146,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(ParseApiMessage(ex.Message), "Unable to process the rent payment right now. Please try again.");
             }
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Tenancy), new { tenancyId });
         }
 
         [HttpGet]
@@ -173,10 +207,12 @@ namespace RentHub.Portal.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
+            int? tenancyId = null;
             try
             {
                 var status = await _api.GetAsync<RentCheckoutStatusDto>(
                     $"payments/rent-periods/checkout-status/{Uri.EscapeDataString(reference)}");
+                tenancyId = status.TenancyId > 0 ? status.TenancyId : null;
 
                 TempData[status.PaymentCompleted ? "Success" : "Error"] = string.IsNullOrWhiteSpace(status.Message)
                     ? (status.PaymentCompleted ? "Rent payment completed successfully." : "The card payment was not completed. Please try again.")
@@ -190,7 +226,9 @@ namespace RentHub.Portal.Controllers
                     "Unable to verify the rent payment right now. Please refresh your rent dashboard in a moment.");
             }
 
-            return RedirectToAction(nameof(Index));
+            return tenancyId.HasValue
+                ? RedirectToAction(nameof(Tenancy), new { tenancyId = tenancyId.Value })
+                : RedirectToAction(nameof(Index));
         }
 
         private static string? ParseApiMessage(string raw)
@@ -229,6 +267,12 @@ namespace RentHub.Portal.Controllers
 
             return raw;
         }
+
+        private static int NormalizePageSize(int pageSize)
+            => pageSize is 5 or 10 or 20 or 50 ? pageSize : 10;
+
+        private static int PageCount(int totalCount, int pageSize)
+            => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
         private static string SafeUserMessage(string? apiMessage, string fallback)
         {

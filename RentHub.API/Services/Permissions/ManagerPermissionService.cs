@@ -31,7 +31,10 @@ public sealed class ManagerPermissionService : IManagerPermissionService
         }
 
         var flags = await _context.PropertyManagerAssignments
-            .Where(assignment => assignment.PropertyId == propertyId && assignment.ManagerId == userId)
+            .Where(assignment =>
+                !assignment.IsDeleted &&
+                assignment.PropertyId == propertyId &&
+                assignment.ManagerId == userId)
             .Select(assignment => (long?)assignment.PermissionFlags)
             .FirstOrDefaultAsync();
 
@@ -46,7 +49,7 @@ public sealed class ManagerPermissionService : IManagerPermissionService
     {
         var apartment = await _context.Apartments
             .AsNoTracking()
-            .Where(item => item.Id == apartmentId)
+            .Where(item => !item.IsDeleted && item.Id == apartmentId)
             .Select(item => new { item.PropertyId, item.Property!.LandlordId })
             .FirstOrDefaultAsync();
 
@@ -63,6 +66,7 @@ public sealed class ManagerPermissionService : IManagerPermissionService
         var assignment = await _context.PropertyManagerAssignments
             .AsNoTracking()
             .Where(item => item.PropertyId == apartment.PropertyId && item.ManagerId == userId)
+            .Where(item => !item.IsDeleted)
             .Select(item => new
             {
                 item.Id,
@@ -97,7 +101,10 @@ public sealed class ManagerPermissionService : IManagerPermissionService
         // Existing apartment-owner permissions remain supported and are deliberately
         // separate from the Manager permission model.
         var ownerPermission = await _context.ApartmentOwners
-            .Where(item => item.ApartmentId == apartmentId && item.OwnerId == userId)
+            .Where(item =>
+                !item.IsDeleted &&
+                item.ApartmentId == apartmentId &&
+                item.OwnerId == userId)
             .Select(item => (PermissionLevelEnum?)item.Permission)
             .FirstOrDefaultAsync();
 
@@ -112,7 +119,7 @@ public sealed class ManagerPermissionService : IManagerPermissionService
         bool isAdmin)
     {
         var apartmentId = await _context.Tenancies
-            .Where(tenancy => tenancy.Id == tenancyId)
+            .Where(tenancy => !tenancy.IsDeleted && tenancy.Id == tenancyId)
             .Select(tenancy => (int?)tenancy.ApartmentId)
             .FirstOrDefaultAsync();
 
@@ -127,7 +134,7 @@ public sealed class ManagerPermissionService : IManagerPermissionService
         bool isAdmin)
     {
         var apartmentIds = await _context.Apartments
-            .Where(apartment => apartment.PropertyId == propertyId)
+            .Where(apartment => !apartment.IsDeleted && apartment.PropertyId == propertyId)
             .Select(apartment => apartment.Id)
             .ToListAsync();
 
@@ -150,7 +157,8 @@ public sealed class ManagerPermissionService : IManagerPermissionService
 
     private Task<bool> IsLandlordAsync(string userId, int propertyId)
     {
-        return _context.Properties.AnyAsync(property => property.Id == propertyId && property.LandlordId == userId);
+        return _context.Properties.AnyAsync(property =>
+            !property.IsDeleted && property.Id == propertyId && property.LandlordId == userId);
     }
 
     private static bool Has(long flags, ManagerPermission permission)

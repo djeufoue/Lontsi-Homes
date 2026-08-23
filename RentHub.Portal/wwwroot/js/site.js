@@ -32,8 +32,11 @@
 
   const workspaceState = {
     connection: null,
+    connectionStartPromise: null,
     activePropertyId: null,
-    propertyRefreshPromise: null
+    propertyRefreshPromise: null,
+    tenancyRequestMutationInFlight: false,
+    tenancyRequestReloadTimer: null
   };
 
   const escapeHtml = (value) => {
@@ -946,11 +949,338 @@
     });
   };
 
-  const ensureWorkspaceHub = async (root) => {
-    const propertyId = Number(root?.dataset.propertyId || 0);
-    if (!propertyId || !window.signalR) {
-      return;
+  const refreshTenancyRequestPendingCount = async () => {
+    const badge = document.querySelector("[data-tenancy-request-pending-count]");
+    if (!badge) return;
+
+    const response = await fetch("/TenancyRequests/PendingCount", {
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) return;
+
+    const result = await response.json();
+    const count = Math.max(0, Number(result?.count || 0));
+    const showsDecisionResponses = result?.showsDecisionResponses === true;
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.hidden = count <= 0;
+    badge.dataset.showsDecisionResponses = showsDecisionResponses ? "true" : "false";
+    const tooltip = showsDecisionResponses
+      ? t("New decision on your tenancy request")
+      : t("Requests awaiting a decision");
+    badge.title = tooltip;
+    badge.setAttribute("aria-label", showsDecisionResponses
+      ? t("{0} new request decision(s)", count)
+      : t("{0} request(s) awaiting a decision", count));
+  };
+
+  const conversationPageUrl = (url, liveRefresh = false) => {
+    const target = new URL(url, window.location.origin);
+    if (liveRefresh) target.searchParams.set("liveRefresh", "true");
+    else target.searchParams.delete("liveRefresh");
+    return target;
+  };
+
+  const conversationThread = (root) => root?.querySelector(".rh-public-chat-thread-inbox") || null;
+
+  const captureConversationUiState = (root) => {
+    const thread = conversationThread(root);
+    const replyForm = root?.querySelector("form[data-rh-conversation-mutation='true'] [data-rh-reply-message-id]")?.closest("form");
+    const textarea = replyForm?.querySelector("textarea[name='message']");
+    const replyInput = replyForm?.querySelector("[data-rh-reply-message-id]");
+    const replyPreview = replyForm?.querySelector("[data-rh-reply-preview]");
+    return {
+      conversationId: root?.dataset.selectedConversationId || "",
+      conversationKind: root?.dataset.selectedConversationKind || "",
+      windowX: window.scrollX,
+      windowY: window.scrollY,
+      thread: thread ? {
+        scrollTop: thread.scrollTop,
+        distanceFromBottom: Math.max(0, thread.scrollHeight - thread.clientHeight - thread.scrollTop),
+        wasNearBottom: thread.scrollHeight - thread.clientHeight - thread.scrollTop <= 80
+      } : null,
+      draft: textarea?.value || "",
+      reply: replyInput?.value ? {
+        messageId: replyInput.value,
+        sender: replyPreview?.querySelector("[data-rh-reply-sender]")?.textContent || "",
+        body: replyPreview?.querySelector("[data-rh-reply-body]")?.textContent || ""
+      } : null
+    };
+  };
+
+  const scheduleConversationScroll = (root, state, options = {}) => {
+    const thread = conversationThread(root);
+    if (!thread) return;
+    const sameConversation = state &&
+      state.conversationId === (root.dataset.selectedConversationId || "") &&
+      state.conversationKind === (root.dataset.selectedConversationKind || "");
+    const scrollMode = options.scrollMode || (options.liveRefresh === true ? "preserve" : "bottom");
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (scrollMode === "bottom" || !sameConversation || !state?.thread || state.thread.wasNearBottom) {
+        thread.scrollTop = thread.scrollHeight;
+      } else {
+        thread.scrollTop = Math.min(state.thread.scrollTop, Math.max(0, thread.scrollHeight - thread.clientHeight));
+      }
+      if (state && options.preserveWindow !== false) {
+        window.scrollTo(state.windowX, state.windowY);
+      }
+    }));
+  };
+
+  const replaceConversationPage = async (url, options = {}) => {
+    const currentRoot = document.querySelector("[data-conversations-page='true']");
+    if (!currentRoot) return;
+    const previousState = captureConversationUiState(currentRoot);
+    const target = conversationPageUrl(url, options.liveRefresh === true);
+    const response = await fetch(target, {
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error(t("Unable to refresh conversations right now."));
+    const html = await response.text();
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    const replacement = parsed.querySelector("[data-conversations-page='true']");
+    if (!replacement) throw new Error(t("Unable to refresh conversations right now."));
+    currentRoot.replaceWith(replacement);
+    if (options.updateHistory !== false) {
+      const visibleUrl = conversationPageUrl(target, false);
+      window.history.replaceState({}, "", visibleUrl.pathname + visibleUrl.search);
     }
+    initConversationsPage(replacement);
+
+    const sameConversation = previousState.conversationId === (replacement.dataset.selectedConversationId || "") &&
+      previousState.conversationKind === (replacement.dataset.selectedConversationKind || "");
+    if (options.preserveDraft === true && sameConversation) {
+      const form = replacement.querySelector("[data-rh-reply-message-id]")?.closest("form");
+      const textarea = form?.querySelector("textarea[name='message']");
+      if (textarea && previousState.draft) textarea.value = previousState.draft;
+      if (form && previousState.reply) {
+        const replyInput = form.querySelector("[data-rh-reply-message-id]");
+        const preview = form.querySelector("[data-rh-reply-preview]");
+        if (replyInput) replyInput.value = previousState.reply.messageId;
+        if (preview) {
+          const sender = preview.querySelector("[data-rh-reply-sender]");
+          const body = preview.querySelector("[data-rh-reply-body]");
+          if (sender) sender.textContent = previousState.reply.sender;
+          if (body) body.textContent = previousState.reply.body;
+          preview.hidden = false;
+        }
+      }
+    }
+    scheduleConversationScroll(replacement, previousState, options);
+  };
+
+  const initConversationsPage = (root = document.querySelector("[data-conversations-page='true']"), options = {}) => {
+    if (!root || root.dataset.bound === "true") return;
+    root.dataset.bound = "true";
+
+    const syncApartmentOptions = (propertySelect, apartmentSelect) => {
+      if (!propertySelect || !apartmentSelect) return;
+      const propertyId = propertySelect.value;
+      let firstVisible = null;
+      Array.from(apartmentSelect.options).forEach((option) => {
+        if (!option.dataset.propertyId) return;
+        const visible = !propertyId || option.dataset.propertyId === propertyId;
+        option.hidden = !visible;
+        option.disabled = !visible;
+        if (visible && !firstVisible) firstVisible = option;
+      });
+      if (!apartmentSelect.selectedOptions.length || apartmentSelect.selectedOptions[0].disabled) {
+        apartmentSelect.value = firstVisible?.value || "";
+      }
+    };
+
+    root.querySelectorAll("[data-rh-property-target]").forEach((propertySelect) => {
+      const apartmentSelect = root.querySelector(`#${CSS.escape(propertySelect.dataset.rhPropertyTarget || "")}`);
+      syncApartmentOptions(propertySelect, apartmentSelect);
+      propertySelect.addEventListener("change", () => syncApartmentOptions(propertySelect, apartmentSelect));
+    });
+
+    let activeComposerTrigger = null;
+    const closeComposers = (restoreFocus = true) => {
+      root.querySelectorAll("[data-rh-composer]").forEach((composer) => {
+        composer.classList.remove("is-open");
+        composer.setAttribute("aria-hidden", "true");
+      });
+      root.querySelectorAll("[data-rh-toggle-composer]").forEach((button) => button.setAttribute("aria-expanded", "false"));
+      root.querySelectorAll("[data-rh-compose-menu]").forEach((menu) => menu.removeAttribute("open"));
+      root.classList.remove("is-composing");
+      if (restoreFocus) activeComposerTrigger?.focus();
+      activeComposerTrigger = null;
+    };
+
+    root.querySelectorAll("[data-rh-toggle-composer]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const composerType = button.dataset.rhToggleComposer || "";
+        const composer = root.querySelector(`[data-rh-composer="${CSS.escape(composerType)}"]`);
+        if (!composer) return;
+
+        closeComposers(false);
+        activeComposerTrigger = button.closest("[data-rh-compose-menu]")?.querySelector("summary") || button;
+        button.setAttribute("aria-expanded", "true");
+        composer.classList.add("is-open");
+        composer.setAttribute("aria-hidden", "false");
+        root.classList.add("is-composing");
+        window.requestAnimationFrame(() => composer.querySelector("textarea")?.focus());
+      });
+    });
+    root.querySelectorAll("[data-rh-close-composer]").forEach((button) => {
+      button.addEventListener("click", () => closeComposers());
+    });
+    root.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && root.classList.contains("is-composing")) {
+        event.preventDefault();
+        closeComposers();
+      }
+    });
+
+    const clearReplyTarget = (form) => {
+      if (!form) return;
+      const input = form.querySelector("[data-rh-reply-message-id]");
+      const preview = form.querySelector("[data-rh-reply-preview]");
+      if (input) input.value = "";
+      if (preview) preview.hidden = true;
+    };
+
+    const selectReplyTarget = (bubble) => {
+      if (!bubble) return;
+      const form = root.querySelector("[data-rh-reply-message-id]")?.closest("form");
+      const input = form?.querySelector("[data-rh-reply-message-id]");
+      const preview = form?.querySelector("[data-rh-reply-preview]");
+      if (!form || !input || !preview) return;
+      input.value = bubble.dataset.rhMessageId || "";
+      const sender = preview.querySelector("[data-rh-reply-sender]");
+      const body = preview.querySelector("[data-rh-reply-body]");
+      if (sender) sender.textContent = bubble.dataset.rhMessageSender || "";
+      if (body) body.textContent = bubble.dataset.rhMessageBody || "";
+      preview.hidden = false;
+      form.querySelector("textarea[name='message']")?.focus({ preventScroll: true });
+      form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+
+    root.addEventListener("click", (event) => {
+      const cancel = event.target.closest("[data-rh-cancel-reply]");
+      if (cancel) {
+        clearReplyTarget(cancel.closest("form"));
+        return;
+      }
+
+      const replyButton = event.target.closest("[data-rh-reply-to-message]");
+      if (replyButton) {
+        selectReplyTarget(replyButton.closest("[data-rh-message-id]"));
+        return;
+      }
+
+      const quote = event.target.closest("[data-rh-scroll-to-message]");
+      if (quote) {
+        const original = root.querySelector(`#conversation-message-${CSS.escape(quote.dataset.rhScrollToMessage || "")}`);
+        if (!original) return;
+        original.scrollIntoView({ behavior: "smooth", block: "center" });
+        original.classList.remove("is-reply-highlighted");
+        window.requestAnimationFrame(() => original.classList.add("is-reply-highlighted"));
+        window.setTimeout(() => original.classList.remove("is-reply-highlighted"), 1500);
+      }
+    });
+
+    let swipe = null;
+    const finishSwipe = (shouldReply) => {
+      if (!swipe) return;
+      const { bubble } = swipe;
+      bubble.classList.remove("is-reply-swiping");
+      bubble.style.removeProperty("--rh-reply-swipe-distance");
+      if (shouldReply) selectReplyTarget(bubble);
+      swipe = null;
+    };
+    root.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" || event.button !== 0) return;
+      const bubble = event.target.closest("[data-rh-message-id]");
+      if (!bubble || !root.querySelector("[data-rh-reply-message-id]")) return;
+      swipe = { bubble, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, dx: 0, horizontal: false };
+      bubble.setPointerCapture?.(event.pointerId);
+    });
+    root.addEventListener("pointermove", (event) => {
+      if (!swipe || swipe.pointerId !== event.pointerId) return;
+      const dx = event.clientX - swipe.startX;
+      const dy = event.clientY - swipe.startY;
+      if (!swipe.horizontal && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+        finishSwipe(false);
+        return;
+      }
+      if (dx <= 0 || Math.abs(dx) <= Math.abs(dy)) return;
+      swipe.horizontal = true;
+      swipe.dx = dx;
+      swipe.bubble.classList.add("is-reply-swiping");
+      swipe.bubble.style.setProperty("--rh-reply-swipe-distance", `${Math.min(72, dx)}px`);
+      event.preventDefault();
+    });
+    root.addEventListener("pointerup", (event) => {
+      if (!swipe || swipe.pointerId !== event.pointerId) return;
+      finishSwipe(swipe.horizontal && swipe.dx >= 56);
+    });
+    root.addEventListener("pointercancel", () => finishSwipe(false));
+
+    root.addEventListener("click", async (event) => {
+      const link = event.target.closest("a[data-rh-conversation-link='true']");
+      if (!link) return;
+      event.preventDefault();
+      try {
+        await replaceConversationPage(link.href, { updateHistory: true, scrollMode: "bottom" });
+      } catch (error) {
+        showFeedbackModal("error", error?.message || t("Unable to open this conversation right now."));
+      }
+    });
+
+    root.addEventListener("submit", async (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      if (form.matches("[data-rh-conversation-filters]")) {
+        event.preventDefault();
+        const query = new URLSearchParams(new FormData(form));
+        try {
+          await replaceConversationPage(`${form.action}?${query}`, { updateHistory: true });
+        } catch (error) {
+          showFeedbackModal("error", error?.message || t("Unable to apply these filters right now."));
+        }
+        return;
+      }
+      if (!form.matches("[data-rh-conversation-mutation='true']")) return;
+      event.preventDefault();
+      if (workspaceState.conversationMutationInFlight) return;
+      workspaceState.conversationMutationInFlight = true;
+      const submit = event.submitter || form.querySelector("button[type='submit']");
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin"
+        });
+        let result = {};
+        try { result = await response.json(); } catch { result = {}; }
+        if (!response.ok) throw new Error(result?.message || t("Unable to send this message right now."));
+        const next = new URL("/Conversations", window.location.origin);
+        if (result.kind) next.searchParams.set("kind", result.kind);
+        if (result.conversationId) next.searchParams.set("conversationId", result.conversationId);
+        await replaceConversationPage(next, { updateHistory: true, liveRefresh: true, scrollMode: "bottom", preserveWindow: true });
+      } catch (error) {
+        showFeedbackModal("error", error?.message || t("Unable to send this message right now."));
+      } finally {
+        workspaceState.conversationMutationInFlight = false;
+        if (submit) submit.disabled = false;
+      }
+    });
+
+    if (options.autoScroll === true) {
+      scheduleConversationScroll(root, null, { scrollMode: "bottom", preserveWindow: false });
+    }
+  };
+
+  const ensureWorkspaceConnection = async () => {
+    if (!window.signalR) return null;
 
     if (!workspaceState.connection) {
       workspaceState.connection = new signalR.HubConnectionBuilder()
@@ -972,15 +1302,77 @@
         }
       });
 
-      await workspaceState.connection.start();
+      workspaceState.connection.on("TenancyRequestsChanged", async () => {
+        try {
+          await refreshTenancyRequestPendingCount();
+        } catch {
+          // The existing counter remains valid until the next page navigation.
+        }
+
+        const requestsPage = document.querySelector("[data-tenancy-requests-page='true']");
+        if (!requestsPage || workspaceState.tenancyRequestMutationInFlight) return;
+
+        window.clearTimeout(workspaceState.tenancyRequestReloadTimer);
+        workspaceState.tenancyRequestReloadTimer = window.setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      });
+
+      workspaceState.connection.on("ConversationsChanged", () => {
+        if (workspaceState.conversationMutationInFlight) return;
+        window.clearTimeout(workspaceState.conversationRefreshTimer);
+        workspaceState.conversationRefreshTimer = window.setTimeout(async () => {
+          if (!document.querySelector("[data-conversations-page='true']")) return;
+          try {
+            await replaceConversationPage(window.location.href, { updateHistory: false, liveRefresh: true, preserveDraft: true });
+          } catch {
+            // Keep the current thread visible; the next live event can retry.
+          }
+        }, 180);
+      });
+
+      workspaceState.connection.onreconnected(async () => {
+        try {
+          await refreshTenancyRequestPendingCount();
+          if (workspaceState.activePropertyId) {
+            await workspaceState.connection.invoke("JoinPropertyGroup", workspaceState.activePropertyId);
+          }
+          if (document.querySelector("[data-conversations-page='true']")) {
+            await replaceConversationPage(window.location.href, { updateHistory: false, liveRefresh: true, preserveDraft: true });
+          }
+        } catch {
+          // Reconnection will be retried automatically by SignalR.
+        }
+      });
     }
 
+    if (workspaceState.connection.state === "Disconnected" && !workspaceState.connectionStartPromise) {
+      workspaceState.connectionStartPromise = workspaceState.connection.start()
+        .finally(() => {
+          workspaceState.connectionStartPromise = null;
+        });
+    }
+
+    if (workspaceState.connectionStartPromise) {
+      await workspaceState.connectionStartPromise;
+    }
+
+    return workspaceState.connection;
+  };
+
+  const ensureWorkspaceHub = async (root) => {
+    const propertyId = Number(root?.dataset.propertyId || 0);
+    if (!propertyId) return;
+
+    const connection = await ensureWorkspaceConnection();
+    if (!connection) return;
+
     if (workspaceState.activePropertyId && workspaceState.activePropertyId !== propertyId) {
-      await workspaceState.connection.invoke("LeavePropertyGroup", workspaceState.activePropertyId);
+      await connection.invoke("LeavePropertyGroup", workspaceState.activePropertyId);
     }
 
     if (workspaceState.activePropertyId !== propertyId) {
-      await workspaceState.connection.invoke("JoinPropertyGroup", propertyId);
+      await connection.invoke("JoinPropertyGroup", propertyId);
       workspaceState.activePropertyId = propertyId;
     }
   };
@@ -1561,7 +1953,17 @@
     });
   });
 
+  document.addEventListener("submit", (event) => {
+    if (event.target.closest("form[data-tenancy-request-mutation='true']")) {
+      workspaceState.tenancyRequestMutationInFlight = true;
+    }
+  });
+
+  ensureWorkspaceConnection().catch(() => {
+    // Live counters are progressive enhancement; normal navigation remains available.
+  });
   initPropertyOverview();
+  initConversationsPage(undefined, { autoScroll: true });
   initPropertySettingsPage();
   initApartmentOverview();
   bindAutoSearchForms(document);

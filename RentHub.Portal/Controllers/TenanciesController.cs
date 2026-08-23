@@ -14,6 +14,9 @@ namespace RentHub.Portal.Controllers
     public class TenanciesController : Controller
     {
         private const int FinalCreateStep = 5;
+        private const string UnpaidRentStatusFilter = "Unpaid";
+        private const string FutureRentStatusFilter = "Future";
+        private const string AllRentStatusFilter = "All";
         private static readonly JsonSerializerOptions SessionJsonOptions = new(JsonSerializerDefaults.Web);
 
         private readonly RentHubApiClient _api;
@@ -81,7 +84,16 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
-                var vm = await BuildOverviewVmAsync(tenancyId, null, rentStatus, rentFrom, rentTo, rentPage, rentPageSize, rentSortDirection);
+                var vm = await BuildOverviewVmAsync(
+                    tenancyId,
+                    null,
+                    rentStatus,
+                    rentFrom,
+                    rentTo,
+                    rentPage,
+                    rentPageSize,
+                    rentSortDirection,
+                    applySmartDefaultRentStatus: true);
                 vm.IsRentPeriodsPage = true;
                 SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.Tenancy.PropertyId);
                 return View(vm);
@@ -93,23 +105,9 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Renewal(int tenancyId)
+        public IActionResult Renewal(int tenancyId)
         {
-            if (tenancyId <= 0) return RedirectToAction(nameof(Index));
-
-            try
-            {
-                var workspace = await _api.GetAsync<TenancyRenewalWorkspaceDto>($"tenancies/{tenancyId}/extension-requests");
-                return View(new TenancyRenewalVm
-                {
-                    Workspace = workspace,
-                    ProposedEndDate = workspace.MinimumProposedEndDate?.LocalDateTime
-                });
-            }
-            catch (Exception ex)
-            {
-                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Index)));
-            }
+            return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
         }
 
         [HttpPost, ValidateAntiForgeryToken]
@@ -150,7 +148,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(error.Message, "Unable to submit the renewal request right now.");
             }
 
-            return RedirectToAction(nameof(Renewal), new { tenancyId });
+            return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
         }
 
         [HttpPost, ValidateAntiForgeryToken]
@@ -169,24 +167,29 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(error.Message, "Unable to approve the renewal request right now.");
             }
 
-            return RedirectToAction(nameof(Renewal), new { tenancyId });
+            return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
         }
 
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> RejectRenewal(int tenancyId, int requestId, string? rejectionReason)
         {
             if (tenancyId <= 0 || requestId <= 0) return RedirectToAction(nameof(Index));
-            if (rejectionReason?.Length > 512)
+            if (string.IsNullOrWhiteSpace(rejectionReason))
+            {
+                TempData["Error"] = "A rejection reason is required.";
+                return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
+            }
+            if (rejectionReason.Length > 512)
             {
                 TempData["Error"] = "The rejection reason cannot exceed 512 characters.";
-                return RedirectToAction(nameof(Renewal), new { tenancyId });
+                return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
             }
 
             try
             {
                 await _api.PutAsync($"tenancies/{tenancyId}/extension-requests/{requestId}/reject", new RejectTenancyExtensionRequest
                 {
-                    Reason = rejectionReason
+                    Reason = rejectionReason.Trim()
                 });
                 TempData["Success"] = "Renewal request rejected.";
             }
@@ -196,48 +199,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(error.Message, "Unable to reject the renewal request right now.");
             }
 
-            return RedirectToAction(nameof(Renewal), new { tenancyId });
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> MemberProfile(int tenancyId, int memberId)
-        {
-            try
-            {
-                var overview = await BuildOverviewVmAsync(tenancyId, null, rentPageSize: 50);
-                var member = overview.Members.FirstOrDefault(item => item.Id == memberId);
-                if (member == null)
-                {
-                    TempData["Error"] = "Tenancy member was not found.";
-                    return RedirectToAction(nameof(Overview), new { id = tenancyId });
-                }
-
-                var rentPeriods = overview.AllRentPeriods
-                    .OrderBy(period => period.PeriodStart)
-                    .ToList();
-                var paidPeriods = rentPeriods.Count(period => RentPeriodScheduleHelper.IsPaidStatus(period.Status));
-                var progressPercent = rentPeriods.Count == 0
-                    ? 0
-                    : (int)Math.Round(paidPeriods * 100m / rentPeriods.Count);
-
-                return View(new TenancyMemberProfileVm
-                {
-                    Tenancy = overview.Tenancy,
-                    Member = member,
-                    RentPeriods = rentPeriods,
-                    OutstandingBalance = rentPeriods
-                        .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
-                        .Sum(period => period.Amount - period.PaidAmount),
-                    PaidPeriods = paidPeriods,
-                    TotalPeriods = rentPeriods.Count,
-                    ProgressPercent = progressPercent,
-                    NextPayablePeriod = rentPeriods.FirstOrDefault(period => period.IsPayable)
-                });
-            }
-            catch (Exception ex)
-            {
-                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Overview), new { id = tenancyId }));
-            }
+            return RedirectToAction("Index", "TenancyRequests", new { tenancyId, requestType = "Renewal" });
         }
 
         [HttpGet]
@@ -262,6 +224,9 @@ namespace RentHub.Portal.Controllers
             {
                 var draft = await LoadOrCreateDraftAsync(vm.ApartmentId);
                 var errors = new List<string>();
+                var normalizedEndBehavior = vm.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth
+                    ? TenancyEndBehaviorEnum.NoEndDate
+                    : vm.EndBehavior;
 
                 if (!ModelState.IsValid)
                 {
@@ -288,7 +253,12 @@ namespace RentHub.Portal.Controllers
                     errors.Add("Rent due day must be between 1 and 31.");
                 }
 
-                if (vm.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !vm.EndDate.HasValue)
+                if (vm.AutoExtensionMonths is < 1 or > 12)
+                {
+                    errors.Add("Automatic extension months must be between 1 and 12.");
+                }
+
+                if (normalizedEndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !vm.EndDate.HasValue)
                 {
                     errors.Add("Please provide an end date when the tenancy expires automatically.");
                 }
@@ -306,8 +276,9 @@ namespace RentHub.Portal.Controllers
                 DeleteDraftContract(draft);
 
                 draft.StartDate = vm.StartDate;
-                draft.EndBehavior = vm.EndBehavior;
-                draft.EndDate = vm.EndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : vm.EndDate;
+                draft.EndBehavior = normalizedEndBehavior;
+                draft.EndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : vm.EndDate;
+                draft.AutoExtensionMonths = vm.AutoExtensionMonths;
                 draft.MonthlyRent = vm.MonthlyRent;
                 draft.MaxMembers = vm.MaxMembers;
                 draft.RentDueDay = vm.RentDueDay;
@@ -430,6 +401,7 @@ namespace RentHub.Portal.Controllers
                     MaxMembers = draft.MaxMembers,
                     RentDueDay = draft.RentDueDay,
                     EndBehavior = draft.EndBehavior,
+                    AutoExtensionMonths = draft.AutoExtensionMonths,
                     RentPeriods = draft.RentPeriods,
                     MainTenant = draft.MainTenant
                 };
@@ -610,9 +582,7 @@ namespace RentHub.Portal.Controllers
             int tenancyId,
             DateTimeOffset terminationDate,
             TenancyTerminationReasonEnum reason,
-            FutureRentHandlingEnum futureRentHandling,
-            string? notes,
-            List<int>? waivedRentPeriodIds)
+            string? notes)
         {
             try
             {
@@ -626,12 +596,10 @@ namespace RentHub.Portal.Controllers
                 {
                     TerminationDate = terminationDate,
                     Reason = reason,
-                    FutureRentHandling = futureRentHandling,
-                    Notes = notes,
-                    WaivedRentPeriodIds = waivedRentPeriodIds ?? new List<int>()
+                    Notes = notes
                 });
 
-                TempData["Success"] = "Tenancy was terminated. Existing unpaid rent remains payable unless it was waived.";
+                TempData["Success"] = "Tenancy termination decision recorded. Rent tracking will stop on the selected date.";
             }
             catch (Exception ex)
             {
@@ -729,6 +697,14 @@ namespace RentHub.Portal.Controllers
             var existing = LoadDraft(apartmentId);
             if (existing != null)
             {
+                if (existing.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth)
+                {
+                    existing.EndBehavior = TenancyEndBehaviorEnum.NoEndDate;
+                    existing.EndDate = null;
+                }
+
+                existing.AutoExtensionMonths = Math.Clamp(existing.AutoExtensionMonths, 1, 12);
+
                 if (!existing.HasSelectedImportMode)
                 {
                     existing.ImportMode = null;
@@ -751,7 +727,8 @@ namespace RentHub.Portal.Controllers
                 MonthlyRent = apartment.Price > 0 ? apartment.Price : 1,
                 MaxMembers = 1,
                 RentDueDay = 1,
-                EndBehavior = TenancyEndBehaviorEnum.NoEndDate
+                EndBehavior = TenancyEndBehaviorEnum.NoEndDate,
+                AutoExtensionMonths = 1
             };
 
             RegenerateRentPeriods(draft);
@@ -809,7 +786,8 @@ namespace RentHub.Portal.Controllers
                 draft.EndBehavior,
                 draft.MonthlyRent,
                 draft.RentDueDay,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                draft.AutoExtensionMonths);
 
             if (draft.ImportMode.HasValue)
             {
@@ -925,6 +903,11 @@ namespace RentHub.Portal.Controllers
                 errors.Add("Rent due day must be between 1 and 31.");
             }
 
+            if (draft.AutoExtensionMonths is < 1 or > 12)
+            {
+                errors.Add("Automatic extension months must be between 1 and 12.");
+            }
+
             if (draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !draft.EndDate.HasValue)
             {
                 errors.Add("An automatically expiring tenancy requires an end date.");
@@ -1000,7 +983,8 @@ namespace RentHub.Portal.Controllers
             DateTime? rentTo = null,
             int rentPage = 1,
             int rentPageSize = 5,
-            string rentSortDirection = "asc")
+            string rentSortDirection = "asc",
+            bool applySmartDefaultRentStatus = false)
         {
             var overview = await _api.GetAsync<TenancyOverviewDto>($"tenancies/{id}/overview");
             var members = overview.Members ?? new List<TenancyMemberDto>();
@@ -1017,14 +1001,34 @@ namespace RentHub.Portal.Controllers
             var allRentPeriods = (overview.RentPeriods ?? new List<RentPeriodDto>())
                 .OrderBy(period => period.PeriodStart)
                 .ToList();
+            if (applySmartDefaultRentStatus && string.IsNullOrWhiteSpace(rentStatus))
+            {
+                rentStatus = allRentPeriods.Any(period => IsCurrentlyUnpaid(period.Status))
+                    ? UnpaidRentStatusFilter
+                    : allRentPeriods.Any(period => period.Status == RentPeriodStatusEnum.NotDueYet)
+                        ? FutureRentStatusFilter
+                        : AllRentStatusFilter;
+            }
+
             var rentStatuses = allRentPeriods
+                .Where(period => period.Status != RentPeriodStatusEnum.NotDueYet)
                 .Select(period => period.StatusLabel)
                 .Where(label => !string.IsNullOrWhiteSpace(label))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(label => label)
                 .ToList();
             var filteredRentPeriods = allRentPeriods.AsEnumerable();
-            if (!string.IsNullOrWhiteSpace(rentStatus))
+            if (string.Equals(rentStatus, UnpaidRentStatusFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                filteredRentPeriods = filteredRentPeriods.Where(period => IsCurrentlyUnpaid(period.Status));
+            }
+            else if (string.Equals(rentStatus, FutureRentStatusFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                filteredRentPeriods = filteredRentPeriods.Where(period =>
+                    period.Status == RentPeriodStatusEnum.NotDueYet);
+            }
+            else if (!string.IsNullOrWhiteSpace(rentStatus) &&
+                     !string.Equals(rentStatus, AllRentStatusFilter, StringComparison.OrdinalIgnoreCase))
             {
                 filteredRentPeriods = filteredRentPeriods.Where(period =>
                     string.Equals(period.StatusLabel, rentStatus.Trim(), StringComparison.OrdinalIgnoreCase) ||
@@ -1074,6 +1078,13 @@ namespace RentHub.Portal.Controllers
                 TotalRentPages = totalRentPages,
                 RentStatuses = rentStatuses
             };
+        }
+
+        private static bool IsCurrentlyUnpaid(RentPeriodStatusEnum status)
+        {
+            return status is RentPeriodStatusEnum.Due
+                or RentPeriodStatusEnum.Overdue
+                or RentPeriodStatusEnum.PendingPayment;
         }
 
         private IActionResult RedirectToRentPeriodSource(int tenancyId, string? returnUrl)

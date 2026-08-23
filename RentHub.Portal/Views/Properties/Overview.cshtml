@@ -74,12 +74,14 @@
         </div>
 
         <div class="rh-overview-hero-actions">
-            <a class="btn rh-btn-subtle" asp-action="Settings" asp-route-id="@property.Id">@T["Property Settings"]</a>
+            @if (Model.CanWrite)
+            {
+                <a class="btn rh-btn-subtle" asp-action="Settings" asp-route-id="@property.Id">@T["Property Settings"]</a>
+            }
             @if (property.MapEnabled)
             {
                 <a class="btn rh-btn-subtle" asp-action="Map" asp-route-id="@property.Id">@T["Open Map"]</a>
             }
-            <a class="btn rh-btn-primary" asp-action="Index">@T["Property Portfolio"]</a>
         </div>
     </section>
 

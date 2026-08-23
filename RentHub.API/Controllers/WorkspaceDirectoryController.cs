@@ -35,7 +35,6 @@ namespace RentHub.API.Controllers
             if (scope == null) return Unauthorized();
 
             var userId = UserHelpers.GetUserId(User)!;
-            var restrictToTenantAssignments = IsRestrictedTenant();
             var propertyIds = scope.Select(property => property.Id).ToList();
             var apartments = await _context.Apartments
                 .AsNoTracking()
@@ -45,16 +44,14 @@ namespace RentHub.API.Controllers
                     .ThenInclude(tenancy => tenancy.Members)
                 .Where(apartment =>
                     !apartment.IsDeleted &&
-                    propertyIds.Contains(apartment.PropertyId) &&
-                    (!restrictToTenantAssignments || apartment.Tenancies.Any(tenancy =>
-                        !tenancy.IsDeleted && tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId))))
+                    propertyIds.Contains(apartment.PropertyId))
                 .OrderByDescending(apartment => apartment.CreatedAt)
                 .ToListAsync();
 
-            if (User.IsInRole("Manager") && !User.IsInRole("Admin"))
+            if (!User.IsInRole("Admin"))
             {
                 var accessibleIds = await GetAccessibleApartmentIdsForScopeAsync(
-                    userId, propertyIds, ManagerPermission.ViewApartments);
+                    userId, propertyIds, ManagerPermission.ViewApartments, includeTenantAssignments: true);
                 apartments = apartments.Where(apartment => accessibleIds.Contains(apartment.Id)).ToList();
             }
 
@@ -106,7 +103,6 @@ namespace RentHub.API.Controllers
             if (scope == null) return Unauthorized();
 
             var userId = UserHelpers.GetUserId(User)!;
-            var restrictToTenantAssignments = IsRestrictedTenant();
             var propertyIds = scope.Select(property => property.Id).ToList();
             var tenancies = await _context.Tenancies
                 .AsNoTracking()
@@ -117,16 +113,28 @@ namespace RentHub.API.Controllers
                 .Where(tenancy =>
                     !tenancy.IsDeleted &&
                     tenancy.Apartment != null &&
-                    propertyIds.Contains(tenancy.Apartment.PropertyId) &&
-                    (!restrictToTenantAssignments || tenancy.Members.Any(member => !member.IsDeleted && member.MemberId == userId)))
+                    propertyIds.Contains(tenancy.Apartment.PropertyId))
                 .OrderByDescending(tenancy => tenancy.CreatedAt)
                 .ToListAsync();
 
-            if (User.IsInRole("Manager") && !User.IsInRole("Admin"))
+            if (!User.IsInRole("Admin"))
             {
-                var accessibleIds = await GetAccessibleApartmentIdsForScopeAsync(
+                var accessibleApartmentIds = await GetAccessibleApartmentIdsForScopeAsync(
                     userId, propertyIds, ManagerPermission.ViewTenancies);
-                tenancies = tenancies.Where(tenancy => accessibleIds.Contains(tenancy.ApartmentId)).ToList();
+                var tenantTenancyIds = await _context.TenancyMembers
+                    .AsNoTracking()
+                    .Where(member =>
+                        !member.IsDeleted &&
+                        member.MemberId == userId &&
+                        member.Tenancy != null &&
+                        !member.Tenancy.IsDeleted)
+                    .Select(member => member.TenancyId)
+                    .ToHashSetAsync();
+                tenancies = tenancies
+                    .Where(tenancy =>
+                        accessibleApartmentIds.Contains(tenancy.ApartmentId) ||
+                        tenantTenancyIds.Contains(tenancy.Id))
+                    .ToList();
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -313,6 +321,7 @@ namespace RentHub.API.Controllers
                         !assignment.IsDeleted &&
                         assignment.MemberId == userId &&
                         assignment.Tenancy != null &&
+                        !assignment.Tenancy.IsDeleted &&
                         assignment.Tenancy.Apartment != null &&
                         assignment.Tenancy.Apartment.PropertyId == property.Id));
             }
@@ -326,13 +335,32 @@ namespace RentHub.API.Controllers
         private async Task<HashSet<int>> GetAccessibleApartmentIdsForScopeAsync(
             string userId,
             IEnumerable<int> propertyIds,
-            ManagerPermission permission)
+            ManagerPermission permission,
+            bool includeTenantAssignments = false)
         {
+            var scopedPropertyIds = propertyIds.Distinct().ToList();
             var result = new HashSet<int>();
-            foreach (var scopedPropertyId in propertyIds)
+            foreach (var scopedPropertyId in scopedPropertyIds)
             {
                 result.UnionWith(await _permissionService.GetAccessibleApartmentIdsAsync(
                     userId, scopedPropertyId, permission, User.IsInRole("Admin")));
+            }
+
+            if (includeTenantAssignments)
+            {
+                var tenantApartmentIds = await _context.TenancyMembers
+                    .AsNoTracking()
+                    .Where(member =>
+                        !member.IsDeleted &&
+                        member.MemberId == userId &&
+                        member.Tenancy != null &&
+                        !member.Tenancy.IsDeleted &&
+                        member.Tenancy.Apartment != null &&
+                        scopedPropertyIds.Contains(member.Tenancy.Apartment.PropertyId))
+                    .Select(member => member.Tenancy!.ApartmentId)
+                    .Distinct()
+                    .ToListAsync();
+                result.UnionWith(tenantApartmentIds);
             }
 
             return result;
@@ -377,14 +405,6 @@ namespace RentHub.API.Controllers
 
         private static bool Contains(string value, string term) => value.Contains(term, StringComparison.OrdinalIgnoreCase);
 
-        private bool IsRestrictedTenant()
-        {
-            return User.IsInRole("Tenant") &&
-                   !User.IsInRole("Admin") &&
-                   !User.IsInRole("Landlord") &&
-                   !User.IsInRole("Manager");
-        }
-
         private static bool IsActiveTenancy(
             DateTimeOffset startDate,
             DateTimeOffset? endDate,
@@ -392,7 +412,7 @@ namespace RentHub.API.Controllers
             DateTimeOffset? terminatedAt,
             DateTimeOffset now)
         {
-            if (terminatedAt.HasValue || startDate.Date > now.Date) return false;
+            if ((terminatedAt.HasValue && terminatedAt.Value.Date < now.Date) || startDate.Date > now.Date) return false;
             return !endDate.HasValue || endDate.Value.Date >= now.Date || endBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth;
         }
 
@@ -403,8 +423,9 @@ namespace RentHub.API.Controllers
             DateTimeOffset? terminatedAt,
             DateTimeOffset now)
         {
-            if (terminatedAt.HasValue) return "Terminated";
+            if (terminatedAt.HasValue && terminatedAt.Value.Date < now.Date) return "Terminated";
             if (startDate.Date > now.Date) return "Upcoming";
+            if (terminatedAt.HasValue) return "Ending";
             if (endDate.HasValue && endDate.Value.Date < now.Date)
             {
                 return endBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth ? "Month-to-month" : "Expired";

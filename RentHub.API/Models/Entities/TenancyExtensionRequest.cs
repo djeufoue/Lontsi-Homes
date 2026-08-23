@@ -22,6 +22,7 @@ namespace RentHub.API.Models.Entities
         public string? ApprovedById { get; set; }
         public ApplicationUser? ApprovedBy { get; set; }
         public DateTimeOffset? ApprovedAt { get; set; }
+        public DateTimeOffset? DecisionViewedAt { get; set; }
         [MaxLength(512)]
         public string? RejectionReason { get; set; }
         // Audit fields

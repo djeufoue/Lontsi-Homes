@@ -32,6 +32,7 @@ namespace Common.CommunicationModels
         public bool IsSubscriptionExempt { get; set; }
         public PlatformLanguage Language { get; set; } = PlatformLanguage.English;
         public PlatformLanguage EmailLanguage { get; set; } = PlatformLanguage.English;
+        public bool ConversationEmailNotificationsEnabled { get; set; } = true;
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
         public bool IsKycSubmitted { get; set; }

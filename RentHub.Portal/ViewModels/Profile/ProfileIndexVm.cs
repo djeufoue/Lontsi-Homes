@@ -6,5 +6,7 @@ namespace RentHub.Portal.ViewModels.Profile
     {
         public ProfileOverviewDto Overview { get; set; } = new();
         public DateTimeOffset NowUtc { get; set; } = DateTimeOffset.UtcNow;
+        public bool IsOwnProfile { get; set; } = true;
+        public int? AccessTenancyId { get; set; }
     }
 }

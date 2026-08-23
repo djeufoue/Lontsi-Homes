@@ -137,20 +137,37 @@ namespace RentHub.Portal.Controllers
         {
             try
             {
+                var normalizedEndBehavior = request.EndBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth
+                    ? TenancyEndBehaviorEnum.NoEndDate
+                    : request.EndBehavior;
+
                 if (!ModelState.IsValid)
                 {
                     TempData["Error"] = "Please complete the tenancy details before saving.";
                     return await RedirectToApartmentOverviewAsync(request.ApartmentId);
                 }
 
+                if (normalizedEndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !request.EndDate.HasValue)
+                {
+                    TempData["Error"] = "Please provide an end date when the tenancy expires automatically.";
+                    return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+                }
+
+                if (request.EndDate.HasValue && request.EndDate.Value.Date < request.StartDate.Date)
+                {
+                    TempData["Error"] = "End date cannot be before the start date.";
+                    return await RedirectToApartmentOverviewAsync(request.ApartmentId);
+                }
+
                 await _api.PutAsync($"tenancies/{request.TenancyId}", new UpdateTenancyRequest
                 {
                     StartDate = request.StartDate,
-                    EndDate = request.EndDate,
+                    EndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : request.EndDate,
                     MonthlyRent = request.MonthlyRent,
                     MaxMembers = request.MaxMembers,
                     RentDueDay = request.RentDueDay,
-                    EndBehavior = request.EndBehavior
+                    EndBehavior = normalizedEndBehavior,
+                    AutoExtensionMonths = request.AutoExtensionMonths
                 });
 
                 TempData["Success"] = "Tenancy updated successfully.";
@@ -168,6 +185,11 @@ namespace RentHub.Portal.Controllers
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateReminderSettings(int apartmentId, UpdateApartmentReminderSettingsRequest request)
         {
+            if (User.IsInRole("Tenant") && !User.IsInRole("Admin") && !User.IsInRole("Landlord"))
+            {
+                return Forbid();
+            }
+
             try
             {
                 if (!ModelState.IsValid)
@@ -426,13 +448,15 @@ namespace RentHub.Portal.Controllers
             }
 
             var owners = overview.Owners ?? new List<ApartmentOwnerDto>();
+            var latestTenancyMembers = overview.LatestTenancyMembers ?? new List<TenancyMemberDto>();
+            var latestTenancyMemberCount = latestTenancyMembers.Count;
             if (!string.IsNullOrWhiteSpace(memberSearch))
             {
                 var search = memberSearch.Trim().ToLowerInvariant();
-                owners = owners
-                    .Where(o => (o.OwnerName ?? string.Empty).ToLowerInvariant().Contains(search)
-                             || o.Permission.ToString().ToLowerInvariant().Contains(search)
-                             || o.Role.ToString().ToLowerInvariant().Contains(search))
+                latestTenancyMembers = latestTenancyMembers
+                    .Where(member => (member.FullName ?? string.Empty).ToLowerInvariant().Contains(search)
+                                  || (member.Email ?? string.Empty).ToLowerInvariant().Contains(search)
+                                  || (member.Role ?? string.Empty).ToLowerInvariant().Contains(search))
                     .ToList();
             }
 
@@ -440,6 +464,9 @@ namespace RentHub.Portal.Controllers
             {
                 Apartment = overview.Apartment,
                 Tenancies = tenancies,
+                LatestTenancy = overview.LatestTenancy,
+                LatestTenancyMembers = latestTenancyMembers,
+                LatestTenancyMemberCount = latestTenancyMemberCount,
                 Owners = owners,
                 Documents = overview.Documents ?? new List<DocumentDto>(),
                 TenancySearch = tenancySearch,
@@ -448,6 +475,7 @@ namespace RentHub.Portal.Controllers
                 CanViewFinancialInformation = overview.CanViewFinancialInformation,
                 CanEditFinancialInformation = overview.CanEditFinancialInformation,
                 CanManageMembers = overview.CanManageMembers,
+                CanViewLatestTenancyMembers = overview.CanViewLatestTenancyMembers,
                 CanManageDocuments = overview.CanManageDocuments,
                 CanAddTenancy = overview.CanAddTenancy,
                 CanEditTenancy = overview.CanEditTenancy,

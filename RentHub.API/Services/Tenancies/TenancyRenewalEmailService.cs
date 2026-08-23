@@ -11,6 +11,7 @@ namespace RentHub.API.Services.Tenancies
     {
         Task SendExpiryReminderAsync(ApplicationUser tenant, Tenancy tenancy, CancellationToken cancellationToken = default);
         Task SendRequestSubmittedAsync(TenancyExtensionRequest request, CancellationToken cancellationToken = default);
+        Task SendRequestWithdrawnAsync(TenancyExtensionRequest request, CancellationToken cancellationToken = default);
         Task SendDecisionAsync(TenancyExtensionRequest request, CancellationToken cancellationToken = default);
     }
 
@@ -42,7 +43,7 @@ namespace RentHub.API.Services.Tenancies
 
             var propertyName = tenancy.Apartment?.Property?.Name ?? string.Empty;
             var apartmentName = tenancy.Apartment?.Name ?? string.Empty;
-            var renewalUrl = BuildPortalUrl($"/Tenancies/Renewal?tenancyId={tenancy.Id}");
+            var renewalUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={tenancy.Id}&requestType=Renewal");
             var endDate = FormatDate(tenancy.EndDate.Value, tenant.EmailLanguage);
             var name = DisplayName(tenant);
 
@@ -129,7 +130,7 @@ namespace RentHub.API.Services.Tenancies
                 .AsNoTracking()
                 .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
                 .ToListAsync(cancellationToken);
-            var reviewUrl = BuildPortalUrl($"/Tenancies/Renewal?tenancyId={tenancy.Id}");
+            var reviewUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={tenancy.Id}&requestType=Renewal");
             var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
 
             foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
@@ -168,53 +169,128 @@ namespace RentHub.API.Services.Tenancies
             TenancyExtensionRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (request.RequestedBy == null || string.IsNullOrWhiteSpace(request.RequestedBy.Email) || request.Tenancy?.Apartment == null)
+            var tenancy = request.Tenancy;
+            var property = tenancy?.Apartment?.Property;
+            if (request.RequestedBy == null || tenancy?.Apartment == null || property == null)
             {
                 return;
             }
 
             var tenant = request.RequestedBy;
             var approved = request.Status == TenancyExtensionStatusEnum.Approved;
-            var renewalUrl = BuildPortalUrl($"/Tenancies/Renewal?tenancyId={request.TenancyId}");
-            var proposedDate = FormatDate(request.ProposedEndDate, tenant.EmailLanguage);
-            var subject = tenant.EmailLanguage == PlatformLanguage.French
-                ? approved ? "Votre renouvellement a été approuvé" : "Votre renouvellement a été refusé"
-                : approved ? "Your tenancy renewal was approved" : "Your tenancy renewal was rejected";
-
-            var lines = new List<string>
+            var recipientIds = new HashSet<string>(StringComparer.Ordinal) { tenant.Id };
+            if (!string.Equals(request.ApprovedById, property.LandlordId, StringComparison.Ordinal))
             {
-                tenant.EmailLanguage == PlatformLanguage.French
-                    ? $"Bonjour {DisplayName(tenant)},"
-                    : $"Hello {DisplayName(tenant)},",
-                string.Empty
-            };
-
-            if (tenant.EmailLanguage == PlatformLanguage.French)
-            {
-                lines.Add(approved
-                    ? $"Votre demande de renouvellement pour {request.Tenancy.Apartment.Name} a été approuvée. La nouvelle date de fin est le {proposedDate}."
-                    : $"Votre demande de renouvellement pour {request.Tenancy.Apartment.Name} a été refusée.");
-                if (!approved && !string.IsNullOrWhiteSpace(request.RejectionReason))
-                {
-                    lines.Add($"Raison : {request.RejectionReason}");
-                }
-                lines.Add($"Consulter la demande : {renewalUrl}");
-            }
-            else
-            {
-                lines.Add(approved
-                    ? $"Your renewal request for {request.Tenancy.Apartment.Name} was approved. The new end date is {proposedDate}."
-                    : $"Your renewal request for {request.Tenancy.Apartment.Name} was rejected.");
-                if (!approved && !string.IsNullOrWhiteSpace(request.RejectionReason))
-                {
-                    lines.Add($"Reason: {request.RejectionReason}");
-                }
-                lines.Add($"View the request: {renewalUrl}");
+                recipientIds.Add(property.LandlordId);
             }
 
-            lines.Add(string.Empty);
-            lines.Add("Lontsi Homes");
-            await _emailService.SendEmailAsync(tenant.Email, subject, string.Join(Environment.NewLine, lines));
+            var recipients = await _context.Users
+                .AsNoTracking()
+                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .ToListAsync(cancellationToken);
+            var reviewer = string.IsNullOrWhiteSpace(request.ApprovedById)
+                ? null
+                : await _context.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == request.ApprovedById, cancellationToken);
+            var renewalUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={request.TenancyId}&requestType=Renewal");
+
+            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            {
+                var french = recipient.EmailLanguage == PlatformLanguage.French;
+                var proposedDate = FormatDate(request.ProposedEndDate, recipient.EmailLanguage);
+                var isLandlordNotice = recipient.Id == property.LandlordId && recipient.Id != tenant.Id;
+                var subject = french
+                    ? approved ? "Demande de renouvellement approuvée" : "Demande de renouvellement refusée"
+                    : approved ? "Tenancy renewal request approved" : "Tenancy renewal request rejected";
+                var lines = new List<string>
+                {
+                    french ? $"Bonjour {DisplayName(recipient)}," : $"Hello {DisplayName(recipient)},",
+                    string.Empty,
+                    isLandlordNotice
+                        ? french
+                            ? $"{DisplayName(reviewer ?? recipient)} a {(approved ? "approuvé" : "refusé")} la demande de renouvellement pour {tenancy.Apartment.Name}."
+                            : $"{DisplayName(reviewer ?? recipient)} {(approved ? "approved" : "rejected")} the renewal request for {tenancy.Apartment.Name}."
+                        : french
+                            ? approved
+                                ? $"Votre demande de renouvellement pour {tenancy.Apartment.Name} a été approuvée. La nouvelle date de fin est le {proposedDate}."
+                                : $"Votre demande de renouvellement pour {tenancy.Apartment.Name} a été refusée. Motif : {request.RejectionReason}"
+                            : approved
+                                ? $"Your renewal request for {tenancy.Apartment.Name} was approved. The new end date is {proposedDate}."
+                                : $"Your renewal request for {tenancy.Apartment.Name} was rejected. Reason: {request.RejectionReason}",
+                    french ? $"Consulter la demande : {renewalUrl}" : $"View the request: {renewalUrl}",
+                    string.Empty,
+                    "Lontsi Homes"
+                };
+
+                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+            }
+        }
+
+        public async Task SendRequestWithdrawnAsync(
+            TenancyExtensionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var tenancy = request.Tenancy;
+            var property = tenancy?.Apartment?.Property;
+            if (tenancy?.Apartment == null || property == null) return;
+
+            var recipientIds = new HashSet<string>(StringComparer.Ordinal) { property.LandlordId };
+            var assignments = await _context.PropertyManagerAssignments
+                .AsNoTracking()
+                .Include(assignment => assignment.ApartmentOverrides)
+                .Where(assignment => !assignment.IsDeleted && assignment.PropertyId == property.Id)
+                .ToListAsync(cancellationToken);
+            recipientIds.UnionWith(assignments
+                .Where(assignment =>
+                {
+                    var apartmentOverride = assignment.ApartmentOverrides
+                        .FirstOrDefault(item => item.ApartmentId == tenancy.ApartmentId);
+                    var hasApartmentAccess = apartmentOverride?.HasAccess ?? assignment.AccessAllApartments;
+                    var effectiveFlags = assignment.PermissionFlags |
+                                         (apartmentOverride?.AllowedPermissionFlags ?? 0L);
+                    effectiveFlags &= ~(apartmentOverride?.DeniedPermissionFlags ?? 0L);
+                    return hasApartmentAccess &&
+                           (effectiveFlags & (long)ManagerPermission.RenewTenancy) != 0;
+                })
+                .Select(assignment => assignment.ManagerId));
+            recipientIds.UnionWith(await _context.ApartmentOwners
+                .AsNoTracking()
+                .Where(owner =>
+                    !owner.IsDeleted &&
+                    owner.ApartmentId == tenancy.ApartmentId &&
+                    owner.Permission == PermissionLevelEnum.ReadWrite)
+                .Select(owner => owner.OwnerId)
+                .ToListAsync(cancellationToken));
+            recipientIds.Remove(request.RequestedById);
+
+            var recipients = await _context.Users
+                .AsNoTracking()
+                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .ToListAsync(cancellationToken);
+            var requestsUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={request.TenancyId}&requestType=Renewal");
+            var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
+
+            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            {
+                var french = recipient.EmailLanguage == PlatformLanguage.French;
+                var subject = french
+                    ? $"Demande de renouvellement annulée – {tenancy.Apartment.Name}"
+                    : $"Renewal request cancelled - {tenancy.Apartment.Name}";
+                var lines = french
+                    ? new[]
+                    {
+                        $"Bonjour {DisplayName(recipient)},", string.Empty,
+                        $"{requesterName} a annulé sa demande de renouvellement pour {property.Name} – {tenancy.Apartment.Name} avant qu’une décision soit prise.",
+                        $"Consulter le registre : {requestsUrl}", string.Empty, "Lontsi Homes"
+                    }
+                    : new[]
+                    {
+                        $"Hello {DisplayName(recipient)},", string.Empty,
+                        $"{requesterName} cancelled their renewal request for {property.Name} - {tenancy.Apartment.Name} before a decision was made.",
+                        $"View the register: {requestsUrl}", string.Empty, "Lontsi Homes"
+                    };
+
+                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+            }
         }
 
         private string BuildPortalUrl(string path)

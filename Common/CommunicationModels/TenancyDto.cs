@@ -18,6 +18,7 @@ namespace Common.CommunicationModels
         public int MaxMembers { get; set; }
         public int RentDueDay { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
+        public int AutoExtensionMonths { get; set; } = 1;
         public DateTimeOffset? TerminatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTimeOffset? PaidThroughDate { get; set; }

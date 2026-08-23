@@ -21,6 +21,7 @@
         : 0;
     var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
     var isAdmin = overview.Roles.Any(role => string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+    var isOwnProfile = Model.IsOwnProfile;
     var smsVerificationUnavailable = !overview.SmsVerificationEnabled;
     var kycAction = Url.Action("LandlordKyc", "Auth", new { email = overview.Email });
     var contractAction = Url.Action("LandlordContract", "Auth", new { email = overview.Email });
@@ -56,11 +57,11 @@
         </div>
     </div>
     <div class="rh-toolbar">
-        @if (isLandlord)
+        @if (isOwnProfile && isLandlord)
         {
             <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">@T["Payment Center"]</a>
         }
-        @if (isAdmin)
+        @if (isOwnProfile && isAdmin)
         {
             <a class="btn rh-btn-subtle" asp-controller="AdminSubscriptions" asp-action="PaymentAccounts">@T["Payment Accounts"]</a>
         }
@@ -130,7 +131,7 @@
                     <h3>@T["Identity files submitted"]</h3>
                     <p>@T["Three face photos and government ID document files."]</p>
                     <small>@T["Status: {0}", T[overview.KycStatus.ToString()]]</small>
-                    @if (!overview.IsKycSubmitted || overview.KycStatus == LandlordKycStatusEnum.Rejected)
+                    @if (isOwnProfile && (!overview.IsKycSubmitted || overview.KycStatus == LandlordKycStatusEnum.Rejected))
                     {
                         <a class="btn btn-sm rh-btn-primary mt-2" href="@kycAction">@T["Submit KYC"]</a>
                     }
@@ -159,7 +160,7 @@
                     {
                         <small>@T["Signed by {0} on {1:D}", overview.PlatformTermsSignatureName ?? T["Not available"].Value, overview.PlatformTermsAcceptedAt!.Value.LocalDateTime]</small>
                     }
-                    else if (overview.IsKycSubmitted)
+                    else if (isOwnProfile && overview.IsKycSubmitted)
                     {
                         <a class="btn btn-sm rh-btn-primary mt-2" href="@contractAction">@T["Sign contract"]</a>
                     }
@@ -172,7 +173,7 @@
                     <h3>@T["Payout account setup"]</h3>
                     <p>@(overview.StripeConnectPlatformEnabled ? T["Connect Stripe after KYC approval so tenant card rent payments can be routed to you."].Value : T["Stripe Connect setup is paused while platform activation is pending. Continue testing the other workflows."].Value)</p>
                     <small>@T["Status: {0}", payoutSetupStatusText]</small>
-                    @if (!overview.StripePayoutSetupComplete && overview.StripeConnectPlatformEnabled)
+                    @if (isOwnProfile && !overview.StripePayoutSetupComplete && overview.StripeConnectPlatformEnabled)
                     {
                         @if (overview.IsKycApproved)
                         {
@@ -214,27 +215,35 @@
     </article>
 
     <article class="rh-panel rh-panel-elevated">
-        <h2 class="rh-section-title mb-2">@T["Language"]</h2>
-        <p class="text-muted">@T["Choose the language used throughout Lontsi Homes."]</p>
-        <form asp-controller="Profile" asp-action="UpdateLanguage" method="post" class="rh-profile-language-form">
-            @Html.AntiForgeryToken()
-            <label class="form-label" for="profileLanguage">@T["Language"]</label>
-            <div class="rh-profile-language-controls">
-                <select class="form-select" id="profileLanguage" name="Language" aria-describedby="profileLanguageHelp">
-                    <option value="@((int)PlatformLanguage.English)" selected="@(overview.Language == PlatformLanguage.English ? "selected" : null)">English</option>
-                    <option value="@((int)PlatformLanguage.French)" selected="@(overview.Language == PlatformLanguage.French ? "selected" : null)">Français</option>
-                </select>
-                <button class="btn rh-btn-primary" type="submit">@T["Save language"]</button>
-            </div>
-            <small class="text-muted" id="profileLanguageHelp">@T["Your selection is saved to your account and restored whenever you sign in."]</small>
-        </form>
+        @if (isOwnProfile)
+        {
+            <h2 class="rh-section-title mb-2">@T["Language"]</h2>
+            <p class="text-muted">@T["Choose the language used throughout Lontsi Homes."]</p>
+            <form asp-controller="Profile" asp-action="UpdateLanguage" method="post" class="rh-profile-language-form">
+                @Html.AntiForgeryToken()
+                <label class="form-label" for="profileLanguage">@T["Language"]</label>
+                <div class="rh-profile-language-controls">
+                    <select class="form-select" id="profileLanguage" name="Language" aria-describedby="profileLanguageHelp">
+                        <option value="@((int)PlatformLanguage.English)" selected="@(overview.Language == PlatformLanguage.English ? "selected" : null)">English</option>
+                        <option value="@((int)PlatformLanguage.French)" selected="@(overview.Language == PlatformLanguage.French ? "selected" : null)">Français</option>
+                    </select>
+                    <button class="btn rh-btn-primary" type="submit">@T["Save language"]</button>
+                </div>
+                <small class="text-muted" id="profileLanguageHelp">@T["Your selection is saved to your account and restored whenever you sign in."]</small>
+            </form>
 
-        <hr class="my-4" />
-
-        <h3 class="rh-section-title mb-2">@T["Email language"]</h3>
+            <hr class="my-4" />
+            <h3 class="rh-section-title mb-2">@T["Email language"]</h3>
+        }
+        else
+        {
+            <h2 class="rh-section-title mb-2">@T["Email language"]</h2>
+        }
         <p class="text-muted">@T["Choose the language used for every email sent to you, including reminders, receipts, invitations, renewals, and account notifications."]</p>
         <form asp-controller="Profile" asp-action="UpdateEmailLanguage" method="post" class="rh-profile-language-form">
             @Html.AntiForgeryToken()
+            <input type="hidden" name="UserId" value="@(!isOwnProfile ? overview.UserId : null)" />
+            <input type="hidden" name="TenancyId" value="@Model.AccessTenancyId" />
             <label class="form-label" for="profileEmailLanguage">@T["Email language"]</label>
             <div class="rh-profile-language-controls">
                 <select class="form-select" id="profileEmailLanguage" name="EmailLanguage" aria-describedby="profileEmailLanguageHelp">
@@ -245,9 +254,32 @@
             </div>
             <small class="text-muted" id="profileEmailLanguageHelp">@T["This preference is independent from the language of the application interface."]</small>
         </form>
+
+        @if (isOwnProfile)
+        {
+            <hr class="my-4" />
+            <h3 class="rh-section-title mb-2">@T["Message email notifications"]</h3>
+            <p class="text-muted">@T["Choose whether a follow-up email is sent when a new message is waiting for you in Lontsi Homes."]</p>
+            <form asp-controller="Profile" asp-action="UpdateConversationEmailNotifications" method="post" class="rh-profile-language-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Enabled" value="false" />
+                <div class="form-check form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="conversationEmailNotificationsEnabled"
+                           name="Enabled"
+                           value="true"
+                           checked="@(overview.ConversationEmailNotificationsEnabled ? "checked" : null)" />
+                    <label class="form-check-label" for="conversationEmailNotificationsEnabled">@T["Receive an email for new messages"]</label>
+                </div>
+                <small class="text-muted d-block mt-2 mb-3">@T["Disabling this option does not block messages in the platform. It only stops the additional email notification."]</small>
+                <button class="btn rh-btn-primary" type="submit">@T["Save notification preference"]</button>
+            </form>
+        }
     </article>
 
-    @if (isLandlord || isAdmin)
+    @if (isOwnProfile && (isLandlord || isAdmin))
     {
         <article class="rh-panel rh-panel-elevated">
             <h2 class="rh-section-title mb-3">@T["Payments and Subscriptions"]</h2>

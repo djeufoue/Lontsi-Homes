@@ -8,6 +8,7 @@ namespace Common.CommunicationModels
     {
         public int ConversationId { get; set; }
         public int ApartmentId { get; set; }
+        public int PropertyId { get; set; }
         public string ApartmentName { get; set; } = string.Empty;
         public string PropertyName { get; set; } = string.Empty;
         public string City { get; set; } = string.Empty;
@@ -16,13 +17,16 @@ namespace Common.CommunicationModels
         public string LastMessagePreview { get; set; } = string.Empty;
         public DateTimeOffset LastMessageAt { get; set; }
         public bool HasUnreadMessages { get; set; }
+        public int UnreadCount { get; set; }
         public string? LeadImageUrl { get; set; }
+        public bool IsPropertyTeamConversation { get; set; }
     }
 
     public class ConversationThreadDto
     {
         public int ConversationId { get; set; }
         public int ApartmentId { get; set; }
+        public int PropertyId { get; set; }
         public string ApartmentName { get; set; } = string.Empty;
         public string PropertyName { get; set; } = string.Empty;
         public string City { get; set; } = string.Empty;
@@ -35,6 +39,9 @@ namespace Common.CommunicationModels
         public string? LeadImageUrl { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset LastMessageAt { get; set; }
+        public bool CanReply { get; set; }
+        public bool IsResidentView { get; set; }
+        public bool IsPropertyTeamConversation { get; set; }
         public List<ConversationMessageDto> Messages { get; set; } = new();
     }
 
@@ -47,6 +54,20 @@ namespace Common.CommunicationModels
         public DateTimeOffset SentAt { get; set; }
         public bool SentByCurrentUser { get; set; }
         public bool IsRead { get; set; }
+        public bool IsPropertyBroadcast { get; set; }
+        public bool IsPropertyTeamMessage { get; set; }
+        public string SenderContextLabel { get; set; } = string.Empty;
+        public int? ReplyToMessageId { get; set; }
+        public string? ReplyToSenderName { get; set; }
+        public string? ReplyToBody { get; set; }
+        public List<ConversationReadReceiptDto> ReadBy { get; set; } = new();
+    }
+
+    public class ConversationReadReceiptDto
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string RoleLabel { get; set; } = string.Empty;
+        public DateTimeOffset ReadAt { get; set; }
     }
 
     public class StartConversationRequest
@@ -61,6 +82,54 @@ namespace Common.CommunicationModels
         [Required]
         [StringLength(1500, MinimumLength = 1)]
         public string Message { get; set; } = string.Empty;
+
+        public int? ReplyToMessageId { get; set; }
+    }
+
+    public class CreatePropertyBroadcastRequest
+    {
+        [Required]
+        [StringLength(1500, MinimumLength = 1)]
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class StartPropertyTeamConversationRequest
+    {
+        [Required]
+        [StringLength(1500, MinimumLength = 1)]
+        public string InitialMessage { get; set; } = string.Empty;
+    }
+
+    public class ConversationUnreadCountDto
+    {
+        public int UnreadCount { get; set; }
+        public int UnreadConversationCount { get; set; }
+    }
+
+    public class ConversationWorkspaceDto
+    {
+        public bool CanStartConversation { get; set; }
+        public bool CanBroadcast { get; set; }
+        public bool CanUsePropertyTeamConversation { get; set; }
+        public List<ConversationPropertyOptionDto> Properties { get; set; } = new();
+    }
+
+    public class ConversationPropertyOptionDto
+    {
+        public int PropertyId { get; set; }
+        public string PropertyName { get; set; } = string.Empty;
+        public int ActiveTenantCount { get; set; }
+        public bool CanBroadcast { get; set; }
+        public bool CanUsePropertyTeamConversation { get; set; }
+        public int? PropertyTeamConversationId { get; set; }
+        public List<ConversationApartmentOptionDto> Apartments { get; set; } = new();
+    }
+
+    public class ConversationApartmentOptionDto
+    {
+        public int ApartmentId { get; set; }
+        public string ApartmentName { get; set; } = string.Empty;
+        public bool CanStartConversation { get; set; }
     }
 
     public class CreateSubscriptionInquiryRequest

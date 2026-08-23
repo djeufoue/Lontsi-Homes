@@ -2,6 +2,7 @@
 @using Common.Enums
 @using Common.Helpers
 @using System
+@using System.Globalization
 @{
     ViewData["Title"] = T["Tenancy Overview"].Value;
     var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
@@ -11,9 +12,8 @@
     var today = DateTimeOffset.UtcNow.Date;
     var contract = Model.Documents.OrderByDescending(document => document.UploadedAt).FirstOrDefault();
     var rentPeriods = Model.AllRentPeriods.OrderBy(period => period.PeriodStart).ToList();
-    var waiveCandidates = rentPeriods
-        .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.PeriodEnd.Date >= today)
-        .ToList();
+    var minimumLandlordNoticeDate = CameroonTenancyNoticePolicy.MinimumLandlordTerminationDate(today);
+    var fixedEndBeforeNoticeWindow = tenancy.EndDate.HasValue && tenancy.EndDate.Value.Date < minimumLandlordNoticeDate;
     var members = Model.Members.OrderBy(member => string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? 0 : 1)
         .ThenBy(member => member.FullName)
         .ToList();
@@ -32,7 +32,60 @@
         _ => "rh-chip-warning"
     };
 
-    string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("d");
+    string LongDateLabel(DateTimeOffset value) => value.Date.ToString("dddd d MMMM yyyy", CultureInfo.CurrentCulture);
+    string DetailedRelativeLabel(DateTimeOffset value)
+    {
+        // A tenancy begins on a calendar date. Compare dates only so the label never
+        // exposes an irrelevant time, minute, second, or time-zone offset.
+        var startDate = new DateTime(value.Year, value.Month, value.Day);
+        var currentDate = DateTime.Now.Date;
+        if (startDate == currentDate)
+        {
+            return T["Today"].Value;
+        }
+
+        var isFuture = startDate > currentDate;
+        var earlier = isFuture ? currentDate : startDate;
+        var later = isFuture ? startDate : currentDate;
+
+        var years = Math.Max(0, later.Year - earlier.Year);
+        if (earlier.AddYears(years) > later)
+        {
+            years--;
+        }
+
+        var cursor = earlier.AddYears(years);
+        var months = Math.Max(0, ((later.Year - cursor.Year) * 12) + later.Month - cursor.Month);
+        if (cursor.AddMonths(months) > later)
+        {
+            months--;
+        }
+
+        cursor = cursor.AddMonths(months);
+        var remainingDays = (later - cursor).Days;
+        var parts = new List<string>();
+        if (years > 0)
+        {
+            parts.Add(years == 1 ? T["1 year"].Value : T["{0} years", years].Value);
+        }
+        if (years > 0 || months > 0)
+        {
+            parts.Add(months == 1 ? T["1 month"].Value : T["{0} months", months].Value);
+        }
+        if (years > 0 || months > 0 || remainingDays > 0)
+        {
+            parts.Add(remainingDays == 1 ? T["1 day"].Value : T["{0} days", remainingDays].Value);
+        }
+
+        var duration = parts.Count == 1
+            ? parts[0]
+            : T["{0} and {1}", string.Join(", ", parts.Take(parts.Count - 1)), parts[^1]].Value;
+        return isFuture ? T["In {0}", duration].Value : T["{0} ago", duration].Value;
+    }
+    string MemberRoleLabel(string role) =>
+        string.Equals(role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase)
+            ? T["Main Tenant"].Value
+            : T[role].Value;
 }
 
 <section class="rh-overview-shell rh-tenancy-shell">
@@ -54,8 +107,7 @@
         <div class="rh-overview-hero-actions">
             <a class="btn rh-btn-subtle" asp-controller="Apartments" asp-action="Overview" asp-route-id="@tenancy.ApartmentId">@T["Apartment Workspace"]</a>
             <a class="btn rh-btn-primary" asp-controller="Properties" asp-action="Overview" asp-route-id="@tenancy.PropertyId">@T["Property Workspace"]</a>
-            <a class="btn rh-btn-subtle" asp-action="Renewal" asp-route-tenancyId="@tenancy.Id">@T["Renewal requests"]</a>
-            @if (tenancy.CanTerminate && tenancy.TerminatedAt == null)
+            @if (tenancy.CanTerminate && tenancy.TerminatedAt == null && !fixedEndBeforeNoticeWindow)
             {
                 <button type="button" class="btn rh-btn-outline-danger" data-bs-toggle="modal" data-bs-target="#terminateTenancyModal">@T["Terminate tenancy"]</button>
             }
@@ -74,8 +126,8 @@
         <div class="rh-apartment-commanddeck-grid">
             <div class="rh-overview-bigstat">
                 <span>@T["Start date"]</span>
-                <strong>@tenancy.StartDate.LocalDateTime.ToString("d")</strong>
-                <small>@T["Lease commencement"]</small>
+                <strong class="rh-tenancy-start-date">@LongDateLabel(tenancy.StartDate)</strong>
+                <small class="rh-tenancy-elapsed">@DetailedRelativeLabel(tenancy.StartDate)</small>
             </div>
             <div class="rh-overview-bigstat alt">
                 <span>@T["End date"]</span>
@@ -99,6 +151,32 @@
             </div>
         </div>
     </section>
+
+    @if (tenancy.CanRequestTermination || tenancy.CanRequestRenewal)
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Your tenancy requests"]</h2>
+                    @if (tenancy.EndDate.HasValue)
+                    {
+                        <p class="rh-dashboard-panel-copy">@T["You can request an earlier tenancy end or ask to renew this fixed-term tenancy. Nothing changes until the request is approved."]</p>
+                    }
+                    else
+                    {
+                        <p class="rh-dashboard-panel-copy">@T["This tenancy has no scheduled end date. You can request an end date; renewal is not needed for an open-ended tenancy."]</p>
+                    }
+                </div>
+                <a class="btn rh-btn-primary"
+                   asp-controller="TenancyRequests"
+                   asp-action="Index"
+                   asp-route-tenancyId="@tenancy.Id"
+                   asp-route-openForm="true">
+                    @(tenancy.EndDate.HasValue ? T["Make a renewal request"] : T["Make an end-of-tenancy request"])
+                </a>
+            </div>
+        </section>
+    }
 
     @if (tenancy.CanViewRent)
     {
@@ -228,17 +306,18 @@
                         {
                             <article class="rh-member-card rh-card-spotlight rh-member-card-clickable">
                                 <a class="rh-member-card-link"
-                                   asp-action="MemberProfile"
+                                   asp-controller="Profile"
+                                   asp-action="Index"
                                    asp-route-tenancyId="@tenancy.Id"
-                                   asp-route-memberId="@member.Id"
+                                   asp-route-userId="@member.MemberId"
                                    aria-label="@T["Open profile for {0}", member.FullName]"></a>
                                 <div class="rh-member-card-copy">
                                     <strong>@member.FullName</strong>
-                                    <small>@T[member.Role] • @(string.IsNullOrWhiteSpace(member.Email) ? T["No email saved"].Value : member.Email)</small>
+                                    <small>@MemberRoleLabel(member.Role) • @(string.IsNullOrWhiteSpace(member.Email) ? T["No email saved"].Value : member.Email)</small>
                                     <small>@(member.EmailConfirmed ? T["Email confirmed"].Value : T["Email activation pending"].Value)</small>
                                 </div>
                                 <div class="rh-member-card-actions">
-                                    <span class="rh-chip @(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@T[member.Role]</span>
+                                    <span class="rh-chip @(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@MemberRoleLabel(member.Role)</span>
                                     <span class="rh-chip @(member.EmailConfirmed ? "rh-chip-primary" : "rh-chip-warning")">@(member.EmailConfirmed ? T["Active"].Value : T["Pending"].Value)</span>
                                     @if (!string.IsNullOrWhiteSpace(member.CountryCode))
                                     {
@@ -274,7 +353,7 @@
     </section>
 </section>
 
-@if (tenancy.CanWrite)
+@if (tenancy.CanTerminate && tenancy.TerminatedAt == null && !fixedEndBeforeNoticeWindow)
 {
     <div class="modal fade" id="terminateTenancyModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered rh-action-modal-dialog">
@@ -286,7 +365,7 @@
                     <div class="modal-header border-0 pb-0">
                         <div>
                             <h5 class="modal-title">@T["Terminate tenancy"]</h5>
-                            <p class="text-muted mb-0">@T["Confirm the date and future rent handling before ending this tenancy."]</p>
+                            <p class="text-muted mb-0">@T["Choose the effective date. Rent tracking and automatic reminders will stop on that date."]</p>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                     </div>
@@ -294,7 +373,10 @@
                     <div class="modal-body row g-3">
                         <div class="col-md-6">
                             <label class="form-label">@T["Termination date"]</label>
-                            <input class="form-control rh-input" type="date" name="terminationDate" value="@today.ToString("yyyy-MM-dd")" required />
+                            <input class="form-control rh-input" type="date" name="terminationDate"
+                                   min="@minimumLandlordNoticeDate.ToString("yyyy-MM-dd")"
+                                   max="@tenancy.EndDate?.ToString("yyyy-MM-dd")"
+                                   value="@minimumLandlordNoticeDate.ToString("yyyy-MM-dd")" required />
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">@T["Reason"]</label>
@@ -310,34 +392,10 @@
                             </div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">@T["Future rent handling"]</label>
-                            <div class="rh-select-wrap">
-                                <select class="form-select rh-input rh-select" name="futureRentHandling" data-future-rent-handling>
-                                    <option value="CancelFutureUnpaidPeriods">@T["Cancel future unpaid periods"]</option>
-                                    <option value="KeepUnpaidBalance">@T["Keep unpaid balance"]</option>
-                                    <option value="WaiveSelectedPeriods">@T["Waive selected periods"]</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-12" data-waive-periods hidden>
-                            <div class="rh-inline-settings-note">
-                                <strong>@T["Waive selected future/unpaid periods"]</strong>
-                                @if (!waiveCandidates.Any())
-                                {
-                                    <div class="mt-2">@T["No unpaid future period is available for waiver."]</div>
-                                }
-                                else
-                                {
-                                    <div class="mt-2 d-grid gap-2">
-                                        @foreach (var period in waiveCandidates)
-                                        {
-                                            <label>
-                                                <input type="checkbox" name="waivedRentPeriodIds" value="@period.Id" />
-                                                @DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd) (@period.Amount.ToString("N0"))
-                                            </label>
-                                        }
-                                    </div>
-                                }
+                            <div class="alert alert-danger mb-0" role="alert">
+                                <strong>@T["Important notice rule"]</strong>
+                                <div>@T["Lontsi Homes applies a conservative minimum notice period of three months to a landlord decision. The tenancy contract and applicable Cameroonian law must also be checked."]</div>
+                                <a class="alert-link" asp-controller="Legal" asp-action="TenancyNotice" target="_blank" rel="noopener">@T["Read the Cameroon tenancy notice summary"]</a>
                             </div>
                         </div>
                         <div class="col-12">
@@ -354,8 +412,9 @@
             </div>
         </div>
     </div>
+}
 
-    <div class="modal fade" id="uploadTenancyContractModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="uploadTenancyContractModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rh-modal-content">
                 <form method="post" asp-action="UploadContract" enctype="multipart/form-data">
@@ -422,7 +481,7 @@
                             <label class="form-label">@T["Role"]</label>
                             <div class="rh-select-wrap">
                                 <select class="form-select rh-input rh-select" name="Role">
-                                    <option value="MainTenant">@T["MainTenant"]</option>
+                                    <option value="MainTenant">@T["Main Tenant"]</option>
                                     <option value="CoTenant">@T["CoTenant"]</option>
                                     <option value="Children">@T["Children"]</option>
                                     <option value="Visitor">@T["Visitor"]</option>
@@ -440,8 +499,8 @@
         </div>
     </div>
 
-    @foreach (var member in members)
-    {
+@foreach (var member in members)
+{
         <div class="modal fade" id="editTenancyMemberModal-@member.Id" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rh-modal-content">
@@ -466,7 +525,7 @@
                                 <label class="form-label">@T["Role"]</label>
                                 <div class="rh-select-wrap">
                                     <select class="form-select rh-input rh-select" name="Role">
-                                        <option value="MainTenant" selected="@(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["MainTenant"]</option>
+                                        <option value="MainTenant" selected="@(string.Equals(member.Role, TenancyMemberRoleEnum.MainTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["Main Tenant"]</option>
                                         <option value="CoTenant" selected="@(string.Equals(member.Role, TenancyMemberRoleEnum.CoTenant.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["CoTenant"]</option>
                                         <option value="Children" selected="@(string.Equals(member.Role, TenancyMemberRoleEnum.Children.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["Children"]</option>
                                         <option value="Visitor" selected="@(string.Equals(member.Role, TenancyMemberRoleEnum.Visitor.ToString(), StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["Visitor"]</option>
@@ -483,22 +542,4 @@
                 </div>
             </div>
         </div>
-    }
-}
-
-@section Scripts {
-    <script>
-        (() => {
-            const select = document.querySelector("[data-future-rent-handling]");
-            const waive = document.querySelector("[data-waive-periods]");
-            if (!select || !waive) return;
-
-            const sync = () => {
-                waive.hidden = select.value !== "WaiveSelectedPeriods";
-            };
-
-            select.addEventListener("change", sync);
-            sync();
-        })();
-    </script>
 }
