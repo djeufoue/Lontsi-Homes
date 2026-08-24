@@ -25,6 +25,7 @@ var tests = new (string Name, Action Run)[]
     ("One itemized PDF receipt covers multiple periods", TestItemizedReceiptPdf),
     ("Apartment floors accept only 0 through 30", TestApartmentFloorValidation),
     ("New managers can edit apartments by default", TestManagerDefaultPermission),
+    ("Phone inputs remove all whitespace before validation", TestPhoneNumberNormalization),
     ("Production migration repairs partially-applied columns", TestProductionMigrationGuards),
     ("EF migration snapshot matches the current model", TestMigrationModel)
 };
@@ -245,6 +246,35 @@ static void TestManagerDefaultPermission()
     True(
         ((long)ManagerPermissionDefaults.Standard & (long)ManagerPermission.EditApartment) != 0,
         "the standard permission profile must include EditApartment");
+}
+
+static void TestPhoneNumberNormalization()
+{
+    var manager = new AddManagerRequest
+    {
+        Email = "manager@example.com",
+        FullName = "Test Manager",
+        CountryCode = " + 237 ",
+        PhoneNumber = "6 73\u00A097\t45 62"
+    };
+
+    Equal("+237", manager.CountryCode!, "manager country code normalization");
+    Equal("673974562", manager.PhoneNumber!, "manager phone normalization");
+    True(IsValid(manager), "a manager phone containing whitespace should be valid after normalization");
+
+    var tenancyMember = new AddTenancyMemberRequest
+    {
+        Email = "tenant@example.com",
+        CountryCode = "+ 237",
+        PhoneNumber = "6 99 00 11 22",
+        WhatsAppPhoneNumber = "+237 6 99 00 11 22",
+        Role = TenancyMemberRoleEnum.MainTenant
+    };
+
+    Equal("+237", tenancyMember.CountryCode!, "tenant country code normalization");
+    Equal("699001122", tenancyMember.PhoneNumber!, "tenant phone normalization");
+    Equal("+237699001122", tenancyMember.WhatsAppPhoneNumber!, "WhatsApp phone normalization");
+    True(IsValid(tenancyMember), "normalized tenancy member phone fields should remain valid");
 }
 
 static bool IsValid(object value)

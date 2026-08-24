@@ -13,13 +13,24 @@ namespace RentHub.Portal.ViewModels.AdminSubscriptions
         [StringLength(160)]
         public string AccountName { get; set; } = string.Empty;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Receiving number must contain only digits and may start with +.")]
-        [StringLength(40)]
-        public string? PhoneNumber { get; set; }
+        private string? _phoneNumber;
+        private string? _countryCode;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Receiving number must contain only digits and may start with +.")]
+        [StringLength(40)]
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
+
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
         [StringLength(8)]
-        public string? CountryCode { get; set; }
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
 
         [StringLength(280)]
         public string? Notes { get; set; }

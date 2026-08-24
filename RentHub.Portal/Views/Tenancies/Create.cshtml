@@ -422,15 +422,15 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">@T["Country code"]</label>
-                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\+?\d+$" placeholder="@T["e.g. +1"]" />
+                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" placeholder="@T["e.g. +1"]" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">@T["Phone number optional"]</label>
-                    <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
+                    <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">@T["WhatsApp number optional"]</label>
-                    <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\+?\d+$" />
+                    <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" />
                 </div>
                 <div class="col-12">
                     <div class="rh-inline-settings-note">

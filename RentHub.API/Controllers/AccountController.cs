@@ -135,14 +135,14 @@ namespace RentHub.API.Controllers
                     UserName = request.Email,
                     Email = request.Email,
                     FullName = string.Join(" ", new[] { request.FirstName?.Trim(), request.LastName?.Trim() }.Where(v => !string.IsNullOrWhiteSpace(v))),
-                    CountryCode = request.CountryCode?.Trim(),
-                    PhoneNumber = request.PhoneNumber?.Trim(),
+                    CountryCode = PhoneNumberHelper.Normalize(request.CountryCode),
+                    PhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber),
                     UsePrimaryPhoneForSubscriptionPayments = false,
                     SubscriptionPaymentPhoneNumber = normalizedPayoutPhone,
                     SubscriptionPaymentChannel = request.PayoutChannel,
                     PayoutPhoneNumber = normalizedPayoutPhone,
                     PayoutChannel = request.PayoutChannel,
-                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber?.Trim(),
+                    WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(request.WhatsAppPhoneNumber),
                     EmailConfirmed = false
                 };
 
@@ -267,7 +267,7 @@ namespace RentHub.API.Controllers
                     UserName = normalizedEmail,
                     Email = normalizedEmail,
                     FullName = string.Join(" ", new[] { request.FirstName?.Trim(), request.LastName?.Trim() }.Where(v => !string.IsNullOrWhiteSpace(v))),
-                    CountryCode = request.CountryCode?.Trim(),
+                    CountryCode = PhoneNumberHelper.Normalize(request.CountryCode),
                     EmailConfirmed = false,
                     PhoneNumberConfirmed = false,
                     UsePrimaryPhoneForSubscriptionPayments = true,
@@ -804,7 +804,7 @@ namespace RentHub.API.Controllers
 
                 var subscriptionPhone = request.UsePrimaryPhoneForSubscriptionPayments
                     ? user.PhoneNumber
-                    : request.SubscriptionPaymentPhoneNumber?.Trim();
+                    : PhoneNumberHelper.Normalize(request.SubscriptionPaymentPhoneNumber);
 
                 if (string.IsNullOrWhiteSpace(subscriptionPhone))
                 {
@@ -813,7 +813,7 @@ namespace RentHub.API.Controllers
 
                 var payoutPhone = request.UsePrimaryPhoneForRentPayouts
                     ? user.PhoneNumber
-                    : request.PayoutPhoneNumber?.Trim();
+                    : PhoneNumberHelper.Normalize(request.PayoutPhoneNumber);
 
                 if (string.IsNullOrWhiteSpace(payoutPhone))
                 {
@@ -855,7 +855,7 @@ namespace RentHub.API.Controllers
                 user.PayoutChannel = request.PayoutChannel;
                 user.WhatsAppPhoneNumber = string.IsNullOrWhiteSpace(request.WhatsAppPhoneNumber)
                     ? null
-                    : request.WhatsAppPhoneNumber.Trim();
+                    : PhoneNumberHelper.NormalizeOrEmpty(request.WhatsAppPhoneNumber);
 
                 user.IsSubscriptionPaymentPhoneVerified =
                     (oldSubscriptionVerified && SamePhone(oldSubscriptionPhone, user.SubscriptionPaymentPhoneNumber)) ||
@@ -1924,8 +1924,8 @@ namespace RentHub.API.Controllers
                     UserName = request.Email,
                     Email = request.Email,
                     FullName = request.FullName?.Trim(),
-                    PhoneNumber = request.PhoneNumber?.Trim(),
-                    WhatsAppPhoneNumber = request.WhatsAppPhoneNumber?.Trim(),
+                    PhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber),
+                    WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(request.WhatsAppPhoneNumber),
                     EmailConfirmed = false,
                     PhoneNumberConfirmed = false,
                     IsWhatsAppPhoneVerified = false

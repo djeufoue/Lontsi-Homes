@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -16,8 +17,14 @@ namespace Common.CommunicationModels
         [Required]
         public string Address { get; set; } = string.Empty;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
 
         [RegularExpression(@"^[A-Za-z]{2}$", ErrorMessage = "Country must be a valid 2-letter ISO code.")]
         public string? CountryIsoCode { get; set; }

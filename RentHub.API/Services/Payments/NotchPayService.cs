@@ -222,7 +222,7 @@ namespace RentHub.API.Services.Payments
                 return normalizedNumber;
             }
 
-            var normalizedCountryCode = string.IsNullOrWhiteSpace(countryCode) ? string.Empty : countryCode.Trim();
+            var normalizedCountryCode = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(countryCode);
             if (string.IsNullOrWhiteSpace(normalizedCountryCode))
             {
                 return normalizedNumber;

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Common.Enums;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -35,8 +36,14 @@ namespace Common.CommunicationModels
         [Display(Name = "Last name")]
         public string LastName { get; set; } = string.Empty;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
 
         public int? PlanId { get; set; }
     }
@@ -61,8 +68,14 @@ namespace Common.CommunicationModels
 
         [Required]
         [Display(Name = "Country")]
-        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
-        public string CountryCode { get; set; } = string.Empty;
+        private string _countryCode = string.Empty;
+
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Choose a valid country code.")]
+        public string CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
 
         [Required]
         [Display(Name = "Country")]
@@ -77,13 +90,24 @@ namespace Common.CommunicationModels
         public string Email { get; set; } = string.Empty;
 
         [Required]
-        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+        private string _phoneNumber = string.Empty;
+
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Choose a valid country code.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
 
         [Required]
         [Display(Name = "Phone number")]
         [RegularExpression(@"^\+?\d[\d\s().-]{5,24}$", ErrorMessage = "Enter a valid phone number for the selected country.")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
     }
 
     public class VerifyPhoneOtpRequest
@@ -106,9 +130,17 @@ namespace Common.CommunicationModels
 
         public bool UsePrimaryPhoneForSubscriptionPayments { get; set; } = true;
 
+        private string? _subscriptionPaymentPhoneNumber;
+        private string? _payoutPhoneNumber;
+        private string? _whatsAppPhoneNumber;
+
         [Display(Name = "Subscription payment number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Subscription payment number must contain only digits and may start with +.")]
-        public string? SubscriptionPaymentPhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Subscription payment number must contain only digits and may start with +.")]
+        public string? SubscriptionPaymentPhoneNumber
+        {
+            get => _subscriptionPaymentPhoneNumber;
+            set => _subscriptionPaymentPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Subscription payment operator")]
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
@@ -116,15 +148,23 @@ namespace Common.CommunicationModels
         public bool UsePrimaryPhoneForRentPayouts { get; set; } = true;
 
         [Display(Name = "Rent payout number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Rent payout number must contain only digits and may start with +.")]
-        public string? PayoutPhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Rent payout number must contain only digits and may start with +.")]
+        public string? PayoutPhoneNumber
+        {
+            get => _payoutPhoneNumber;
+            set => _payoutPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Rent payout operator")]
         public PayoutChannelEnum? PayoutChannel { get; set; }
 
         [Display(Name = "WhatsApp number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string? WhatsAppPhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string? WhatsAppPhoneNumber
+        {
+            get => _whatsAppPhoneNumber;
+            set => _whatsAppPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
     }
 
     public class VerifyMobilePaymentPhonesRequest
@@ -154,11 +194,17 @@ namespace Common.CommunicationModels
 
     public class StartMobilePaymentNumberUpdateRequest
     {
+        private string? _phoneNumber;
+
         [Required]
         public string Target { get; set; } = string.Empty;
 
         [Display(Name = "Phone number")]
-        public string? PhoneNumber { get; set; }
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Mobile Money operator")]
         public PayoutChannelEnum? Channel { get; set; }

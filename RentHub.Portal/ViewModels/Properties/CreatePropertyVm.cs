@@ -14,8 +14,14 @@ namespace RentHub.Portal.ViewModels.Properties
         public string Address { get; set; } = string.Empty;
 
         [Required]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string CountryCode { get; set; } = string.Empty;
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
+
+        private string _countryCode = string.Empty;
 
         [Required]
         [RegularExpression(@"^[A-Za-z]{2}$", ErrorMessage = "Country must be a valid 2-letter ISO code.")]

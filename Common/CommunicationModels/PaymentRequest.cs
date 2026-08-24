@@ -1,4 +1,5 @@
 using Common.Enums;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -26,9 +27,20 @@ namespace Common.CommunicationModels
 
         public PaymentMethodEnum Method { get; set; }
 
-        public string TenantPhoneNumber { get; set; } = string.Empty;
+        private string _tenantPhoneNumber = string.Empty;
+        private string _landlordPhoneNumber = string.Empty;
 
-        public string LandlordPhoneNumber { get; set; } = string.Empty;
+        public string TenantPhoneNumber
+        {
+            get => _tenantPhoneNumber;
+            set => _tenantPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
+
+        public string LandlordPhoneNumber
+        {
+            get => _landlordPhoneNumber;
+            set => _landlordPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
 
         // Optional card details for card payments
         public string? CardNumber { get; set; }

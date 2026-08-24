@@ -661,7 +661,7 @@ namespace RentHub.API.Services.Reminders
                 Math.Max(0, period.Amount - period.PaidAmount));
             reminder.IncludedPeriodCount = duePeriods.Count;
             reminder.RecipientEmail = tenant.Email?.Trim() ?? reminder.RecipientEmail;
-            reminder.RecipientPhone = tenant.PhoneNumber?.Trim() ?? reminder.RecipientPhone;
+            reminder.RecipientPhone = PhoneNumberHelper.Normalize(tenant.PhoneNumber) ?? reminder.RecipientPhone;
 
             var triggerIds = reminder.Triggers.Select(trigger => trigger.RentPeriodId).ToHashSet();
             _context.RentReminderPeriods.RemoveRange(reminder.Periods);
@@ -726,7 +726,7 @@ namespace RentHub.API.Services.Reminders
                 OutstandingAmountSnapshot = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)),
                 IncludedPeriodCount = duePeriods.Count,
                 RecipientEmail = tenant.Email?.Trim() ?? string.Empty,
-                RecipientPhone = tenant.PhoneNumber?.Trim() ?? string.Empty,
+                RecipientPhone = PhoneNumberHelper.NormalizeOrEmpty(tenant.PhoneNumber),
                 Subject = content.Subject,
                 PlainTextBody = content.PlainText,
                 HtmlBody = content.Html,

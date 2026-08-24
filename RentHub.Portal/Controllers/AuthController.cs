@@ -342,8 +342,8 @@ namespace RentHub.Portal.Controllers
                 var req = new UpsertLandlordPhoneRequest
                 {
                     Email = vm.Email,
-                    CountryCode = vm.CountryCode?.Trim(),
-                    PhoneNumber = vm.PhoneNumber.Trim()
+                    CountryCode = Common.Helpers.PhoneNumberHelper.Normalize(vm.CountryCode),
+                    PhoneNumber = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(vm.PhoneNumber)
                 };
 
                 var res = await _api.PostAnonymousAsync<UpsertLandlordPhoneRequest, JsonElement>("Account/landlord-registration/phone", req);

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Common.Enums;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -26,23 +27,44 @@ namespace Common.CommunicationModels
         [Display(Name = "Last name")]
         public string LastName { get; set; } = string.Empty;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+        private string? _phoneNumber;
+        private string? _payoutPhoneNumber;
+        private string? _whatsAppPhoneNumber;
+
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Phone number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string? PhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Phone number must contain only digits and may start with +.")]
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Payout number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Payout number must contain only digits and may start with +.")]
-        public string? PayoutPhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Payout number must contain only digits and may start with +.")]
+        public string? PayoutPhoneNumber
+        {
+            get => _payoutPhoneNumber;
+            set => _payoutPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Payout channel")]
         public PayoutChannelEnum? PayoutChannel { get; set; }
 
         [Display(Name = "WhatsApp number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string? WhatsAppPhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string? WhatsAppPhoneNumber
+        {
+            get => _whatsAppPhoneNumber;
+            set => _whatsAppPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         /// <summary>
         /// Optional account type input. This field is ignored for self-registration and is kept

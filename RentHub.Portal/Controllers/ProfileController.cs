@@ -356,7 +356,7 @@ namespace RentHub.Portal.Controllers
                     new StartMobilePaymentNumberUpdateRequest
                     {
                         Target = target,
-                        PhoneNumber = phoneNumber.Trim(),
+                        PhoneNumber = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(phoneNumber),
                         Channel = channel
                     });
 

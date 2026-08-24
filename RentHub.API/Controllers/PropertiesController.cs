@@ -649,7 +649,7 @@ namespace RentHub.API.Controllers
 
         private static string? NormalizeCountryCode(string? countryCode)
         {
-            var normalized = countryCode?.Trim();
+            var normalized = Common.Helpers.PhoneNumberHelper.Normalize(countryCode);
             if (string.IsNullOrWhiteSpace(normalized))
             {
                 return null;

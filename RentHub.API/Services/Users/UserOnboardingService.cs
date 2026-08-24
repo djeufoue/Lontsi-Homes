@@ -1,4 +1,5 @@
 using Common.Enums;
+using Common.Helpers;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
@@ -71,9 +72,9 @@ namespace RentHub.API.Services.Users
                     UserName = normalizedEmail,
                     Email = normalizedEmail,
                     FullName = (fullName ?? string.Empty).Trim(),
-                    CountryCode = (countryCode ?? string.Empty).Trim(),
-                    PhoneNumber = (phoneNumber ?? string.Empty).Trim(),
-                    WhatsAppPhoneNumber = (whatsAppPhoneNumber ?? string.Empty).Trim(),
+                    CountryCode = PhoneNumberHelper.NormalizeOrEmpty(countryCode),
+                    PhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(phoneNumber),
+                    WhatsAppPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(whatsAppPhoneNumber),
                     EmailConfirmed = false
                 };
 
@@ -90,9 +91,9 @@ namespace RentHub.API.Services.Users
             {
                 var didUpdate = false;
                 var trimmedFullName = (fullName ?? string.Empty).Trim();
-                var trimmedCountryCode = (countryCode ?? string.Empty).Trim();
-                var trimmedPhoneNumber = (phoneNumber ?? string.Empty).Trim();
-                var trimmedWhatsAppPhoneNumber = (whatsAppPhoneNumber ?? string.Empty).Trim();
+                var trimmedCountryCode = PhoneNumberHelper.NormalizeOrEmpty(countryCode);
+                var trimmedPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(phoneNumber);
+                var trimmedWhatsAppPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(whatsAppPhoneNumber);
 
                 if (string.IsNullOrWhiteSpace(user.FullName) && !string.IsNullOrWhiteSpace(trimmedFullName))
                 {
@@ -669,7 +670,7 @@ namespace RentHub.API.Services.Users
 
         private static string BuildInternationalPhoneNumber(string? countryCode, string? phoneNumber)
         {
-            var rawPhoneNumber = (phoneNumber ?? string.Empty).Trim();
+            var rawPhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(phoneNumber);
             if (string.IsNullOrWhiteSpace(rawPhoneNumber))
             {
                 return string.Empty;

@@ -68,7 +68,9 @@ namespace RentHub.Portal.ViewModels.Auth
                 return true;
             }
 
-            var normalized = string.IsNullOrWhiteSpace(countryCode) ? "+1" : countryCode.Trim();
+            var normalized = string.IsNullOrWhiteSpace(countryCode)
+                ? "+1"
+                : Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(countryCode);
             if (!normalized.StartsWith('+'))
             {
                 normalized = $"+{normalized}";
@@ -94,18 +96,29 @@ namespace RentHub.Portal.ViewModels.Auth
 
     public class VerifyLandlordPhoneVm
     {
+        private string? _countryCode;
+        private string _phoneNumber = string.Empty;
+
         [Required, EmailAddress]
         public string Email { get; set; } = string.Empty;
 
         [Display(Name = "Country code")]
         [Required]
-        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
-        public string? CountryCode { get; set; }
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Choose a valid country code.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
 
         [Required]
         [Display(Name = "Phone number")]
         [RegularExpression(@"^\+?\d[\d\s().-]{5,24}$", ErrorMessage = "Enter a valid phone number for the selected country.")]
-        public string PhoneNumber { get; set; } = string.Empty;
+        public string PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
 
         [Display(Name = "Phone OTP")]
         [StringLength(6, MinimumLength = 4)]
@@ -117,6 +130,8 @@ namespace RentHub.Portal.ViewModels.Auth
 
     public class LandlordCountryVm
     {
+        private string _countryCode = string.Empty;
+
         [Required, EmailAddress]
         public string Email { get; set; } = string.Empty;
 
@@ -127,8 +142,12 @@ namespace RentHub.Portal.ViewModels.Auth
 
         [Required]
         [Display(Name = "Country code")]
-        [RegularExpression(@"^\+?\d{1,4}$", ErrorMessage = "Choose a valid country code.")]
-        public string CountryCode { get; set; } = string.Empty;
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Choose a valid country code.")]
+        public string CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(value);
+        }
 
         public string? ReturnUrl { get; set; }
         public LandlordOnboardingStatusDto? Status { get; set; }
@@ -136,6 +155,10 @@ namespace RentHub.Portal.ViewModels.Auth
 
     public class LandlordMobilePaymentsVm
     {
+        private string? _subscriptionPaymentPhoneNumber;
+        private string? _payoutPhoneNumber;
+        private string? _whatsAppPhoneNumber;
+
         [Required, EmailAddress]
         public string Email { get; set; } = string.Empty;
 
@@ -143,8 +166,12 @@ namespace RentHub.Portal.ViewModels.Auth
         public bool UsePrimaryPhoneForSubscriptionPayments { get; set; } = true;
 
         [Display(Name = "Subscription payment number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Subscription payment number must contain only digits and may start with +.")]
-        public string? SubscriptionPaymentPhoneNumber { get; set; }
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Subscription payment number must contain only digits and may start with +.")]
+        public string? SubscriptionPaymentPhoneNumber
+        {
+            get => _subscriptionPaymentPhoneNumber;
+            set => _subscriptionPaymentPhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Subscription payment operator")]
         [Required]
@@ -154,16 +181,24 @@ namespace RentHub.Portal.ViewModels.Auth
         public bool UsePrimaryPhoneForRentPayouts { get; set; } = true;
 
         [Display(Name = "Rent payout number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Rent payout number must contain only digits and may start with +.")]
-        public string? PayoutPhoneNumber { get; set; }
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Rent payout number must contain only digits and may start with +.")]
+        public string? PayoutPhoneNumber
+        {
+            get => _payoutPhoneNumber;
+            set => _payoutPhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
 
         [Display(Name = "Rent payout operator")]
         [Required]
         public PayoutChannelEnum? PayoutChannel { get; set; }
 
         [Display(Name = "WhatsApp alerts number")]
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
-        public string? WhatsAppPhoneNumber { get; set; }
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string? WhatsAppPhoneNumber
+        {
+            get => _whatsAppPhoneNumber;
+            set => _whatsAppPhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
 
         public string? PrimaryPhoneNumber { get; set; }
         public string? ReturnUrl { get; set; }

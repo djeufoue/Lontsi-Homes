@@ -1,4 +1,5 @@
 using Common.Enums;
+using Common.Helpers;
 using System.ComponentModel.DataAnnotations;
 
 namespace Common.CommunicationModels
@@ -10,11 +11,22 @@ namespace Common.CommunicationModels
 
         public string? FullName { get; set; }
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+        private string? _phoneNumber;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string? PhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
+
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Phone number must contain only digits and may start with +.")]
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         [Required]
         public ApartmentMemberRoleEnum Role { get; set; } = ApartmentMemberRoleEnum.Owner;

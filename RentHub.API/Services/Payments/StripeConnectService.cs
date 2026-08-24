@@ -243,7 +243,7 @@ namespace RentHub.API.Services.Payments
 
         private static string? ResolveCountryIsoFromPhoneCode(string? countryCode)
         {
-            var normalized = (countryCode ?? string.Empty).Trim();
+            var normalized = Common.Helpers.PhoneNumberHelper.NormalizeOrEmpty(countryCode);
             if (!normalized.StartsWith('+'))
             {
                 normalized = $"+{normalized}";

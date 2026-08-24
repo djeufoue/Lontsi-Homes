@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Common.Enums;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -17,11 +18,22 @@ namespace Common.CommunicationModels
         [Required]
         public string FullName { get; set; } = string.Empty;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
+        private string? _countryCode;
+        private string? _phoneNumber;
 
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string? PhoneNumber { get; set; }
+        [RegularExpression(PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
+
+        [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Phone number must contain only digits and may start with +.")]
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.Normalize(value);
+        }
 
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
     }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Common.Enums;
+using Common.Helpers;
 using RentHub.API.Models.Entities;
 
 namespace RentHub.API.Data
@@ -51,6 +52,52 @@ namespace RentHub.API.Data
         public DbSet<PropertyManagerAssignment> PropertyManagerAssignments => Set<PropertyManagerAssignment>();
         public DbSet<ManagerApartmentPermissionOverride> ManagerApartmentPermissionOverrides => Set<ManagerApartmentPermissionOverride>();
         public DbSet<ManagerPermissionAuditLog> ManagerPermissionAuditLogs => Set<ManagerPermissionAuditLog>();
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            NormalizePhoneFields();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            NormalizePhoneFields();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void NormalizePhoneFields()
+        {
+            foreach (var entry in ChangeTracker.Entries<ApplicationUser>()
+                         .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.CountryCode = PhoneNumberHelper.Normalize(entry.Entity.CountryCode);
+                entry.Entity.PhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.PhoneNumber);
+                entry.Entity.SubscriptionPaymentPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.SubscriptionPaymentPhoneNumber);
+                entry.Entity.PayoutPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.PayoutPhoneNumber);
+                entry.Entity.WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.WhatsAppPhoneNumber);
+            }
+
+            foreach (var entry in ChangeTracker.Entries<Property>()
+                         .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.CountryCode = PhoneNumberHelper.Normalize(entry.Entity.CountryCode);
+            }
+
+            foreach (var entry in ChangeTracker.Entries<SystemTransferAccount>()
+                         .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.CountryCode = PhoneNumberHelper.NormalizeOrEmpty(entry.Entity.CountryCode);
+                entry.Entity.PhoneNumber = PhoneNumberHelper.NormalizeOrEmpty(entry.Entity.PhoneNumber);
+            }
+
+            foreach (var entry in ChangeTracker.Entries<RentReminder>()
+                         .Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.RecipientPhone = PhoneNumberHelper.NormalizeOrEmpty(entry.Entity.RecipientPhone);
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

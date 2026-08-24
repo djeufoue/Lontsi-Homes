@@ -7,10 +7,22 @@ namespace RentHub.Portal.ViewModels.Properties
     {
         [Required, EmailAddress] public string Email { get; set; } = "";
         [Required] public string FullName { get; set; } = "";
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Country code must contain only digits and may start with +.")]
-        public string? CountryCode { get; set; }
-        [RegularExpression(@"^\+?\d+$", ErrorMessage = "Phone number must contain only digits and may start with +.")]
-        public string? PhoneNumber { get; set; }
+        private string? _countryCode;
+        private string? _phoneNumber;
+
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
+
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Phone number must contain only digits and may start with +.")]
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
     }
 }

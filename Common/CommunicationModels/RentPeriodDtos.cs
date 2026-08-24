@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Common.Enums;
+using Common.Helpers;
 
 namespace Common.CommunicationModels
 {
@@ -45,11 +46,30 @@ namespace Common.CommunicationModels
 
     public class TenantInvitationRequest
     {
+        private string? _countryCode;
+        private string? _phoneNumber;
+        private string? _whatsAppPhoneNumber;
+
         public string Email { get; set; } = string.Empty;
         public string? FullName { get; set; }
-        public string? CountryCode { get; set; }
-        public string? PhoneNumber { get; set; }
-        public string? WhatsAppPhoneNumber { get; set; }
+        public string? CountryCode
+        {
+            get => _countryCode;
+            set => _countryCode = PhoneNumberHelper.Normalize(value);
+        }
+
+        public string? PhoneNumber
+        {
+            get => _phoneNumber;
+            set => _phoneNumber = PhoneNumberHelper.Normalize(value);
+        }
+
+        public string? WhatsAppPhoneNumber
+        {
+            get => _whatsAppPhoneNumber;
+            set => _whatsAppPhoneNumber = PhoneNumberHelper.Normalize(value);
+        }
+
         public TenancyMemberRoleEnum Role { get; set; } = TenancyMemberRoleEnum.MainTenant;
     }
 

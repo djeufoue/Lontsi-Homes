@@ -367,9 +367,9 @@ namespace RentHub.Portal.Controllers
                 {
                     Email = vm.Email.Trim(),
                     FullName = vm.FullName?.Trim(),
-                    CountryCode = vm.CountryCode?.Trim(),
-                    PhoneNumber = vm.PhoneNumber?.Trim(),
-                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber?.Trim(),
+                    CountryCode = Common.Helpers.PhoneNumberHelper.Normalize(vm.CountryCode),
+                    PhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(vm.PhoneNumber),
+                    WhatsAppPhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(vm.WhatsAppPhoneNumber),
                     Role = TenancyMemberRoleEnum.MainTenant
                 };
 

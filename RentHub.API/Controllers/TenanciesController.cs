@@ -1689,7 +1689,7 @@ namespace RentHub.API.Controllers
                 return string.Equals(landlord.CountryIsoCode.Trim(), "CM", StringComparison.OrdinalIgnoreCase);
             }
 
-            return string.Equals(landlord.CountryCode?.Trim(), "+237", StringComparison.OrdinalIgnoreCase);
+            return string.Equals(PhoneNumberHelper.Normalize(landlord.CountryCode), "+237", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool IsCameroonPropertyOrProfile(
@@ -1704,7 +1704,7 @@ namespace RentHub.API.Controllers
                     return string.Equals(propertyCountryIsoCode.Trim(), "CM", StringComparison.OrdinalIgnoreCase);
                 }
 
-                return string.Equals(propertyCountryCode?.Trim(), "+237", StringComparison.OrdinalIgnoreCase);
+                return string.Equals(PhoneNumberHelper.Normalize(propertyCountryCode), "+237", StringComparison.OrdinalIgnoreCase);
             }
 
             return IsCameroonProfile(landlord);
