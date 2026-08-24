@@ -11,6 +11,7 @@ namespace Common.CommunicationModels
         public string Type { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public double Area { get; set; }
+        public int FloorNumber { get; set; }
         public string PropertyName { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;

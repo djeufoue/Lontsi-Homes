@@ -39,6 +39,10 @@ namespace RentHub.API.Models.Entities
         public int EmailAttemptCount { get; set; }
         public int SmsAttemptCount { get; set; }
         public DateTimeOffset? SentAt { get; set; }
+        public DateTimeOffset? InvalidatedAt { get; set; }
+
+        [MaxLength(512)]
+        public string InvalidationReason { get; set; } = string.Empty;
 
         [MaxLength(2048)]
         public string FailureReason { get; set; } = string.Empty;

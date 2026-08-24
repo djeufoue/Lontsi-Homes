@@ -11,6 +11,7 @@ namespace Common.CommunicationModels
         public DateTimeOffset PeriodStart { get; set; }
         public DateTimeOffset PeriodEnd { get; set; }
         public DateTimeOffset DueDate { get; set; }
+        public int BillingGroupSequence { get; set; }
         public decimal Amount { get; set; }
         public decimal PaidAmount { get; set; }
         public DateTimeOffset? PaidDate { get; set; }
@@ -35,6 +36,7 @@ namespace Common.CommunicationModels
         public DateTimeOffset PeriodStart { get; set; }
         public DateTimeOffset PeriodEnd { get; set; }
         public DateTimeOffset DueDate { get; set; }
+        public int BillingGroupSequence { get; set; }
         public decimal Amount { get; set; }
         public RentPeriodStatusEnum Status { get; set; }
         public decimal PaidAmount { get; set; }
@@ -59,8 +61,10 @@ namespace Common.CommunicationModels
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; } = 1;
         public int RentDueDay { get; set; } = 1;
+        public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+        public DateTimeOffset RentTrackingStartDate { get; set; }
         public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
         public TenantInvitationRequest MainTenant { get; set; } = new();
     }
@@ -126,6 +130,20 @@ namespace Common.CommunicationModels
     {
         public DateTimeOffset? PaidDate { get; set; }
         public string? Note { get; set; }
+    }
+
+    public class MarkRentPeriodsPaidRequest
+    {
+        public List<int> RentPeriodIds { get; set; } = new();
+        public DateTimeOffset? PaidDate { get; set; }
+        public string? Note { get; set; }
+    }
+
+    public class ReconcileRentScheduleRequest
+    {
+        public int RentDueDay { get; set; }
+        public int PaymentIntervalMonths { get; set; } = 1;
+        public DateTimeOffset FirstTrackedPeriodStart { get; set; }
     }
 
     public class TenantDashboardTenancyDto

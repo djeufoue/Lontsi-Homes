@@ -887,6 +887,8 @@ namespace RentHub.Portal.Controllers
                 {
                     Email = vm.Email,
                     EmailOtp = vm.EmailOtp,
+                    PhoneOtp = vm.PhoneOtp,
+                    SubscriptionPaymentOtp = vm.SubscriptionPaymentOtp,
                     PayoutOtp = vm.PayoutOtp,
                     WhatsAppOtp = vm.WhatsAppOtp
                 };

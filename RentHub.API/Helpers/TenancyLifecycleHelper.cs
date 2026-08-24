@@ -200,7 +200,10 @@ namespace RentHub.API.Helpers
                 scheduleEndBehavior,
                 tenancy.MonthlyRent,
                 tenancy.RentDueDay,
-                nowUtc);
+                nowUtc,
+                tenancy.FutureRentPeriodCount,
+                tenancy.PaymentIntervalMonths,
+                tenancy.RentTrackingStartDate == default ? tenancy.StartDate : tenancy.RentTrackingStartDate);
 
             var existing = await context.RentPeriods
                 .Where(period => period.TenancyId == tenancy.Id && !period.IsDeleted)
@@ -217,6 +220,9 @@ namespace RentHub.API.Helpers
                         period.UpdatedAt = nowUtc;
                     }
 
+                    period.DueDate = seed.DueDate;
+                    period.BillingGroupSequence = seed.BillingGroupSequence;
+
                     continue;
                 }
 
@@ -226,6 +232,7 @@ namespace RentHub.API.Helpers
                     PeriodStart = seed.PeriodStart,
                     PeriodEnd = seed.PeriodEnd,
                     DueDate = seed.DueDate,
+                    BillingGroupSequence = seed.BillingGroupSequence,
                     Amount = seed.Amount,
                     PaidAmount = 0,
                     Status = seed.Status,
@@ -233,6 +240,127 @@ namespace RentHub.API.Helpers
                     CreatedAt = nowUtc,
                     IsDeleted = false
                 });
+            }
+        }
+
+        public static async Task ReconcileRentScheduleAsync(
+            ApplicationDbContext context,
+            Tenancy tenancy,
+            string userId,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken = default)
+        {
+            var generated = RentPeriodScheduleHelper.GeneratePeriods(
+                tenancy.StartDate,
+                tenancy.EndDate,
+                tenancy.EndBehavior,
+                tenancy.MonthlyRent,
+                tenancy.RentDueDay,
+                nowUtc,
+                tenancy.FutureRentPeriodCount,
+                tenancy.PaymentIntervalMonths,
+                tenancy.RentTrackingStartDate == default ? tenancy.StartDate : tenancy.RentTrackingStartDate)
+                .OrderBy(period => period.PeriodStart)
+                .ToList();
+
+            var existing = await context.RentPeriods
+                .Where(period => period.TenancyId == tenancy.Id)
+                .OrderBy(period => period.PeriodStart)
+                .ToListAsync(cancellationToken);
+
+            if (existing.Any(period => period.PaymentId.HasValue ||
+                                       period.Status == RentPeriodStatusEnum.PendingPayment))
+            {
+                throw new InvalidOperationException(
+                    "The rent schedule cannot be structurally changed while it contains real or pending payments.");
+            }
+
+            var existingByStart = existing.ToDictionary(period => period.PeriodStart.Date);
+            var retainedPeriodIds = new HashSet<int>();
+            foreach (var seed in generated)
+            {
+                if (!existingByStart.TryGetValue(seed.PeriodStart.Date, out var period))
+                {
+                    context.RentPeriods.Add(new RentPeriod
+                    {
+                        TenancyId = tenancy.Id,
+                        PeriodStart = seed.PeriodStart,
+                        PeriodEnd = seed.PeriodEnd,
+                        DueDate = seed.DueDate,
+                        BillingGroupSequence = seed.BillingGroupSequence,
+                        Amount = seed.Amount,
+                        PaidAmount = 0,
+                        Status = seed.Status,
+                        CreatedBy = userId,
+                        CreatedAt = nowUtc
+                    });
+                    continue;
+                }
+
+                retainedPeriodIds.Add(period.Id);
+                // A soft-deleted historical period is an explicit suppression marker.
+                // Keep it archived so a later schedule reconciliation cannot recreate
+                // history the landlord deliberately removed.
+                if (period.IsDeleted)
+                {
+                    continue;
+                }
+
+                period.PeriodStart = seed.PeriodStart;
+                period.PeriodEnd = seed.PeriodEnd;
+                period.DueDate = seed.DueDate;
+                period.BillingGroupSequence = seed.BillingGroupSequence;
+                period.Amount = seed.Amount;
+                if (period.Status is not RentPeriodStatusEnum.Waived and not RentPeriodStatusEnum.Cancelled)
+                {
+                    period.Status = RentPeriodScheduleHelper.ResolveUnpaidStatus(seed.DueDate, nowUtc);
+                    period.PaidAmount = 0;
+                    period.PaidDate = null;
+                    period.PaymentReference = string.Empty;
+                }
+
+                period.UpdatedBy = userId;
+                period.UpdatedAt = nowUtc;
+            }
+
+            foreach (var period in existing.Where(period =>
+                         !period.IsDeleted && !retainedPeriodIds.Contains(period.Id)))
+            {
+                period.IsDeleted = true;
+                period.DeletedBy = userId;
+                period.DeletedAt = nowUtc;
+                period.UpdatedBy = userId;
+                period.UpdatedAt = nowUtc;
+            }
+
+            tenancy.RentScheduleNeedsReview = false;
+            tenancy.UpdatedBy = userId;
+            tenancy.UpdatedAt = nowUtc;
+        }
+
+        public static async Task InvalidateRentRemindersAsync(
+            ApplicationDbContext context,
+            int tenancyId,
+            DateTimeOffset nowUtc,
+            string reason,
+            CancellationToken cancellationToken = default)
+        {
+            var reminders = await context.RentReminders
+                .Where(reminder => reminder.TenancyId == tenancyId && !reminder.InvalidatedAt.HasValue)
+                .ToListAsync(cancellationToken);
+            foreach (var reminder in reminders)
+            {
+                reminder.InvalidatedAt = nowUtc;
+                reminder.InvalidationReason = reason.Length <= 512 ? reason : reason[..512];
+                reminder.UpdatedAt = nowUtc;
+                if (reminder.Status is RentReminderStatusEnum.Pending or RentReminderStatusEnum.Failed)
+                {
+                    reminder.Status = RentReminderStatusEnum.Cancelled;
+                    if (reminder.EmailStatus == ReminderDeliveryStatusEnum.Pending)
+                        reminder.EmailStatus = ReminderDeliveryStatusEnum.Skipped;
+                    if (reminder.SmsStatus == ReminderDeliveryStatusEnum.Pending)
+                        reminder.SmsStatus = ReminderDeliveryStatusEnum.Skipped;
+                }
             }
         }
 

@@ -386,10 +386,12 @@ namespace RentHub.API.Controllers
                         MonthlyRent = tenancy.MonthlyRent,
                         MaxMembers = tenancy.MaxMembers,
                         RentDueDay = tenancy.RentDueDay,
+                        PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                         EndBehavior = normalizedEndDate.HasValue
                             ? TenancyEndBehaviorEnum.ExpireAutomatically
                             : TenancyEndBehaviorEnum.NoEndDate,
-                        AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                        RentTrackingStartDate = replacementStartDate,
                         CreatedBy = userId,
                         CreatedAt = nowUtc
                     };
@@ -415,7 +417,9 @@ namespace RentHub.API.Controllers
                                  replacement.MonthlyRent,
                                  replacement.RentDueDay,
                                  nowUtc,
-                                 replacement.AutoExtensionMonths))
+                                 replacement.FutureRentPeriodCount,
+                                 replacement.PaymentIntervalMonths,
+                                 replacement.RentTrackingStartDate))
                     {
                         _context.RentPeriods.Add(new RentPeriod
                         {
@@ -423,6 +427,7 @@ namespace RentHub.API.Controllers
                             PeriodStart = period.PeriodStart,
                             PeriodEnd = period.PeriodEnd,
                             DueDate = period.DueDate,
+                            BillingGroupSequence = period.BillingGroupSequence,
                             Amount = period.Amount,
                             PaidAmount = 0,
                             Status = period.Status,

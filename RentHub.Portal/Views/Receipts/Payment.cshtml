@@ -84,17 +84,32 @@
                     <tr>
                         <th>@T["Description"]</th>
                         <th>@T["Period"]</th>
-                        <th class="text-center">@T["Quantity"]</th>
-                        <th class="text-end">@T["Total"]</th>
+                        <th class="text-end">@T["Period amount"]</th>
+                        <th class="text-end">@T["Amount paid"]</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Rent for the rental unit"]</td>
-                        <td data-label="@T["Period"]">@PeriodLabel()</td>
-                        <td class="text-center" data-label="@T["Quantity"]">1</td>
-                        <td class="text-end" data-label="@T["Total"]">@Model.Amount.ToString("N0", culture) @Model.Currency</td>
-                    </tr>
+                    @if (Model.Lines.Any())
+                    {
+                        @foreach (var line in Model.Lines.OrderBy(item => item.PeriodStart))
+                        {
+                            <tr>
+                                <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Monthly rent"]</td>
+                                <td data-label="@T["Period"]">@DateLabel(line.PeriodStart) - @DateLabel(line.PeriodEnd)</td>
+                                <td class="text-end" data-label="@T["Period amount"]">@line.PeriodAmount.ToString("N0", culture) @Model.Currency</td>
+                                <td class="text-end" data-label="@T["Amount paid"]"><strong>@line.PaidAmount.ToString("N0", culture) @Model.Currency</strong></td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Rent for the rental unit"]</td>
+                            <td data-label="@T["Period"]">@PeriodLabel()</td>
+                            <td class="text-end" data-label="@T["Period amount"]">@Model.Amount.ToString("N0", culture) @Model.Currency</td>
+                            <td class="text-end" data-label="@T["Amount paid"]"><strong>@Model.Amount.ToString("N0", culture) @Model.Currency</strong></td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>

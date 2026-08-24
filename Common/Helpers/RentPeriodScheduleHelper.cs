@@ -8,7 +8,7 @@ namespace Common.Helpers
 {
     public static class RentPeriodScheduleHelper
     {
-        public const int DefaultPreviewMonths = 1;
+        public const int DefaultFutureRentPeriodCount = 1;
 
         public static List<RentPeriodSeedDto> GeneratePeriods(
             DateTimeOffset startDate,
@@ -17,50 +17,131 @@ namespace Common.Helpers
             decimal monthlyRent,
             int rentDueDay,
             DateTimeOffset nowUtc,
-            int previewMonths = DefaultPreviewMonths)
+            int futureRentPeriodCount = DefaultFutureRentPeriodCount,
+            int paymentIntervalMonths = 1,
+            DateTimeOffset? trackingStartDate = null)
         {
             var periods = new List<RentPeriodSeedDto>();
-            if (monthlyRent <= 0 || previewMonths <= 0)
+            if (monthlyRent <= 0 || futureRentPeriodCount <= 0)
             {
                 return periods;
             }
 
             var normalizedDueDay = Math.Clamp(rentDueDay, 1, 31);
+            var normalizedPaymentInterval = Math.Clamp(paymentIntervalMonths, 1, 12);
             var normalizedStart = startDate.Date;
-            var hardEnd = ResolveGenerationEnd(startDate, endDate, endBehavior, nowUtc, previewMonths).Date;
-            var currentMonthStart = FirstDayOfMonth(startDate);
-
-            while (currentMonthStart.Date <= hardEnd && periods.Count < 120)
+            var normalizedTrackingStart = trackingStartDate?.Date ?? normalizedStart;
+            if (normalizedTrackingStart < normalizedStart)
             {
-                var monthEnd = LastDayOfMonth(currentMonthStart);
-                var periodStart = currentMonthStart.Date < normalizedStart
-                    ? new DateTimeOffset(normalizedStart, startDate.Offset)
-                    : currentMonthStart;
-                var periodEnd = monthEnd.Date > hardEnd
-                    ? new DateTimeOffset(hardEnd, startDate.Offset)
-                    : monthEnd;
+                normalizedTrackingStart = normalizedStart;
+            }
+
+            var firstPeriodIndex = FindPeriodIndexContainingOrAfter(startDate, normalizedTrackingStart);
+            var firstBoundary = MonthlyBoundary(startDate, firstPeriodIndex);
+            if (firstBoundary.Date < normalizedTrackingStart)
+            {
+                firstPeriodIndex++;
+            }
+
+            var hardEnd = ResolveGenerationEnd(
+                startDate,
+                endDate,
+                endBehavior,
+                nowUtc,
+                futureRentPeriodCount,
+                normalizedPaymentInterval,
+                firstPeriodIndex).Date;
+
+            for (var periodIndex = firstPeriodIndex;
+                 periods.Count < 240;
+                 periodIndex++)
+            {
+                var periodStart = MonthlyBoundary(startDate, periodIndex);
+                if (periodStart.Date > hardEnd)
+                {
+                    break;
+                }
+
+                var naturalEnd = MonthlyBoundary(startDate, periodIndex + 1).AddDays(-1);
+                var periodEnd = naturalEnd.Date > hardEnd
+                    ? AtDate(hardEnd, startDate.Offset)
+                    : naturalEnd;
 
                 if (periodEnd.Date < periodStart.Date)
                 {
-                    currentMonthStart = currentMonthStart.AddMonths(1);
-                    continue;
+                    break;
                 }
 
-                var dueDate = ClampDate(BuildDueDate(currentMonthStart, normalizedDueDay), periodStart, periodEnd);
+                var billingGroupSequence = periodIndex / normalizedPaymentInterval;
+                var groupFirstPeriodIndex = billingGroupSequence * normalizedPaymentInterval;
+                var groupStart = MonthlyBoundary(startDate, groupFirstPeriodIndex);
+                var groupEnd = MonthlyBoundary(startDate, groupFirstPeriodIndex + normalizedPaymentInterval).AddDays(-1);
+                if (endDate.HasValue && groupEnd.Date > endDate.Value.Date)
+                {
+                    groupEnd = AtDate(endDate.Value.Date, startDate.Offset);
+                }
+
+                var dueDate = ResolveGroupDueDate(groupStart, groupEnd, normalizedDueDay);
                 periods.Add(new RentPeriodSeedDto
                 {
                     PeriodStart = periodStart,
                     PeriodEnd = periodEnd,
                     DueDate = dueDate,
+                    BillingGroupSequence = billingGroupSequence,
                     Amount = monthlyRent,
                     Status = ResolveUnpaidStatus(dueDate, nowUtc),
                     PaidAmount = 0
                 });
-
-                currentMonthStart = currentMonthStart.AddMonths(1);
             }
 
             return periods;
+        }
+
+        public static DateTimeOffset MonthlyBoundary(DateTimeOffset tenancyStart, int periodIndex)
+        {
+            if (periodIndex < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(periodIndex));
+            }
+
+            var targetMonth = new DateTimeOffset(
+                    tenancyStart.Year,
+                    tenancyStart.Month,
+                    1,
+                    0,
+                    0,
+                    0,
+                    tenancyStart.Offset)
+                .AddMonths(periodIndex);
+            var day = Math.Min(tenancyStart.Day, DateTime.DaysInMonth(targetMonth.Year, targetMonth.Month));
+            return new DateTimeOffset(
+                targetMonth.Year,
+                targetMonth.Month,
+                day,
+                0,
+                0,
+                0,
+                tenancyStart.Offset);
+        }
+
+        public static DateTimeOffset ResolveNextBillingGroupStart(
+            DateTimeOffset tenancyStart,
+            DateTimeOffset asOf,
+            int paymentIntervalMonths)
+        {
+            var interval = Math.Clamp(paymentIntervalMonths, 1, 12);
+            var currentIndex = FindPeriodIndexContainingOrAfter(tenancyStart, asOf.Date);
+            var currentGroup = currentIndex / interval;
+            var currentGroupStart = MonthlyBoundary(tenancyStart, currentGroup * interval);
+            return currentGroupStart.Date > asOf.Date
+                ? currentGroupStart
+                : MonthlyBoundary(tenancyStart, (currentGroup + 1) * interval);
+        }
+
+        public static bool IsMonthlyBoundary(DateTimeOffset tenancyStart, DateTimeOffset candidate)
+        {
+            var index = FindPeriodIndexContainingOrAfter(tenancyStart, candidate.Date);
+            return MonthlyBoundary(tenancyStart, index).Date == candidate.Date;
         }
 
         public static void ApplyImportMode(
@@ -83,7 +164,7 @@ namespace Common.Helpers
             {
                 foreach (var period in periods.Where(period => period.PeriodEnd.Date < nowUtc.Date))
                 {
-                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, period.PeriodEnd);
+                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, null);
                 }
             }
             else if (importMode == RentPaymentImportModeEnum.SomePeriodsWerePaid)
@@ -95,7 +176,7 @@ namespace Common.Helpers
 
                 foreach (var period in periods.Where(period => period.PeriodEnd.Date < unpaidFrom.Value.Date))
                 {
-                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, period.PeriodEnd);
+                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, null);
                 }
 
                 foreach (var period in periods.Where(period =>
@@ -176,7 +257,9 @@ namespace Common.Helpers
             IReadOnlyCollection<RentPeriodSeedDto> periods,
             DateTimeOffset tenancyStart,
             DateTimeOffset? tenancyEnd,
-            TenancyEndBehaviorEnum endBehavior)
+            TenancyEndBehaviorEnum endBehavior,
+            int paymentIntervalMonths = 1,
+            DateTimeOffset? trackingStartDate = null)
         {
             var errors = new List<string>();
             var ordered = periods.OrderBy(period => period.PeriodStart).ToList();
@@ -192,9 +275,10 @@ namespace Common.Helpers
                 errors.Add("Every rent period must have an amount greater than 0.");
             }
 
-            if (ordered.First().PeriodStart.Date != tenancyStart.Date)
+            var expectedFirstStart = trackingStartDate?.Date ?? tenancyStart.Date;
+            if (ordered.First().PeriodStart.Date != expectedFirstStart)
             {
-                errors.Add("The first rent period must start on the tenancy start date.");
+                errors.Add("The first rent period must start on the configured rent-tracking boundary.");
             }
 
             if (endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically)
@@ -212,9 +296,7 @@ namespace Common.Helpers
             for (var index = 0; index < ordered.Count; index++)
             {
                 var period = ordered[index];
-                var isFirst = index == 0;
                 var isLast = index == ordered.Count - 1;
-                var isPartialFinalExpiry = isLast && endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically;
 
                 if (period.PeriodEnd.Date < period.PeriodStart.Date)
                 {
@@ -222,21 +304,29 @@ namespace Common.Helpers
                     break;
                 }
 
-                if (period.DueDate.Date < period.PeriodStart.Date || period.DueDate.Date > period.PeriodEnd.Date)
+                var scheduleIndex = FindPeriodIndexContainingOrAfter(tenancyStart, period.PeriodStart.Date);
+                if (MonthlyBoundary(tenancyStart, scheduleIndex).Date != period.PeriodStart.Date)
                 {
-                    errors.Add("Every rent due date must fall inside its rent period.");
+                    errors.Add("Every rent period must start on a monthly anniversary of the tenancy.");
                     break;
                 }
 
-                if (!isFirst && period.PeriodStart.Day != 1)
+                var expectedNaturalEnd = MonthlyBoundary(tenancyStart, scheduleIndex + 1).AddDays(-1);
+                var expectedEnd = isLast &&
+                                  endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically &&
+                                  tenancyEnd.HasValue
+                    ? tenancyEnd.Value.Date
+                    : expectedNaturalEnd.Date;
+                if (period.PeriodEnd.Date != expectedEnd)
                 {
-                    errors.Add("After the first rent period, every period must start on the first day of the month.");
+                    errors.Add("Every rent period must end the day before the next monthly tenancy anniversary, except a shortened final period.");
                     break;
                 }
 
-                if (!isPartialFinalExpiry && !IsLastDayOfMonth(period.PeriodEnd))
+                var expectedGroupSequence = scheduleIndex / Math.Clamp(paymentIntervalMonths, 1, 12);
+                if (period.BillingGroupSequence != expectedGroupSequence)
                 {
-                    errors.Add("Rent periods must end on the last day of the month, except the final period of an expiring tenancy.");
+                    errors.Add("Rent-period billing groups do not match the tenancy payment interval.");
                     break;
                 }
 
@@ -299,16 +389,23 @@ namespace Common.Helpers
             DateTimeOffset? endDate,
             TenancyEndBehaviorEnum endBehavior,
             DateTimeOffset nowUtc,
-            int previewMonths)
+            int futureRentPeriodCount,
+            int paymentIntervalMonths,
+            int firstPeriodIndex)
         {
             if (endBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && endDate.HasValue)
             {
                 return endDate.Value;
             }
 
-            var previewEnd = startDate.AddMonths(previewMonths).AddDays(-1);
-            var operationalEnd = nowUtc.AddMonths(previewMonths).AddDays(-1);
-            var selectedEnd = previewEnd > operationalEnd ? previewEnd : operationalEnd;
+            var currentPeriodIndex = FindPeriodIndexContainingOrAfter(startDate, nowUtc.Date);
+            var requestedLastIndex = Math.Max(
+                firstPeriodIndex,
+                currentPeriodIndex + Math.Max(1, futureRentPeriodCount));
+            var interval = Math.Clamp(paymentIntervalMonths, 1, 12);
+            var nextApplicableGroup = currentPeriodIndex / interval + 1;
+            var requestedLastGroup = Math.Max(requestedLastIndex / interval, nextApplicableGroup);
+            var selectedEnd = MonthlyBoundary(startDate, (requestedLastGroup + 1) * interval).AddDays(-1);
 
             if (endBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth &&
                 endDate.HasValue &&
@@ -317,15 +414,52 @@ namespace Common.Helpers
                 selectedEnd = endDate.Value;
             }
 
-            return LastDayOfMonth(selectedEnd);
+            return selectedEnd;
         }
 
-        private static DateTimeOffset BuildDueDate(DateTimeOffset periodStart, int rentDueDay)
+        private static DateTimeOffset ResolveGroupDueDate(
+            DateTimeOffset groupStart,
+            DateTimeOffset groupEnd,
+            int rentDueDay)
         {
-            var daysInMonth = DateTime.DaysInMonth(periodStart.Year, periodStart.Month);
+            var daysInMonth = DateTime.DaysInMonth(groupStart.Year, groupStart.Month);
             var day = Math.Min(Math.Max(1, rentDueDay), daysInMonth);
-            return new DateTimeOffset(periodStart.Year, periodStart.Month, day, 0, 0, 0, periodStart.Offset);
+            var result = new DateTimeOffset(groupStart.Year, groupStart.Month, day, 0, 0, 0, groupStart.Offset);
+            if (result.Date < groupStart.Date)
+            {
+                var nextMonth = groupStart.AddMonths(1);
+                day = Math.Min(Math.Max(1, rentDueDay), DateTime.DaysInMonth(nextMonth.Year, nextMonth.Month));
+                result = new DateTimeOffset(nextMonth.Year, nextMonth.Month, day, 0, 0, 0, groupStart.Offset);
+            }
+
+            return ClampDate(result, groupStart, groupEnd);
         }
+
+        private static int FindPeriodIndexContainingOrAfter(DateTimeOffset tenancyStart, DateTime targetDate)
+        {
+            if (targetDate <= tenancyStart.Date)
+            {
+                return 0;
+            }
+
+            var index = Math.Max(
+                0,
+                (targetDate.Year - tenancyStart.Year) * 12 + targetDate.Month - tenancyStart.Month);
+            while (index > 0 && MonthlyBoundary(tenancyStart, index).Date > targetDate)
+            {
+                index--;
+            }
+
+            while (MonthlyBoundary(tenancyStart, index + 1).Date <= targetDate)
+            {
+                index++;
+            }
+
+            return index;
+        }
+
+        private static DateTimeOffset AtDate(DateTime date, TimeSpan offset)
+            => new(date.Year, date.Month, date.Day, 0, 0, 0, offset);
 
         private static DateTimeOffset ClampDate(DateTimeOffset value, DateTimeOffset min, DateTimeOffset max)
         {
@@ -342,23 +476,7 @@ namespace Common.Helpers
             return value;
         }
 
-        private static DateTimeOffset FirstDayOfMonth(DateTimeOffset value)
-        {
-            return new DateTimeOffset(value.Year, value.Month, 1, 0, 0, 0, value.Offset);
-        }
-
-        private static DateTimeOffset LastDayOfMonth(DateTimeOffset value)
-        {
-            var daysInMonth = DateTime.DaysInMonth(value.Year, value.Month);
-            return new DateTimeOffset(value.Year, value.Month, daysInMonth, 0, 0, 0, value.Offset);
-        }
-
-        private static bool IsLastDayOfMonth(DateTimeOffset value)
-        {
-            return value.Day == DateTime.DaysInMonth(value.Year, value.Month);
-        }
-
-        private static void MarkPaid(RentPeriodSeedDto period, RentPeriodStatusEnum status, DateTimeOffset paidDate)
+        private static void MarkPaid(RentPeriodSeedDto period, RentPeriodStatusEnum status, DateTimeOffset? paidDate)
         {
             period.Status = status;
             period.PaidAmount = period.Amount;

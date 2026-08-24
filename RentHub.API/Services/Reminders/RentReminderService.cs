@@ -79,6 +79,7 @@ namespace RentHub.API.Services.Reminders
                     on tenancy.Id equals period.TenancyId
                 where rule.IsEnabled
                       && (rule.EmailEnabled || rule.SmsEnabled)
+                      && !tenancy.RentScheduleNeedsReview
                       && (!tenancy.TerminatedAt.HasValue || tenancy.TerminatedAt.Value.Date > today)
                       && (!tenancy.EndDate.HasValue
                           || tenancy.EndDate.Value >= nowUtc
@@ -111,8 +112,17 @@ namespace RentHub.API.Services.Reminders
                         : item.rule.Timing == RentReminderTimingEnum.AfterDue
                             ? item.period.DueDate.AddDays(item.rule.Days)
                             : item.period.DueDate,
-                    $"auto:{item.rule.Id}:{item.period.Id}"))
+                    item.period.DueDate,
+                    item.tenancy.UpdatedAt ?? item.tenancy.CreatedAt,
+                    string.Empty))
                 .ToListAsync();
+
+            candidates = candidates
+                .Select(candidate => candidate with
+                {
+                    TriggerKey = $"auto:{candidate.RuleId}:{candidate.RentPeriodId}:{candidate.DueDate.UtcTicks}:{candidate.ScheduleVersion.UtcTicks}"
+                })
+                .ToList();
 
             if (candidates.Count == 0)
             {
@@ -262,6 +272,12 @@ namespace RentHub.API.Services.Reminders
                     "Rent reminders are disabled on and after the tenancy termination date.");
             }
 
+            if (tenancy.RentScheduleNeedsReview)
+            {
+                throw new InvalidOperationException(
+                    "Rent reminders are paused until the legacy rent schedule has been reviewed.");
+            }
+
             var tenant = ResolvePrimaryTenant(tenancy)
                 ?? throw new InvalidOperationException("The tenancy has no active recipient.");
             if (string.IsNullOrWhiteSpace(tenant.Email))
@@ -300,11 +316,13 @@ namespace RentHub.API.Services.Reminders
                     trigger.ManualSequence,
                     trigger.RentReminder!.Status,
                     trigger.RentReminder.SentAt,
-                    trigger.RentReminder.CreatedAt
+                    trigger.RentReminder.CreatedAt,
+                    trigger.RentReminder.InvalidatedAt
                 })
                 .ToListAsync(cancellationToken);
 
             var countedManualReminders = manualTriggers.Count(trigger =>
+                !trigger.InvalidatedAt.HasValue &&
                 trigger.Status != RentReminderStatusEnum.Failed
                 && trigger.Status != RentReminderStatusEnum.Cancelled);
             if (countedManualReminders >= apartment.ManualRentReminderLimit)
@@ -388,21 +406,26 @@ namespace RentHub.API.Services.Reminders
         {
             var reminder = await _context.RentReminders
                 .Include(item => item.Triggers)
+                .ThenInclude(trigger => trigger.RentPeriod)
+                .Include(item => item.Triggers)
+                .ThenInclude(trigger => trigger.ApartmentRentReminderRule)
+                .Include(item => item.Periods)
+                .Include(item => item.Tenancy)
+                .ThenInclude(tenancy => tenancy!.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .Include(item => item.Tenancy)
+                .ThenInclude(tenancy => tenancy!.Members)
+                .ThenInclude(member => member.Member)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(item => item.Id == reminderId);
             if (reminder == null || reminder.Status == RentReminderStatusEnum.Sent)
             {
                 return;
             }
 
-            var triggerPeriodIds = reminder.Triggers.Select(trigger => trigger.RentPeriodId).ToList();
-            var stillOpenTriggerCount = await _context.RentPeriods
-                .AsNoTracking()
-                .CountAsync(period => triggerPeriodIds.Contains(period.Id)
-                                      && period.Amount > period.PaidAmount
-                                      && (period.Status == RentPeriodStatusEnum.NotDueYet
-                                          || period.Status == RentPeriodStatusEnum.Due
-                                          || period.Status == RentPeriodStatusEnum.Overdue));
-            if (stillOpenTriggerCount == 0)
+            var nowUtc = DateTimeOffset.UtcNow;
+            var invalidReason = ValidateReminderForDelivery(reminder, nowUtc);
+            if (!string.IsNullOrWhiteSpace(invalidReason))
             {
                 reminder.Status = RentReminderStatusEnum.Cancelled;
                 reminder.EmailStatus = reminder.EmailStatus == ReminderDeliveryStatusEnum.Pending
@@ -411,10 +434,18 @@ namespace RentHub.API.Services.Reminders
                 reminder.SmsStatus = reminder.SmsStatus == ReminderDeliveryStatusEnum.Pending
                     ? ReminderDeliveryStatusEnum.Skipped
                     : reminder.SmsStatus;
-                reminder.FailureReason = "Payment was completed before delivery.";
-                reminder.UpdatedAt = DateTimeOffset.UtcNow;
+                reminder.FailureReason = invalidReason;
+                reminder.InvalidatedAt ??= nowUtc;
+                reminder.InvalidationReason = invalidReason.Truncate(512);
+                reminder.UpdatedAt = nowUtc;
                 await _context.SaveChangesAsync();
                 return;
+            }
+
+            if (reminder.EmailStatus != ReminderDeliveryStatusEnum.Sent &&
+                reminder.SmsStatus != ReminderDeliveryStatusEnum.Sent)
+            {
+                await RefreshReminderContentAsync(reminder, nowUtc);
             }
 
             var failures = new List<string>();
@@ -527,6 +558,131 @@ namespace RentHub.API.Services.Reminders
             }
         }
 
+        private static string ValidateReminderForDelivery(RentReminder reminder, DateTimeOffset nowUtc)
+        {
+            if (reminder.InvalidatedAt.HasValue)
+                return string.IsNullOrWhiteSpace(reminder.InvalidationReason)
+                    ? "The reminder was invalidated before delivery."
+                    : reminder.InvalidationReason;
+
+            var tenancy = reminder.Tenancy;
+            if (tenancy == null || tenancy.IsDeleted)
+                return "The tenancy is no longer active.";
+            if (tenancy.RentScheduleNeedsReview)
+                return "The rent schedule requires review; automatic and manual reminders are paused.";
+            if (tenancy.TerminatedAt.HasValue && tenancy.TerminatedAt.Value.Date <= nowUtc.Date)
+                return "The tenancy ended before reminder delivery.";
+            if (tenancy.EndDate.HasValue &&
+                tenancy.EndBehavior != TenancyEndBehaviorEnum.ContinueMonthToMonth &&
+                tenancy.EndDate.Value.Date < nowUtc.Date)
+                return "The fixed-term tenancy ended before reminder delivery.";
+
+            var hasApplicableTrigger = false;
+            foreach (var trigger in reminder.Triggers)
+            {
+                var period = trigger.RentPeriod;
+                if (period == null || period.IsDeleted) continue;
+
+                var snapshot = reminder.Periods.FirstOrDefault(item =>
+                    item.RentPeriodId == period.Id && item.IsTrigger);
+                if (snapshot != null &&
+                    (snapshot.PeriodStartSnapshot != period.PeriodStart ||
+                     snapshot.PeriodEndSnapshot != period.PeriodEnd ||
+                     snapshot.DueDateSnapshot != period.DueDate))
+                {
+                    return "The reminder was planned using an old rent schedule and was invalidated after correction.";
+                }
+
+                if (period.Amount <= period.PaidAmount ||
+                    RentPeriodScheduleHelper.IsPaidStatus(period.Status) ||
+                    period.Status == RentPeriodStatusEnum.PendingPayment)
+                {
+                    continue;
+                }
+
+                if (reminder.IsManual || trigger.Category == RentReminderCategoryEnum.Manual)
+                {
+                    hasApplicableTrigger |= period.DueDate.Date <= nowUtc.Date;
+                    continue;
+                }
+
+                var rule = trigger.ApartmentRentReminderRule;
+                if (rule == null || rule.IsDeleted || !rule.IsEnabled ||
+                    (!rule.EmailEnabled && !rule.SmsEnabled))
+                {
+                    continue;
+                }
+
+                hasApplicableTrigger |= rule.Timing switch
+                {
+                    RentReminderTimingEnum.BeforeDue =>
+                        period.DueDate.Date > nowUtc.Date &&
+                        period.DueDate.AddDays(-rule.Days).Date <= nowUtc.Date,
+                    RentReminderTimingEnum.OnDueDate => period.DueDate.Date == nowUtc.Date,
+                    RentReminderTimingEnum.AfterDue =>
+                        period.DueDate.AddDays(rule.Days).Date <= nowUtc.Date,
+                    _ => false
+                };
+            }
+
+            return hasApplicableTrigger
+                ? string.Empty
+                : "The payment, due date, or reminder rule changed before delivery; the reminder is no longer applicable.";
+        }
+
+        private async Task RefreshReminderContentAsync(RentReminder reminder, DateTimeOffset nowUtc)
+        {
+            var tenancy = reminder.Tenancy!;
+            var tenant = ResolvePrimaryTenant(tenancy)
+                ?? throw new InvalidOperationException("The tenancy has no active reminder recipient.");
+            var openPeriods = await _context.RentPeriods
+                .Where(period => period.TenancyId == tenancy.Id &&
+                                 period.Amount > period.PaidAmount &&
+                                 (period.Status == RentPeriodStatusEnum.NotDueYet ||
+                                  period.Status == RentPeriodStatusEnum.Due ||
+                                  period.Status == RentPeriodStatusEnum.Overdue))
+                .OrderBy(period => period.PeriodStart)
+                .ToListAsync();
+            var duePeriods = openPeriods
+                .Where(period => period.DueDate.Date <= nowUtc.Date)
+                .ToList();
+            var nextDueDate = openPeriods
+                .Where(period => period.DueDate.Date > nowUtc.Date)
+                .Select(period => (DateTimeOffset?)period.DueDate)
+                .Min();
+            var nextPeriods = nextDueDate.HasValue
+                ? openPeriods.Where(period => period.DueDate == nextDueDate.Value).ToList()
+                : new List<RentPeriod>();
+            var content = BuildEmailContent(tenancy, tenant, duePeriods, nextPeriods, reminder.Category);
+            reminder.Subject = content.Subject;
+            reminder.PlainTextBody = content.PlainText;
+            reminder.HtmlBody = content.Html;
+            reminder.OutstandingAmountSnapshot = duePeriods.Sum(period =>
+                Math.Max(0, period.Amount - period.PaidAmount));
+            reminder.IncludedPeriodCount = duePeriods.Count;
+            reminder.RecipientEmail = tenant.Email?.Trim() ?? reminder.RecipientEmail;
+            reminder.RecipientPhone = tenant.PhoneNumber?.Trim() ?? reminder.RecipientPhone;
+
+            var triggerIds = reminder.Triggers.Select(trigger => trigger.RentPeriodId).ToHashSet();
+            _context.RentReminderPeriods.RemoveRange(reminder.Periods);
+            reminder.Periods.Clear();
+            foreach (var period in duePeriods)
+            {
+                reminder.Periods.Add(ToSnapshot(
+                    period,
+                    RentReminderPeriodRelationEnum.Outstanding,
+                    triggerIds.Contains(period.Id)));
+            }
+            foreach (var period in nextPeriods.Where(next =>
+                         reminder.Periods.All(snapshot => snapshot.RentPeriodId != next.Id)))
+            {
+                reminder.Periods.Add(ToSnapshot(
+                    period,
+                    RentReminderPeriodRelationEnum.UpcomingInformation,
+                    triggerIds.Contains(period.Id)));
+            }
+        }
+
         private RentReminder BuildReminder(
             Tenancy tenancy,
             ApplicationUser tenant,
@@ -544,15 +700,21 @@ namespace RentHub.API.Services.Reminders
                 .Where(period => period.DueDate.Date <= nowUtc.Date)
                 .OrderBy(period => period.DueDate)
                 .ToList();
-            var nextPeriod = openPeriods
+            var nextDueDate = openPeriods
                 .Where(period => period.DueDate.Date > nowUtc.Date)
-                .OrderBy(period => period.DueDate)
-                .FirstOrDefault();
+                .Select(period => (DateTimeOffset?)period.DueDate)
+                .Min();
+            var nextPeriods = nextDueDate.HasValue
+                ? openPeriods
+                    .Where(period => period.DueDate == nextDueDate.Value)
+                    .OrderBy(period => period.PeriodStart)
+                    .ToList()
+                : new List<RentPeriod>();
             var content = BuildEmailContent(
                 tenancy,
                 tenant,
                 duePeriods,
-                nextPeriod,
+                nextPeriods,
                 category);
             var reminder = new RentReminder
             {
@@ -586,7 +748,8 @@ namespace RentHub.API.Services.Reminders
                     triggerPeriodIds.Contains(period.Id)));
             }
 
-            if (nextPeriod != null && reminder.Periods.All(period => period.RentPeriodId != nextPeriod.Id))
+            foreach (var nextPeriod in nextPeriods.Where(next =>
+                         reminder.Periods.All(period => period.RentPeriodId != next.Id)))
             {
                 reminder.Periods.Add(ToSnapshot(
                     nextPeriod,
@@ -601,7 +764,7 @@ namespace RentHub.API.Services.Reminders
             Tenancy tenancy,
             ApplicationUser tenant,
             IReadOnlyList<RentPeriod> duePeriods,
-            RentPeriod? nextPeriod,
+            IReadOnlyList<RentPeriod> nextPeriods,
             RentReminderCategoryEnum category)
         {
             var apartment = tenancy.Apartment!;
@@ -622,6 +785,9 @@ namespace RentHub.API.Services.Reminders
             plain.AppendLine(BuildOpeningLine(category, duePeriods.Count, isFrench));
             plain.AppendLine(isFrench ? $"Propriété : {property.Name}" : $"Property: {property.Name}");
             plain.AppendLine(isFrench ? $"Appartement : {apartment.Name}" : $"Apartment: {apartment.Name}");
+            plain.AppendLine(isFrench
+                ? $"Fréquence de paiement : {PaymentFrequencyLabel(tenancy.PaymentIntervalMonths, true)}"
+                : $"Payment frequency: {PaymentFrequencyLabel(tenancy.PaymentIntervalMonths, false)}");
             plain.AppendLine();
 
             if (duePeriods.Count > 0)
@@ -638,12 +804,17 @@ namespace RentHub.API.Services.Reminders
                     : $"Total due now: {FormatMoney(totalDue, culture)}");
             }
 
-            if (nextPeriod != null)
+            if (nextPeriods.Count > 0)
             {
                 plain.AppendLine();
+                plain.AppendLine(isFrench ? "Prochain regroupement :" : "Next payment group:");
+                foreach (var period in nextPeriods)
+                {
+                    plain.AppendLine($"- {FormatPeriod(period, culture)} | {FormatDate(period.DueDate, culture)} | {FormatMoney(period.Amount - period.PaidAmount, culture)}");
+                }
                 plain.AppendLine(isFrench
-                    ? $"Prochain loyer : {FormatPeriod(nextPeriod, culture)}, échéance le {FormatDate(nextPeriod.DueDate, culture)}, {FormatMoney(nextPeriod.Amount - nextPeriod.PaidAmount, culture)}. Ce montant n’est pas compris dans le total exigible."
-                    : $"Next rent: {FormatPeriod(nextPeriod, culture)}, due {FormatDate(nextPeriod.DueDate, culture)}, {FormatMoney(nextPeriod.Amount - nextPeriod.PaidAmount, culture)}. This amount is not included in the total due now.");
+                    ? "Ce regroupement n’est pas compris dans le total exigible."
+                    : "This group is not included in the total due now.");
             }
 
             plain.AppendLine();
@@ -657,28 +828,30 @@ namespace RentHub.API.Services.Reminders
             var html = BuildEmailHtml(
                 category,
                 duePeriods,
-                nextPeriod,
+                nextPeriods,
                 totalDue,
                 property.Name,
                 apartment.Name,
                 greetingName,
                 paymentUrl,
                 culture,
-                isFrench);
+                isFrench,
+                tenancy.PaymentIntervalMonths);
             return new ReminderEmailContent(subject, plain.ToString().Trim(), html);
         }
 
         private static string BuildEmailHtml(
             RentReminderCategoryEnum category,
             IReadOnlyList<RentPeriod> duePeriods,
-            RentPeriod? nextPeriod,
+            IReadOnlyList<RentPeriod> nextPeriods,
             decimal totalDue,
             string propertyName,
             string apartmentName,
             string greetingName,
             string paymentUrl,
             CultureInfo culture,
-            bool isFrench)
+            bool isFrench,
+            int paymentIntervalMonths)
         {
             static string E(string value) => WebUtility.HtmlEncode(value);
             var rows = new StringBuilder();
@@ -713,12 +886,23 @@ namespace RentHub.API.Services.Reminders
                     <p style="margin:16px 0;font-size:18px;"><strong>{{(isFrench ? "Total exigible" : "Total due now")}} : {{E(FormatMoney(totalDue, culture))}}</strong></p>
                     """;
 
-            var upcoming = nextPeriod == null
+            var upcomingRows = new StringBuilder();
+            foreach (var period in nextPeriods)
+            {
+                upcomingRows.Append("<div>")
+                    .Append(E(FormatPeriod(period, culture)))
+                    .Append(" · ")
+                    .Append(E(FormatDate(period.DueDate, culture)))
+                    .Append(" · ")
+                    .Append(E(FormatMoney(period.Amount - period.PaidAmount, culture)))
+                    .Append("</div>");
+            }
+            var upcoming = nextPeriods.Count == 0
                 ? string.Empty
                 : $$"""
                     <div style="margin:18px 0;padding:14px;background:#f3f4ed;border-left:4px solid #c9d45a;">
-                      <strong>{{(isFrench ? "Prochain loyer" : "Next rent")}}</strong><br />
-                      {{E(FormatPeriod(nextPeriod, culture))}} · {{E(FormatDate(nextPeriod.DueDate, culture))}} · {{E(FormatMoney(nextPeriod.Amount - nextPeriod.PaidAmount, culture))}}<br />
+                      <strong>{{(isFrench ? "Prochain regroupement" : "Next payment group")}}</strong><br />
+                      {{upcomingRows}}<br />
                       <span style="color:#61655a;">{{(isFrench ? "Non compris dans le total exigible." : "Not included in the total due now.")}}</span>
                     </div>
                     """;
@@ -727,6 +911,7 @@ namespace RentHub.API.Services.Reminders
                 <p>{{(isFrench ? $"Bonjour {E(greetingName)}," : $"Hello {E(greetingName)},")}}</p>
                 <p>{{E(BuildOpeningLine(category, duePeriods.Count, isFrench))}}</p>
                 <p><strong>{{E(propertyName)}} · {{E(apartmentName)}}</strong></p>
+                <p>{{E(isFrench ? $"Fréquence de paiement : {PaymentFrequencyLabel(paymentIntervalMonths, true)}" : $"Payment frequency: {PaymentFrequencyLabel(paymentIntervalMonths, false)}")}}</p>
                 {{table}}
                 {{upcoming}}
                 <p>{{(isFrench ? "Les loyers sont affectés à la plus ancienne période impayée en premier." : "Rent payments are applied to the oldest unpaid period first.")}}</p>
@@ -885,6 +1070,32 @@ namespace RentHub.API.Services.Reminders
         private static string FormatMoney(decimal value, CultureInfo culture)
             => $"{Math.Max(0, value).ToString("N0", culture)} {Currency}";
 
+        private static string PaymentFrequencyLabel(int months, bool isFrench)
+        {
+            var interval = Math.Clamp(months, 1, 12);
+            if (isFrench)
+            {
+                return interval switch
+                {
+                    1 => "mensuelle",
+                    2 => "tous les 2 mois",
+                    3 => "trimestrielle",
+                    6 => "semestrielle",
+                    12 => "annuelle",
+                    _ => $"tous les {interval} mois"
+                };
+            }
+
+            return interval switch
+            {
+                1 => "monthly",
+                3 => "quarterly",
+                6 => "semiannual",
+                12 => "annual",
+                _ => $"every {interval} months"
+            };
+        }
+
         private static bool IsUniqueConstraintViolation(DbUpdateException exception)
         {
             return exception.InnerException is SqlException sqlException
@@ -900,6 +1111,8 @@ namespace RentHub.API.Services.Reminders
             bool EmailEnabled,
             bool SmsEnabled,
             DateTimeOffset ScheduledFor,
+            DateTimeOffset DueDate,
+            DateTimeOffset ScheduleVersion,
             string TriggerKey);
 
         private sealed record ReminderEmailContent(string Subject, string PlainText, string Html);

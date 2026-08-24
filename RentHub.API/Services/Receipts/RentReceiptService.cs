@@ -119,7 +119,8 @@ namespace RentHub.API.Services.Receipts
                 ApartmentName = payment.Tenancy?.Apartment?.Name ?? string.Empty,
                 PeriodLabel = BuildPeriodLabel(periods),
                 PeriodStart = periods.FirstOrDefault()?.PeriodStart,
-                PeriodEnd = periods.LastOrDefault()?.PeriodEnd
+                PeriodEnd = periods.LastOrDefault()?.PeriodEnd,
+                Lines = BuildReceiptLines(periods)
             };
         }
 
@@ -205,6 +206,7 @@ namespace RentHub.API.Services.Receipts
                 PeriodLabel = BuildPeriodLabel(periods),
                 PeriodStart = periods.FirstOrDefault()?.PeriodStart,
                 PeriodEnd = periods.LastOrDefault()?.PeriodEnd,
+                Lines = BuildReceiptLines(periods),
                 IsValid = true
             };
         }
@@ -269,6 +271,21 @@ namespace RentHub.API.Services.Receipts
                 : $"{first.PeriodStart:MMM d, yyyy} - {last.PeriodEnd:MMM d, yyyy}";
         }
 
+        private static List<RentReceiptLineDto> BuildReceiptLines(IEnumerable<RentPeriod> periods)
+        {
+            return periods
+                .OrderBy(period => period.PeriodStart)
+                .Select(period => new RentReceiptLineDto
+                {
+                    RentPeriodId = period.Id,
+                    PeriodStart = period.PeriodStart,
+                    PeriodEnd = period.PeriodEnd,
+                    PeriodAmount = period.Amount,
+                    PaidAmount = period.PaidAmount
+                })
+                .ToList();
+        }
+
         private static string BuildTenantReceiptEmail(RentReceiptDto receipt, PlatformLanguage language)
         {
             if (language == PlatformLanguage.French)
@@ -280,6 +297,8 @@ namespace RentHub.API.Services.Receipts
                     Propriété : {receipt.PropertyName}
                     Appartement : {receipt.ApartmentName}
                     Période : {FormatReceiptPeriod(receipt, language)}
+                    Détail :
+                    {FormatReceiptLines(receipt, language)}
                     Montant : {FormatReceiptAmount(receipt, language)}
                     Date du paiement : {receipt.PaymentDate.ToString("d MMM yyyy", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))}
 
@@ -295,6 +314,8 @@ namespace RentHub.API.Services.Receipts
                 Property: {receipt.PropertyName}
                 Apartment: {receipt.ApartmentName}
                 Period: {FormatReceiptPeriod(receipt, language)}
+                Details:
+                {FormatReceiptLines(receipt, language)}
                 Amount: {FormatReceiptAmount(receipt, language)}
                 Payment date: {receipt.PaymentDate.ToString("MMM d, yyyy", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))}
 
@@ -314,6 +335,8 @@ namespace RentHub.API.Services.Receipts
                     Propriété : {receipt.PropertyName}
                     Appartement : {receipt.ApartmentName}
                     Période : {FormatReceiptPeriod(receipt, language)}
+                    Détail :
+                    {FormatReceiptLines(receipt, language)}
                     Montant : {FormatReceiptAmount(receipt, language)}
                     Mode : {FormatPaymentMethod(receipt.Method, language)}
                     Facture : {receipt.ReceiptNumber}
@@ -330,6 +353,8 @@ namespace RentHub.API.Services.Receipts
                 Property: {receipt.PropertyName}
                 Apartment: {receipt.ApartmentName}
                 Period: {FormatReceiptPeriod(receipt, language)}
+                Details:
+                {FormatReceiptLines(receipt, language)}
                 Amount: {FormatReceiptAmount(receipt, language)}
                 Method: {FormatPaymentMethod(receipt.Method, language)}
                 Invoice: {receipt.ReceiptNumber}
@@ -375,6 +400,16 @@ namespace RentHub.API.Services.Receipts
 
         private static string FormatReceiptAmount(RentReceiptDto receipt, PlatformLanguage language)
             => $"{receipt.Amount.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName()))} {receipt.Currency}";
+
+        private static string FormatReceiptLines(RentReceiptDto receipt, PlatformLanguage language)
+        {
+            if (receipt.Lines.Count == 0) return $"- {FormatReceiptPeriod(receipt, language)}: {FormatReceiptAmount(receipt, language)}";
+            var culture = System.Globalization.CultureInfo.GetCultureInfo(language.ToCultureName());
+            return string.Join(
+                Environment.NewLine,
+                receipt.Lines.Select(line =>
+                    $"- {line.PeriodStart.ToString("d MMM yyyy", culture)} - {line.PeriodEnd.ToString("d MMM yyyy", culture)}: {line.PaidAmount.ToString("N0", culture)} {receipt.Currency}"));
+        }
 
         private static string FormatPaymentMethod(PaymentMethodEnum method, PlatformLanguage language)
         {

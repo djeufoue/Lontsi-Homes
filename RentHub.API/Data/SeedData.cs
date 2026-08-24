@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using RentHub.API.Models.Entities;
 
 namespace RentHub.API.Data
@@ -14,6 +15,9 @@ namespace RentHub.API.Data
         {
             using var scope = services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var schemaLogger = scope.ServiceProvider
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("RentHub.DatabaseSchema");
             context.Database.Migrate();
 
             // Safety net for existing databases that may have missed the snapshot migration.
@@ -34,6 +38,11 @@ namespace RentHub.API.Data
             EnsureStripeConnectColumns(context);
             EnsureLandlordKycTable(context);
             EnsureSubscriptionPlanCatalogColumns(context);
+            EnsureCurrentReleaseSchema(context);
+            ValidateDatabaseSchema(context);
+            schemaLogger.LogInformation(
+                "Database migrations and mapped-column validation completed successfully. Latest migration: {LatestMigration}.",
+                context.Database.GetAppliedMigrations().LastOrDefault() ?? "none");
 
             SeedSubscriptionPlans(context);
 
@@ -51,6 +60,249 @@ namespace RentHub.API.Data
             SeedDefaultAdministrator(scope.ServiceProvider, configuration);
 
             // Additional seeding (roles, admin user) can be added here.
+        }
+
+        /// <summary>
+        /// Repairs columns introduced by the current release when an older production
+        /// database contains an inconsistent migrations history. Every statement is
+        /// idempotent, so normal databases are left unchanged.
+        /// </summary>
+        private static void EnsureCurrentReleaseSchema(ApplicationDbContext context)
+        {
+            context.Database.ExecuteSqlRaw(@"
+IF COL_LENGTH('dbo.AspNetUsers', 'SessionInvalidatedAt') IS NULL
+    ALTER TABLE [AspNetUsers] ADD [SessionInvalidatedAt] datetimeoffset NULL;
+
+IF COL_LENGTH('dbo.Apartments', 'FloorNumber') IS NULL
+    ALTER TABLE [Apartments] ADD [FloorNumber] int NULL;
+
+IF EXISTS
+(
+    SELECT 1 FROM sys.check_constraints
+    WHERE [name] = N'CK_Tenancies_AutoExtensionMonths'
+      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
+)
+    ALTER TABLE [Tenancies] DROP CONSTRAINT [CK_Tenancies_AutoExtensionMonths];
+
+IF COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NULL
+   AND COL_LENGTH('dbo.Tenancies', 'AutoExtensionMonths') IS NOT NULL
+    EXEC sp_rename N'dbo.Tenancies.AutoExtensionMonths', N'FutureRentPeriodCount', 'COLUMN';
+
+IF COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NULL
+    ALTER TABLE [Tenancies] ADD [FutureRentPeriodCount] int NOT NULL
+        CONSTRAINT [DF_Tenancies_FutureRentPeriodCount] DEFAULT(1) WITH VALUES;
+
+IF COL_LENGTH('dbo.Tenancies', 'PaymentIntervalMonths') IS NULL
+    ALTER TABLE [Tenancies] ADD [PaymentIntervalMonths] int NOT NULL
+        CONSTRAINT [DF_Tenancies_PaymentIntervalMonths] DEFAULT(1) WITH VALUES;
+
+IF COL_LENGTH('dbo.Tenancies', 'RentTrackingStartDate') IS NULL
+    ALTER TABLE [Tenancies] ADD [RentTrackingStartDate] datetimeoffset NULL;
+
+IF COL_LENGTH('dbo.Tenancies', 'RentScheduleNeedsReview') IS NULL
+    ALTER TABLE [Tenancies] ADD [RentScheduleNeedsReview] bit NOT NULL
+        CONSTRAINT [DF_Tenancies_RentScheduleNeedsReview] DEFAULT(0) WITH VALUES;
+
+IF COL_LENGTH('dbo.RentPeriods', 'BillingGroupSequence') IS NULL
+BEGIN
+    ALTER TABLE [RentPeriods] ADD [BillingGroupSequence] int NOT NULL
+        CONSTRAINT [DF_RentPeriods_BillingGroupSequence] DEFAULT(0) WITH VALUES;
+
+    EXEC(N';WITH [OrderedPeriods] AS
+    (
+        SELECT [Id], ROW_NUMBER() OVER (PARTITION BY [TenancyId] ORDER BY [PeriodStart], [Id]) - 1 AS [Sequence]
+        FROM [RentPeriods]
+        WHERE [IsDeleted] = 0
+    )
+    UPDATE [period]
+    SET [BillingGroupSequence] = [ordered].[Sequence]
+    FROM [RentPeriods] [period]
+    INNER JOIN [OrderedPeriods] [ordered] ON [ordered].[Id] = [period].[Id];');
+END
+
+IF COL_LENGTH('dbo.RentReminders', 'InvalidatedAt') IS NULL
+    ALTER TABLE [RentReminders] ADD [InvalidatedAt] datetimeoffset NULL;
+
+IF COL_LENGTH('dbo.RentReminders', 'InvalidationReason') IS NULL
+    ALTER TABLE [RentReminders] ADD [InvalidationReason] nvarchar(512) NOT NULL
+        CONSTRAINT [DF_RentReminders_InvalidationReason] DEFAULT(N'') WITH VALUES;
+");
+
+            // SQL Server compiles an entire command before executing IF branches.
+            // A second command is therefore required before referencing columns
+            // that the repair command above may just have created.
+            context.Database.ExecuteSqlRaw(@"
+UPDATE [Apartments]
+SET [FloorNumber] = CASE
+    WHEN [FloorNumber] IS NULL OR [FloorNumber] < 0 THEN 0
+    WHEN [FloorNumber] > 30 THEN 30
+    ELSE [FloorNumber]
+END
+WHERE [FloorNumber] IS NULL OR [FloorNumber] < 0 OR [FloorNumber] > 30;
+
+IF EXISTS
+(
+    SELECT 1 FROM sys.columns
+    WHERE [object_id] = OBJECT_ID(N'[dbo].[Apartments]')
+      AND [name] = N'FloorNumber'
+      AND [is_nullable] = 1
+)
+    ALTER TABLE [Apartments] ALTER COLUMN [FloorNumber] int NOT NULL;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.default_constraints [dc]
+    INNER JOIN sys.columns [column]
+        ON [column].[object_id] = [dc].[parent_object_id]
+       AND [column].[column_id] = [dc].[parent_column_id]
+    WHERE [dc].[parent_object_id] = OBJECT_ID(N'[dbo].[Apartments]')
+      AND [column].[name] = N'FloorNumber'
+)
+    ALTER TABLE [Apartments] ADD CONSTRAINT [DF_Apartments_FloorNumber] DEFAULT(0) FOR [FloorNumber];
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.check_constraints
+    WHERE [name] = N'CK_Apartments_FloorNumber'
+      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Apartments]')
+)
+    ALTER TABLE [Apartments] WITH CHECK ADD CONSTRAINT [CK_Apartments_FloorNumber]
+    CHECK ([FloorNumber] >= 0 AND [FloorNumber] <= 30);
+
+UPDATE [Tenancies]
+SET [RentTrackingStartDate] = [StartDate]
+WHERE [RentTrackingStartDate] IS NULL;
+
+IF EXISTS
+(
+    SELECT 1 FROM sys.columns
+    WHERE [object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
+      AND [name] = N'RentTrackingStartDate'
+      AND [is_nullable] = 1
+)
+    ALTER TABLE [Tenancies] ALTER COLUMN [RentTrackingStartDate] datetimeoffset NOT NULL;
+
+UPDATE [Tenancies]
+SET [FutureRentPeriodCount] = CASE
+        WHEN [FutureRentPeriodCount] < 1 THEN 1
+        WHEN [FutureRentPeriodCount] > 12 THEN 12
+        ELSE [FutureRentPeriodCount]
+    END,
+    [PaymentIntervalMonths] = CASE
+        WHEN [PaymentIntervalMonths] < 1 THEN 1
+        WHEN [PaymentIntervalMonths] > 12 THEN 12
+        ELSE [PaymentIntervalMonths]
+    END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.check_constraints
+    WHERE [name] = N'CK_Tenancies_FutureRentPeriodCount'
+      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
+)
+    ALTER TABLE [Tenancies] WITH CHECK ADD CONSTRAINT [CK_Tenancies_FutureRentPeriodCount]
+    CHECK ([FutureRentPeriodCount] >= 1 AND [FutureRentPeriodCount] <= 12);
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.check_constraints
+    WHERE [name] = N'CK_Tenancies_PaymentIntervalMonths'
+      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
+)
+    ALTER TABLE [Tenancies] WITH CHECK ADD CONSTRAINT [CK_Tenancies_PaymentIntervalMonths]
+    CHECK ([PaymentIntervalMonths] >= 1 AND [PaymentIntervalMonths] <= 12);
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE [name] = N'IX_RentPeriods_TenancyId_BillingGroupSequence_PeriodStart'
+      AND [object_id] = OBJECT_ID(N'[dbo].[RentPeriods]')
+)
+    CREATE INDEX [IX_RentPeriods_TenancyId_BillingGroupSequence_PeriodStart]
+    ON [RentPeriods] ([TenancyId], [BillingGroupSequence], [PeriodStart]);
+
+UPDATE [PropertyManagerAssignments]
+SET [PermissionFlags] = [PermissionFlags] | 8192,
+    [Permission] = 1
+WHERE [IsDeleted] = 0
+  AND [PermissionFlags] = 744396316838953;
+");
+        }
+
+        /// <summary>
+        /// Verifies every table and column mapped by EF Core. The API intentionally
+        /// refuses to start when the physical database is behind the deployed model.
+        /// This turns a late "Invalid column name" request failure into an explicit
+        /// deployment failure listing every missing database object.
+        /// </summary>
+        private static void ValidateDatabaseSchema(ApplicationDbContext context)
+        {
+            var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+            if (pendingMigrations.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Database schema validation failed. Pending migrations: {string.Join(", ", pendingMigrations)}.");
+            }
+
+            var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var connection = context.Database.GetDbConnection();
+            var shouldClose = connection.State != System.Data.ConnectionState.Open;
+            if (shouldClose)
+            {
+                connection.Open();
+            }
+
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT SCHEMA_NAME([table].[schema_id]), [table].[name], [column].[name]
+                    FROM sys.tables [table]
+                    INNER JOIN sys.columns [column] ON [column].[object_id] = [table].[object_id];";
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    existingColumns.Add($"{reader.GetString(0)}.{reader.GetString(1)}.{reader.GetString(2)}");
+                }
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    connection.Close();
+                }
+            }
+
+            var missingColumns = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entityType in context.Model.GetEntityTypes())
+            {
+                var tableName = entityType.GetTableName();
+                if (string.IsNullOrWhiteSpace(tableName))
+                {
+                    continue;
+                }
+
+                var schema = entityType.GetSchema() ?? "dbo";
+                var storeObject = StoreObjectIdentifier.Table(tableName, schema);
+                foreach (var property in entityType.GetProperties())
+                {
+                    var columnName = property.GetColumnName(storeObject);
+                    if (!string.IsNullOrWhiteSpace(columnName) &&
+                        !existingColumns.Contains($"{schema}.{tableName}.{columnName}"))
+                    {
+                        missingColumns.Add($"[{schema}].[{tableName}].[{columnName}]");
+                    }
+                }
+            }
+
+            if (missingColumns.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    "Database schema validation failed. Missing mapped columns: " +
+                    string.Join(", ", missingColumns) +
+                    ". The API was stopped before accepting traffic.");
+            }
         }
 
         private static void SeedSubscriptionPlans(ApplicationDbContext context)

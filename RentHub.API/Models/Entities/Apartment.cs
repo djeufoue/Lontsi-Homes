@@ -28,7 +28,7 @@ namespace RentHub.API.Models.Entities
         public int NumberOfBathrooms { get; set; }
         public int Area { get; set; } // Surface area in square metres
 
-        public int? FloorNumber { get; set; }
+        public int FloorNumber { get; set; }
 
         [Column(TypeName = "decimal(14,2)")]
         public decimal Price { get; set; }

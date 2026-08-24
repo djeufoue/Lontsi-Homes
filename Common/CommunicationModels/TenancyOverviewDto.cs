@@ -39,8 +39,16 @@ namespace Common.CommunicationModels
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; }
         public int RentDueDay { get; set; } = 1;
+        public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+        public DateTimeOffset RentTrackingStartDate { get; set; }
+        public bool RentScheduleNeedsReview { get; set; }
+        public bool CanCorrectRentSchedule { get; set; }
+        public bool CanDeleteHistoricalRentPeriods { get; set; }
+        public int DeletableHistoricalRentPeriodCount { get; set; }
+        public DateTimeOffset? DeletableHistoricalFirstPeriodStart { get; set; }
+        public DateTimeOffset? DeletableHistoricalLastPeriodEnd { get; set; }
         public DateTimeOffset? TerminatedAt { get; set; }
         public TenancyTerminationReasonEnum? TerminationReason { get; set; }
         public string? TerminationNotes { get; set; }
@@ -56,6 +64,7 @@ namespace Common.CommunicationModels
         public bool CanViewMembers { get; set; }
         public bool CanAddMembers { get; set; }
         public bool CanEditMembers { get; set; }
+        public bool CanEditMemberEmails { get; set; }
         public bool CanRemoveMembers { get; set; }
         public bool CanViewDocuments { get; set; }
         public bool CanUploadDocuments { get; set; }

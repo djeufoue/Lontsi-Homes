@@ -2009,7 +2009,27 @@ namespace RentHub.API.Controllers
                 }
 
                 var roles = await _userManager.GetRolesAsync(user);
-                var requiresPhoneActivationOtps = roles.Contains("Landlord", StringComparer.OrdinalIgnoreCase);
+                var requiresAllContactOtps = user.SessionInvalidatedAt.HasValue;
+                var requiresPhoneActivationOtps = requiresAllContactOtps ||
+                    roles.Contains("Landlord", StringComparer.OrdinalIgnoreCase);
+
+                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+                {
+                    var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp?.Trim() ?? string.Empty, "phone number");
+                    if (phoneOtpResult != null)
+                    {
+                        return phoneOtpResult;
+                    }
+                }
+
+                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+                {
+                    var subscriptionOtpResult = await ValidateOtpAsync(user, SubscriptionPaymentOtpTokenName, SubscriptionPaymentOtpExpiryTokenName, request.SubscriptionPaymentOtp?.Trim() ?? string.Empty, "subscription payment number");
+                    if (subscriptionOtpResult != null)
+                    {
+                        return subscriptionOtpResult;
+                    }
+                }
 
                 if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                 {
@@ -2030,6 +2050,16 @@ namespace RentHub.API.Controllers
                 }
 
                 user.EmailConfirmed = true;
+                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+                {
+                    user.PhoneNumberConfirmed = true;
+                }
+
+                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber))
+                {
+                    user.IsSubscriptionPaymentPhoneVerified = true;
+                    user.SubscriptionPaymentPhoneVerifiedAt = DateTimeOffset.UtcNow;
+                }
                 if (requiresPhoneActivationOtps && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
                 {
                     user.IsPayoutPhoneVerified = true;
@@ -2057,6 +2087,8 @@ namespace RentHub.API.Controllers
                 }
 
                 await RemoveOtpAsync(user, ActivationOtpTokenName, ActivationOtpExpiryTokenName);
+                await RemoveOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName);
+                await RemoveOtpAsync(user, SubscriptionPaymentOtpTokenName, SubscriptionPaymentOtpExpiryTokenName);
                 await RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName);
                 await RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName);
 
@@ -2167,7 +2199,14 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                await _userOnboardingService.SendActivationOtpAsync(user);
+                if (user.SessionInvalidatedAt.HasValue)
+                {
+                    await _userOnboardingService.SendEmailChangeVerificationOtpAsync(user);
+                }
+                else
+                {
+                    await _userOnboardingService.SendActivationOtpAsync(user);
+                }
                 return Ok(new { Message = "New OTP codes have been sent to your email, payout number, and WhatsApp." });
             }
             catch (OtpSendThrottledException ex)

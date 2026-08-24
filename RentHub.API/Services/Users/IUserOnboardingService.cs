@@ -18,6 +18,8 @@ namespace RentHub.API.Services.Users
             string? temporaryPassword = null,
             string? welcomeRoleLabel = null);
 
+        Task SendEmailChangeVerificationOtpAsync(ApplicationUser user);
+
         Task SendLandlordEmailOtpAsync(ApplicationUser user);
 
         Task SendLandlordPhoneOtpAsync(ApplicationUser user);

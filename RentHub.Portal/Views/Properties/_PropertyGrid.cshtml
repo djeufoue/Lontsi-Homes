@@ -57,7 +57,6 @@
             <table class="table align-middle mb-0 rh-smart-table rh-responsive-data-table">
                 <thead>
                     <tr>
-                        <th>@T["Code"]</th>
                         <th>@T["Property"]</th>
                         <th>@T["City"]</th>
                         <th>@T["Country"]</th>
@@ -86,15 +85,8 @@
                             initials = "PR";
                         }
 
-                        var propertyCode = $"PRP-{property.Id:D4}";
                         var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? T["Not assigned"].Value : property.LandlordName;
                     <tr>
-                        <td data-label="@T["Code"]">
-                            <div class="rh-row-code">
-                                <strong>@propertyCode</strong>
-                                <span>@T["ID {0}", property.Id]</span>
-                            </div>
-                        </td>
                         <td class="rh-mobile-card-title" data-label="@T["Property"]">
                             <div class="rh-table-property">
                                 <div class="rh-table-avatar">@initials</div>

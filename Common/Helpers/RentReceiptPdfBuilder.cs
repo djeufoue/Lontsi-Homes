@@ -129,35 +129,53 @@ namespace Common.Helpers
             }
 
             FillRect(sb, left, 510, width, 32, accent.Item1, accent.Item2, accent.Item3);
-            Text(sb, "F2", 9, left + 10, 521, isFrench ? "DESCRIPTION" : "DESCRIPTION", 1, 0.98, 0.95);
-            Text(sb, "F2", 9, left + 190, 521, isFrench ? "PERIODE" : "PERIOD", 1, 0.98, 0.95);
-            Text(sb, "F2", 9, right - 138, 521, isFrench ? "QTE" : "QTY", 1, 0.98, 0.95);
-            TextRightFitted(sb, "F2", 9, 7, right - 10, 521, "TOTAL", (1d, 0.98, 0.95), 92);
+            Text(sb, "F2", 9, left + 10, 521, isFrench ? "PERIODE MENSUELLE" : "MONTHLY PERIOD", 1, 0.98, 0.95);
+            TextRightFitted(sb, "F2", 9, 7, right - 112, 521, isFrench ? "MONTANT" : "AMOUNT", (1d, 0.98, 0.95), 92);
+            TextRightFitted(sb, "F2", 9, 7, right - 10, 521, isFrench ? "PAYE" : "PAID", (1d, 0.98, 0.95), 92);
 
-            FillRect(sb, left, 458, width, 52, paperAlt.Item1, paperAlt.Item2, paperAlt.Item3);
-            Text(sb, "F1", 10, left + 10, 481, isFrench ? "Loyer du logement" : "Rent for rental unit", ink);
-            TextFitted(sb, "F1", 9, 7, left + 190, 481, PeriodLabel(receipt, culture), ink, 180);
-            Text(sb, "F1", 10, right - 125, 481, "1", ink);
-            TextRightFitted(sb, "F1", 10, 8, right - 10, 481, AmountLabel(receipt, culture), ink, 105);
+            var receiptLines = receipt.Lines.Count > 0
+                ? receipt.Lines
+                : new List<RentReceiptLineDto>
+                {
+                    new()
+                    {
+                        PeriodStart = receipt.PeriodStart ?? receipt.PaymentDate,
+                        PeriodEnd = receipt.PeriodEnd ?? receipt.PaymentDate,
+                        PeriodAmount = receipt.Amount,
+                        PaidAmount = receipt.Amount
+                    }
+                };
+            var rowHeight = Math.Max(12d, Math.Min(46d, 144d / Math.Max(1, receiptLines.Count)));
+            var rowTop = 510d;
+            foreach (var line in receiptLines)
+            {
+                var rowBottom = rowTop - rowHeight;
+                FillRect(sb, left, rowBottom, width, rowHeight, paperAlt.Item1, paperAlt.Item2, paperAlt.Item3);
+                var baseline = rowBottom + Math.Max(3, (rowHeight - 8) / 2);
+                var periodLabel = $"{line.PeriodStart.ToString("dd MMM yyyy", culture)} - {line.PeriodEnd.ToString("dd MMM yyyy", culture)}";
+                TextFitted(sb, "F1", 8.5, 6.5, left + 10, baseline, periodLabel, ink, 270);
+                TextRightFitted(sb, "F1", 8.5, 6.5, right - 112, baseline, $"{line.PeriodAmount.ToString("N0", culture)} {receipt.Currency}", ink, 92);
+                TextRightFitted(sb, "F2", 8.5, 6.5, right - 10, baseline, $"{line.PaidAmount.ToString("N0", culture)} {receipt.Currency}", ink, 92);
+                rowTop = rowBottom;
+            }
 
-            Text(sb, "F2", 8, left, 414, isFrench ? "PAIEMENT" : "PAYMENT", accent, 0.8);
-            TextFitted(sb, "F2", 10, 8, left, 395, MethodLabel(receipt.Method, language), ink, 220);
-            TextFitted(sb, "F1", 8.5, 7, left, 378, PaymentNote(receipt, language), muted, 220);
+            var paymentHeadingY = rowTop - 22;
+            Text(sb, "F2", 8, left, paymentHeadingY, isFrench ? "PAIEMENT" : "PAYMENT", accent, 0.8);
+            TextFitted(sb, "F2", 10, 8, left, paymentHeadingY - 19, MethodLabel(receipt.Method, language), ink, 220);
+            TextFitted(sb, "F1", 8.5, 7, left, paymentHeadingY - 36, PaymentNote(receipt, language), muted, 220);
             TextFitted(
                 sb,
                 "F1",
                 8.5,
                 7,
                 left,
-                361,
+                paymentHeadingY - 53,
                 isFrench ? $"Date du paiement : {DateLabel(receipt.PaymentDate, language)}" : $"Payment date: {DateLabel(receipt.PaymentDate, language)}",
                 muted,
                 220);
 
-            TextRightFitted(sb, "F2", 8, 7, right, 414, isFrench ? "MONTANT PAYE" : "AMOUNT PAID", accent, 145);
-            TextRightFitted(sb, "F2", 18, 12, right, 386, AmountLabel(receipt, culture), ink, 185);
-            FillRect(sb, right - 58, 352, 58, 20, accent.Item1, accent.Item2, accent.Item3);
-            TextRightFitted(sb, "F2", 8, 7, right - 10, 359, isFrench ? "PAYEE" : "PAID", (1d, 0.98, 0.95), 42);
+            TextRightFitted(sb, "F2", 8, 7, right, paymentHeadingY, isFrench ? "MONTANT PAYE" : "AMOUNT PAID", accent, 145);
+            TextRightFitted(sb, "F2", 18, 12, right, paymentHeadingY - 28, AmountLabel(receipt, culture), ink, 185);
 
             FillRect(sb, 0, 0, PageWidth, 294, footer.Item1, footer.Item2, footer.Item3);
             Text(sb, "F2", 8, left, 260, isFrench ? "INFORMATIONS DU LOCATAIRE" : "TENANT INFORMATION", 1, 0.98, 0.95, 0.8);

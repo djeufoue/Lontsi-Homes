@@ -16,11 +16,15 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public string? RentStatus { get; set; }
         public DateTime? RentFrom { get; set; }
         public DateTime? RentTo { get; set; }
-        public string RentSortDirection { get; set; } = "asc";
+        public string RentSortDirection { get; set; } = "priority";
         public int RentPage { get; set; } = 1;
         public int RentPageSize { get; set; } = 6;
         public int TotalRentPeriods { get; set; }
         public int TotalRentPages { get; set; } = 1;
+        public int RentGroupPage { get; set; } = 1;
+        public int RentGroupPageSize { get; set; } = 5;
+        public int TotalRentGroups { get; set; }
+        public int TotalRentGroupPages { get; set; } = 1;
         public List<string> RentStatuses { get; set; } = new();
         public bool IsRentPeriodsPage { get; set; }
     }

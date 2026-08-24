@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Common.Enums;
 
 namespace Common.CommunicationModels
@@ -31,6 +32,7 @@ namespace Common.CommunicationModels
         public string PeriodLabel { get; set; } = string.Empty;
         public DateTimeOffset? PeriodStart { get; set; }
         public DateTimeOffset? PeriodEnd { get; set; }
+        public List<RentReceiptLineDto> Lines { get; set; } = new();
         public bool IsValid { get; set; } = true;
     }
 
@@ -51,5 +53,15 @@ namespace Common.CommunicationModels
         public string PeriodLabel { get; set; } = string.Empty;
         public DateTimeOffset? PeriodStart { get; set; }
         public DateTimeOffset? PeriodEnd { get; set; }
+        public List<RentReceiptLineDto> Lines { get; set; } = new();
+    }
+
+    public class RentReceiptLineDto
+    {
+        public int RentPeriodId { get; set; }
+        public DateTimeOffset PeriodStart { get; set; }
+        public DateTimeOffset PeriodEnd { get; set; }
+        public decimal PeriodAmount { get; set; }
+        public decimal PaidAmount { get; set; }
     }
 }

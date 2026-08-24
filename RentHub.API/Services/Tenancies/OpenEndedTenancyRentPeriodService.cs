@@ -97,7 +97,10 @@ namespace RentHub.API.Services.Tenancies
                     StartDate = tenancy.StartDate,
                     MonthlyRent = tenancy.MonthlyRent,
                     RentDueDay = tenancy.RentDueDay,
-                    AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                    PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
+                    RentTrackingStartDate = tenancy.RentTrackingStartDate,
+                    RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                     LatestPeriodEnd = tenancy.RentPeriods
                         .OrderByDescending(period => period.PeriodStart)
                         .Select(period => (DateTimeOffset?)period.PeriodEnd)
@@ -111,66 +114,47 @@ namespace RentHub.API.Services.Tenancies
             // calendar dates after the single database read so +01:00 and -05:00
             // schedules ending on the same day are not treated as different instants.
             var schedulesToExtend = schedules
-                .Where(schedule =>
-                    schedule.LatestPeriodEnd == null ||
-                    schedule.LatestPeriodEnd.Value.Date < ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths).Date ||
-                    !schedule.HasOpenPeriod)
+                .Where(schedule => !schedule.RentScheduleNeedsReview)
                 .ToList();
 
             var newPeriods = new List<RentPeriod>();
             foreach (var schedule in schedulesToExtend)
             {
-                var scheduleTargetEnd = ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths);
-                if (!schedule.HasOpenPeriod && schedule.LatestPeriodEnd.HasValue)
-                {
-                    var nextPeriodEnd = EndOfMonth(schedule.LatestPeriodEnd.Value.AddDays(1));
-                    if (nextPeriodEnd > scheduleTargetEnd)
-                    {
-                        scheduleTargetEnd = nextPeriodEnd;
-                    }
-                }
+                var generationAsOf = !schedule.HasOpenPeriod &&
+                                     schedule.LatestPeriodEnd.HasValue &&
+                                     schedule.LatestPeriodEnd.Value.Date > nowUtc.Date
+                    ? schedule.LatestPeriodEnd.Value.AddDays(1)
+                    : nowUtc;
+                var seeds = RentPeriodScheduleHelper.GeneratePeriods(
+                    schedule.StartDate,
+                    null,
+                    TenancyEndBehaviorEnum.NoEndDate,
+                    schedule.MonthlyRent,
+                    schedule.RentDueDay,
+                    generationAsOf,
+                    schedule.FutureRentPeriodCount,
+                    schedule.PaymentIntervalMonths,
+                    schedule.RentTrackingStartDate == default
+                        ? schedule.StartDate
+                        : schedule.RentTrackingStartDate);
 
-                var cursor = schedule.LatestPeriodEnd?.AddDays(1) ?? schedule.StartDate;
-
-                // Generate in batches because the shared schedule helper deliberately
-                // caps one call at 120 periods.
-                while (cursor.Date <= scheduleTargetEnd.Date)
-                {
-                    var seeds = RentPeriodScheduleHelper.GeneratePeriods(
-                        cursor,
-                        scheduleTargetEnd,
-                        TenancyEndBehaviorEnum.ExpireAutomatically,
-                        schedule.MonthlyRent,
-                        schedule.RentDueDay,
-                        nowUtc);
-
-                    if (seeds.Count == 0)
-                    {
-                        break;
-                    }
-
-                    newPeriods.AddRange(seeds.Select(seed => new RentPeriod
+                newPeriods.AddRange(seeds
+                    .Where(seed => !schedule.LatestPeriodEnd.HasValue ||
+                                   seed.PeriodStart.Date > schedule.LatestPeriodEnd.Value.Date)
+                    .Select(seed => new RentPeriod
                     {
                         TenancyId = schedule.TenancyId,
                         PeriodStart = seed.PeriodStart,
                         PeriodEnd = seed.PeriodEnd,
                         DueDate = seed.DueDate,
+                        BillingGroupSequence = seed.BillingGroupSequence,
                         Amount = seed.Amount,
                         PaidAmount = 0m,
                         PaymentReference = string.Empty,
-                        Status = seed.Status,
+                        Status = RentPeriodScheduleHelper.ResolveUnpaidStatus(seed.DueDate, nowUtc),
                         CreatedBy = SchedulerUser,
                         CreatedAt = nowUtc
                     }));
-
-                    var nextCursor = seeds[^1].PeriodEnd.AddDays(1);
-                    if (nextCursor.Date <= cursor.Date)
-                    {
-                        break;
-                    }
-
-                    cursor = nextCursor;
-                }
             }
 
             if (newPeriods.Count == 0)
@@ -207,32 +191,10 @@ namespace RentHub.API.Services.Tenancies
                 newPeriods.Count,
                 schedulesToExtend.Count,
                 schedulesToExtend.Count == 0
-                    ? ResolveTargetEnd(nowUtc, 1)
-                    : schedulesToExtend.Max(schedule => ResolveTargetEnd(nowUtc, schedule.AutoExtensionMonths)));
+                    ? nowUtc
+                    : newPeriods.Max(period => period.PeriodEnd));
 
             return new ProvisioningResult(schedules.Count, newPeriods.Count);
-        }
-
-        private static DateTimeOffset StartOfMonth(DateTimeOffset value)
-        {
-            return new DateTimeOffset(
-                value.Year,
-                value.Month,
-                1,
-                0,
-                0,
-                0,
-                TimeSpan.Zero);
-        }
-
-        private static DateTimeOffset EndOfMonth(DateTimeOffset value)
-        {
-            return StartOfMonth(value).AddMonths(1).AddDays(-1);
-        }
-
-        private static DateTimeOffset ResolveTargetEnd(DateTimeOffset nowUtc, int autoExtensionMonths)
-        {
-            return EndOfMonth(StartOfMonth(nowUtc).AddMonths(Math.Clamp(autoExtensionMonths, 1, 12)));
         }
 
         private sealed class OpenEndedTenancySchedule
@@ -241,7 +203,10 @@ namespace RentHub.API.Services.Tenancies
             public DateTimeOffset StartDate { get; init; }
             public decimal MonthlyRent { get; init; }
             public int RentDueDay { get; init; }
-            public int AutoExtensionMonths { get; init; }
+            public int FutureRentPeriodCount { get; init; }
+            public int PaymentIntervalMonths { get; init; }
+            public DateTimeOffset RentTrackingStartDate { get; init; }
+            public bool RentScheduleNeedsReview { get; init; }
             public DateTimeOffset? LatestPeriodEnd { get; init; }
             public bool HasOpenPeriod { get; init; }
         }

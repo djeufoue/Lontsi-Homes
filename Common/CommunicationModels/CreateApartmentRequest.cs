@@ -19,5 +19,8 @@ namespace Common.CommunicationModels
         public decimal Price { get; set; }
         [Range(0, double.MaxValue)]
         public int Area { get; set; }
+
+        [Range(0, 30)]
+        public int FloorNumber { get; set; }
     }
 }

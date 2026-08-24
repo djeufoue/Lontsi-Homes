@@ -9,7 +9,7 @@
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-action="Overview" asp-route-id="@tenancy.Id">&#8592; @T["Back to tenancy overview"]</a>
             <p class="rh-kicker">@T["Rent Ledger"]</p>
-            <h1 class="rh-heading-title">@T["Tenancy #{0} rent periods", tenancy.Id]</h1>
+            <h1 class="rh-heading-title">@T["Rent periods"]</h1>
             <p class="rh-heading-subtitle">@tenancy.PropertyName - @tenancy.ApartmentName</p>
             <div class="rh-overview-badges">
                 <span class="rh-chip rh-chip-info">@T["{0} matching period(s)", Model.TotalRentPeriods]</span>

@@ -74,6 +74,51 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateApartment(int apartmentId, UpdateApartmentRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    TempData["Error"] = "Please check the apartment information.";
+                    return await RedirectToApartmentOverviewAsync(apartmentId);
+                }
+
+                await _api.PutAsync($"apartments/{apartmentId}", request);
+                TempData["Success"] = "Apartment information updated successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Apartment update failed for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the apartment right now.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateMemberEmail(int apartmentId, int propertyId, string memberId, string email)
+        {
+            try
+            {
+                await _api.PutAsync($"properties/{propertyId}/members/{Uri.EscapeDataString(memberId)}/email", new UpdateMemberEmailRequest
+                {
+                    Email = email
+                });
+                TempData["Success"] = "Email updated. The user was signed out and must complete verification again.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Apartment member email update failed for apartment {ApartmentId}.", apartmentId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update this email address.");
+            }
+
+            return await RedirectToApartmentOverviewAsync(apartmentId);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateTenancy(CreateTenancyVm request)
         {
             try
@@ -166,8 +211,10 @@ namespace RentHub.Portal.Controllers
                     MonthlyRent = request.MonthlyRent,
                     MaxMembers = request.MaxMembers,
                     RentDueDay = request.RentDueDay,
+                    PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    AutoExtensionMonths = request.AutoExtensionMonths
+                    FutureRentPeriodCount = request.FutureRentPeriodCount,
+                    RentTrackingStartDate = request.RentTrackingStartDate
                 });
 
                 TempData["Success"] = "Tenancy updated successfully.";
@@ -480,7 +527,8 @@ namespace RentHub.Portal.Controllers
                 CanAddTenancy = overview.CanAddTenancy,
                 CanEditTenancy = overview.CanEditTenancy,
                 CanSendRentReminder = overview.CanSendRentReminder,
-                CanManageRentReminderSettings = overview.CanManageRentReminderSettings
+                CanManageRentReminderSettings = overview.CanManageRentReminderSettings,
+                CanEditMemberEmails = overview.CanEditMemberEmails
             };
         }
 

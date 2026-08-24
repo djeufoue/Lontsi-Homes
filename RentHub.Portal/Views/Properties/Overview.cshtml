@@ -333,6 +333,7 @@
 
                                 <div class="rh-unit-card-meta">
                                     <span>@T["Area"] <strong>@unit.Area.ToString("N0", CultureInfo.CurrentCulture) @T["sqm"]</strong></span>
+                                    <span>@T["Floor"] <strong>@(unit.FloorNumber == 0 ? T["Ground floor"] : T["Floor {0}", unit.FloorNumber])</strong></span>
                                     <span>@T["Rent"] <strong>@unit.Price.ToString("N0", CultureInfo.CurrentCulture)</strong></span>
                                 </div>
                             </a>
@@ -378,12 +379,17 @@
                         <div class="rh-member-card-copy">
                             <strong>@landlordName</strong>
                             <small>@T["Landlord"]</small>
+                            <small>@property.LandlordEmail</small>
                         </div>
                         <div class="rh-member-card-actions">
                             <span class="rh-chip rh-chip-primary">@T["ReadWrite"]</span>
                             @if (canOpenUserOverview && !string.IsNullOrWhiteSpace(property.LandlordId))
                             {
                                 <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@property.LandlordId">@T["User overview"]</a>
+                            }
+                            @if (Model.CanEditLandlordEmail)
+                            {
+                                <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editMemberEmailModal" data-member-id="@property.LandlordId" data-member-name="@landlordName" data-member-email="@property.LandlordEmail">@T["Edit email"]</button>
                             }
                         </div>
                     </article>
@@ -399,11 +405,17 @@
                                 <div class="rh-member-card-copy">
                                     <strong>@manager.ManagerName</strong>
                                     <small>@T["Manager"] • @manager.AssignedAt.LocalDateTime.ToString("d", CultureInfo.CurrentCulture)</small>
+                                    <small>@manager.ManagerEmail</small>
                                 </div>
 
                                 @if (canOpenUserOverview)
                                 {
                                     <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@manager.ManagerId">@T["User overview"]</a>
+                                }
+
+                                @if (Model.CanEditMemberEmails)
+                                {
+                                    <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editMemberEmailModal" data-member-id="@manager.ManagerId" data-member-name="@manager.ManagerName" data-member-email="@manager.ManagerEmail">@T["Edit email"]</button>
                                 }
 
                                 @if (Model.CanManageManagers)
@@ -435,7 +447,7 @@
     </section>
 
 </section>
-@if (Model.CanAddApartment || Model.CanManageManagers || Model.CanUploadDocuments)
+@if (Model.CanAddApartment || Model.CanManageManagers || Model.CanUploadDocuments || Model.CanEditMemberEmails || Model.CanEditLandlordEmail)
 {
     @if (Model.CanAddApartment)
     {
@@ -477,6 +489,19 @@
                         <div class="col-12">
                             <label class="form-label">@T["Monthly rent"]</label>
                             <input class="form-control rh-input" name="Price" type="number" min="0" step="0.01" required />
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">@T["Floor"]</label>
+                            <input class="form-control rh-input" name="FloorNumber" type="number" min="0" max="30" value="0" list="newApartmentFloorOptions" required />
+                            <datalist id="newApartmentFloorOptions">
+                                <option value="0" label="@T["Ground floor"]"></option>
+                                @for (var floor = 1; floor <= 30; floor++)
+                                {
+                                    <option value="@floor" label="@T["Floor {0}", floor]"></option>
+                                }
+                            </datalist>
+                            <small class="text-muted">@T["Enter 0 for the ground floor, or choose a floor from 1 to 30."]</small>
                         </div>
                     </div>
 
@@ -535,13 +560,42 @@
                         </div>
 
                         <div class="col-12">
-                            <small class="text-muted">@T["New Managers start with Read Only access. Configure additional actions from Permissions / Access after adding them."]</small>
+                            <small class="text-muted">@T["New managers can edit apartments by default. The landlord can remove this permission from Permissions / Access."]</small>
                         </div>
                     </div>
 
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
                         <button type="submit" class="btn rh-btn-primary">@T["Add+"]</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    }
+
+    @if (Model.CanEditMemberEmails || Model.CanEditLandlordEmail)
+    {
+    <div class="modal fade" id="editMemberEmailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <form method="post" asp-action="UpdateMemberEmail">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="propertyId" value="@property.Id" />
+                    <input type="hidden" name="memberId" id="editMemberEmailUserId" />
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title">@T["Edit email address"]</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted" id="editMemberEmailName"></p>
+                        <label class="form-label" for="editMemberEmailValue">@T["New email address"]</label>
+                        <input class="form-control rh-input" id="editMemberEmailValue" name="email" type="email" maxlength="256" autocomplete="email" required />
+                        <small class="text-muted">@T["This will sign the user out and require all account verifications again. No welcome message will be sent."]</small>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                        <button type="submit" class="btn rh-btn-primary">@T["Save email"]</button>
                     </div>
                 </form>
             </div>
@@ -592,6 +646,20 @@
         </div>
     </div>
 }
+
+<script>
+    (() => {
+        const modal = document.getElementById("editMemberEmailModal");
+        if (!modal || modal.dataset.bound === "true") return;
+        modal.dataset.bound = "true";
+        modal.addEventListener("show.bs.modal", event => {
+            const button = event.relatedTarget;
+            document.getElementById("editMemberEmailUserId").value = button?.dataset.memberId ?? "";
+            document.getElementById("editMemberEmailValue").value = button?.dataset.memberEmail ?? "";
+            document.getElementById("editMemberEmailName").textContent = button?.dataset.memberName ?? "";
+        });
+    })();
+</script>
 
 @if (propertyImage != null && !string.IsNullOrWhiteSpace(propertyImageUrl))
 {

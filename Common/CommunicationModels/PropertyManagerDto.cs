@@ -11,6 +11,7 @@ namespace Common.CommunicationModels
         public int Id { get; set; }
         public string ManagerId { get; set; } = string.Empty;
         public string ManagerName { get; set; } = string.Empty;
+        public string ManagerEmail { get; set; } = string.Empty;
         public PermissionLevelEnum Permission { get; set; }
         public long PermissionFlags { get; set; }
         public bool AccessAllApartments { get; set; }

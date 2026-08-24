@@ -62,6 +62,7 @@ namespace RentHub.API.Controllers
                         Type = a.Type.ToString(),
                         Price = a.Price,
                         Area = a.Area,
+                        FloorNumber = a.FloorNumber,
                         PropertyName = a.Property != null ? a.Property.Name : string.Empty,
                         LandlordName = a.Property != null && a.Property.Landlord != null
                             ? (a.Property.Landlord.FullName ?? string.Empty)
@@ -105,6 +106,7 @@ namespace RentHub.API.Controllers
                         Type = a.Type.ToString(),
                         Price = a.Price,
                         Area = a.Area,
+                        FloorNumber = a.FloorNumber,
                         PropertyName = a.Property != null ? a.Property.Name : string.Empty,
                         LandlordName = string.Empty,
                         Status = ApartmentStatusResolver.Resolve(a.Tenancies, nowUtc).ToString()
@@ -207,6 +209,10 @@ namespace RentHub.API.Controllers
                          owner.OwnerId == userId &&
                          !owner.IsDeleted &&
                          owner.Permission == PermissionLevelEnum.ReadWrite));
+                var isPropertyLandlord = apt.Property.LandlordId == userId;
+                var canEditMemberEmails = isPropertyLandlord ||
+                    (hasManagerAssignment && await _permissionService.HasPropertyPermissionAsync(
+                        userId, apt.PropertyId, ManagerPermission.EditMember, false));
 
                 var canViewTenancies = await _permissionService.HasApartmentPermissionAsync(
                     userId, id, ManagerPermission.ViewTenancies, isAdmin);
@@ -231,8 +237,11 @@ namespace RentHub.API.Controllers
                         MonthlyRent = canViewFinancialInformation ? tenancy.MonthlyRent : 0,
                         MaxMembers = tenancy.MaxMembers,
                         RentDueDay = tenancy.RentDueDay,
+                        PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                         EndBehavior = tenancy.EndBehavior,
-                        AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                        RentTrackingStartDate = tenancy.RentTrackingStartDate,
+                        RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                         TerminatedAt = tenancy.TerminatedAt,
                         Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                         IsOwner = isAdmin || apt.Property!.LandlordId == userId
@@ -286,6 +295,9 @@ namespace RentHub.API.Controllers
                             Id = o.Id,
                             OwnerId = o.OwnerId,
                             OwnerName = o.Owner != null ? (o.Owner.FullName ?? o.Owner.Email ?? "") : "",
+                            OwnerEmail = o.Owner != null ? (o.Owner.Email ?? "") : "",
+                            CanEditEmail = canEditMemberEmails &&
+                                (isPropertyLandlord || o.Role != ApartmentMemberRoleEnum.Owner),
                             Role = o.Role,
                             Permission = o.Permission,
                             AssignedAt = o.CreatedAt
@@ -313,6 +325,7 @@ namespace RentHub.API.Controllers
                         Type = apt.Type.ToString(),
                         Price = canViewFinancialInformation ? apt.Price : 0,
                         Area = apt.Area,
+                        FloorNumber = apt.FloorNumber,
                         Status = ApartmentStatusResolver.Resolve(tenancies, DateTimeOffset.UtcNow).ToString(),
                         RentReminderDaysBeforeDue = isTenantWorkspace ? 0 : apt.RentReminderDaysBeforeDue,
                         LeaseTerminationReminderDaysBeforeEnd = isTenantWorkspace ? 0 : apt.LeaseTerminationReminderDaysBeforeEnd,
@@ -348,7 +361,8 @@ namespace RentHub.API.Controllers
                     CanAddTenancy = canAddTenancy,
                     CanEditTenancy = canEditTenancy,
                     CanSendRentReminder = canSendRentReminder,
-                    CanManageRentReminderSettings = canManageRentReminderSettings
+                    CanManageRentReminderSettings = canManageRentReminderSettings,
+                    CanEditMemberEmails = canEditMemberEmails
                 };
 
                 return Ok(dto);
@@ -446,6 +460,7 @@ namespace RentHub.API.Controllers
                     Type = request.Type,
                     Price = request.Price,
                     Area = request.Area,
+                    FloorNumber = request.FloorNumber,
                     AdderId = userId,
                     Status = ApartmentStatusEnum.Vacant,
                     CreatedBy = userId,
@@ -482,6 +497,7 @@ namespace RentHub.API.Controllers
                     Type = apt.Type.ToString(),
                     Price = apt.Price,
                     Area = apt.Area,
+                    FloorNumber = apt.FloorNumber,
                     PropertyName = property.Name,
                     LandlordName = "",
                     Status = apt.Status.ToString()
@@ -493,6 +509,65 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        [HttpPut("{id:int}")]
+        [Authorize]
+        public async Task<IActionResult> UpdateApartment(int id, [FromBody] UpdateApartmentRequest request)
+        {
+            if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var apartment = await _context.Apartments
+                .Include(item => item.Property)
+                .FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted);
+            if (apartment == null) return NotFound(new { Message = "Apartment not found." });
+
+            var canEdit = await _permissionService.HasApartmentPermissionAsync(
+                userId,
+                id,
+                ManagerPermission.EditApartment,
+                User.IsInRole("Admin"));
+            if (!canEdit) return Forbid();
+
+            var normalizedName = request.Name.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+                return BadRequest(new { Message = "Apartment name is required." });
+
+            var normalizedNameKey = normalizedName.ToUpper();
+            var duplicateName = await _context.Apartments.AnyAsync(item =>
+                item.Id != id && item.PropertyId == apartment.PropertyId && !item.IsDeleted &&
+                item.Name.Trim().ToUpper() == normalizedNameKey);
+            if (duplicateName)
+            {
+                return Conflict(new
+                {
+                    Message = $"An apartment with the name '{normalizedName}' already exists in this property."
+                });
+            }
+
+            apartment.Name = normalizedName;
+            apartment.Type = request.Type;
+            apartment.Price = request.Price;
+            apartment.Area = request.Area;
+            apartment.FloorNumber = request.FloorNumber;
+            apartment.UpdatedBy = userId;
+            apartment.UpdatedAt = DateTimeOffset.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new ApartmentDto
+            {
+                Id = apartment.Id,
+                Name = apartment.Name,
+                Type = apartment.Type.ToString(),
+                Price = apartment.Price,
+                Area = apartment.Area,
+                FloorNumber = apartment.FloorNumber,
+                PropertyName = apartment.Property?.Name ?? string.Empty,
+                Status = apartment.Status.ToString()
+            });
         }
 
         [HttpPut("{apartmentId}/reminder-settings")]

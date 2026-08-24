@@ -14,6 +14,7 @@ using RentHub.API.Helpers;
 using Common.Helpers;
 using RentHub.API.Services.Receipts;
 using RentHub.API.Services.Permissions;
+using System.Data;
 
 namespace RentHub.API.Controllers
 {
@@ -762,6 +763,27 @@ namespace RentHub.API.Controllers
         [Authorize]
         public async Task<IActionResult> MarkRentPeriodAsPaid(int rentPeriodId, [FromBody] MarkRentPeriodPaidRequest? request)
         {
+            return await MarkRentPeriodsAsPaidCoreAsync(
+                new[] { rentPeriodId },
+                request?.PaidDate,
+                request?.Note);
+        }
+
+        [HttpPost("rent-periods/mark-paid")]
+        [Authorize]
+        public async Task<IActionResult> MarkRentPeriodsAsPaid([FromBody] MarkRentPeriodsPaidRequest request)
+        {
+            return await MarkRentPeriodsAsPaidCoreAsync(
+                request.RentPeriodIds,
+                request.PaidDate,
+                request.Note);
+        }
+
+        private async Task<IActionResult> MarkRentPeriodsAsPaidCoreAsync(
+            IEnumerable<int> requestedPeriodIds,
+            DateTimeOffset? requestedPaidDate,
+            string? note)
+        {
             try
             {
                 var userId = UserHelpers.GetUserId(User);
@@ -770,21 +792,35 @@ namespace RentHub.API.Controllers
                     return Unauthorized();
                 }
 
-                var period = await _context.RentPeriods
-                    .Include(rp => rp.Tenancy)
-                    .ThenInclude(t => t!.Apartment)
-                    .ThenInclude(a => a!.Property)
-                    .Include(rp => rp.Tenancy)
-                    .ThenInclude(t => t!.Members)
-                    .ThenInclude(m => m.Member)
-                    .FirstOrDefaultAsync(rp => rp.Id == rentPeriodId && !rp.IsDeleted);
-
-                if (period == null)
+                var periodIds = requestedPeriodIds.Distinct().ToList();
+                if (periodIds.Count == 0)
                 {
-                    return NotFound("Rent period not found.");
+                    return BadRequest("At least one rent period must be selected.");
                 }
 
-                var tenancy = period.Tenancy;
+                await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+                var selectedPeriods = await _context.RentPeriods
+                    .Where(period => periodIds.Contains(period.Id) && !period.IsDeleted)
+                    .OrderBy(period => period.PeriodStart)
+                    .ToListAsync();
+                if (selectedPeriods.Count != periodIds.Count)
+                {
+                    return NotFound("One or more rent periods were not found.");
+                }
+
+                var tenancyId = selectedPeriods[0].TenancyId;
+                if (selectedPeriods.Any(period => period.TenancyId != tenancyId))
+                {
+                    return BadRequest("All selected rent periods must belong to the same tenancy.");
+                }
+
+                var tenancy = await _context.Tenancies
+                    .Include(item => item.Apartment)
+                    .ThenInclude(apartment => apartment!.Property)
+                    .Include(item => item.Members)
+                    .ThenInclude(member => member.Member)
+                    .FirstOrDefaultAsync(item => item.Id == tenancyId && !item.IsDeleted);
                 if (tenancy?.Apartment?.Property == null)
                 {
                     return NotFound("Tenancy or property not found.");
@@ -796,14 +832,32 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+                var selectedIds = selectedPeriods.Select(period => period.Id).ToList();
+                var requestKey = $"manual-rent-periods:{string.Join(',', selectedIds)}";
+                var existingPayment = await _context.Payments
+                    .FirstOrDefaultAsync(payment => payment.RequestKey == requestKey && !payment.IsDeleted);
+                if (existingPayment != null)
                 {
-                    return BadRequest("This rent period is already paid or closed.");
+                    await transaction.CommitAsync();
+                    var existingReceipt = await _receiptService.EnsureReceiptAsync(existingPayment.Id, userId);
+                    return Ok(new
+                    {
+                        existingPayment.Id,
+                        Status = existingPayment.Status.ToString(),
+                        existingPayment.TransactionId,
+                        ReceiptNumber = existingReceipt?.ReceiptNumber ?? string.Empty,
+                        Duplicate = true
+                    });
                 }
 
-                if (period.Status == RentPeriodStatusEnum.PendingPayment)
+                if (selectedPeriods.Any(period => RentPeriodScheduleHelper.IsPaidStatus(period.Status)))
                 {
-                    return BadRequest("This rent period already has a pending payment.");
+                    return BadRequest("One or more selected rent periods are already paid or closed.");
+                }
+
+                if (selectedPeriods.Any(period => period.Status == RentPeriodStatusEnum.PendingPayment))
+                {
+                    return BadRequest("One or more selected rent periods already have a pending payment.");
                 }
 
                 var tenancyPeriods = await _context.RentPeriods
@@ -811,13 +865,16 @@ namespace RentHub.API.Controllers
                     .OrderBy(rp => rp.PeriodStart)
                     .ToListAsync();
 
-                var firstUnpaid = tenancyPeriods.FirstOrDefault(rp =>
+                var payableInOrder = tenancyPeriods.Where(rp =>
                     !RentPeriodScheduleHelper.IsPaidStatus(rp.Status) &&
-                    rp.Status != RentPeriodStatusEnum.PendingPayment);
-
-                if (firstUnpaid == null || firstUnpaid.Id != period.Id)
+                    rp.Status != RentPeriodStatusEnum.PendingPayment).ToList();
+                var expectedIds = payableInOrder
+                    .Take(selectedPeriods.Count)
+                    .Select(period => period.Id)
+                    .ToList();
+                if (!expectedIds.SequenceEqual(selectedIds))
                 {
-                    return BadRequest("Previous unpaid rent periods must be marked paid first.");
+                    return BadRequest("Selected rent periods must be consecutive and start with the oldest unpaid period.");
                 }
 
                 var mainTenant = tenancy.Members
@@ -831,30 +888,13 @@ namespace RentHub.API.Controllers
                     return BadRequest("A tenant member is required before recording a cash rent payment.");
                 }
 
-                var amountDue = period.Amount - period.PaidAmount;
+                var amountDue = selectedPeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount));
                 if (amountDue <= 0)
                 {
-                    amountDue = period.Amount;
+                    return BadRequest("The selected rent periods do not have a positive balance.");
                 }
 
-                var requestKey = $"manual-rent-period:{period.Id}";
-                var existingPayment = await _context.Payments
-                    .FirstOrDefaultAsync(payment => payment.RequestKey == requestKey && !payment.IsDeleted);
-
-                if (existingPayment != null)
-                {
-                    var existingReceipt = await _receiptService.EnsureReceiptAsync(existingPayment.Id, userId);
-                    return Ok(new
-                    {
-                        existingPayment.Id,
-                        Status = existingPayment.Status.ToString(),
-                        existingPayment.TransactionId,
-                        ReceiptNumber = existingReceipt?.ReceiptNumber ?? string.Empty,
-                        Duplicate = true
-                    });
-                }
-
-                var paidDate = request?.PaidDate ?? DateTimeOffset.UtcNow;
+                var paidDate = requestedPaidDate ?? DateTimeOffset.UtcNow;
                 var payment = new Payment
                 {
                     TenantId = mainTenant.MemberId,
@@ -875,15 +915,19 @@ namespace RentHub.API.Controllers
                 _context.Payments.Add(payment);
                 await _context.SaveChangesAsync();
 
-                period.Status = RentPeriodStatusEnum.Paid;
-                period.PaidAmount = period.Amount;
-                period.PaidDate = paidDate;
-                period.PaymentId = payment.Id;
-                period.PaymentReference = payment.TransactionId;
-                period.UpdatedBy = userId;
-                period.UpdatedAt = DateTimeOffset.UtcNow;
+                foreach (var period in selectedPeriods)
+                {
+                    period.Status = RentPeriodStatusEnum.Paid;
+                    period.PaidAmount = period.Amount;
+                    period.PaidDate = paidDate;
+                    period.PaymentId = payment.Id;
+                    period.PaymentReference = payment.TransactionId;
+                    period.UpdatedBy = userId;
+                    period.UpdatedAt = DateTimeOffset.UtcNow;
+                }
 
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, userId);
                 if (receipt != null)
@@ -900,6 +944,8 @@ namespace RentHub.API.Controllers
                     Status = payment.Status.ToString(),
                     payment.TransactionId,
                     ReceiptNumber = receipt?.ReceiptNumber ?? string.Empty,
+                    CoveredPeriodIds = selectedIds,
+                    Note = string.IsNullOrWhiteSpace(note) ? string.Empty : note.Trim(),
                     Duplicate = false
                 });
             }

@@ -24,6 +24,7 @@ namespace Common.CommunicationModels
 
         public string LandlordId { get; set; } = string.Empty;
         public string LandlordName { get; set; } = string.Empty;
+        public string LandlordEmail { get; set; } = string.Empty;
 
         public ICollection<ApartmentDto> Apartments { get; set; } = new List<ApartmentDto>();
     }

@@ -158,6 +158,16 @@ namespace RentHub.API.Services.Users
             await SendLandlordActivationOtpInternalAsync(user, temporaryPassword, welcomeRoleLabel);
         }
 
+        public Task SendEmailChangeVerificationOtpAsync(ApplicationUser user)
+        {
+            return SendLandlordActivationOtpInternalAsync(
+                user,
+                temporaryPassword: null,
+                welcomeRoleLabel: null,
+                useGeneralAccountPage: true,
+                includePrimaryPhoneVerification: true);
+        }
+
         public async Task SendLandlordEmailOtpAsync(ApplicationUser user)
         {
             var otp = GenerateOtpCode();
@@ -361,7 +371,9 @@ namespace RentHub.API.Services.Users
         private async Task SendLandlordActivationOtpInternalAsync(
             ApplicationUser user,
             string? temporaryPassword = null,
-            string? welcomeRoleLabel = null)
+            string? welcomeRoleLabel = null,
+            bool useGeneralAccountPage = false,
+            bool includePrimaryPhoneVerification = false)
         {
             var isTenantActivation = string.Equals(welcomeRoleLabel, "Tenant", StringComparison.OrdinalIgnoreCase);
             var otp = GenerateOtpCode();
@@ -369,6 +381,16 @@ namespace RentHub.API.Services.Users
 
             string? payoutOtp = null;
             var plannedSends = new List<PlannedOtpSend>();
+            if (includePrimaryPhoneVerification && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                plannedSends.Add(new PlannedOtpSend(
+                    OtpSendPurposes.LandlordPhone,
+                    "SMS",
+                    BuildInternationalPhoneNumber(user.CountryCode, user.PhoneNumber),
+                    PhoneOtpTokenName,
+                    PhoneOtpExpiryTokenName,
+                    "RentHub phone verification OTP"));
+            }
             if (!isTenantActivation && !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber))
             {
                 plannedSends.Add(new PlannedOtpSend(
@@ -441,7 +463,7 @@ namespace RentHub.API.Services.Users
             var verifyUrl = BuildVerifyUrl(
                 user.Email ?? string.Empty,
                 isVisitor: false,
-                useGeneralAccountPage: isTenantActivation,
+                useGeneralAccountPage: isTenantActivation || useGeneralAccountPage,
                 returnUrl: isTenantActivation ? "/Tenancies" : null);
             var lines = new List<string>
             {
@@ -498,7 +520,7 @@ namespace RentHub.API.Services.Users
             else
             {
                 lines.Add(isFrench ? $"Votre code de vérification Lontsi Homes par courriel est : {otp}" : $"Your RentHub email OTP is: {otp}");
-                lines.Add(isFrench ? "Utilisez-le sur la page de vérification avec les codes du numéro de versement et de WhatsApp." : "Use it on the account verification page together with the payout-number and WhatsApp OTPs.");
+                lines.Add(isFrench ? "Utilisez-le sur la page de vérification avec tous les autres codes reçus." : "Use it on the account verification page together with every other OTP you received.");
                 if (!string.IsNullOrWhiteSpace(verifyUrl))
                 {
                     lines.Add(verifyUrl);

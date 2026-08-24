@@ -18,6 +18,8 @@ namespace RentHub.Portal.ViewModels.Properties
         public bool CanUploadDocuments { get; set; }
         public bool CanDeleteDocuments { get; set; }
         public bool CanManageMapVisibility { get; set; }
+        public bool CanEditMemberEmails { get; set; }
+        public bool CanEditLandlordEmail { get; set; }
 
         public int UnitsPage { get; set; } = 1;
         public int UnitsPageSize { get; set; } = 6;

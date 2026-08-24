@@ -1,14 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using Common.Enums;
 
-namespace RentHub.Portal.ViewModels.Properties
+namespace Common.CommunicationModels
 {
-    public class CreateApartmentVm
+    public class UpdateApartmentRequest
     {
-        [Required]
-        public int PropertyId { get; set; }
-
-        [Required]
+        [Required, MaxLength(200)]
         public string Name { get; set; } = string.Empty;
 
         [Required]

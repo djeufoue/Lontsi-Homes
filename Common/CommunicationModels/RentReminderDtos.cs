@@ -60,6 +60,8 @@ namespace Common.CommunicationModels
         public string RecipientPhone { get; set; } = string.Empty;
         public string RequestedByName { get; set; } = string.Empty;
         public string FailureReason { get; set; } = string.Empty;
+        public DateTimeOffset? InvalidatedAt { get; set; }
+        public string InvalidationReason { get; set; } = string.Empty;
         public decimal OutstandingAmount { get; set; }
         public int IncludedPeriodCount { get; set; }
         public List<RentReminderPeriodSnapshotDto> Periods { get; set; } = new();

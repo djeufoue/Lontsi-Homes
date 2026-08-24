@@ -50,13 +50,25 @@
                     <span asp-validation-for="EmailOtp" class="text-danger small"></span>
                 </div>
 
-                <div class="mb-3 d-none">
+                <div class="mb-3">
+                    <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
+                    <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="@T["Only if a phone code was sent"]" />
+                    <span asp-validation-for="PhoneOtp" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SubscriptionPaymentOtp" class="form-label rh-auth-label"></label>
+                    <input asp-for="SubscriptionPaymentOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="@T["Only if a subscription payment code was sent"]" />
+                    <span asp-validation-for="SubscriptionPaymentOtp" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
                     <label asp-for="PayoutOtp" class="form-label rh-auth-label"></label>
                     <input asp-for="PayoutOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="Code sent to payout number" />
                     <span asp-validation-for="PayoutOtp" class="text-danger small"></span>
                 </div>
 
-                <div class="mb-3 d-none">
+                <div class="mb-3">
                     <label asp-for="WhatsAppOtp" class="form-label rh-auth-label"></label>
                     <input asp-for="WhatsAppOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="Code from WhatsApp" />
                     <span asp-validation-for="WhatsAppOtp" class="text-danger small"></span>

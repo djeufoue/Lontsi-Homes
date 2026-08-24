@@ -222,7 +222,6 @@
   <data name="Accessible tenancies" xml:space="preserve"><value>Locations accessibles</value></data>
   <data name="No tenancies match these filters." xml:space="preserve"><value>Aucune location ne correspond à ces filtres.</value></data>
   <data name="Period" xml:space="preserve"><value>Période</value></data>
-  <data name="Tenancy #{0}" xml:space="preserve"><value>Location no {0}</value></data>
   <data name="to {0}" xml:space="preserve"><value>au {0}</value></data>
   <data name="Open term" xml:space="preserve"><value>Durée indéterminée</value></data>
   <data name="Rent periods" xml:space="preserve"><value>Périodes de loyer</value></data>
@@ -321,7 +320,6 @@
   <data name="Automatic payments" xml:space="preserve"><value>Paiements automatiques</value></data>
   <data name="Not assigned" xml:space="preserve"><value>Non attribué</value></data>
   <data name="Select {0}" xml:space="preserve"><value>Sélectionner {0}</value></data>
-  <data name="ID {0}" xml:space="preserve"><value>ID {0}</value></data>
   <data name="Not set" xml:space="preserve"><value>Non défini</value></data>
   <data name="registered units" xml:space="preserve"><value>unités enregistrées</value></data>
   <data name="portfolio owner" xml:space="preserve"><value>propriétaire du portefeuille</value></data>
@@ -430,7 +428,6 @@
   <data name="Add+" xml:space="preserve"><value>Ajouter+</value></data>
   <data name="Replace" xml:space="preserve"><value>Remplacer</value></data>
   <data name="No tenancy contract uploaded yet." xml:space="preserve"><value>Aucun contrat de location n'a encore été téléversé.</value></data>
-  <data name="Preview" xml:space="preserve"><value>Aperçu</value></data>
   <data name="Delete tenancy contract?" xml:space="preserve"><value>Supprimer le contrat de location?</value></data>
   <data name="This will remove the current tenancy contract." xml:space="preserve"><value>Cette action supprimera le contrat de location actuel.</value></data>
   <data name="Delete contract" xml:space="preserve"><value>Supprimer le contrat</value></data>
@@ -786,7 +783,6 @@
   <data name="Edit Apartment Member" xml:space="preserve"><value>Modifier le membre de l'appartement</value></data>
   <data name="Edit apartment reminder settings" xml:space="preserve"><value>Modifier les paramètres de rappel de l'appartement</value></data>
   <data name="Edit details" xml:space="preserve"><value>Modifier les détails</value></data>
-  <data name="Edit Tenancy #{0}" xml:space="preserve"><value>Modifier la location no {0}</value></data>
   <data name="Example: 10 means the main tenant is reminded 10 days before the next unpaid due date." xml:space="preserve"><value>Exemple : 10 signifie que le locataire principal reçoit un rappel 10 jours avant la prochaine échéance impayée.</value></data>
   <data name="Expire automatically" xml:space="preserve"><value>Expirer automatiquement</value></data>
   <data name="France" xml:space="preserve"><value>France</value></data>
@@ -1177,6 +1173,7 @@
   <data name="Not generated" xml:space="preserve"><value>Non généré</value></data>
   <data name="Not submitted" xml:space="preserve"><value>Non soumis</value></data>
   <data name="Oldest first" xml:space="preserve"><value>Plus ancien d’abord</value></data>
+  <data name="Rent to pay first" xml:space="preserve"><value>Loyers à payer d’abord</value></data>
   <data name="Open file" xml:space="preserve"><value>Ouvrir le fichier</value></data>
   <data name="Open rent periods in a full page" xml:space="preserve"><value>Ouvrir les périodes de loyer dans une page complète</value></data>
   <data name="OTP status refresh failed" xml:space="preserve"><value>Échec de l’actualisation de l’état des codes OTP</value></data>
@@ -1207,7 +1204,6 @@
   <data name="Submitted:" xml:space="preserve"><value>Soumis :</value></data>
   <data name="Subscription Payment" xml:space="preserve"><value>Paiement de l’abonnement</value></data>
   <data name="Subscription payment OTP" xml:space="preserve"><value>Code OTP du paiement de l’abonnement</value></data>
-  <data name="Tenancy #{0} rent periods" xml:space="preserve"><value>Périodes de loyer de la location no {0}</value></data>
   <data name="Testing OTPs" xml:space="preserve"><value>Codes OTP de test</value></data>
   <data name="The landlord has not uploaded identity documents yet." xml:space="preserve"><value>Le propriétaire n’a pas encore téléversé ses pièces d’identité.</value></data>
   <data name="This verification is not required for this user" xml:space="preserve"><value>Cette vérification n’est pas requise pour cet utilisateur</value></data>
@@ -1446,7 +1442,6 @@
   <data name="Total" xml:space="preserve"><value>Total</value></data>
   <data name="Rent for the rental unit" xml:space="preserve"><value>Loyer du logement</value></data>
   <data name="Payment date" xml:space="preserve"><value>Date du paiement</value></data>
-  <data name="Amount paid" xml:space="preserve"><value>Montant payé</value></data>
   <data name="Tenant information" xml:space="preserve"><value>Informations du locataire</value></data>
   <data name="Scan the QR code to verify this invoice." xml:space="preserve"><value>Scannez le code QR pour vérifier cette facture.</value></data>
   <data name="Verify invoice" xml:space="preserve"><value>Vérifier la facture</value></data>
@@ -1590,7 +1585,7 @@
   <data name="Document" xml:space="preserve"><value>Document</value></data>
   <data name="Uploaded" xml:space="preserve"><value>Téléversé le</value></data>
   <data name="Latest tenancy members" xml:space="preserve"><value>Membres de la dernière location</value></data>
-  <data name="All members from tenancy #{0}, regardless of whether it is active or closed." xml:space="preserve"><value>Tous les membres de la location no {0}, qu’elle soit active ou terminée.</value></data>
+  <data name="All members from the latest tenancy, whether it is active or closed." xml:space="preserve"><value>Tous les membres de la dernière location, qu’elle soit active ou terminée.</value></data>
   <data name="Members from the most recent tenancy will appear here." xml:space="preserve"><value>Les membres de la location la plus récente apparaîtront ici.</value></data>
   <data name="Search latest tenancy members" xml:space="preserve"><value>Rechercher dans les membres de la dernière location</value></data>
   <data name="You do not have permission to view the members of this tenancy." xml:space="preserve"><value>Vous n’avez pas l’autorisation de consulter les membres de cette location.</value></data>
@@ -1782,4 +1777,68 @@
   <data name="Reply to this message" xml:space="preserve"><value>Répondre à ce message</value></data>
   <data name="Replying to" xml:space="preserve"><value>Réponse à</value></data>
   <data name="Cancel reply" xml:space="preserve"><value>Annuler la réponse</value></data>
+  <data name="Rent schedule review required" xml:space="preserve"><value>Vérification du calendrier de loyer requise</value></data>
+  <data name="This legacy schedule may use incorrect calendar-month boundaries. Automatic rent reminders are paused until the landlord confirms the cycle, payment frequency, and first uncovered period." xml:space="preserve"><value>Cet ancien calendrier peut utiliser des limites mensuelles incorrectes. Les rappels automatiques sont suspendus jusqu’à ce que le bailleur confirme le cycle, la fréquence et la première période non couverte.</value></data>
+  <data name="Confirmed cycle day" xml:space="preserve"><value>Jour du cycle confirmé</value></data>
+  <data name="Periods remain anchored to the real tenancy start date: {0}." xml:space="preserve"><value>Les périodes restent ancrées sur la date réelle de début du bail : {0}.</value></data>
+  <data name="Payment frequency" xml:space="preserve"><value>Fréquence de paiement</value></data>
+  <data name="Quarterly" xml:space="preserve"><value>Trimestriel</value></data>
+  <data name="Semiannual" xml:space="preserve"><value>Semestriel</value></data>
+  <data name="Annual" xml:space="preserve"><value>Annuel</value></data>
+  <data name="Every {0} months" xml:space="preserve"><value>Tous les {0} mois</value></data>
+  <data name="First uncovered monthly period" xml:space="preserve"><value>Première période mensuelle non couverte</value></data>
+  <data name="Preview" xml:space="preserve"><value>Aperçu</value></data>
+  <data name="Review and correct this schedule" xml:space="preserve"><value>Vérifier et corriger ce calendrier</value></data>
+  <data name="Apply this corrected rent schedule?" xml:space="preserve"><value>Appliquer ce calendrier de loyer corrigé ?</value></data>
+  <data name="Correct the schedule" xml:space="preserve"><value>Corriger le calendrier</value></data>
+  <data name="Remove periods paid before Lontsi Homes" xml:space="preserve"><value>Supprimer les périodes payées avant Lontsi Homes</value></data>
+  <data name="Remove periods paid before Lontsi Homes?" xml:space="preserve"><value>Supprimer les périodes payées avant Lontsi Homes ?</value></data>
+  <data name="Archive historical periods" xml:space="preserve"><value>Archiver les périodes historiques</value></data>
+  <data name="Payment groups" xml:space="preserve"><value>Regroupements de paiement</value></data>
+  <data name="Rent payment groups" xml:space="preserve"><value>Regroupements des loyers</value></data>
+  <data name="Grouped due date" xml:space="preserve"><value>Échéance groupée</value></data>
+  <data name="Contract total" xml:space="preserve"><value>Total contractuel</value></data>
+  <data name="Remaining" xml:space="preserve"><value>Solde restant</value></data>
+  <data name="Mark the remaining group balance as paid by cash?" xml:space="preserve"><value>Marquer le solde du groupe comme payé en espèces ?</value></data>
+  <data name="Mark group balance paid cash" xml:space="preserve"><value>Marquer le solde payé en espèces</value></data>
+  <data name="Mark the remaining group balance as paid in cash" xml:space="preserve"><value>Marquer le solde du groupe comme payé en espèces</value></data>
+  <data name="Select consecutive monthly periods" xml:space="preserve"><value>Sélectionner des périodes mensuelles consécutives</value></data>
+  <data name="Mark selected periods paid in cash" xml:space="preserve"><value>Marquer les périodes sélectionnées comme payées en espèces</value></data>
+  <data name="Record the cash payment" xml:space="preserve"><value>Enregistrer le paiement en espèces</value></data>
+  <data name="Invalidated reminder" xml:space="preserve"><value>Rappel invalidé</value></data>
+  <data name="Sent using an old schedule — invalidated after correction." xml:space="preserve"><value>Envoyé selon un ancien calendrier — invalidé après correction.</value></data>
+  <data name="Historical payment — date not recorded" xml:space="preserve"><value>Paiement historique — date non enregistrée</value></data>
+  <data name="Period amount" xml:space="preserve"><value>Montant de la période</value></data>
+  <data name="Amount paid" xml:space="preserve"><value>Montant payé</value></data>
+  <data name="Receipt lines" xml:space="preserve"><value>Lignes de la facture</value></data>
+  <data name="Choose the first monthly period that Lontsi Homes must track. Covered periods are not created and will not be regenerated." xml:space="preserve"><value>Choisissez la première période mensuelle que Lontsi Homes doit suivre. Les périodes couvertes ne sont pas créées et ne seront pas régénérées.</value></data>
+  <data name="Rent is unpaid from the tenancy start" xml:space="preserve"><value>Le loyer est impayé depuis le début du bail</value></data>
+  <data name="The tenant is up to date" xml:space="preserve"><value>Le locataire est à jour</value></data>
+  <data name="Do not create paid history; begin with the next applicable payment group." xml:space="preserve"><value>Ne pas créer d’historique payé ; commencer au prochain regroupement applicable.</value></data>
+  <data name="The tenant has unpaid rent" xml:space="preserve"><value>Le locataire a des loyers impayés</value></data>
+  <data name="Choose the first monthly period that is no longer covered. Earlier covered periods will not be created." xml:space="preserve"><value>Choisissez la première période mensuelle qui n’est plus couverte. Les périodes couvertes antérieures ne seront pas créées.</value></data>
+  <data name="Tracking starts with" xml:space="preserve"><value>Le suivi commence avec</value></data>
+  <data name="Choose a period" xml:space="preserve"><value>Choisir une période</value></data>
+  <data name="Only boundaries calculated from the real tenancy start date can be selected." xml:space="preserve"><value>Seules les limites calculées à partir de la date réelle de début du bail peuvent être sélectionnées.</value></data>
+  <data name="Total due after creation" xml:space="preserve"><value>Total exigible après création</value></data>
+  <data name="First possible reminder" xml:space="preserve"><value>Premier rappel possible</value></data>
+  <data name="No active reminder rule" xml:space="preserve"><value>Aucune règle de rappel active</value></data>
+  <data name="Next expected payment:" xml:space="preserve"><value>Prochain paiement attendu :</value></data>
+  <data name="Payment group" xml:space="preserve"><value>Regroupement de paiement</value></data>
+  <data name="Monthly periods" xml:space="preserve"><value>Périodes mensuelles</value></data>
+  <data name="Floor" xml:space="preserve"><value>Étage</value></data>
+  <data name="Ground floor" xml:space="preserve"><value>Rez-de-chaussée</value></data>
+  <data name="Floor {0}" xml:space="preserve"><value>Étage {0}</value></data>
+  <data name="Enter 0 for the ground floor, or choose a floor from 1 to 30." xml:space="preserve"><value>Saisissez 0 pour le rez-de-chaussée, ou choisissez un étage de 1 à 30.</value></data>
+  <data name="Edit email" xml:space="preserve"><value>Modifier le courriel</value></data>
+  <data name="Edit email address" xml:space="preserve"><value>Modifier l’adresse courriel</value></data>
+  <data name="New email address" xml:space="preserve"><value>Nouvelle adresse courriel</value></data>
+  <data name="Save email" xml:space="preserve"><value>Enregistrer le courriel</value></data>
+  <data name="This will sign the user out and require all account verifications again. No welcome message will be sent." xml:space="preserve"><value>L’utilisateur sera déconnecté et devra effectuer à nouveau toutes les vérifications du compte. Aucun message de bienvenue ne sera envoyé.</value></data>
+  <data name="New managers can edit apartments by default. The landlord can remove this permission from Permissions / Access." xml:space="preserve"><value>Les nouveaux managers peuvent modifier les appartements par défaut. Le bailleur peut retirer cette autorisation dans Permissions / Accès.</value></data>
+  <data name="Only if a phone code was sent" xml:space="preserve"><value>Seulement si un code téléphonique a été envoyé</value></data>
+  <data name="Only if a subscription payment code was sent" xml:space="preserve"><value>Seulement si un code de paiement d’abonnement a été envoyé</value></data>
+  <data name="New managers can edit apartment information by default. You can remove that permission here; managers can never manage other managers' access." xml:space="preserve"><value>Les nouveaux managers peuvent modifier les informations des appartements par défaut. Vous pouvez retirer cette autorisation ici ; un manager ne peut jamais gérer l’accès des autres managers.</value></data>
+  <data name="Monthly periods remain independent. Their group is fixed by the tenancy calendar and its payment frequency." xml:space="preserve"><value>Les périodes mensuelles restent indépendantes. Leur regroupement est déterminé par le calendrier du bail et sa fréquence de paiement.</value></data>
+  <data name="Selection must start with the oldest unpaid period. Selecting a period unlocks the next one." xml:space="preserve"><value>La sélection doit commencer par la plus ancienne période impayée. Chaque période sélectionnée déverrouille la suivante.</value></data>
 </root>

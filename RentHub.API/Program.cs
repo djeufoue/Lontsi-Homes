@@ -105,7 +105,7 @@ builder.Services.AddAuthentication(options =>
 
     options.Events = new JwtBearerEvents
     {
-        OnTokenValidated = context =>
+        OnTokenValidated = async context =>
         {
             if (context.Principal?.Identity is ClaimsIdentity identity)
             {
@@ -122,9 +122,46 @@ builder.Services.AddAuthentication(options =>
                         identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, fallbackUserId));
                     }
                 }
-            }
 
-            return Task.CompletedTask;
+                var userId = identity.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    context.Fail("The authenticated user identifier is missing.");
+                    return;
+                }
+
+                var userManager = context.HttpContext.RequestServices
+                    .GetRequiredService<UserManager<ApplicationUser>>();
+                var user = await userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    context.Fail("The authenticated user no longer exists.");
+                    return;
+                }
+
+                var tokenSecurityStamp = identity.FindFirst("security_stamp")?.Value;
+                if (!string.IsNullOrWhiteSpace(tokenSecurityStamp))
+                {
+                    if (!string.Equals(tokenSecurityStamp, user.SecurityStamp, StringComparison.Ordinal))
+                    {
+                        context.Fail("This session has been invalidated.");
+                    }
+
+                    return;
+                }
+
+                // Compatibility for JWTs issued before security-stamp claims were introduced.
+                if (user.SessionInvalidatedAt.HasValue)
+                {
+                    var issuedAtValue = identity.FindFirst(JwtRegisteredClaimNames.Iat)?.Value ??
+                                        identity.FindFirst("iat")?.Value;
+                    if (!long.TryParse(issuedAtValue, out var issuedAtUnix) ||
+                        DateTimeOffset.FromUnixTimeSeconds(issuedAtUnix) <= user.SessionInvalidatedAt.Value)
+                    {
+                        context.Fail("This session has been invalidated.");
+                    }
+                }
+            }
         }
     };
 

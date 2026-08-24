@@ -93,7 +93,7 @@
         <div class="rh-overview-hero-copy">
             <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@tenancy.ApartmentId">&#8592; @T["Back to apartment overview"]</a>
             <p class="rh-kicker">@T["Tenancy Workspace"]</p>
-            <h1 class="rh-heading-title">@T["Tenancy #{0}", tenancy.Id]</h1>
+            <h1 class="rh-heading-title">@T["Tenancy"]</h1>
             <p class="rh-heading-subtitle">@tenancy.PropertyName - @tenancy.ApartmentName</p>
 
             <div class="rh-overview-badges">
@@ -327,6 +327,10 @@
                                     {
                                         <a class="btn btn-sm rh-btn-subtle" asp-controller="AdminUsers" asp-action="Overview" asp-route-userId="@member.MemberId">@T["User overview"]</a>
                                     }
+                                    @if (tenancy.CanEditMemberEmails)
+                                    {
+                                        <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#editTenancyMemberEmailModal-@member.Id">@T["Edit email"]</button>
+                                    }
                                     @if (tenancy.CanEditMembers || tenancy.CanRemoveMembers)
                                     {
                                         @if (tenancy.CanEditMembers)
@@ -352,6 +356,39 @@
         </div>
     </section>
 </section>
+
+@if (tenancy.CanEditMemberEmails)
+{
+    @foreach (var member in members)
+    {
+        <div class="modal fade" id="editTenancyMemberEmailModal-@member.Id" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rh-modal-content">
+                    <form method="post" asp-action="UpdateMemberEmail">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                        <input type="hidden" name="propertyId" value="@tenancy.PropertyId" />
+                        <input type="hidden" name="memberId" value="@member.MemberId" />
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title">@T["Edit email address"]</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted">@member.FullName</p>
+                            <label class="form-label">@T["New email address"]</label>
+                            <input class="form-control rh-input" name="email" type="email" value="@member.Email" maxlength="256" autocomplete="email" required />
+                            <small class="text-muted">@T["This will sign the user out and require all account verifications again. No welcome message will be sent."]</small>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                            <button type="submit" class="btn rh-btn-primary">@T["Save email"]</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
 
 @if (tenancy.CanTerminate && tenancy.TerminatedAt == null && !fixedEndBeforeNoticeWindow)
 {

@@ -18,6 +18,7 @@ namespace RentHub.API.Models.Entities
         public DateTimeOffset PeriodStart { get; set; }
         public DateTimeOffset PeriodEnd { get; set; }
         public DateTimeOffset DueDate { get; set; }
+        public int BillingGroupSequence { get; set; }
 
         [Column(TypeName = "decimal(14,2)")]
         public decimal Amount { get; set; }

@@ -315,7 +315,8 @@ namespace RentHub.Portal.Controllers
                     Name = vm.Name,
                     Type = vm.Type,
                     Price = vm.Price,
-                    Area = vm.Area
+                    Area = vm.Area,
+                    FloorNumber = vm.FloorNumber
                 };
 
                 await _api.PostAsync("apartments", request);
@@ -343,6 +344,30 @@ namespace RentHub.Portal.Controllers
 
             SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.PropertyId);
             return RedirectToAction(nameof(Overview), new { id = vm.PropertyId });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateMemberEmail(int propertyId, string memberId, string email)
+        {
+            try
+            {
+                await _api.PutAsync($"properties/{propertyId}/members/{Uri.EscapeDataString(memberId)}/email", new UpdateMemberEmailRequest
+                {
+                    Email = email
+                });
+                await BroadcastPropertyUpdateAsync(propertyId, "member-email-updated");
+                TempData["Success"] = "Email updated. The user was signed out and must verify the account again.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Member email update failed for property {PropertyId}.", propertyId);
+                var apiError = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update this email address.");
+            }
+
+            SuccessDialogHelper.ActivateForProperty(HttpContext.Session, propertyId);
+            return RedirectToAction(nameof(Overview), new { id = propertyId });
         }
 
         [HttpPost]
@@ -987,6 +1012,8 @@ namespace RentHub.Portal.Controllers
                 CanUploadDocuments = overview.CanUploadDocuments,
                 CanDeleteDocuments = overview.CanDeleteDocuments,
                 CanManageMapVisibility = overview.CanManageMapVisibility,
+                CanEditMemberEmails = overview.CanEditMemberEmails,
+                CanEditLandlordEmail = overview.CanEditLandlordEmail,
                 UnitsPage = unitsPage,
                 UnitsPageSize = unitsPageSize,
                 TotalUnits = totalUnits,
@@ -1045,7 +1072,7 @@ namespace RentHub.Portal.Controllers
             if (document.TenancyId.HasValue)
             {
                 var tenancyOverview = await _api.GetAsync<TenancyOverviewDto>($"tenancies/{document.TenancyId.Value}/overview");
-                tenancyName = $"Tenancy #{tenancyOverview.Tenancy.Id}";
+                tenancyName = $"{tenancyOverview.Tenancy.ApartmentName} · {tenancyOverview.Tenancy.StartDate:yyyy-MM-dd}";
                 apartmentName ??= tenancyOverview.Tenancy.ApartmentName;
                 propertyName = string.IsNullOrWhiteSpace(propertyName) ? tenancyOverview.Tenancy.PropertyName : propertyName;
                 propertyId ??= tenancyOverview.Tenancy.PropertyId;

@@ -131,10 +131,17 @@ namespace RentHub.API.Data
             builder.Entity<Tenancy>(entity =>
             {
                 entity.ToTable(table => table.HasCheckConstraint(
-                    "CK_Tenancies_AutoExtensionMonths",
-                    "[AutoExtensionMonths] >= 1 AND [AutoExtensionMonths] <= 12"));
+                    "CK_Tenancies_FutureRentPeriodCount",
+                    "[FutureRentPeriodCount] >= 1 AND [FutureRentPeriodCount] <= 12"));
 
-                entity.Property(t => t.AutoExtensionMonths)
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_Tenancies_PaymentIntervalMonths",
+                    "[PaymentIntervalMonths] >= 1 AND [PaymentIntervalMonths] <= 12"));
+
+                entity.Property(t => t.FutureRentPeriodCount)
+                    .HasDefaultValue(1);
+
+                entity.Property(t => t.PaymentIntervalMonths)
                     .HasDefaultValue(1);
 
                 entity.Property(t => t.TerminationNotes)
@@ -208,6 +215,7 @@ namespace RentHub.API.Data
                     .HasFilter("[IsDeleted] = 0");
 
                 entity.HasIndex(rp => new { rp.TenancyId, rp.Status, rp.DueDate });
+                entity.HasIndex(rp => new { rp.TenancyId, rp.BillingGroupSequence, rp.PeriodStart });
             });
 
             builder.Entity<ApartmentRentReminderRule>(entity =>
@@ -545,6 +553,9 @@ namespace RentHub.API.Data
                 entity.HasQueryFilter(apartment => !apartment.IsDeleted);
                 entity.Property(apartment => apartment.ManualRentReminderLimit).HasDefaultValue(2);
                 entity.Property(apartment => apartment.ManualRentReminderCooldownHours).HasDefaultValue(24);
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_Apartments_FloorNumber",
+                    "[FloorNumber] >= 0 AND [FloorNumber] <= 30"));
             });
             builder.Entity<Tenancy>().HasQueryFilter(t => !t.IsDeleted);
             builder.Entity<TenancyMember>().HasQueryFilter(tm => !tm.IsDeleted);

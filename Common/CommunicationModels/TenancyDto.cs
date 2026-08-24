@@ -17,8 +17,11 @@ namespace Common.CommunicationModels
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; }
         public int RentDueDay { get; set; } = 1;
+        public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+        public DateTimeOffset RentTrackingStartDate { get; set; }
+        public bool RentScheduleNeedsReview { get; set; }
         public DateTimeOffset? TerminatedAt { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTimeOffset? PaidThroughDate { get; set; }

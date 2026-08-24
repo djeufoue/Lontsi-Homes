@@ -64,6 +64,7 @@ namespace RentHub.API.Services.Auth
                 new Claim(ClaimTypes.Name, string.IsNullOrWhiteSpace(user.FullName) ? (user.Email ?? string.Empty) : user.FullName),
                 new Claim("subscription_exempt", user.IsSubscriptionExempt ? "true" : "false"),
                 new Claim(PlatformLanguageOptions.ClaimType, user.Language.ToString()),
+                new Claim("security_stamp", user.SecurityStamp ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
             var roles = await GetEffectiveRolesAsync(user);

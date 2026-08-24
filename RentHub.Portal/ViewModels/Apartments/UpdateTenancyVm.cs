@@ -26,9 +26,14 @@ namespace RentHub.Portal.ViewModels.Apartments
         [Range(1, 31)]
         public int RentDueDay { get; set; } = 1;
 
+        [Range(1, 12)]
+        public int PaymentIntervalMonths { get; set; } = 1;
+
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
         [Range(1, 12)]
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+
+        public DateTimeOffset RentTrackingStartDate { get; set; }
     }
 }

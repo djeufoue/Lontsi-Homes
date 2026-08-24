@@ -157,3 +157,18 @@ For better safety, add a periodic database backup job later and copy `.bak` file
 - SQL Server Express is capped, but fine for a first release.
 - `Portal` persists ASP.NET data protection keys in `portal_keys` to avoid invalidating all logins on each redeploy.
 - `API` still performs EF migrations at startup, so the first boot needs a working SQL connection.
+- The API validates every EF-mapped table/column before opening port 8080. If a production
+  database has an inconsistent migration history, the API stays unhealthy and its logs list
+  the exact missing columns instead of failing later during a user request.
+- Portal and Caddy wait for the API health check. After an update, verify that `api` is
+  `healthy` before considering the deployment complete.
+
+Useful post-deployment checks:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production ps
+docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail 200 api
+```
+
+Do not manually insert rows into `__EFMigrationsHistory` or mark a migration as applied unless
+its SQL changes have actually completed.

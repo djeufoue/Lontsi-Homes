@@ -32,10 +32,25 @@ namespace RentHub.API.Models.Entities
         [Range(1, 31)]
         public int RentDueDay { get; set; } = 1;
 
+        [Range(1, 12)]
+        public int PaymentIntervalMonths { get; set; } = 1;
+
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
         [Range(1, 12)]
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+
+        /// <summary>
+        /// First monthly coverage period managed by Lontsi Homes.  It may be later
+        /// than StartDate when an existing, fully-paid tenancy is onboarded.
+        /// </summary>
+        public DateTimeOffset RentTrackingStartDate { get; set; }
+
+        /// <summary>
+        /// Legacy calendar-month schedules are paused until their owner confirms
+        /// the contractual anchor, payment interval, and first tracked period.
+        /// </summary>
+        public bool RentScheduleNeedsReview { get; set; }
 
         public DateTimeOffset? TerminatedAt { get; set; }
         public TenancyTerminationReasonEnum? TerminationReason { get; set; }

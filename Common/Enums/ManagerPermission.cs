@@ -87,5 +87,9 @@ public static class ManagerPermissionDefaults
         ManagerPermission.ViewMessages |
         ManagerPermission.ViewDashboard;
 
+    // New property managers can maintain unit information by default. The landlord
+    // can still remove EditApartment from the granular permission screen.
+    public const ManagerPermission Standard = ReadOnly | ManagerPermission.EditApartment;
+
     public const ManagerPermission All = (ManagerPermission)((1L << 51) - 1);
 }

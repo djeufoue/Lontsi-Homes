@@ -20,6 +20,7 @@ namespace Common.CommunicationModels
         public bool CanEditTenancy { get; set; }
         public bool CanSendRentReminder { get; set; }
         public bool CanManageRentReminderSettings { get; set; }
+        public bool CanEditMemberEmails { get; set; }
     }
 
     public class ApartmentDetailsDto
@@ -33,6 +34,7 @@ namespace Common.CommunicationModels
         public string Type { get; set; } = string.Empty;
         public decimal Price { get; set; }
         public double? Area { get; set; }
+        public int FloorNumber { get; set; }
         public string Status { get; set; } = string.Empty;
         public int RentReminderDaysBeforeDue { get; set; }
         public int LeaseTerminationReminderDaysBeforeEnd { get; set; }

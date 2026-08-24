@@ -12,6 +12,7 @@ using Common.Enums;
 using RentHub.API.Services.Storage;
 using RentHub.API.Services.Permissions;
 using RentHub.API.Services.Maps;
+using RentHub.API.Services.Users;
 
 namespace RentHub.API.Controllers
 {
@@ -41,6 +42,7 @@ namespace RentHub.API.Controllers
         private readonly IConfiguration _configuration;
         private readonly IManagerPermissionService _permissionService;
         private readonly IPropertyGeocodingService _geocodingService;
+        private readonly IUserOnboardingService _userOnboardingService;
 
         public PropertiesController(
             ApplicationDbContext context,
@@ -48,7 +50,8 @@ namespace RentHub.API.Controllers
             IStorageService storageService,
             IConfiguration configuration,
             IManagerPermissionService permissionService,
-            IPropertyGeocodingService geocodingService)
+            IPropertyGeocodingService geocodingService,
+            IUserOnboardingService userOnboardingService)
         {
             _context = context;
             _userManager = userManager;
@@ -56,6 +59,7 @@ namespace RentHub.API.Controllers
             _configuration = configuration;
             _permissionService = permissionService;
             _geocodingService = geocodingService;
+            _userOnboardingService = userOnboardingService;
         }
         /// <summary>
         /// Admin-only full property list endpoint.
@@ -424,6 +428,7 @@ namespace RentHub.API.Controllers
                             Type = a.Type.ToString(),
                             Price = a.Price,
                             Area = a.Area,
+                            FloorNumber = a.FloorNumber,
                             PropertyName = property.Name,
                             LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? string.Empty) : string.Empty,
                             Status = ApartmentStatusResolver.Resolve(a.Tenancies, DateTimeOffset.UtcNow).ToString()
@@ -978,6 +983,10 @@ namespace RentHub.API.Controllers
                 var canAddApartment = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.AddApartment, isAdmin);
                 var canUploadDocuments = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.UploadDocuments, isAdmin);
                 var canDeleteDocuments = await _permissionService.HasPropertyPermissionAsync(userId, id, ManagerPermission.DeleteDocuments, isAdmin);
+                var isPropertyLandlord = property.LandlordId == userId;
+                var canEditMemberEmails = isPropertyLandlord ||
+                    (hasManagerAssignment && await _permissionService.HasPropertyPermissionAsync(
+                        userId, id, ManagerPermission.EditMember, false));
                 var managerApartmentIds = isRestrictedManager
                     ? await _permissionService.GetAccessibleApartmentIdsAsync(userId, id, ManagerPermission.ViewApartments, false)
                     : null;
@@ -1000,6 +1009,7 @@ namespace RentHub.API.Controllers
                     SuccessDialogPosition = property.SuccessDialogPosition,
                     LandlordId = property.LandlordId,
                     LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? property.Landlord.Email ?? "") : "",
+                    LandlordEmail = property.Landlord?.Email ?? string.Empty,
                     Apartments = property.Apartments
                         .Where(a =>
                             !a.IsDeleted &&
@@ -1014,6 +1024,7 @@ namespace RentHub.API.Controllers
                             Type = a.Type.ToString(),
                             Price = a.Price,
                             Area = a.Area,
+                            FloorNumber = a.FloorNumber,
                             PropertyName = property.Name,
                             LandlordName = property.Landlord != null ? (property.Landlord.FullName ?? string.Empty) : string.Empty,
                             Status = ApartmentStatusResolver.Resolve(a.Tenancies, DateTimeOffset.UtcNow).ToString()
@@ -1032,6 +1043,7 @@ namespace RentHub.API.Controllers
                             Id = m.Id,
                             ManagerId = m.ManagerId,
                             ManagerName = m.Manager != null ? (m.Manager.FullName ?? m.Manager.Email ?? "") : "",
+                            ManagerEmail = m.Manager != null ? (m.Manager.Email ?? "") : "",
                             Permission = m.Permission,
                             PermissionFlags = m.PermissionFlags,
                             AccessAllApartments = m.AccessAllApartments,
@@ -1058,7 +1070,9 @@ namespace RentHub.API.Controllers
                     CanAddApartment = canAddApartment,
                     CanUploadDocuments = canUploadDocuments,
                     CanDeleteDocuments = canDeleteDocuments,
-                    CanManageMapVisibility = isAdmin
+                    CanManageMapVisibility = isAdmin,
+                    CanEditMemberEmails = canEditMemberEmails,
+                    CanEditLandlordEmail = isPropertyLandlord
                 };
 
                 return Ok(dto);
@@ -1067,6 +1081,132 @@ namespace RentHub.API.Controllers
             {
                 return StatusCode(500, new { Message = ex.Message });
             }
+        }
+
+        [HttpPut("{propertyId:int}/members/{targetUserId}/email")]
+        [Authorize]
+        public async Task<IActionResult> UpdateMemberEmail(
+            int propertyId,
+            string targetUserId,
+            [FromBody] UpdateMemberEmailRequest request)
+        {
+            if (!ModelState.IsValid) return ValidationProblem(ModelState);
+
+            var actorId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(actorId)) return Unauthorized();
+
+            var property = await _context.Properties
+                .Include(item => item.Landlord)
+                .FirstOrDefaultAsync(item => item.Id == propertyId);
+            if (property == null) return NotFound(new { Message = "Property not found." });
+
+            var actorIsLandlord = property.LandlordId == actorId;
+            var actorIsManager = await _context.PropertyManagerAssignments.AnyAsync(item =>
+                !item.IsDeleted && item.PropertyId == propertyId && item.ManagerId == actorId);
+            var managerIsAuthorized = actorIsManager &&
+                await _permissionService.HasPropertyPermissionAsync(
+                    actorId, propertyId, ManagerPermission.EditMember, false);
+            if (!actorIsLandlord && !managerIsAuthorized) return Forbid();
+
+            var targetIsLandlord = property.LandlordId == targetUserId;
+            var targetIsManager = await _context.PropertyManagerAssignments.AnyAsync(item =>
+                !item.IsDeleted && item.PropertyId == propertyId && item.ManagerId == targetUserId);
+            var targetIsApartmentMember = await _context.ApartmentOwners.AnyAsync(item =>
+                !item.IsDeleted && item.OwnerId == targetUserId && item.Apartment != null &&
+                item.Apartment.PropertyId == propertyId);
+            var targetIsApartmentOwner = await _context.ApartmentOwners.AnyAsync(item =>
+                !item.IsDeleted && item.OwnerId == targetUserId && item.Role == ApartmentMemberRoleEnum.Owner &&
+                item.Apartment != null && item.Apartment.PropertyId == propertyId);
+            var targetIsTenant = await _context.TenancyMembers.AnyAsync(item =>
+                !item.IsDeleted && item.MemberId == targetUserId && item.Tenancy != null &&
+                !item.Tenancy.IsDeleted && item.Tenancy.Apartment != null &&
+                item.Tenancy.Apartment.PropertyId == propertyId);
+
+            if (!targetIsLandlord && !targetIsManager && !targetIsApartmentMember && !targetIsTenant)
+            {
+                return NotFound(new { Message = "This user is not a member of the property." });
+            }
+
+            if (!actorIsLandlord)
+            {
+                var target = await _userManager.FindByIdAsync(targetUserId);
+                if (targetIsLandlord || targetIsApartmentOwner || target == null ||
+                    await _userManager.IsInRoleAsync(target, "Landlord") ||
+                    await _userManager.IsInRoleAsync(target, "Admin"))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new
+                    {
+                        Message = "A manager cannot change the email address of a landlord, apartment owner, or administrator."
+                    });
+                }
+            }
+
+            var user = await _userManager.FindByIdAsync(targetUserId);
+            if (user == null) return NotFound(new { Message = "User not found." });
+
+            var email = request.Email.Trim();
+            if (string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { Message = "The new email address must be different from the current address." });
+            }
+
+            var emailOwner = await _userManager.FindByEmailAsync(email);
+            if (emailOwner != null && emailOwner.Id != user.Id)
+            {
+                return Conflict(new { Message = "This email address is already used by another account." });
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            user.Email = email;
+            user.UserName = email;
+            user.NormalizedEmail = _userManager.NormalizeEmail(email);
+            user.NormalizedUserName = _userManager.NormalizeName(email);
+            user.EmailConfirmed = false;
+            user.PhoneNumberConfirmed = false;
+            user.IsSubscriptionPaymentPhoneVerified = false;
+            user.SubscriptionPaymentPhoneVerifiedAt = null;
+            user.IsPayoutPhoneVerified = false;
+            user.PayoutPhoneVerifiedAt = null;
+            user.IsWhatsAppPhoneVerified = false;
+            user.WhatsAppPhoneVerifiedAt = null;
+            user.SessionInvalidatedAt = DateTimeOffset.UtcNow;
+            user.SecurityStamp = Guid.NewGuid().ToString("N");
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                await transaction.RollbackAsync();
+                return BadRequest(new
+                {
+                    Message = "The email address could not be updated.",
+                    Errors = updateResult.Errors.Select(item => item.Description)
+                });
+            }
+
+            var obsoleteTokens = await _context.Set<IdentityUserToken<string>>()
+                .Where(item => item.UserId == user.Id)
+                .ToListAsync();
+            _context.RemoveRange(obsoleteTokens);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var verificationSent = true;
+            try
+            {
+                await _userOnboardingService.SendEmailChangeVerificationOtpAsync(user);
+            }
+            catch
+            {
+                verificationSent = false;
+            }
+
+            return Ok(new
+            {
+                Message = verificationSent
+                    ? "Email updated. The user has been signed out and must complete verification again."
+                    : "Email updated and sessions revoked, but the verification message could not be sent. The user can request a new code.",
+                VerificationSent = verificationSent
+            });
         }
     }
 }

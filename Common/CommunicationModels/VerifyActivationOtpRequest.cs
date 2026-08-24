@@ -16,6 +16,14 @@ namespace Common.CommunicationModels
         [StringLength(6, MinimumLength = 4)]
         public string EmailOtp { get; set; } = string.Empty;
 
+        [Display(Name = "Phone OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string? PhoneOtp { get; set; }
+
+        [Display(Name = "Subscription payment OTP")]
+        [StringLength(6, MinimumLength = 4)]
+        public string? SubscriptionPaymentOtp { get; set; }
+
         [Display(Name = "Payout OTP")]
         [StringLength(6, MinimumLength = 4)]
         public string? PayoutOtp { get; set; }

@@ -30,7 +30,7 @@
             @foreach (var item in Model.Items)
             {
                 <tr>
-                    <td class="rh-mobile-card-title" data-label="@T["Tenancy"]"><a class="rh-table-property-link" asp-action="Overview" asp-route-id="@item.Id">@T["Tenancy #{0}", item.Id]</a></td>
+                    <td class="rh-mobile-card-title" data-label="@T["Tenancy"]"><a class="rh-table-property-link" asp-action="Overview" asp-route-id="@item.Id">@T["Tenancy"]</a></td>
                     <td data-label="@T["Apartment"]"><a class="rh-table-property-link" asp-controller="Apartments" asp-action="Overview" asp-route-id="@item.ApartmentId">@item.ApartmentName</a></td>
                     <td data-label="@T["Property"]"><a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@item.PropertyId">@item.PropertyName</a></td>
                     <td data-label="@T["Landlord"]">@item.LandlordName</td>

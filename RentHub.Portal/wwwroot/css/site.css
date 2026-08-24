@@ -36,6 +36,8 @@
   --rh-shadow-modal: 0 26px 68px rgba(0, 0, 0, 0.46);
   --rh-table-stripe: rgba(255, 255, 255, 0.018);
   --rh-placeholder: #85817e;
+  --rh-rent-period-card-bg: #343439;
+  --rh-rent-selection-card-bg: #303238;
   --rh-radius-sm: 0.75rem;
   --rh-radius-control: 0.85rem;
   --rh-radius-card: 1.15rem;
@@ -100,6 +102,8 @@
   --rh-shadow-modal: 0 26px 62px rgba(56, 48, 42, 0.2);
   --rh-table-stripe: rgba(41, 39, 42, 0.018);
   --rh-placeholder: #8a837e;
+  --rh-rent-period-card-bg: #fffdf9;
+  --rh-rent-selection-card-bg: #f7f8ed;
   --bs-body-color: var(--rh-text);
   --bs-body-bg: var(--rh-bg);
   --bs-emphasis-color: #1d1b1d;
@@ -1674,6 +1678,46 @@ body.rh-body {
 
 .rh-rent-payment-action {
   min-width: min(18rem, 100%);
+}
+
+.rh-rent-workflow-card {
+  color: var(--rh-text);
+  border: 1px solid var(--rh-border-strong) !important;
+  border-radius: var(--rh-radius-card);
+  box-shadow: var(--rh-shadow-soft) !important;
+}
+
+.rh-rent-period-group-card {
+  background: var(--rh-rent-period-card-bg) !important;
+}
+
+.rh-rent-selection-card {
+  background: var(--rh-rent-selection-card-bg) !important;
+}
+
+.rh-rent-receipt-list {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--rh-border);
+}
+
+.rh-rent-receipt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--rh-border);
+  border-radius: var(--rh-radius-sm);
+  background: color-mix(in srgb, var(--rh-accent) 5%, var(--rh-surface-raised));
+}
+
+@media (max-width: 575.98px) {
+  .rh-rent-receipt-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .rh-submit-progress {

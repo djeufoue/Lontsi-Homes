@@ -16,8 +16,10 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public decimal MonthlyRent { get; set; }
         public int MaxMembers { get; set; } = 1;
         public int RentDueDay { get; set; } = 1;
+        public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
+        public DateTimeOffset RentTrackingStartDate { get; set; }
         public RentPaymentImportModeEnum? ImportMode { get; set; }
         public bool HasSelectedImportMode { get; set; }
         public DateTimeOffset? UnpaidFrom { get; set; }
@@ -29,6 +31,7 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public string? ContractContentType { get; set; }
         public TenantInvitationRequest MainTenant { get; set; } = new();
         public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
+        public List<RentReminderRuleDto> RentReminderRules { get; set; } = new();
     }
 
     public class TenancyCreateWizardVm
@@ -60,10 +63,13 @@ namespace RentHub.Portal.ViewModels.Tenancies
         [Range(1, 31)]
         public int RentDueDay { get; set; } = 1;
 
+        [Range(1, 12)]
+        public int PaymentIntervalMonths { get; set; } = 1;
+
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
         [Range(1, 12)]
-        public int AutoExtensionMonths { get; set; } = 1;
+        public int FutureRentPeriodCount { get; set; } = 1;
 
         public IFormFile? ContractDocument { get; set; }
     }

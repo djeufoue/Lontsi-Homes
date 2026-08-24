@@ -18,9 +18,9 @@ namespace RentHub.API.Models.Entities
         public string ManagerId { get; set; } = string.Empty;
         public ApplicationUser? Manager { get; set; }
 
-        public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
+        public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadWrite;
 
-        public long PermissionFlags { get; set; } = (long)ManagerPermissionDefaults.ReadOnly;
+        public long PermissionFlags { get; set; } = (long)ManagerPermissionDefaults.Standard;
 
         public bool AccessAllApartments { get; set; } = true;
 

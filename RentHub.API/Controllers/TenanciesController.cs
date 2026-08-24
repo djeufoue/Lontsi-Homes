@@ -96,8 +96,11 @@ namespace RentHub.API.Controllers
                         MonthlyRent = t.MonthlyRent,
                         MaxMembers = t.MaxMembers,
                         RentDueDay = t.RentDueDay,
+                        PaymentIntervalMonths = t.PaymentIntervalMonths,
                         EndBehavior = t.EndBehavior,
-                        AutoExtensionMonths = t.AutoExtensionMonths,
+                        FutureRentPeriodCount = t.FutureRentPeriodCount,
+                        RentTrackingStartDate = t.RentTrackingStartDate,
+                        RentScheduleNeedsReview = t.RentScheduleNeedsReview,
                         TerminatedAt = t.TerminatedAt,
                         Status = ResolveTenancyStatus(t, DateTimeOffset.UtcNow),
                         IsOwner = t.Apartment.Property.LandlordId == userId
@@ -171,8 +174,11 @@ namespace RentHub.API.Controllers
                 if (request.RentDueDay is < 1 or > 31)
                     return BadRequest("RentDueDay must be between 1 and 31.");
 
-                if (request.AutoExtensionMonths is < 1 or > 12)
-                    return BadRequest("AutoExtensionMonths must be between 1 and 12.");
+                if (request.FutureRentPeriodCount is < 1 or > 12)
+                    return BadRequest("FutureRentPeriodCount must be between 1 and 12.");
+
+                if (request.PaymentIntervalMonths is < 1 or > 12)
+                    return BadRequest("PaymentIntervalMonths must be between 1 and 12.");
 
                 if (normalizedEndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !normalizedEndDate.HasValue)
                     return BadRequest("EndDate is required when the tenancy should expire automatically.");
@@ -189,14 +195,41 @@ namespace RentHub.API.Controllers
                     MonthlyRent = request.MonthlyRent,
                     MaxMembers = request.MaxMembers,
                     RentDueDay = request.RentDueDay,
+                    PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    AutoExtensionMonths = request.AutoExtensionMonths,
+                    FutureRentPeriodCount = request.FutureRentPeriodCount,
+                    RentTrackingStartDate = request.RentTrackingStartDate ?? request.StartDate,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
                 };
 
                 _context.Tenancies.Add(tenancy);
+                await _context.SaveChangesAsync();
+
+                var generatedPeriods = RentPeriodScheduleHelper.GeneratePeriods(
+                    tenancy.StartDate,
+                    tenancy.EndDate,
+                    tenancy.EndBehavior,
+                    tenancy.MonthlyRent,
+                    tenancy.RentDueDay,
+                    DateTimeOffset.UtcNow,
+                    tenancy.FutureRentPeriodCount,
+                    tenancy.PaymentIntervalMonths,
+                    tenancy.RentTrackingStartDate);
+                _context.RentPeriods.AddRange(generatedPeriods.Select(period => new RentPeriod
+                {
+                    TenancyId = tenancy.Id,
+                    PeriodStart = period.PeriodStart,
+                    PeriodEnd = period.PeriodEnd,
+                    DueDate = period.DueDate,
+                    BillingGroupSequence = period.BillingGroupSequence,
+                    Amount = period.Amount,
+                    PaidAmount = 0,
+                    Status = period.Status,
+                    CreatedBy = userId,
+                    CreatedAt = DateTimeOffset.UtcNow
+                }));
                 await _context.SaveChangesAsync();
 
                 return Ok(new TenancyDto
@@ -209,8 +242,10 @@ namespace RentHub.API.Controllers
                     MonthlyRent = tenancy.MonthlyRent,
                     MaxMembers = tenancy.MaxMembers,
                     RentDueDay = tenancy.RentDueDay,
+                    PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                     EndBehavior = tenancy.EndBehavior,
-                    AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                    RentTrackingStartDate = tenancy.RentTrackingStartDate,
                     Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                     IsOwner = apartment.Property.LandlordId == userId
                 });
@@ -243,8 +278,11 @@ namespace RentHub.API.Controllers
                 var normalizedEndBehavior = NormalizeEndBehavior(request.EndBehavior);
                 var normalizedEndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : request.EndDate;
 
-                if (request.AutoExtensionMonths is < 1 or > 12)
-                    return BadRequest("Automatic extension months must be between 1 and 12.");
+                if (request.FutureRentPeriodCount is < 1 or > 12)
+                    return BadRequest("Future rent-period count must be between 1 and 12.");
+
+                if (request.PaymentIntervalMonths is < 1 or > 12)
+                    return BadRequest("Payment interval must be between 1 and 12 months.");
 
                 if (normalizedEndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !normalizedEndDate.HasValue)
                     return BadRequest("End date is required when the tenancy should expire automatically.");
@@ -293,7 +331,16 @@ namespace RentHub.API.Controllers
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
-                var periodValidationErrors = ValidateRentPeriodSeeds(request.RentPeriods, request.StartDate, normalizedEndDate, normalizedEndBehavior);
+                var trackingStart = request.RentTrackingStartDate == default
+                    ? request.RentPeriods.OrderBy(period => period.PeriodStart).First().PeriodStart
+                    : request.RentTrackingStartDate;
+                var periodValidationErrors = ValidateRentPeriodSeeds(
+                    request.RentPeriods,
+                    request.StartDate,
+                    normalizedEndDate,
+                    normalizedEndBehavior,
+                    request.PaymentIntervalMonths,
+                    trackingStart);
                 if (periodValidationErrors.Count > 0)
                     return BadRequest(new { Message = string.Join(" ", periodValidationErrors) });
 
@@ -305,8 +352,10 @@ namespace RentHub.API.Controllers
                     MonthlyRent = request.MonthlyRent,
                     MaxMembers = request.MaxMembers,
                     RentDueDay = request.RentDueDay,
+                    PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    AutoExtensionMonths = request.AutoExtensionMonths,
+                    FutureRentPeriodCount = request.FutureRentPeriodCount,
+                    RentTrackingStartDate = trackingStart,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsDeleted = false
@@ -323,6 +372,7 @@ namespace RentHub.API.Controllers
                         PeriodStart = period.PeriodStart,
                         PeriodEnd = period.PeriodEnd,
                         DueDate = period.DueDate,
+                        BillingGroupSequence = period.BillingGroupSequence,
                         Amount = period.Amount,
                         PaidAmount = period.PaidAmount,
                         PaidDate = period.PaidDate,
@@ -366,8 +416,10 @@ namespace RentHub.API.Controllers
                     MonthlyRent = tenancy.MonthlyRent,
                     MaxMembers = tenancy.MaxMembers,
                     RentDueDay = tenancy.RentDueDay,
+                    PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                     EndBehavior = tenancy.EndBehavior,
-                    AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                    RentTrackingStartDate = tenancy.RentTrackingStartDate,
                     Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                     IsOwner = apartment.Property.LandlordId == userId
                 });
@@ -424,6 +476,13 @@ namespace RentHub.API.Controllers
                 if (canEditFinancialInformation && request.MonthlyRent <= 0)
                     return BadRequest("MonthlyRent must be greater than 0.");
 
+                if (!canEditFinancialInformation &&
+                    (request.MonthlyRent != tenancy.MonthlyRent ||
+                     request.RentDueDay != tenancy.RentDueDay ||
+                     request.PaymentIntervalMonths != tenancy.PaymentIntervalMonths ||
+                     request.FutureRentPeriodCount != tenancy.FutureRentPeriodCount))
+                    return Forbid();
+
                 var normalizedEndBehavior = NormalizeEndBehavior(request.EndBehavior);
                 var normalizedEndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : request.EndDate;
 
@@ -436,8 +495,11 @@ namespace RentHub.API.Controllers
                 if (request.RentDueDay is < 1 or > 31)
                     return BadRequest("RentDueDay must be between 1 and 31.");
 
-                if (request.AutoExtensionMonths is < 1 or > 12)
-                    return BadRequest("AutoExtensionMonths must be between 1 and 12.");
+                if (request.FutureRentPeriodCount is < 1 or > 12)
+                    return BadRequest("FutureRentPeriodCount must be between 1 and 12.");
+
+                if (request.PaymentIntervalMonths is < 1 or > 12)
+                    return BadRequest("PaymentIntervalMonths must be between 1 and 12.");
 
                 if (normalizedEndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically && !normalizedEndDate.HasValue)
                     return BadRequest("EndDate is required when the tenancy should expire automatically.");
@@ -452,6 +514,16 @@ namespace RentHub.API.Controllers
                 if (hasOverlap)
                     return BadRequest("This apartment already has a tenancy that overlaps with the selected period.");
 
+                var scheduleChanged = tenancy.StartDate != request.StartDate ||
+                    tenancy.EndDate != normalizedEndDate ||
+                    tenancy.EndBehavior != normalizedEndBehavior ||
+                    tenancy.MonthlyRent != request.MonthlyRent ||
+                    tenancy.RentDueDay != request.RentDueDay ||
+                    tenancy.PaymentIntervalMonths != request.PaymentIntervalMonths ||
+                    tenancy.FutureRentPeriodCount != request.FutureRentPeriodCount ||
+                    (request.RentTrackingStartDate != default &&
+                     tenancy.RentTrackingStartDate != request.RentTrackingStartDate);
+
                 tenancy.StartDate = request.StartDate;
                 tenancy.EndDate = normalizedEndDate;
                 if (canEditFinancialInformation)
@@ -460,15 +532,38 @@ namespace RentHub.API.Controllers
                 }
                 tenancy.MaxMembers = request.MaxMembers;
                 tenancy.RentDueDay = request.RentDueDay;
+                tenancy.PaymentIntervalMonths = request.PaymentIntervalMonths;
                 tenancy.EndBehavior = normalizedEndBehavior;
-                tenancy.AutoExtensionMonths = request.AutoExtensionMonths;
+                tenancy.FutureRentPeriodCount = request.FutureRentPeriodCount;
+                tenancy.RentTrackingStartDate = request.RentTrackingStartDate == default
+                    ? tenancy.RentTrackingStartDate
+                    : request.RentTrackingStartDate;
                 tenancy.UpdatedBy = userId;
                 tenancy.UpdatedAt = DateTimeOffset.UtcNow;
 
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                if (scheduleChanged)
+                {
+                    await TenancyLifecycleHelper.ReconcileRentScheduleAsync(
+                        _context,
+                        tenancy,
+                        userId,
+                        DateTimeOffset.UtcNow);
+                    await TenancyLifecycleHelper.InvalidateRentRemindersAsync(
+                        _context,
+                        tenancy.Id,
+                        DateTimeOffset.UtcNow,
+                        "The tenancy rent schedule changed after this reminder was planned.");
+                }
                 _context.Tenancies.Update(tenancy);
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 return Ok(new { Message = "Tenancy updated successfully." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { Message = ex.Message });
             }
             catch (Exception ex)
             {
@@ -629,8 +724,11 @@ namespace RentHub.API.Controllers
                         MonthlyRent = t.MonthlyRent,
                         MaxMembers = t.MaxMembers,
                         RentDueDay = t.RentDueDay,
+                        PaymentIntervalMonths = t.PaymentIntervalMonths,
                         EndBehavior = t.EndBehavior,
-                        AutoExtensionMonths = t.AutoExtensionMonths,
+                        FutureRentPeriodCount = t.FutureRentPeriodCount,
+                        RentTrackingStartDate = t.RentTrackingStartDate,
+                        RentScheduleNeedsReview = t.RentScheduleNeedsReview,
                         TerminatedAt = t.TerminatedAt,
                         IsOwner = apartment.Property!.LandlordId == userId
                     })
@@ -934,6 +1032,13 @@ namespace RentHub.API.Controllers
                                                     tenancy.Apartment.Property.LandlordId == userId ||
                                                     hasManagerAssignment ||
                                                     hasApartmentOwnership);
+                var isPropertyLandlord = tenancy.Apartment.Property.LandlordId == userId;
+                var canEditMemberEmails = isPropertyLandlord ||
+                    (hasManagerAssignment && await _permissionService.HasPropertyPermissionAsync(
+                        userId,
+                        tenancy.Apartment.PropertyId,
+                        ManagerPermission.EditMember,
+                        false));
                 var canWrite = canEdit || canDelete || canTerminate || canRenew || canAddMembers || canEditMembers ||
                                canRemoveMembers || canUploadDocuments || canDeleteDocuments || canMarkRentPaid ||
                                canCancelPendingPayment || canSendRentReminder;
@@ -1012,6 +1117,15 @@ namespace RentHub.API.Controllers
                             user => user.Id,
                             user => user.FullName ?? user.Email ?? string.Empty);
                 var reminderHistory = MapReminderHistory(reminderEntities, requesterNames);
+                var deletableHistoricalPeriods = isPropertyLandlord
+                    ? rentPeriods.Where(period =>
+                        period.Status == RentPeriodStatusEnum.PaidBeforeRentHub &&
+                        !period.PaymentId.HasValue &&
+                        string.IsNullOrWhiteSpace(period.PaymentReference))
+                        .OrderBy(period => period.PeriodStart)
+                        .ToList()
+                    : new List<RentPeriod>();
+                var deletableHistoricalPeriodCount = deletableHistoricalPeriods.Count;
                 var nowUtc = DateTimeOffset.UtcNow;
                 var rentSummary = BuildRentSummary(
                     rentPeriods,
@@ -1038,8 +1152,12 @@ namespace RentHub.API.Controllers
                         MonthlyRent = tenancy.MonthlyRent,
                         MaxMembers = tenancy.MaxMembers,
                         RentDueDay = tenancy.RentDueDay,
+                        PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                         EndBehavior = tenancy.EndBehavior,
-                        AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                        RentTrackingStartDate = tenancy.RentTrackingStartDate,
+                        RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
+                        CanCorrectRentSchedule = isPropertyLandlord && tenancy.RentScheduleNeedsReview,
                         TerminatedAt = tenancy.TerminatedAt,
                         TerminationReason = tenancy.TerminationReason,
                         TerminationNotes = tenancy.TerminationNotes,
@@ -1063,6 +1181,7 @@ namespace RentHub.API.Controllers
                         CanViewMembers = canViewMembers,
                         CanAddMembers = canAddMembers,
                         CanEditMembers = canEditMembers,
+                        CanEditMemberEmails = canEditMemberEmails,
                         CanRemoveMembers = canRemoveMembers,
                         CanViewDocuments = canViewDocuments,
                         CanUploadDocuments = canUploadDocuments,
@@ -1071,7 +1190,11 @@ namespace RentHub.API.Controllers
                         CanViewRentReminderHistory = canViewRentReminderHistory,
                         CanMarkRentPaid = canMarkRentPaid,
                         CanCancelPendingPayment = canCancelPendingPayment,
-                        CanSendRentReminder = canSendRentReminder
+                        CanSendRentReminder = canSendRentReminder,
+                        CanDeleteHistoricalRentPeriods = deletableHistoricalPeriodCount > 0,
+                        DeletableHistoricalRentPeriodCount = deletableHistoricalPeriodCount,
+                        DeletableHistoricalFirstPeriodStart = deletableHistoricalPeriods.FirstOrDefault()?.PeriodStart,
+                        DeletableHistoricalLastPeriodEnd = deletableHistoricalPeriods.LastOrDefault()?.PeriodEnd
                     },
                     Members = members,
                     Documents = docs,
@@ -1117,6 +1240,126 @@ namespace RentHub.API.Controllers
             catch (InvalidOperationException exception)
             {
                 return BadRequest(new { Message = exception.Message });
+            }
+        }
+
+        [HttpPost("{id}/rent-periods/archive-paid-before-platform")]
+        [Authorize]
+        public async Task<IActionResult> ArchivePaidBeforePlatformPeriods(int id)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+            var tenancy = await _context.Tenancies
+                .Include(item => item.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted);
+            if (tenancy?.Apartment?.Property == null) return NotFound("Tenancy not found.");
+
+            // This intentionally does not grant an administrator or manager override.
+            // The cleanup is reserved to the landlord who owns the property.
+            if (tenancy.Apartment.Property.LandlordId != userId) return Forbid();
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var periods = await _context.RentPeriods
+                .Where(period => period.TenancyId == id && !period.IsDeleted)
+                .OrderBy(period => period.PeriodStart)
+                .ToListAsync();
+            var eligible = periods
+                .Where(period => period.Status == RentPeriodStatusEnum.PaidBeforeRentHub &&
+                                 !period.PaymentId.HasValue &&
+                                 string.IsNullOrWhiteSpace(period.PaymentReference))
+                .ToList();
+            if (eligible.Count == 0)
+                return Conflict("There are no historical paid periods eligible for archival.");
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            foreach (var period in eligible)
+            {
+                period.IsDeleted = true;
+                period.DeletedBy = userId;
+                period.DeletedAt = nowUtc;
+                period.UpdatedBy = userId;
+                period.UpdatedAt = nowUtc;
+            }
+
+            var firstRemainingStart = periods
+                .Where(period => !eligible.Contains(period))
+                .Select(period => (DateTimeOffset?)period.PeriodStart)
+                .FirstOrDefault();
+            tenancy.RentTrackingStartDate = firstRemainingStart ??
+                RentPeriodScheduleHelper.ResolveNextBillingGroupStart(
+                    tenancy.StartDate,
+                    nowUtc,
+                    tenancy.PaymentIntervalMonths);
+            tenancy.UpdatedBy = userId;
+            tenancy.UpdatedAt = nowUtc;
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            return Ok(new
+            {
+                ArchivedPeriodCount = eligible.Count,
+                FirstPeriodStart = eligible.First().PeriodStart,
+                LastPeriodEnd = eligible.Last().PeriodEnd,
+                tenancy.RentTrackingStartDate
+            });
+        }
+
+        [HttpPost("{id}/rent-schedule/reconcile")]
+        [Authorize]
+        public async Task<IActionResult> ReconcileLegacyRentSchedule(
+            int id,
+            [FromBody] ReconcileRentScheduleRequest request)
+        {
+            var userId = UserHelpers.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+            if (request.RentDueDay is < 1 or > 31)
+                return BadRequest("RentDueDay must be between 1 and 31.");
+            if (request.PaymentIntervalMonths is < 1 or > 12)
+                return BadRequest("PaymentIntervalMonths must be between 1 and 12.");
+
+            var tenancy = await _context.Tenancies
+                .Include(item => item.Apartment)
+                .ThenInclude(apartment => apartment!.Property)
+                .FirstOrDefaultAsync(item => item.Id == id && !item.IsDeleted);
+            if (tenancy?.Apartment?.Property == null) return NotFound("Tenancy not found.");
+            if (tenancy.Apartment.Property.LandlordId != userId) return Forbid();
+            if (!tenancy.RentScheduleNeedsReview)
+                return Conflict("This rent schedule is not marked as requiring legacy correction.");
+            if (request.FirstTrackedPeriodStart.Date < tenancy.StartDate.Date ||
+                !RentPeriodScheduleHelper.IsMonthlyBoundary(tenancy.StartDate, request.FirstTrackedPeriodStart))
+            {
+                return BadRequest("The first tracked period must be a monthly boundary calculated from the tenancy start date.");
+            }
+            if (tenancy.EndDate.HasValue && request.FirstTrackedPeriodStart.Date > tenancy.EndDate.Value.Date)
+                return BadRequest("The first tracked period cannot start after the tenancy end date.");
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var nowUtc = DateTimeOffset.UtcNow;
+                tenancy.RentDueDay = request.RentDueDay;
+                tenancy.PaymentIntervalMonths = request.PaymentIntervalMonths;
+                tenancy.RentTrackingStartDate = request.FirstTrackedPeriodStart;
+                await TenancyLifecycleHelper.ReconcileRentScheduleAsync(
+                    _context,
+                    tenancy,
+                    userId,
+                    nowUtc);
+                await TenancyLifecycleHelper.InvalidateRentRemindersAsync(
+                    _context,
+                    tenancy.Id,
+                    nowUtc,
+                    "Sent using an old rent schedule — invalidated after correction.");
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                return Ok(new { Message = "Rent schedule corrected successfully." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                await transaction.RollbackAsync();
+                return Conflict(new { Message = ex.Message });
             }
         }
 
@@ -1200,8 +1443,11 @@ namespace RentHub.API.Controllers
                                 MonthlyRent = tenancy.MonthlyRent,
                                 MaxMembers = tenancy.MaxMembers,
                                 RentDueDay = tenancy.RentDueDay,
+                                PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                                 EndBehavior = tenancy.EndBehavior,
-                                AutoExtensionMonths = tenancy.AutoExtensionMonths,
+                                FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
+                                RentTrackingStartDate = tenancy.RentTrackingStartDate,
+                                RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                                 TerminatedAt = tenancy.TerminatedAt,
                                 TerminationReason = tenancy.TerminationReason,
                                 TerminationNotes = tenancy.TerminationNotes,
@@ -1468,9 +1714,17 @@ namespace RentHub.API.Controllers
             IReadOnlyCollection<RentPeriodSeedDto> periods,
             DateTimeOffset tenancyStart,
             DateTimeOffset? tenancyEnd,
-            TenancyEndBehaviorEnum endBehavior)
+            TenancyEndBehaviorEnum endBehavior,
+            int paymentIntervalMonths,
+            DateTimeOffset trackingStartDate)
         {
-            return RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, tenancyStart, tenancyEnd, endBehavior);
+            return RentPeriodScheduleHelper.ValidateGeneratedSchedule(
+                periods,
+                tenancyStart,
+                tenancyEnd,
+                endBehavior,
+                paymentIntervalMonths,
+                trackingStartDate);
         }
 
         private static List<RentReminderHistoryDto> MapReminderHistory(
@@ -1495,7 +1749,11 @@ namespace RentHub.API.Controllers
                 CreatedAt = reminder.CreatedAt,
                 SentAt = reminder.SentAt,
                 Status = reminder.Status,
-                StatusLabel = reminder.Status switch
+                StatusLabel = reminder.InvalidatedAt.HasValue
+                    ? (string.IsNullOrWhiteSpace(reminder.InvalidationReason)
+                        ? "Invalidated reminder"
+                        : reminder.InvalidationReason)
+                    : reminder.Status switch
                 {
                     RentReminderStatusEnum.Pending => "Pending",
                     RentReminderStatusEnum.Sent => "Sent",
@@ -1512,6 +1770,8 @@ namespace RentHub.API.Controllers
                     ? name
                     : string.Empty,
                 FailureReason = reminder.FailureReason,
+                InvalidatedAt = reminder.InvalidatedAt,
+                InvalidationReason = reminder.InvalidationReason,
                 OutstandingAmount = reminder.OutstandingAmountSnapshot,
                 IncludedPeriodCount = reminder.IncludedPeriodCount,
                 Periods = reminder.Periods
@@ -1557,7 +1817,8 @@ namespace RentHub.API.Controllers
                 .OrderBy(period => period.DueDate)
                 .FirstOrDefault();
             var successfulReminders = reminders
-                .Where(reminder => reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
+                .Where(reminder => !reminder.InvalidatedAt.HasValue &&
+                    reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
                 .OrderByDescending(reminder => reminder.SentAt)
                 .ToList();
             var oldestDuePeriodId = duePeriods.FirstOrDefault()?.Id;
@@ -1634,7 +1895,8 @@ namespace RentHub.API.Controllers
                     .OrderByDescending(reminder => reminder.SentAt ?? reminder.CreatedAt)
                     .ToList() ?? new List<RentReminderHistoryDto>();
                 var successfulPeriodReminders = periodReminders
-                    .Where(reminder => reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
+                    .Where(reminder => !reminder.InvalidatedAt.HasValue &&
+                        reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
                     .ToList();
 
                 return new RentPeriodDto
@@ -1644,6 +1906,7 @@ namespace RentHub.API.Controllers
                     PeriodStart = period.PeriodStart,
                     PeriodEnd = period.PeriodEnd,
                     DueDate = period.DueDate,
+                    BillingGroupSequence = period.BillingGroupSequence,
                     Amount = period.Amount,
                     PaidAmount = period.PaidAmount,
                     PaidDate = period.PaidDate,

@@ -181,6 +181,31 @@
                 <dt>@T["Rent period"]</dt>
                 <dd>@PeriodLabel()</dd>
             </dl>
+            @if (Model.Lines.Any())
+            {
+                <h2 style="margin-top:24px;font-size:1rem;">@T["Receipt lines"]</h2>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding:8px;text-align:left;">@T["Period"]</th>
+                                <th style="padding:8px;text-align:right;">@T["Period amount"]</th>
+                                <th style="padding:8px;text-align:right;">@T["Amount paid"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in Model.Lines.OrderBy(item => item.PeriodStart))
+                            {
+                                <tr>
+                                    <td style="padding:8px;border-top:1px solid rgba(128,128,128,.25);">@DateLabel(line.PeriodStart) - @DateLabel(line.PeriodEnd)</td>
+                                    <td style="padding:8px;border-top:1px solid rgba(128,128,128,.25);text-align:right;">@line.PeriodAmount.ToString("N0", culture) @Model.Currency</td>
+                                    <td style="padding:8px;border-top:1px solid rgba(128,128,128,.25);text-align:right;"><strong>@line.PaidAmount.ToString("N0", culture) @Model.Currency</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         }
         else
         {
