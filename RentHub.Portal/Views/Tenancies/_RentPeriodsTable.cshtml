@@ -10,6 +10,7 @@
     var orderedPeriods = Model.AllRentPeriods.OrderBy(item => item.PeriodStart).ToList();
     var paymentGroups = orderedPeriods
         .GroupBy(item => item.BillingGroupSequence)
+        .Where(group => group.Any(item => !IsSettled(item.Status)))
         .Select(group => new
         {
             Periods = group,

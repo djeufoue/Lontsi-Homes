@@ -1197,9 +1197,8 @@ namespace RentHub.Portal.Controllers
             rentPage = Math.Clamp(rentPage, 1, totalRentPages);
             const int rentGroupPageSize = 5;
             var totalRentGroups = allRentPeriods
-                .Select(period => period.BillingGroupSequence)
-                .Distinct()
-                .Count();
+                .GroupBy(period => period.BillingGroupSequence)
+                .Count(group => group.Any(period => GetRentDisplayPriority(period) < 2));
             var totalRentGroupPages = Math.Max(1, (int)Math.Ceiling(totalRentGroups / (double)rentGroupPageSize));
             rentGroupPage = Math.Clamp(rentGroupPage, 1, totalRentGroupPages);
 
