@@ -18,6 +18,9 @@
   --rh-danger: #ef8c96;
   --rh-danger-solid: #b94150;
   --rh-danger-solid-hover: #9f3241;
+  --rh-submit-solid: #c43d4f;
+  --rh-submit-solid-hover: #a92f40;
+  --rh-submit-focus: rgba(196, 61, 79, 0.34);
   --rh-success: #a7c99b;
   --rh-warning: #d6b574;
   --rh-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
@@ -616,6 +619,51 @@ body.rh-body {
   cursor: not-allowed;
   pointer-events: none;
   filter: saturate(0.45);
+  box-shadow: none;
+}
+
+/* Every form submission uses one consistent action color. Session-only actions
+   such as logout keep their compact account-menu presentation. */
+form button[type="submit"]:not(.rh-account-menu-item),
+form input[type="submit"] {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--rh-submit-solid);
+  --bs-btn-border-color: var(--rh-submit-solid);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: var(--rh-submit-solid-hover);
+  --bs-btn-hover-border-color: var(--rh-submit-solid-hover);
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: var(--rh-submit-solid-hover);
+  --bs-btn-active-border-color: var(--rh-submit-solid-hover);
+  color: #fff !important;
+  background-color: var(--rh-submit-solid) !important;
+  border-color: var(--rh-submit-solid) !important;
+  box-shadow: 0 8px 20px rgba(196, 61, 79, 0.24);
+}
+
+form button[type="submit"]:not(.rh-account-menu-item):hover,
+form button[type="submit"]:not(.rh-account-menu-item):focus-visible,
+form button[type="submit"]:not(.rh-account-menu-item):active,
+form input[type="submit"]:hover,
+form input[type="submit"]:focus-visible,
+form input[type="submit"]:active {
+  color: #fff !important;
+  background-color: var(--rh-submit-solid-hover) !important;
+  border-color: var(--rh-submit-solid-hover) !important;
+}
+
+form button[type="submit"]:not(.rh-account-menu-item):focus-visible,
+form input[type="submit"]:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.24rem var(--rh-submit-focus);
+}
+
+form button[type="submit"]:not(.rh-account-menu-item):disabled,
+form input[type="submit"]:disabled {
+  color: #fff !important;
+  background-color: var(--rh-submit-solid) !important;
+  border-color: var(--rh-submit-solid) !important;
+  opacity: 0.46;
   box-shadow: none;
 }
 
