@@ -99,13 +99,16 @@
             <h1 class="rh-heading-title">@draft.ApartmentName</h1>
             <p class="rh-heading-subtitle">@draft.PropertyName</p>
         </div>
-        <div class="rh-overview-hero-actions">
-            <form asp-action="CancelCreate" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
-                <button type="submit" class="btn rh-btn-subtle">@T["Cancel setup"]</button>
-            </form>
-        </div>
+        @if (!Model.HasBlockingOpenEndedTenancy)
+        {
+            <div class="rh-overview-hero-actions">
+                <form asp-action="CancelCreate" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
+                    <button type="submit" class="btn rh-btn-subtle">@T["Cancel setup"]</button>
+                </form>
+            </div>
+        }
     </section>
 
     @if (Model.HasBlockingOpenEndedTenancy)
