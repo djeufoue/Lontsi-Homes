@@ -395,6 +395,17 @@ namespace RentHub.Portal.Controllers
 
             try
             {
+                var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{apartmentId}/overview");
+                var blockingOpenEndedTenancy = FindBlockingOpenEndedTenancy(overview.Tenancies);
+                draft.BlockingOpenEndedTenancyId = blockingOpenEndedTenancy?.Id;
+                draft.BlockingOpenEndedTenancyStartDate = blockingOpenEndedTenancy?.StartDate;
+                SaveDraft(draft);
+
+                if (blockingOpenEndedTenancy != null)
+                {
+                    return View("Create", BuildCreateVm(draft, FinalCreateStep));
+                }
+
                 var request = new CreateGuidedTenancyRequest
                 {
                     ApartmentId = draft.ApartmentId,
@@ -815,6 +826,9 @@ namespace RentHub.Portal.Controllers
 
         private async Task<TenancyCreateDraft> LoadOrCreateDraftAsync(int apartmentId)
         {
+            var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{apartmentId}/overview");
+            var blockingOpenEndedTenancy = FindBlockingOpenEndedTenancy(overview.Tenancies);
+
             var existing = LoadDraft(apartmentId);
             if (existing != null)
             {
@@ -835,11 +849,14 @@ namespace RentHub.Portal.Controllers
                     existing.ImportMode = null;
                 }
 
+                existing.BlockingOpenEndedTenancyId = blockingOpenEndedTenancy?.Id;
+                existing.BlockingOpenEndedTenancyStartDate = blockingOpenEndedTenancy?.StartDate;
+
                 RegenerateRentPeriods(existing);
+                SaveDraft(existing);
                 return existing;
             }
 
-            var overview = await _api.GetAsync<ApartmentOverviewDto>($"apartments/{apartmentId}/overview");
             var apartment = overview.Apartment;
             var today = DateTimeOffset.Now.Date;
             var draft = new TenancyCreateDraft
@@ -855,7 +872,9 @@ namespace RentHub.Portal.Controllers
                 PaymentIntervalMonths = 1,
                 EndBehavior = TenancyEndBehaviorEnum.NoEndDate,
                 RentTrackingStartDate = today,
-                RentReminderRules = overview.Apartment.RentReminderRules
+                RentReminderRules = overview.Apartment.RentReminderRules,
+                BlockingOpenEndedTenancyId = blockingOpenEndedTenancy?.Id,
+                BlockingOpenEndedTenancyStartDate = blockingOpenEndedTenancy?.StartDate
             };
 
             RegenerateRentPeriods(draft);
@@ -871,6 +890,19 @@ namespace RentHub.Portal.Controllers
                 Draft = draft,
                 ValidationErrors = errors ?? new List<string>()
             };
+        }
+
+        private static TenancyDto? FindBlockingOpenEndedTenancy(IEnumerable<TenancyDto> tenancies)
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+            return tenancies
+                .Where(tenancy =>
+                    !tenancy.EndDate.HasValue &&
+                    !tenancy.TerminatedAt.HasValue &&
+                    tenancy.StartDate <= nowUtc)
+                .OrderByDescending(tenancy => tenancy.StartDate)
+                .ThenByDescending(tenancy => tenancy.Id)
+                .FirstOrDefault();
         }
 
         private TenancyCreateDraft? LoadDraft(int apartmentId)

@@ -1,4 +1,5 @@
 @using System.Linq
+@using RentHub.Portal.Helpers
 @model RentHub.Portal.ViewModels.Home.PublicApartmentPageVm
 @{
     ViewData["Title"] = Model.Apartment.ApartmentName;
@@ -36,7 +37,7 @@
             <p class="rh-public-card-address">@Model.Apartment.Address</p>
 
             <div class="rh-public-spec-grid">
-                <div><span>Type</span><strong>@Model.Apartment.Type</strong></div>
+                <div><span>@T["Type"]</span><strong>@T[ApartmentTypeDisplayHelper.ResourceKey(Model.Apartment.Type)]</strong></div>
                 <div><span>Area</span><strong>@Model.Apartment.Area m²</strong></div>
                 <div><span>Rooms</span><strong>@Model.Apartment.NumberOfRooms</strong></div>
                 <div><span>Bathrooms</span><strong>@Model.Apartment.NumberOfBathrooms</strong></div>

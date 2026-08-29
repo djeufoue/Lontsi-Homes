@@ -1888,4 +1888,43 @@
   <data name="Enter a valid amount using a comma or a period as the decimal separator." xml:space="preserve">
     <value>Entrez un montant valide en utilisant une virgule ou un point comme séparateur décimal.</value>
   </data>
+  <data name="One bedroom" xml:space="preserve">
+    <value>Une chambre</value>
+  </data>
+  <data name="Two bedrooms" xml:space="preserve">
+    <value>Deux chambres</value>
+  </data>
+  <data name="Three bedrooms" xml:space="preserve">
+    <value>Trois chambres</value>
+  </data>
+  <data name="Tenancy conflict" xml:space="preserve">
+    <value>Conflit de location</value>
+  </data>
+  <data name="Another tenancy cannot be added" xml:space="preserve">
+    <value>Une autre location ne peut pas être ajoutée</value>
+  </data>
+  <data name="This apartment already has an active tenancy with no end date." xml:space="preserve">
+    <value>Cet appartement possède déjà une location active sans date de fin.</value>
+  </data>
+  <data name="Active tenancy started on {0}." xml:space="preserve">
+    <value>La location active a commencé le {0}.</value>
+  </data>
+  <data name="To add another tenancy, first use one of these options:" xml:space="preserve">
+    <value>Pour ajouter une autre location, utilisez d’abord l’une des options suivantes :</value>
+  </data>
+  <data name="Set an end date for the active tenancy, then start the new tenancy after that date." xml:space="preserve">
+    <value>Définissez une date de fin pour la location active, puis faites commencer la nouvelle location après cette date.</value>
+  </data>
+  <data name="Terminate the active tenancy, then start the new tenancy after the termination date." xml:space="preserve">
+    <value>Résiliez la location active, puis faites commencer la nouvelle location après la date de résiliation.</value>
+  </data>
+  <data name="Delete the active tenancy only if it was created by mistake." xml:space="preserve">
+    <value>Supprimez la location active uniquement si elle a été créée par erreur.</value>
+  </data>
+  <data name="For a historical tenancy, choose dates that end before the active tenancy starts." xml:space="preserve">
+    <value>Pour une location historique, choisissez des dates qui se terminent avant le début de la location active.</value>
+  </data>
+  <data name="Open active tenancy" xml:space="preserve">
+    <value>Ouvrir la location active</value>
+  </data>
 </root>

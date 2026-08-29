@@ -3,6 +3,7 @@
 @using System
 @using System.Globalization
 @using System.Linq
+@using RentHub.Portal.Helpers
 @{
     ViewData["Title"] = T["Apartment Overview"];
     var canOpenUserOverview = User.IsInRole("Admin") || User.IsInRole("Landlord") || User.IsInRole("Manager");
@@ -132,7 +133,7 @@
             <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@apartment.PropertyId">&#8592; @T["Back to property overview"]</a>
             <p class="rh-kicker">@T["Apartment Workspace"]</p>
             <h1 class="rh-heading-title">@apartment.Name</h1>
-            <p class="rh-heading-subtitle">@apartment.PropertyName - @T[apartment.Type.ToString()] - @T[apartment.Status ?? string.Empty]</p>
+            <p class="rh-heading-subtitle">@apartment.PropertyName - @T[ApartmentTypeDisplayHelper.ResourceKey(apartment.Type)] - @T[apartment.Status ?? string.Empty]</p>
 
             <div class="rh-overview-badges">
                 @if (Model.CanViewFinancialInformation)
@@ -697,7 +698,7 @@
                                 <select class="form-select rh-input rh-select" name="Type">
                                     @foreach (var type in Enum.GetValues<ApartmentTypeEnum>())
                                     {
-                                        <option value="@type" selected="@(string.Equals(apartment.Type, type.ToString(), StringComparison.OrdinalIgnoreCase))">@T[type.ToString()]</option>
+                                        <option value="@((int)type)" selected="@(string.Equals(apartment.Type, type.ToString(), StringComparison.OrdinalIgnoreCase))">@T[ApartmentTypeDisplayHelper.ResourceKey(type)]</option>
                                     }
                                 </select>
                             </div>

@@ -9199,6 +9199,71 @@ body :is(.rh-payment-phone-section.is-pending, .rh-otp-send-panel, .rh-otp-panel
   background: color-mix(in srgb, var(--rh-danger) 10%, var(--rh-surface-strong));
 }
 
+.rh-tenancy-block-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: clamp(1.1rem, 2.4vw, 1.75rem);
+  border-color: color-mix(in srgb, var(--rh-danger) 60%, var(--rh-border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rh-danger) 15%, var(--rh-surface-strong)), var(--rh-surface-strong));
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--rh-danger-solid) 18%, transparent);
+}
+
+.rh-tenancy-block-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid color-mix(in srgb, var(--rh-danger) 52%, var(--rh-border));
+  border-radius: 50%;
+  color: var(--rh-danger);
+  background: color-mix(in srgb, var(--rh-danger) 14%, transparent);
+}
+
+.rh-tenancy-block-icon svg {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
+.rh-tenancy-block-content h2 {
+  margin: 0 0 .55rem;
+  color: var(--rh-danger);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+
+.rh-tenancy-block-content p {
+  margin-bottom: .75rem;
+}
+
+.rh-tenancy-block-content ul {
+  display: grid;
+  gap: .5rem;
+  margin: 0 0 1.1rem;
+  padding-left: 1.3rem;
+}
+
+.rh-tenancy-block-current {
+  display: inline-flex;
+  padding: .45rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--rh-danger) 38%, var(--rh-border));
+  border-radius: 999px;
+  color: var(--rh-danger);
+  background: color-mix(in srgb, var(--rh-danger) 10%, transparent);
+  font-weight: 750;
+}
+
+.rh-tenancy-block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+
+@media (max-width: 575.98px) {
+  .rh-tenancy-block-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
 body :is(.rh-pagination .page-link, .rh-pagination-dark .page-link) {
   color: var(--rh-text);
   border-color: var(--rh-border);

@@ -18,6 +18,7 @@
         : new List<string> { "Rent schedule has not been generated yet." };
     var canContinueFromSchedule = !scheduleErrors.Any();
     var canSubmit = !Model.ValidationErrors.Any()
+        && !Model.HasBlockingOpenEndedTenancy
         && canContinueFromSchedule
         && draft.MonthlyRent > 0
         && draft.MaxMembers >= 1
@@ -107,15 +108,51 @@
         </div>
     </section>
 
-    <section class="rh-panel rh-panel-elevated mb-3">
-        <div class="rh-tenancy-wizard-steps">
-            <span class="@StepClass(1)">@T["1. Details"]</span>
-            <span class="@StepClass(2)">@T["2. Schedule"]</span>
-            <span class="@StepClass(3)">@T["3. Payment history"]</span>
-            <span class="@StepClass(4)">@T["4. Tenant"]</span>
-            <span class="@StepClass(5)">@T["5. Review"]</span>
-        </div>
-    </section>
+    @if (Model.HasBlockingOpenEndedTenancy)
+    {
+        <section class="rh-panel rh-panel-elevated rh-tenancy-block-panel" role="alert" aria-live="assertive">
+            <div class="rh-tenancy-block-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                </svg>
+            </div>
+            <div class="rh-tenancy-block-content">
+                <p class="rh-kicker">@T["Tenancy conflict"]</p>
+                <h2>@T["Another tenancy cannot be added"]</h2>
+                <p>@T["This apartment already has an active tenancy with no end date."]</p>
+                @if (draft.BlockingOpenEndedTenancyStartDate.HasValue)
+                {
+                    <p class="rh-tenancy-block-current">
+                        @T["Active tenancy started on {0}.", LongDateLabel(draft.BlockingOpenEndedTenancyStartDate.Value)]
+                    </p>
+                }
+                <p><strong>@T["To add another tenancy, first use one of these options:"]</strong></p>
+                <ul>
+                    <li>@T["Set an end date for the active tenancy, then start the new tenancy after that date."]</li>
+                    <li>@T["Terminate the active tenancy, then start the new tenancy after the termination date."]</li>
+                    <li>@T["Delete the active tenancy only if it was created by mistake."]</li>
+                    <li>@T["For a historical tenancy, choose dates that end before the active tenancy starts."]</li>
+                </ul>
+                <div class="rh-tenancy-block-actions">
+                    <a class="btn rh-btn-danger" asp-action="Overview" asp-route-id="@draft.BlockingOpenEndedTenancyId">@T["Open active tenancy"]</a>
+                    <a class="btn rh-btn-subtle" asp-controller="Apartments" asp-action="Overview" asp-route-id="@draft.ApartmentId">@T["Back to apartment"]</a>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="rh-tenancy-wizard-steps">
+                <span class="@StepClass(1)">@T["1. Details"]</span>
+                <span class="@StepClass(2)">@T["2. Schedule"]</span>
+                <span class="@StepClass(3)">@T["3. Payment history"]</span>
+                <span class="@StepClass(4)">@T["4. Tenant"]</span>
+                <span class="@StepClass(5)">@T["5. Review"]</span>
+            </div>
+        </section>
 
     @if (Model.ValidationErrors.Any())
     {
@@ -555,6 +592,7 @@
                 </form>
             </div>
         </section>
+    }
     }
 </section>
 

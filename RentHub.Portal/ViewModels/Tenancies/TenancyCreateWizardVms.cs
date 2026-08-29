@@ -31,6 +31,8 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public TenantInvitationRequest MainTenant { get; set; } = new();
         public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
         public List<RentReminderRuleDto> RentReminderRules { get; set; } = new();
+        public int? BlockingOpenEndedTenancyId { get; set; }
+        public DateTimeOffset? BlockingOpenEndedTenancyStartDate { get; set; }
     }
 
     public class TenancyCreateWizardVm
@@ -38,7 +40,8 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public int Step { get; set; } = 1;
         public TenancyCreateDraft Draft { get; set; } = new();
         public List<string> ValidationErrors { get; set; } = new();
-        public bool CanContinue => ValidationErrors.Count == 0;
+        public bool HasBlockingOpenEndedTenancy => Draft.BlockingOpenEndedTenancyId.HasValue;
+        public bool CanContinue => ValidationErrors.Count == 0 && !HasBlockingOpenEndedTenancy;
     }
 
     public class TenancyDetailsStepVm

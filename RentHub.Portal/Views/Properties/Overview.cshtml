@@ -3,6 +3,7 @@
 @using System
 @using System.Globalization
 @using System.Linq
+@using RentHub.Portal.Helpers
 @{
     ViewData["Title"] = T["Property Overview"];
 
@@ -326,7 +327,7 @@
                                 <div class="rh-unit-card-head">
                                     <div>
                                         <h3>@unit.Name</h3>
-                                        <small>@T[unit.Type.ToString()]</small>
+                                        <small>@T[ApartmentTypeDisplayHelper.ResourceKey(unit.Type.ToString())]</small>
                                     </div>
                                     <span class="rh-chip @(((unit.Status ?? string.Empty).Contains("available", StringComparison.OrdinalIgnoreCase)) ? "rh-chip-primary" : "rh-chip-info")">@T[unit.Status ?? string.Empty]</span>
                                 </div>
@@ -475,7 +476,7 @@
                                 <select class="form-select rh-input rh-select" name="Type">
                                     @foreach (var type in Enum.GetValues<ApartmentTypeEnum>())
                                     {
-                                        <option value="@type">@T[type.ToString()]</option>
+                                        <option value="@((int)type)">@T[ApartmentTypeDisplayHelper.ResourceKey(type)]</option>
                                     }
                                 </select>
                             </div>
