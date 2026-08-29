@@ -41,7 +41,6 @@ namespace Common.CommunicationModels
         public int RentDueDay { get; set; } = 1;
         public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int FutureRentPeriodCount { get; set; } = 1;
         public DateTimeOffset RentTrackingStartDate { get; set; }
         public bool RentScheduleNeedsReview { get; set; }
         public bool CanCorrectRentSchedule { get; set; }

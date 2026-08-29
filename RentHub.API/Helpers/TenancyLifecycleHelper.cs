@@ -201,7 +201,6 @@ namespace RentHub.API.Helpers
                 tenancy.MonthlyRent,
                 tenancy.RentDueDay,
                 nowUtc,
-                tenancy.FutureRentPeriodCount,
                 tenancy.PaymentIntervalMonths,
                 tenancy.RentTrackingStartDate == default ? tenancy.StartDate : tenancy.RentTrackingStartDate);
 
@@ -257,7 +256,6 @@ namespace RentHub.API.Helpers
                 tenancy.MonthlyRent,
                 tenancy.RentDueDay,
                 nowUtc,
-                tenancy.FutureRentPeriodCount,
                 tenancy.PaymentIntervalMonths,
                 tenancy.RentTrackingStartDate == default ? tenancy.StartDate : tenancy.RentTrackingStartDate)
                 .OrderBy(period => period.PeriodStart)

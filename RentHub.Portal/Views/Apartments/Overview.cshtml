@@ -707,7 +707,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">@T["Monthly rent"]</label>
-                                <input class="form-control rh-input" name="Price" type="number" min="0" step="0.01" value="@apartment.Price.ToString(CultureInfo.InvariantCulture)" required />
+                                <input class="form-control rh-input" name="Price" type="text" inputmode="decimal" value="@apartment.Price.ToString("0.##", CultureInfo.CurrentCulture)" required data-localized-decimal />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">@T["Floor"]</label>
@@ -762,10 +762,10 @@
                             {
                                 <div class="col-md-6">
                                     <label class="form-label">@T["Monthly rent"] @if (Model.CanEditFinancialInformation) { <span class="text-danger" aria-hidden="true">*</span> }</label>
-                                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@tenancy.MonthlyRent" disabled="@(!Model.CanEditFinancialInformation)" required data-edit-monthly-rent />
+                                    <input class="form-control rh-input" type="text" inputmode="decimal" name="MonthlyRent" value="@tenancy.MonthlyRent.ToString("0.##", CultureInfo.CurrentCulture)" disabled="@(!Model.CanEditFinancialInformation)" required data-localized-decimal data-edit-monthly-rent />
                                     @if (!Model.CanEditFinancialInformation)
                                     {
-                                        <input type="hidden" name="MonthlyRent" value="@tenancy.MonthlyRent" />
+                                        <input type="hidden" name="MonthlyRent" value="@tenancy.MonthlyRent.ToString(CultureInfo.InvariantCulture)" />
                                     }
                                 </div>
                             }
@@ -799,6 +799,7 @@
                                         }
                                     </select>
                                 </div>
+                                <small class="text-muted">@T["The payment frequency automatically determines and provisions each complete payment group."]</small>
                             </div>
 
                             <div class="col-md-6">
@@ -809,21 +810,8 @@
                                         <option value="ExpireAutomatically" selected="@(tenancy.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "selected" : null)">@T["Expire automatically"]</option>
                                     </select>
                                 </div>
-                                <small class="text-muted" data-edit-no-end-copy>@T["The tenancy stays active until it is terminated. When the final period is reached, the rent schedule is automatically extended by the selected number of months."]</small>
+                                <small class="text-muted" data-edit-no-end-copy>@T["The tenancy stays active until it is terminated. The rent schedule automatically maintains the next complete payment group."]</small>
                                 <small class="text-muted" data-edit-expiry-copy hidden>@T["No new rent is generated automatically after the end date."]</small>
-                            </div>
-
-                            <div class="col-md-6" data-edit-auto-extension-container>
-                                <label class="form-label">@T["Future rent-period horizon"] <span class="text-danger" aria-hidden="true">*</span></label>
-                                <div class="rh-select-wrap">
-                                    <select class="form-select rh-input rh-select" name="FutureRentPeriodCount" required data-edit-auto-extension>
-                                        @for (var monthCount = 1; monthCount <= 12; monthCount++)
-                                        {
-                                            <option value="@monthCount" selected="@(tenancy.FutureRentPeriodCount == monthCount ? "selected" : null)">@T["{0} month(s)", monthCount]</option>
-                                        }
-                                    </select>
-                                </div>
-                                <small class="text-muted">@T["Number of future monthly periods kept for an open-ended tenancy."]</small>
                             </div>
                         </div>
 
@@ -1150,8 +1138,6 @@
                 const membersInput = form.querySelector("[data-edit-max-members]");
                 const dueDayInput = form.querySelector("[data-edit-rent-due-day]");
                 const paymentIntervalInput = form.querySelector("[data-edit-payment-interval]");
-                const extensionContainer = form.querySelector("[data-edit-auto-extension-container]");
-                const extensionInput = form.querySelector("[data-edit-auto-extension]");
                 const noEndCopy = form.querySelector("[data-edit-no-end-copy]");
                 const expiryCopy = form.querySelector("[data-edit-expiry-copy]");
                 const submitButton = form.querySelector("[data-edit-tenancy-submit]");
@@ -1168,29 +1154,21 @@
                         if (noEndDate) endInput.value = "";
                     }
                     if (endRequiredMarker) endRequiredMarker.hidden = noEndDate;
-                    if (extensionContainer) extensionContainer.hidden = !noEndDate;
-                    if (extensionInput) {
-                        extensionInput.disabled = !noEndDate;
-                        extensionInput.required = noEndDate;
-                    }
                     if (noEndCopy) noEndCopy.hidden = !noEndDate;
                     if (expiryCopy) expiryCopy.hidden = noEndDate;
 
-                    const rent = Number.parseFloat(rentInput?.value ?? "");
+                    const rent = window.rhDecimals?.parse(rentInput?.value ?? "") ?? Number.NaN;
                     const members = Number.parseInt(membersInput?.value ?? "", 10);
                     const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
                     const paymentInterval = Number.parseInt(paymentIntervalInput?.value ?? "", 10);
-                    const extensionMonths = Number.parseInt(extensionInput?.value ?? "", 10);
                     const rentIsValid = !rentInput || rentInput.disabled || (Number.isFinite(rent) && rent > 0);
                     const dateRangeIsValid = noEndDate || (!!endInput?.value && (!start || endInput.value >= start));
-                    const extensionIsValid = !noEndDate || (Number.isInteger(extensionMonths) && extensionMonths >= 1 && extensionMonths <= 12);
                     const isValid = !!start
                         && dateRangeIsValid
                         && rentIsValid
                         && Number.isInteger(members) && members >= 1
                         && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
                         && Number.isInteger(paymentInterval) && paymentInterval >= 1 && paymentInterval <= 12
-                        && extensionIsValid
                         && form.checkValidity();
 
                     if (submitButton) {

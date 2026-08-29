@@ -17,7 +17,7 @@
         <div class="col-md-4"><label asp-for="PropertyCount" class="form-label">Properties to manage</label><input asp-for="PropertyCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="PropertyCount" class="text-danger d-block"></span></div>
         <div class="col-md-4"><label asp-for="ApartmentCount" class="form-label">Apartments to manage</label><input asp-for="ApartmentCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="ApartmentCount" class="text-danger d-block"></span></div>
         <div class="col-md-4"><label asp-for="TenantCount" class="form-label">Tenants to manage</label><input asp-for="TenantCount" type="number" class="form-control rh-input" min="1" step="1" inputmode="numeric" required /><span asp-validation-for="TenantCount" class="text-danger d-block"></span></div>
-        <div class="col-md-6"><label asp-for="ProposedMonthlyPrice" class="form-label">Proposed monthly price</label><input asp-for="ProposedMonthlyPrice" type="number" class="form-control rh-input" min="0.01" step="0.01" inputmode="decimal" required /><span asp-validation-for="ProposedMonthlyPrice" class="text-danger d-block"></span></div>
+        <div class="col-md-6"><label asp-for="ProposedMonthlyPrice" class="form-label">Proposed monthly price</label><input asp-for="ProposedMonthlyPrice" type="text" class="form-control rh-input" inputmode="decimal" required data-localized-decimal /><span asp-validation-for="ProposedMonthlyPrice" class="text-danger d-block"></span></div>
         <div class="col-md-6">
             <label asp-for="CommitmentMonths" class="form-label">Number of months</label>
             <input asp-for="CommitmentMonths" type="number" class="form-control rh-input" min="6" max="1200" step="1" inputmode="numeric" required aria-describedby="commitment-months-error commitment-months-help" />
@@ -67,7 +67,7 @@
 
             const updateForm = () => {
                 validateMonths();
-                const price = priceInput.valueAsNumber;
+                const price = window.rhDecimals?.parse(priceInput.value) ?? Number.NaN;
                 const months = monthsInput.valueAsNumber;
                 totalOutput.textContent = Number.isFinite(price) && price > 0 && Number.isInteger(months) && months >= 6
                     ? formatter.format(price * months)

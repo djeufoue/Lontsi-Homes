@@ -390,7 +390,6 @@ namespace RentHub.API.Controllers
                         EndBehavior = normalizedEndDate.HasValue
                             ? TenancyEndBehaviorEnum.ExpireAutomatically
                             : TenancyEndBehaviorEnum.NoEndDate,
-                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                         RentTrackingStartDate = replacementStartDate,
                         CreatedBy = userId,
                         CreatedAt = nowUtc
@@ -417,7 +416,6 @@ namespace RentHub.API.Controllers
                                  replacement.MonthlyRent,
                                  replacement.RentDueDay,
                                  nowUtc,
-                                 replacement.FutureRentPeriodCount,
                                  replacement.PaymentIntervalMonths,
                                  replacement.RentTrackingStartDate))
                     {

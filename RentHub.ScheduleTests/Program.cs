@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using RentHub.API.Data;
+using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using System.ComponentModel.DataAnnotations;
 
@@ -18,14 +19,16 @@ var tests = new (string Name, Action Run)[]
     ("Payment intervals 1, 2, 3, 6 and 12", TestPaymentIntervals),
     ("Fixed quarterly tenancy and shortened final group", TestFixedTermFinalGroup),
     ("Tracking start omits covered history", TestTrackingStart),
-    ("Up-to-date monthly tenancy starts with one requested future period", TestUpToDateMonthlyHorizon),
-    ("Open tenancy completes the next payment group", TestOpenEndedHorizon),
+    ("Up-to-date monthly tenancy provisions the next payment group", TestUpToDateMonthlyGroup),
+    ("Open tenancy provisions current and next complete payment groups", TestOpenEndedPaymentGroups),
     ("Quarterly balances are 90k, 60k, 30k and zero", TestQuarterlyBalances),
+    ("Tenant payment selects the complete oldest outstanding group", TestTenantPaymentGroupSelection),
     ("Billing-group identity does not depend on payment status", TestStableGroupIdentity),
     ("One itemized PDF receipt covers multiple periods", TestItemizedReceiptPdf),
     ("Apartment floors accept only 0 through 30", TestApartmentFloorValidation),
     ("New managers can edit apartments by default", TestManagerDefaultPermission),
     ("Phone inputs remove all whitespace before validation", TestPhoneNumberNormalization),
+    ("French and English decimal amounts parse identically", TestFlexibleDecimalAmounts),
     ("Production migration repairs partially-applied columns", TestProductionMigrationGuards),
     ("EF migration snapshot matches the current model", TestMigrationModel)
 };
@@ -114,28 +117,31 @@ static void TestTrackingStart()
     var trackingStart = Utc(2026, 8, 15);
     var periods = RentPeriodScheduleHelper.GeneratePeriods(
         tenancyStart, null, TenancyEndBehaviorEnum.NoEndDate, 30_000, 15,
-        Utc(2026, 8, 23), 2, 3, trackingStart);
+        Utc(2026, 8, 23), 3, trackingStart);
     Equal(trackingStart.Date, periods[0].PeriodStart.Date, "first tracked period");
     True(periods.All(period => period.PeriodStart.Date >= trackingStart.Date), "covered history omitted");
+    Equal(4, periods.Count, "partial current quarter plus one complete future quarter");
+    Equal(3, periods.Count(period => period.BillingGroupSequence == 8), "next quarterly group is complete");
 }
 
-static void TestOpenEndedHorizon()
+static void TestOpenEndedPaymentGroups()
 {
     var periods = RentPeriodScheduleHelper.GeneratePeriods(
         Utc(2026, 8, 15), null, TenancyEndBehaviorEnum.NoEndDate, 30_000, 15,
-        Utc(2026, 8, 23), 1, 6, Utc(2026, 8, 15));
-    True(periods.Count >= 6, "horizon completes semiannual group");
+        Utc(2026, 8, 23), 6, Utc(2026, 8, 15));
+    Equal(12, periods.Count, "current and next semiannual groups are provisioned");
     Equal(6, periods.Count(period => period.BillingGroupSequence == 0), "first semiannual group complete");
+    Equal(6, periods.Count(period => period.BillingGroupSequence == 1), "next semiannual group complete");
 }
 
-static void TestUpToDateMonthlyHorizon()
+static void TestUpToDateMonthlyGroup()
 {
     var start = Utc(2024, 9, 15);
     var now = Utc(2026, 8, 23);
     var trackingStart = RentPeriodScheduleHelper.ResolveNextBillingGroupStart(start, now, 1);
     var periods = RentPeriodScheduleHelper.GeneratePeriods(
         start, null, TenancyEndBehaviorEnum.NoEndDate, 30_000, 15,
-        now, 1, 1, trackingStart);
+        now, 1, trackingStart);
     Equal(1, periods.Count, "one future monthly period");
     Equal(trackingStart.Date, periods[0].PeriodStart.Date, "next monthly group starts tracking");
 }
@@ -150,6 +156,42 @@ static void TestQuarterlyBalances()
     Equal(30_000m, Balance(group), "after two months");
     group[2].PaidAmount = 30_000;
     Equal(0m, Balance(group), "fully paid");
+}
+
+static void TestTenantPaymentGroupSelection()
+{
+    var periods = Fixed(Utc(2024, 9, 15), Utc(2025, 3, 14), 3)
+        .Select((period, index) => new RentPeriod
+        {
+            Id = index + 1,
+            PeriodStart = period.PeriodStart,
+            PeriodEnd = period.PeriodEnd,
+            DueDate = period.DueDate,
+            BillingGroupSequence = period.BillingGroupSequence,
+            Amount = period.Amount,
+            PaidAmount = period.PaidAmount,
+            Status = period.Status
+        })
+        .ToList();
+
+    var firstGroup = RentPaymentGroupHelper.SelectOldestOutstandingGroup(periods);
+    Equal(3, firstGroup.Count, "complete first quarter selected");
+    Equal(90_000m, Balance(firstGroup.Select(period => new RentPeriodSeedDto
+    {
+        Amount = period.Amount,
+        PaidAmount = period.PaidAmount
+    })), "complete first-quarter balance");
+
+    periods[0].Status = RentPeriodStatusEnum.Paid;
+    periods[0].PaidAmount = periods[0].Amount;
+    var remainingFirstGroup = RentPaymentGroupHelper.SelectOldestOutstandingGroup(periods);
+    Equal(2, remainingFirstGroup.Count, "only unpaid periods in the oldest group selected");
+
+    periods[1].Status = RentPeriodStatusEnum.Paid;
+    periods[2].Status = RentPeriodStatusEnum.Paid;
+    var nextGroup = RentPaymentGroupHelper.SelectOldestOutstandingGroup(periods);
+    Equal(3, nextGroup.Count, "next complete quarter selected after the first is settled");
+    Equal(1, nextGroup.Select(period => period.BillingGroupSequence).Distinct().Count(), "selection never crosses billing groups");
 }
 
 static void TestStableGroupIdentity()
@@ -277,6 +319,29 @@ static void TestPhoneNumberNormalization()
     True(IsValid(tenancyMember), "normalized tenancy member phone fields should remain valid");
 }
 
+static void TestFlexibleDecimalAmounts()
+{
+    foreach (var sample in new[]
+             {
+                 "70000",
+                 "70000.00",
+                 "70000,00",
+                 "70 000,00",
+                 "70\u00a0000,00",
+                 "70\u202f000,00",
+                 "70,000.00",
+                 "70.000,00"
+             })
+    {
+        True(FlexibleDecimalParser.TryParse(sample, out var parsed), $"parse {sample}");
+        Equal(70_000m, parsed, $"value {sample}");
+    }
+
+    True(FlexibleDecimalParser.TryParse("0,50", out var fractional), "parse French fraction");
+    Equal(0.50m, fractional, "French fraction value");
+    True(!FlexibleDecimalParser.TryParse("70 000 XAF", out _), "currency suffix rejected");
+}
+
 static bool IsValid(object value)
 {
     var results = new List<ValidationResult>();
@@ -286,7 +351,7 @@ static bool IsValid(object value)
 static List<RentPeriodSeedDto> Fixed(DateTimeOffset start, DateTimeOffset end, int interval)
     => RentPeriodScheduleHelper.GeneratePeriods(
         start, end, TenancyEndBehaviorEnum.ExpireAutomatically, 30_000, start.Day,
-        Utc(2024, 9, 1), 1, interval, start);
+        Utc(2024, 9, 1), interval, start);
 
 static decimal Balance(IEnumerable<RentPeriodSeedDto> periods)
     => periods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount));

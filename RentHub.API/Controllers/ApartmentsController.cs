@@ -239,7 +239,6 @@ namespace RentHub.API.Controllers
                         RentDueDay = tenancy.RentDueDay,
                         PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                         EndBehavior = tenancy.EndBehavior,
-                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                         RentTrackingStartDate = tenancy.RentTrackingStartDate,
                         RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                         TerminatedAt = tenancy.TerminatedAt,

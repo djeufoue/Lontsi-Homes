@@ -9,6 +9,7 @@ using RentHub.Portal;
 using RentHub.Portal.Hubs;
 using RentHub.Portal.Localization;
 using RentHub.Portal.Middleware;
+using RentHub.Portal.ModelBinding;
 using RentHub.Portal.Services;
 using System.IO;
 
@@ -24,6 +25,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services
     .AddControllersWithViews()
+    .AddMvcOptions(options =>
+    {
+        options.ModelBinderProviders.Insert(0, new FlexibleDecimalModelBinderProvider());
+    })
     .AddViewLocalization(LanguageViewLocationExpanderFormat.Suffix)
     .AddDataAnnotationsLocalization(options =>
     {

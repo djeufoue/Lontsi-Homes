@@ -1870,4 +1870,22 @@
   <data name="Latest payment received on {0}" xml:space="preserve">
     <value>Dernier paiement reçu le {0}</value>
   </data>
+  <data name="The payment frequency automatically determines and provisions each complete payment group." xml:space="preserve">
+    <value>La fréquence de paiement détermine et crée automatiquement chaque groupe de paiement complet.</value>
+  </data>
+  <data name="The tenancy stays active until it is terminated. The rent schedule automatically maintains the next complete payment group." xml:space="preserve">
+    <value>La location demeure active jusqu’à sa résiliation. L’échéancier maintient automatiquement le prochain groupe de paiement complet.</value>
+  </data>
+  <data name="Oldest outstanding payment group" xml:space="preserve">
+    <value>Plus ancien groupe de paiement à régler</value>
+  </data>
+  <data name="{0} monthly period(s) · {1:N0} XAF due" xml:space="preserve">
+    <value>{0} période(s) mensuelle(s) · {1:N0} XAF à payer</value>
+  </data>
+  <data name="Pay {0:N0} XAF" xml:space="preserve">
+    <value>Payer {0:N0} XAF</value>
+  </data>
+  <data name="Enter a valid amount using a comma or a period as the decimal separator." xml:space="preserve">
+    <value>Entrez un montant valide en utilisant une virgule ou un point comme séparateur décimal.</value>
+  </data>
 </root>

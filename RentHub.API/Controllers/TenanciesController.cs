@@ -98,7 +98,6 @@ namespace RentHub.API.Controllers
                         RentDueDay = t.RentDueDay,
                         PaymentIntervalMonths = t.PaymentIntervalMonths,
                         EndBehavior = t.EndBehavior,
-                        FutureRentPeriodCount = t.FutureRentPeriodCount,
                         RentTrackingStartDate = t.RentTrackingStartDate,
                         RentScheduleNeedsReview = t.RentScheduleNeedsReview,
                         TerminatedAt = t.TerminatedAt,
@@ -174,9 +173,6 @@ namespace RentHub.API.Controllers
                 if (request.RentDueDay is < 1 or > 31)
                     return BadRequest("RentDueDay must be between 1 and 31.");
 
-                if (request.FutureRentPeriodCount is < 1 or > 12)
-                    return BadRequest("FutureRentPeriodCount must be between 1 and 12.");
-
                 if (request.PaymentIntervalMonths is < 1 or > 12)
                     return BadRequest("PaymentIntervalMonths must be between 1 and 12.");
 
@@ -197,7 +193,6 @@ namespace RentHub.API.Controllers
                     RentDueDay = request.RentDueDay,
                     PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    FutureRentPeriodCount = request.FutureRentPeriodCount,
                     RentTrackingStartDate = request.RentTrackingStartDate ?? request.StartDate,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -214,7 +209,6 @@ namespace RentHub.API.Controllers
                     tenancy.MonthlyRent,
                     tenancy.RentDueDay,
                     DateTimeOffset.UtcNow,
-                    tenancy.FutureRentPeriodCount,
                     tenancy.PaymentIntervalMonths,
                     tenancy.RentTrackingStartDate);
                 _context.RentPeriods.AddRange(generatedPeriods.Select(period => new RentPeriod
@@ -244,7 +238,6 @@ namespace RentHub.API.Controllers
                     RentDueDay = tenancy.RentDueDay,
                     PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                     EndBehavior = tenancy.EndBehavior,
-                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                     RentTrackingStartDate = tenancy.RentTrackingStartDate,
                     Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                     IsOwner = apartment.Property.LandlordId == userId
@@ -277,9 +270,6 @@ namespace RentHub.API.Controllers
 
                 var normalizedEndBehavior = NormalizeEndBehavior(request.EndBehavior);
                 var normalizedEndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : request.EndDate;
-
-                if (request.FutureRentPeriodCount is < 1 or > 12)
-                    return BadRequest("Future rent-period count must be between 1 and 12.");
 
                 if (request.PaymentIntervalMonths is < 1 or > 12)
                     return BadRequest("Payment interval must be between 1 and 12 months.");
@@ -354,7 +344,6 @@ namespace RentHub.API.Controllers
                     RentDueDay = request.RentDueDay,
                     PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    FutureRentPeriodCount = request.FutureRentPeriodCount,
                     RentTrackingStartDate = trackingStart,
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow,
@@ -418,7 +407,6 @@ namespace RentHub.API.Controllers
                     RentDueDay = tenancy.RentDueDay,
                     PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                     EndBehavior = tenancy.EndBehavior,
-                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                     RentTrackingStartDate = tenancy.RentTrackingStartDate,
                     Status = ResolveTenancyStatus(tenancy, DateTimeOffset.UtcNow),
                     IsOwner = apartment.Property.LandlordId == userId
@@ -479,8 +467,7 @@ namespace RentHub.API.Controllers
                 if (!canEditFinancialInformation &&
                     (request.MonthlyRent != tenancy.MonthlyRent ||
                      request.RentDueDay != tenancy.RentDueDay ||
-                     request.PaymentIntervalMonths != tenancy.PaymentIntervalMonths ||
-                     request.FutureRentPeriodCount != tenancy.FutureRentPeriodCount))
+                     request.PaymentIntervalMonths != tenancy.PaymentIntervalMonths))
                     return Forbid();
 
                 var normalizedEndBehavior = NormalizeEndBehavior(request.EndBehavior);
@@ -494,9 +481,6 @@ namespace RentHub.API.Controllers
 
                 if (request.RentDueDay is < 1 or > 31)
                     return BadRequest("RentDueDay must be between 1 and 31.");
-
-                if (request.FutureRentPeriodCount is < 1 or > 12)
-                    return BadRequest("FutureRentPeriodCount must be between 1 and 12.");
 
                 if (request.PaymentIntervalMonths is < 1 or > 12)
                     return BadRequest("PaymentIntervalMonths must be between 1 and 12.");
@@ -520,7 +504,6 @@ namespace RentHub.API.Controllers
                     tenancy.MonthlyRent != request.MonthlyRent ||
                     tenancy.RentDueDay != request.RentDueDay ||
                     tenancy.PaymentIntervalMonths != request.PaymentIntervalMonths ||
-                    tenancy.FutureRentPeriodCount != request.FutureRentPeriodCount ||
                     (request.RentTrackingStartDate != default &&
                      tenancy.RentTrackingStartDate != request.RentTrackingStartDate);
 
@@ -534,7 +517,6 @@ namespace RentHub.API.Controllers
                 tenancy.RentDueDay = request.RentDueDay;
                 tenancy.PaymentIntervalMonths = request.PaymentIntervalMonths;
                 tenancy.EndBehavior = normalizedEndBehavior;
-                tenancy.FutureRentPeriodCount = request.FutureRentPeriodCount;
                 tenancy.RentTrackingStartDate = request.RentTrackingStartDate == default
                     ? tenancy.RentTrackingStartDate
                     : request.RentTrackingStartDate;
@@ -726,7 +708,6 @@ namespace RentHub.API.Controllers
                         RentDueDay = t.RentDueDay,
                         PaymentIntervalMonths = t.PaymentIntervalMonths,
                         EndBehavior = t.EndBehavior,
-                        FutureRentPeriodCount = t.FutureRentPeriodCount,
                         RentTrackingStartDate = t.RentTrackingStartDate,
                         RentScheduleNeedsReview = t.RentScheduleNeedsReview,
                         TerminatedAt = t.TerminatedAt,
@@ -1154,7 +1135,6 @@ namespace RentHub.API.Controllers
                         RentDueDay = tenancy.RentDueDay,
                         PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                         EndBehavior = tenancy.EndBehavior,
-                        FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                         RentTrackingStartDate = tenancy.RentTrackingStartDate,
                         RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                         CanCorrectRentSchedule = isPropertyLandlord && tenancy.RentScheduleNeedsReview,
@@ -1445,7 +1425,6 @@ namespace RentHub.API.Controllers
                                 RentDueDay = tenancy.RentDueDay,
                                 PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                                 EndBehavior = tenancy.EndBehavior,
-                                FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                                 RentTrackingStartDate = tenancy.RentTrackingStartDate,
                                 RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
                                 TerminatedAt = tenancy.TerminatedAt,
@@ -1809,11 +1788,19 @@ namespace RentHub.API.Controllers
                                  period.DueDate <= nowUtc)
                 .OrderBy(period => period.DueDate)
                 .ToList();
-            var nextPeriod = periods
+            var nextDueDate = periods
                 .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)) &&
                                  period.DueDate > nowUtc)
                 .OrderBy(period => period.DueDate)
+                .Select(period => (DateTimeOffset?)period.DueDate)
                 .FirstOrDefault();
+            var nextPeriods = nextDueDate.HasValue
+                ? periods
+                    .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)) &&
+                                     period.DueDate == nextDueDate.Value)
+                    .OrderBy(period => period.PeriodStart)
+                    .ToList()
+                : new List<RentPeriod>();
             var successfulReminders = reminders
                 .Where(reminder => !reminder.InvalidatedAt.HasValue &&
                     reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent)
@@ -1867,10 +1854,12 @@ namespace RentHub.API.Controllers
             LastPaidPeriodStart = lastPaid?.PeriodStart,
             LastPaidPeriodEnd = lastPaid?.PeriodEnd,
             LastPaidAt = lastPaidAt,
-                NextPeriodStart = nextPeriod?.PeriodStart,
-                NextPeriodEnd = nextPeriod?.PeriodEnd,
-                NextPeriodDueDate = nextPeriod?.DueDate,
-                NextPeriodAmount = nextPeriod?.Amount,
+                NextPeriodStart = nextPeriods.FirstOrDefault()?.PeriodStart,
+                NextPeriodEnd = nextPeriods.LastOrDefault()?.PeriodEnd,
+                NextPeriodDueDate = nextDueDate,
+                NextPeriodAmount = nextPeriods.Count == 0
+                    ? null
+                    : nextPeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)),
                 LastReminderSentAt = lastReminder?.SentAt,
                 LastReminderCategory = lastReminder?.Category,
                 ReminderCount = successfulReminders.Count,

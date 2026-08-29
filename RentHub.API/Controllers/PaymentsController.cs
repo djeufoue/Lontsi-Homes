@@ -301,11 +301,6 @@ namespace RentHub.API.Controllers
                     return BadRequest("TenancyId is required.");
                 }
 
-                if (request.NumberOfPeriods <= 0)
-                {
-                    return BadRequest("NumberOfPeriods must be at least 1.");
-                }
-
                 var currentUserId = UserHelpers.GetUserId(User);
                 if (string.IsNullOrWhiteSpace(currentUserId))
                 {
@@ -361,29 +356,29 @@ namespace RentHub.API.Controllers
                     return BadRequest(new { Message = BuildPaymentMethodMismatchMessage(paymentAvailability.Method) });
                 }
 
-                var openPeriods = tenancy.RentPeriods
-                    .Where(period =>
-                        !period.IsDeleted &&
-                        !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
-                    .OrderBy(period => period.PeriodStart)
-                    .ToList();
-
-                var firstOpenPeriod = openPeriods.FirstOrDefault();
-                if (firstOpenPeriod?.Status == RentPeriodStatusEnum.PendingPayment)
+                var firstOpenGroup = RentPaymentGroupHelper.SelectOldestOutstandingGroup(tenancy.RentPeriods);
+                if (firstOpenGroup.Count == 0)
                 {
-                    if (request.Method == PaymentMethodEnum.Card && firstOpenPeriod.PaymentId.HasValue)
+                    return BadRequest("There is no unpaid rent period to pay.");
+                }
+
+                var pendingPaymentPeriod = firstOpenGroup
+                    .FirstOrDefault(period => period.Status == RentPeriodStatusEnum.PendingPayment);
+                if (pendingPaymentPeriod != null)
+                {
+                    if (request.Method == PaymentMethodEnum.Card && pendingPaymentPeriod.PaymentId.HasValue)
                     {
                         var pendingPayment = await _context.Payments
                             .IgnoreQueryFilters()
                             .FirstOrDefaultAsync(payment =>
-                                payment.Id == firstOpenPeriod.PaymentId.Value &&
+                                payment.Id == pendingPaymentPeriod.PaymentId.Value &&
                                 payment.TenantId == currentUserId &&
                                 payment.Status == PaymentStatusEnum.Pending &&
                                 !payment.IsDeleted);
 
                         if (pendingPayment != null && IsStripeCheckoutSessionId(pendingPayment.TransactionId))
                         {
-                            var pendingPeriods = openPeriods
+                            var pendingPeriods = firstOpenGroup
                                 .Where(period => period.PaymentId == pendingPayment.Id)
                                 .OrderBy(period => period.PeriodStart)
                                 .ToList();
@@ -403,20 +398,7 @@ namespace RentHub.API.Controllers
                     return BadRequest(new { Message = "A previous rent payment is still pending. Please complete or retry that payment before paying another period." });
                 }
 
-                var payablePeriods = openPeriods
-                    .Where(period => period.Status != RentPeriodStatusEnum.PendingPayment)
-                    .Take(request.NumberOfPeriods)
-                    .ToList();
-
-                if (payablePeriods.Count == 0)
-                {
-                    return BadRequest("There is no unpaid rent period to pay.");
-                }
-
-                if (payablePeriods.Count < request.NumberOfPeriods)
-                {
-                    return BadRequest($"Only {payablePeriods.Count} unpaid rent period(s) are available.");
-                }
+                var payablePeriods = firstOpenGroup;
 
                 var totalAmount = payablePeriods.Sum(period => period.Amount - period.PaidAmount);
                 if (totalAmount <= 0)
@@ -430,7 +412,7 @@ namespace RentHub.API.Controllers
                     LandlordId = tenancy.Apartment.Property.LandlordId,
                     Amount = totalAmount,
                     Method = request.Method,
-                    NumberOfPeriods = request.NumberOfPeriods,
+                    NumberOfPeriods = payablePeriods.Count,
                     IdempotencyKey = $"rent-periods:{request.TenancyId}:{string.Join(",", payablePeriods.Select(period => period.Id))}"
                 };
 

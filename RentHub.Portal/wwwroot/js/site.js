@@ -6,6 +6,108 @@
     });
     return value;
   };
+
+  const normalizeLocalizedDecimal = (rawValue) => {
+    let compact = String(rawValue ?? "")
+      .trim()
+      .replace(/[\s\u00a0\u202f'’]/g, "");
+    if (!compact) return null;
+
+    let sign = "";
+    if (compact.startsWith("+") || compact.startsWith("-")) {
+      sign = compact[0];
+      compact = compact.slice(1);
+    }
+    if (!compact || /[^0-9.,]/.test(compact)) return null;
+
+    const separatorIndexes = (separator) => Array.from(compact)
+      .map((character, index) => character === separator ? index : -1)
+      .filter((index) => index >= 0);
+    const dots = separatorIndexes(".");
+    const commas = separatorIndexes(",");
+    let decimalIndex = null;
+
+    if (dots.length && commas.length) {
+      decimalIndex = Math.max(dots[dots.length - 1], commas[commas.length - 1]);
+    } else {
+      const indexes = dots.length ? dots : commas;
+      if (indexes.length) {
+        const digitsAfterLastSeparator = compact.length - indexes[indexes.length - 1] - 1;
+        if (digitsAfterLastSeparator === 1 || digitsAfterLastSeparator === 2) {
+          decimalIndex = indexes[indexes.length - 1];
+        } else if (digitsAfterLastSeparator === 0) {
+          return null;
+        }
+      }
+    }
+
+    const stripSeparators = (value) => value.replace(/[.,]/g, "");
+    let integerPart = decimalIndex === null
+      ? stripSeparators(compact)
+      : stripSeparators(compact.slice(0, decimalIndex));
+    const fractionalPart = decimalIndex === null
+      ? ""
+      : stripSeparators(compact.slice(decimalIndex + 1));
+
+    if ((!integerPart && !fractionalPart) ||
+        (integerPart && /\D/.test(integerPart)) ||
+        (fractionalPart && /\D/.test(fractionalPart))) {
+      return null;
+    }
+
+    integerPart = integerPart || "0";
+    return `${sign}${integerPart}${fractionalPart ? `.${fractionalPart}` : ""}`;
+  };
+
+  const parseLocalizedDecimal = (rawValue) => {
+    const normalized = normalizeLocalizedDecimal(rawValue);
+    if (normalized === null) return Number.NaN;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  };
+
+  window.rhDecimals = Object.freeze({
+    normalize: normalizeLocalizedDecimal,
+    parse: parseLocalizedDecimal
+  });
+
+  const localizedDecimalInput = (target) => target instanceof Element
+    ? target.closest("[data-localized-decimal]")
+    : null;
+
+  document.addEventListener("input", (event) => {
+    const input = localizedDecimalInput(event.target);
+    if (!input) return;
+    const hasValue = input.value.trim().length > 0;
+    input.setCustomValidity(
+      hasValue && normalizeLocalizedDecimal(input.value) === null
+        ? t("Enter a valid amount using a comma or a period as the decimal separator.")
+        : "");
+  }, true);
+
+  document.addEventListener("blur", (event) => {
+    const input = localizedDecimalInput(event.target);
+    if (!input || !input.value.trim()) return;
+    const normalized = normalizeLocalizedDecimal(input.value);
+    if (normalized !== null) {
+      input.value = normalized;
+      input.setCustomValidity("");
+    }
+  }, true);
+
+  document.addEventListener("submit", (event) => {
+    const form = event.target.closest("form");
+    if (!form) return;
+    form.querySelectorAll("[data-localized-decimal]").forEach((input) => {
+      if (!input.value.trim()) return;
+      const normalized = normalizeLocalizedDecimal(input.value);
+      if (normalized !== null) {
+        input.value = normalized;
+        input.setCustomValidity("");
+      }
+    });
+  }, true);
+
   const body = document.body;
   const toggle = document.getElementById("rhSidebarToggle");
   const sidebar = document.getElementById("rhSidebar");

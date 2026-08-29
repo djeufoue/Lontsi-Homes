@@ -22,7 +22,6 @@
         && draft.MonthlyRent > 0
         && draft.MaxMembers >= 1
         && draft.RentDueDay is >= 1 and <= 31
-        && draft.FutureRentPeriodCount is >= 1 and <= 12
         && draft.PaymentIntervalMonths is >= 1 and <= 12
         && draft.HasSelectedImportMode
         && draft.ImportMode.HasValue
@@ -154,7 +153,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">@T["Monthly rent"] <span class="text-danger" aria-hidden="true">*</span></label>
-                    <input class="form-control rh-input" type="number" name="MonthlyRent" min="0.01" step="0.01" value="@draft.MonthlyRent" required data-details-rent />
+                    <input class="form-control rh-input" type="text" inputmode="decimal" name="MonthlyRent" value="@draft.MonthlyRent.ToString("0.##", CultureInfo.CurrentCulture)" required data-localized-decimal data-details-rent />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">@T["Max members"] <span class="text-danger" aria-hidden="true">*</span></label>
@@ -183,7 +182,7 @@
                             }
                         </select>
                     </div>
-                    <small class="text-muted">@T["Monthly periods remain individually payable; this setting groups their contractual due date."]</small>
+                    <small class="text-muted">@T["The payment frequency automatically determines and provisions each complete payment group."]</small>
                 </div>
 
                 <div class="col-12">
@@ -192,7 +191,7 @@
                         <label class="rh-guided-option">
                             <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.NoEndDate)" @(draft.EndBehavior is TenancyEndBehaviorEnum.NoEndDate or TenancyEndBehaviorEnum.ContinueMonthToMonth ? "checked" : null) required data-end-behavior />
                             <span>@T["No end date"]</span>
-                            <small>@T["The tenancy stays active until it is terminated. When the final period is reached, the rent schedule is automatically extended by the selected number of months."]</small>
+                            <small>@T["The tenancy stays active until it is terminated. The rent schedule automatically maintains the next complete payment group."]</small>
                         </label>
                         <label class="rh-guided-option">
                             <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ExpireAutomatically)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "checked" : null) required data-end-behavior />
@@ -200,19 +199,6 @@
                             <small>@T["No new rent is generated automatically after the end date."]</small>
                         </label>
                     </div>
-                </div>
-
-                <div class="col-md-6" data-auto-extension-months>
-                    <label class="form-label" for="futureRentPeriodCount">@T["Future rent-period horizon"] <span class="text-danger" aria-hidden="true">*</span></label>
-                    <div class="rh-select-wrap">
-                        <select class="form-select rh-input rh-select" id="futureRentPeriodCount" name="FutureRentPeriodCount" required data-details-extension-months>
-                            @for (var monthCount = 1; monthCount <= 12; monthCount++)
-                            {
-                                <option value="@monthCount" selected="@(draft.FutureRentPeriodCount == monthCount ? "selected" : null)">@T["{0} month(s)", monthCount]</option>
-                            }
-                        </select>
-                    </div>
-                    <small class="text-muted">@T["The system keeps at least this many future monthly periods and always completes the next payment group."]</small>
                 </div>
 
                 <div class="col-12">
@@ -577,8 +563,6 @@
         (() => {
             const endDateInput = document.querySelector("[data-end-date-input]");
             const endDateRequired = document.querySelector("[data-end-date-required]");
-            const autoExtensionContainer = document.querySelector("[data-auto-extension-months]");
-            const autoExtensionInput = document.querySelector("[data-details-extension-months]");
             const endBehaviorInputs = Array.from(document.querySelectorAll("[data-end-behavior]"));
             const importModeInputs = Array.from(document.querySelectorAll("[data-import-mode]"));
             const unpaidRange = document.querySelector("[data-unpaid-range]");
@@ -622,11 +606,6 @@
                 endDateInput.required = !noEndDate;
                 if (endDateRequired) endDateRequired.hidden = noEndDate;
                 if (noEndDate) endDateInput.value = "";
-                if (autoExtensionContainer) autoExtensionContainer.hidden = !noEndDate;
-                if (autoExtensionInput) {
-                    autoExtensionInput.disabled = !noEndDate;
-                    autoExtensionInput.required = noEndDate;
-                }
                 syncDetailsForm();
             };
 
@@ -645,17 +624,15 @@
                 const membersInput = detailsForm.querySelector("[data-details-members]");
                 const dueDayInput = detailsForm.querySelector("[data-details-due-day]");
                 const paymentIntervalInput = detailsForm.querySelector("[data-details-payment-interval]");
-                const extensionMonthsInput = detailsForm.querySelector("[data-details-extension-months]");
                 const submitButton = detailsForm.querySelector("[data-details-submit]");
                 const selectedBehavior = selectedValue(endBehaviorInputs);
 
                 const start = parseDateValue(startInput?.value);
                 const end = parseDateValue(endInput?.value);
-                const rent = Number.parseFloat(rentInput?.value ?? "");
+                const rent = window.rhDecimals?.parse(rentInput?.value ?? "") ?? Number.NaN;
                 const members = Number.parseInt(membersInput?.value ?? "", 10);
                 const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
                 const paymentInterval = Number.parseInt(paymentIntervalInput?.value ?? "", 10);
-                const extensionMonths = Number.parseInt(extensionMonthsInput?.value ?? "", 10);
 
                 if (startInput && endInput) {
                     endInput.min = startInput.value || "";
@@ -672,7 +649,6 @@
                     && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
                     && Number.isInteger(paymentInterval) && paymentInterval >= 1 && paymentInterval <= 12
                     && !!selectedBehavior
-                    && (selectedBehavior !== noEndDateValue || (Number.isInteger(extensionMonths) && extensionMonths >= 1 && extensionMonths <= 12))
                     && (!needsEndDate || !!end)
                     && dateRangeValid
                     && detailsForm.checkValidity();

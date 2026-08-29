@@ -96,11 +96,11 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> PayRent(int tenancyId, int numberOfPeriods, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
+        public async Task<IActionResult> PayRent(int tenancyId, PaymentMethodEnum paymentMethod = PaymentMethodEnum.Card)
         {
-            if (tenancyId <= 0 || numberOfPeriods <= 0)
+            if (tenancyId <= 0)
             {
-                TempData["Error"] = "Please choose the rent periods to pay.";
+                TempData["Error"] = "Please choose a tenancy to pay.";
                 return RedirectToAction(nameof(Tenancy), new { tenancyId });
             }
 
@@ -115,7 +115,6 @@ namespace RentHub.Portal.Controllers
                 var request = new PayRentPeriodsRequest
                 {
                     TenancyId = tenancyId,
-                    NumberOfPeriods = numberOfPeriods,
                     Method = paymentMethod
                 };
 
@@ -136,9 +135,7 @@ namespace RentHub.Portal.Controllers
 
                 await _api.PostAsync<PayRentPeriodsRequest, JsonElement>("payments/rent-periods", request);
 
-                TempData["Success"] = numberOfPeriods == 1
-                    ? "Rent payment was processed for the oldest unpaid period."
-                    : $"Rent payment was processed for {numberOfPeriods} consecutive periods.";
+                TempData["Success"] = "Rent payment was processed for the oldest outstanding payment group.";
             }
             catch (Exception ex)
             {

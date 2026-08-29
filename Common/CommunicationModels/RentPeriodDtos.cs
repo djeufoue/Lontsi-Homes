@@ -83,7 +83,6 @@ namespace Common.CommunicationModels
         public int RentDueDay { get; set; } = 1;
         public int PaymentIntervalMonths { get; set; } = 1;
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
-        public int FutureRentPeriodCount { get; set; } = 1;
         public DateTimeOffset RentTrackingStartDate { get; set; }
         public List<RentPeriodSeedDto> RentPeriods { get; set; } = new();
         public TenantInvitationRequest MainTenant { get; set; } = new();
@@ -92,7 +91,6 @@ namespace Common.CommunicationModels
     public class PayRentPeriodsRequest
     {
         public int TenancyId { get; set; }
-        public int NumberOfPeriods { get; set; } = 1;
         public PaymentMethodEnum Method { get; set; } = PaymentMethodEnum.Card;
     }
 

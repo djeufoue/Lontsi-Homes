@@ -31,9 +31,6 @@ namespace RentHub.Portal.ViewModels.Apartments
 
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
-        [Range(1, 12)]
-        public int FutureRentPeriodCount { get; set; } = 1;
-
         public DateTimeOffset RentTrackingStartDate { get; set; }
     }
 }

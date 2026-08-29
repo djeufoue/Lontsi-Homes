@@ -255,11 +255,6 @@ namespace RentHub.Portal.Controllers
                     errors.Add("Rent due day must be between 1 and 31.");
                 }
 
-                if (vm.FutureRentPeriodCount is < 1 or > 12)
-                {
-                    errors.Add("Future rent-period count must be between 1 and 12.");
-                }
-
                 if (vm.PaymentIntervalMonths is < 1 or > 12)
                 {
                     errors.Add("Payment interval must be between 1 and 12 months.");
@@ -285,7 +280,6 @@ namespace RentHub.Portal.Controllers
                 draft.StartDate = vm.StartDate;
                 draft.EndBehavior = normalizedEndBehavior;
                 draft.EndDate = normalizedEndBehavior == TenancyEndBehaviorEnum.NoEndDate ? null : vm.EndDate;
-                draft.FutureRentPeriodCount = vm.FutureRentPeriodCount;
                 draft.PaymentIntervalMonths = vm.PaymentIntervalMonths;
                 draft.MonthlyRent = vm.MonthlyRent;
                 draft.MaxMembers = vm.MaxMembers;
@@ -411,7 +405,6 @@ namespace RentHub.Portal.Controllers
                     RentDueDay = draft.RentDueDay,
                     PaymentIntervalMonths = draft.PaymentIntervalMonths,
                     EndBehavior = draft.EndBehavior,
-                    FutureRentPeriodCount = draft.FutureRentPeriodCount,
                     RentTrackingStartDate = draft.RentTrackingStartDate,
                     RentPeriods = draft.RentPeriods,
                     MainTenant = draft.MainTenant
@@ -831,7 +824,6 @@ namespace RentHub.Portal.Controllers
                     existing.EndDate = null;
                 }
 
-                existing.FutureRentPeriodCount = Math.Clamp(existing.FutureRentPeriodCount, 1, 12);
                 existing.PaymentIntervalMonths = Math.Clamp(existing.PaymentIntervalMonths, 1, 12);
                 if (existing.RentTrackingStartDate == default)
                 {
@@ -862,7 +854,6 @@ namespace RentHub.Portal.Controllers
                 RentDueDay = today.Day,
                 PaymentIntervalMonths = 1,
                 EndBehavior = TenancyEndBehaviorEnum.NoEndDate,
-                FutureRentPeriodCount = 1,
                 RentTrackingStartDate = today,
                 RentReminderRules = overview.Apartment.RentReminderRules
             };
@@ -938,7 +929,6 @@ namespace RentHub.Portal.Controllers
                 draft.MonthlyRent,
                 draft.RentDueDay,
                 DateTimeOffset.UtcNow,
-                draft.FutureRentPeriodCount,
                 draft.PaymentIntervalMonths,
                 trackingStart);
 
@@ -1024,11 +1014,6 @@ namespace RentHub.Portal.Controllers
             if (draft.RentDueDay is < 1 or > 31)
             {
                 errors.Add("Rent due day must be between 1 and 31.");
-            }
-
-            if (draft.FutureRentPeriodCount is < 1 or > 12)
-            {
-                errors.Add("Future rent-period count must be between 1 and 12.");
             }
 
             if (draft.PaymentIntervalMonths is < 1 or > 12)

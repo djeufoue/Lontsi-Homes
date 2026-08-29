@@ -97,7 +97,6 @@ namespace RentHub.API.Services.Tenancies
                     StartDate = tenancy.StartDate,
                     MonthlyRent = tenancy.MonthlyRent,
                     RentDueDay = tenancy.RentDueDay,
-                    FutureRentPeriodCount = tenancy.FutureRentPeriodCount,
                     PaymentIntervalMonths = tenancy.PaymentIntervalMonths,
                     RentTrackingStartDate = tenancy.RentTrackingStartDate,
                     RentScheduleNeedsReview = tenancy.RentScheduleNeedsReview,
@@ -132,7 +131,6 @@ namespace RentHub.API.Services.Tenancies
                     schedule.MonthlyRent,
                     schedule.RentDueDay,
                     generationAsOf,
-                    schedule.FutureRentPeriodCount,
                     schedule.PaymentIntervalMonths,
                     schedule.RentTrackingStartDate == default
                         ? schedule.StartDate
@@ -203,7 +201,6 @@ namespace RentHub.API.Services.Tenancies
             public DateTimeOffset StartDate { get; init; }
             public decimal MonthlyRent { get; init; }
             public int RentDueDay { get; init; }
-            public int FutureRentPeriodCount { get; init; }
             public int PaymentIntervalMonths { get; init; }
             public DateTimeOffset RentTrackingStartDate { get; init; }
             public bool RentScheduleNeedsReview { get; init; }

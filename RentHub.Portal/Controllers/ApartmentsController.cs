@@ -213,7 +213,6 @@ namespace RentHub.Portal.Controllers
                     RentDueDay = request.RentDueDay,
                     PaymentIntervalMonths = request.PaymentIntervalMonths,
                     EndBehavior = normalizedEndBehavior,
-                    FutureRentPeriodCount = request.FutureRentPeriodCount,
                     RentTrackingStartDate = request.RentTrackingStartDate
                 });
 

@@ -8,8 +8,6 @@ namespace Common.Helpers
 {
     public static class RentPeriodScheduleHelper
     {
-        public const int DefaultFutureRentPeriodCount = 1;
-
         public static List<RentPeriodSeedDto> GeneratePeriods(
             DateTimeOffset startDate,
             DateTimeOffset? endDate,
@@ -17,12 +15,11 @@ namespace Common.Helpers
             decimal monthlyRent,
             int rentDueDay,
             DateTimeOffset nowUtc,
-            int futureRentPeriodCount = DefaultFutureRentPeriodCount,
             int paymentIntervalMonths = 1,
             DateTimeOffset? trackingStartDate = null)
         {
             var periods = new List<RentPeriodSeedDto>();
-            if (monthlyRent <= 0 || futureRentPeriodCount <= 0)
+            if (monthlyRent <= 0)
             {
                 return periods;
             }
@@ -48,7 +45,6 @@ namespace Common.Helpers
                 endDate,
                 endBehavior,
                 nowUtc,
-                futureRentPeriodCount,
                 normalizedPaymentInterval,
                 firstPeriodIndex).Date;
 
@@ -389,7 +385,6 @@ namespace Common.Helpers
             DateTimeOffset? endDate,
             TenancyEndBehaviorEnum endBehavior,
             DateTimeOffset nowUtc,
-            int futureRentPeriodCount,
             int paymentIntervalMonths,
             int firstPeriodIndex)
         {
@@ -399,12 +394,10 @@ namespace Common.Helpers
             }
 
             var currentPeriodIndex = FindPeriodIndexContainingOrAfter(startDate, nowUtc.Date);
-            var requestedLastIndex = Math.Max(
-                firstPeriodIndex,
-                currentPeriodIndex + Math.Max(1, futureRentPeriodCount));
             var interval = Math.Clamp(paymentIntervalMonths, 1, 12);
             var nextApplicableGroup = currentPeriodIndex / interval + 1;
-            var requestedLastGroup = Math.Max(requestedLastIndex / interval, nextApplicableGroup);
+            var firstTrackedGroup = firstPeriodIndex / interval;
+            var requestedLastGroup = Math.Max(firstTrackedGroup, nextApplicableGroup);
             var selectedEnd = MonthlyBoundary(startDate, (requestedLastGroup + 1) * interval).AddDays(-1);
 
             if (endBehavior == TenancyEndBehaviorEnum.ContinueMonthToMonth &&

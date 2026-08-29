@@ -10,12 +10,19 @@
         .Where(period => period.Status == RentPeriodStatusEnum.PendingPayment && !string.IsNullOrWhiteSpace(period.PaymentReference))
         .OrderBy(period => period.PeriodStart)
         .FirstOrDefault();
-    var payablePeriods = pendingPaymentPeriod == null
+    var openPayablePeriods = pendingPaymentPeriod == null
         ? allPeriods
             .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status) && period.Status != RentPeriodStatusEnum.PendingPayment)
             .OrderBy(period => period.PeriodStart)
             .ToList()
         : new List<Common.CommunicationModels.RentPeriodDto>();
+    var firstPayableGroupSequence = openPayablePeriods.FirstOrDefault()?.BillingGroupSequence;
+    var payablePeriods = firstPayableGroupSequence.HasValue
+        ? openPayablePeriods
+            .Where(period => period.BillingGroupSequence == firstPayableGroupSequence.Value)
+            .ToList()
+        : new List<Common.CommunicationModels.RentPeriodDto>();
+    var payableGroupTotal = payablePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount));
     var contract = item.Documents
         .Where(document => document.DocumentType == DocumentTypeEnum.TenancyContract)
         .OrderByDescending(document => document.UploadedAt)
@@ -117,30 +124,22 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                 <input type="hidden" name="paymentMethod" value="@item.PaymentMethod" />
-                <input type="hidden" name="numberOfPeriods" value="0" data-rent-period-count />
                 <div class="row g-3 align-items-end">
                     <div class="col-md-8">
-                        <label class="form-label">@T["Pay rent periods in order"]</label>
-                        <div class="rh-rent-period-picker" data-rent-period-picker>
-                            <button class="btn rh-btn-subtle rh-rent-period-picker-toggle" type="button" data-rent-picker-toggle>@T["Choose rent periods"]</button>
-                            <div class="rh-rent-period-picker-menu" data-rent-picker-menu>
-                                @for (var optionIndex = 0; optionIndex < payablePeriods.Count; optionIndex++)
+                        <label class="form-label">@T["Oldest outstanding payment group"]</label>
+                        <div class="rh-inline-settings-note">
+                            <strong>@DateLabel(payablePeriods.First().PeriodStart) - @DateLabel(payablePeriods.Last().PeriodEnd)</strong>
+                            <small class="d-block text-muted">@T["{0} monthly period(s) · {1:N0} XAF due", payablePeriods.Count, payableGroupTotal]</small>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                @foreach (var period in payablePeriods)
                                 {
-                                    var period = payablePeriods[optionIndex];
-                                    var selectedPeriods = payablePeriods.Take(optionIndex + 1).ToList();
-                                    var total = selectedPeriods.Sum(selectedPeriod => selectedPeriod.Amount - selectedPeriod.PaidAmount);
-                                    var optionLabel = $"{DateLabel(period.PeriodStart)} - {DateLabel(period.PeriodEnd)}";
-                                    <label class="rh-rent-period-option">
-                                        <input type="checkbox" data-rent-period-option data-index="@optionIndex" data-total="@total.ToString("N0")" data-label="@optionLabel" disabled="@(optionIndex > 0)" />
-                                        <span><strong>@optionLabel</strong><small>@T["{0:N0} due", period.Amount - period.PaidAmount] XAF</small></span>
-                                    </label>
+                                    <span class="rh-chip rh-chip-info">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd) · @Math.Max(0, period.Amount - period.PaidAmount).ToString("N0") XAF</span>
                                 }
                             </div>
                         </div>
-                        <small class="text-muted" data-rent-picker-help>@T["Select the oldest period first. Each selected period unlocks the next one."]</small>
                     </div>
                     <div class="col-md-4">
-                        <button type="submit" class="btn rh-btn-primary w-100" data-rent-submit disabled>@T["Pay selected rent"]</button>
+                        <button type="submit" class="btn rh-btn-primary w-100">@T["Pay {0:N0} XAF", payableGroupTotal]</button>
                         <small class="text-muted d-block mt-2">@T["Payment method: {0}", PaymentMethodLabel(item.PaymentMethod)]</small>
                     </div>
                 </div>
