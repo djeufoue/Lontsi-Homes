@@ -37,12 +37,6 @@ namespace RentHub.API.Models.Entities
 
         public TenancyEndBehaviorEnum EndBehavior { get; set; } = TenancyEndBehaviorEnum.NoEndDate;
 
-        // Transitional deployment-only column. Rent-period provisioning is now
-        // derived exclusively from PaymentIntervalMonths. Remove this property
-        // with the follow-up database migration after production validation.
-        [Range(1, 12)]
-        public int FutureRentPeriodCount { get; set; } = 1;
-
         /// <summary>
         /// First monthly coverage period managed by Lontsi Homes.  It may be later
         /// than StartDate when an existing, fully-paid tenancy is onboarded.

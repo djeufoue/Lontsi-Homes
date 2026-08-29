@@ -178,15 +178,8 @@ namespace RentHub.API.Data
             builder.Entity<Tenancy>(entity =>
             {
                 entity.ToTable(table => table.HasCheckConstraint(
-                    "CK_Tenancies_FutureRentPeriodCount",
-                    "[FutureRentPeriodCount] >= 1 AND [FutureRentPeriodCount] <= 12"));
-
-                entity.ToTable(table => table.HasCheckConstraint(
                     "CK_Tenancies_PaymentIntervalMonths",
                     "[PaymentIntervalMonths] >= 1 AND [PaymentIntervalMonths] <= 12"));
-
-                entity.Property(t => t.FutureRentPeriodCount)
-                    .HasDefaultValue(1);
 
                 entity.Property(t => t.PaymentIntervalMonths)
                     .HasDefaultValue(1);

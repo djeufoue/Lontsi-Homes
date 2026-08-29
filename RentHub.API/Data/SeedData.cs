@@ -76,22 +76,6 @@ IF COL_LENGTH('dbo.AspNetUsers', 'SessionInvalidatedAt') IS NULL
 IF COL_LENGTH('dbo.Apartments', 'FloorNumber') IS NULL
     ALTER TABLE [Apartments] ADD [FloorNumber] int NULL;
 
-IF EXISTS
-(
-    SELECT 1 FROM sys.check_constraints
-    WHERE [name] = N'CK_Tenancies_AutoExtensionMonths'
-      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
-)
-    ALTER TABLE [Tenancies] DROP CONSTRAINT [CK_Tenancies_AutoExtensionMonths];
-
-IF COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NULL
-   AND COL_LENGTH('dbo.Tenancies', 'AutoExtensionMonths') IS NOT NULL
-    EXEC sp_rename N'dbo.Tenancies.AutoExtensionMonths', N'FutureRentPeriodCount', 'COLUMN';
-
-IF COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NULL
-    ALTER TABLE [Tenancies] ADD [FutureRentPeriodCount] int NOT NULL
-        CONSTRAINT [DF_Tenancies_FutureRentPeriodCount] DEFAULT(1) WITH VALUES;
-
 IF COL_LENGTH('dbo.Tenancies', 'PaymentIntervalMonths') IS NULL
     ALTER TABLE [Tenancies] ADD [PaymentIntervalMonths] int NOT NULL
         CONSTRAINT [DF_Tenancies_PaymentIntervalMonths] DEFAULT(1) WITH VALUES;
@@ -184,25 +168,11 @@ IF EXISTS
     ALTER TABLE [Tenancies] ALTER COLUMN [RentTrackingStartDate] datetimeoffset NOT NULL;
 
 UPDATE [Tenancies]
-SET [FutureRentPeriodCount] = CASE
-        WHEN [FutureRentPeriodCount] < 1 THEN 1
-        WHEN [FutureRentPeriodCount] > 12 THEN 12
-        ELSE [FutureRentPeriodCount]
-    END,
-    [PaymentIntervalMonths] = CASE
+SET [PaymentIntervalMonths] = CASE
         WHEN [PaymentIntervalMonths] < 1 THEN 1
         WHEN [PaymentIntervalMonths] > 12 THEN 12
         ELSE [PaymentIntervalMonths]
     END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.check_constraints
-    WHERE [name] = N'CK_Tenancies_FutureRentPeriodCount'
-      AND [parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
-)
-    ALTER TABLE [Tenancies] WITH CHECK ADD CONSTRAINT [CK_Tenancies_FutureRentPeriodCount]
-    CHECK ([FutureRentPeriodCount] >= 1 AND [FutureRentPeriodCount] <= 12);
 
 IF NOT EXISTS
 (

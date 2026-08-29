@@ -241,6 +241,9 @@ static void TestMigrationModel()
     True(
         migrationsAssembly.Migrations.Keys.Any(key => key.EndsWith("_AddApartmentFloorAndEmailSessionInvalidation", StringComparison.Ordinal)),
         "the apartment floor and session invalidation migration is not discoverable");
+    True(
+        migrationsAssembly.Migrations.ContainsKey("20260829024825_RemoveFutureRentPeriodCount"),
+        "the phase-two rent horizon cleanup migration is not discoverable");
     var snapshotModel = migrationsAssembly.ModelSnapshot?.Model
         ?? throw new InvalidOperationException("migration snapshot is missing");
     snapshotModel = context.GetService<IModelRuntimeInitializer>().Initialize(
@@ -268,6 +271,16 @@ static void TestProductionMigrationGuards()
         "session invalidation column is not protected against a partial deployment");
     True(script.Contains("COL_LENGTH('dbo.Apartments', 'FloorNumber') IS NULL", StringComparison.Ordinal),
         "floor column is not protected against a partial deployment");
+
+    var cleanupScript = context.GetService<IMigrator>().GenerateScript(
+        "20260824041238_AddApartmentFloorAndEmailSessionInvalidation",
+        "20260829024825_RemoveFutureRentPeriodCount");
+    True(cleanupScript.Contains("COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NOT NULL", StringComparison.Ordinal),
+        "the obsolete rent horizon column removal is not guarded");
+    True(cleanupScript.Contains("[column].[name] = N'FutureRentPeriodCount'", StringComparison.Ordinal),
+        "the obsolete rent horizon default constraint is not removed dynamically");
+    True(cleanupScript.Contains("DROP COLUMN [FutureRentPeriodCount]", StringComparison.Ordinal),
+        "the obsolete rent horizon column is not removed");
 }
 
 static void TestApartmentFloorValidation()
