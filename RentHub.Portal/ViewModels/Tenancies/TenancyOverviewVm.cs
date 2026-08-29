@@ -29,9 +29,10 @@ namespace RentHub.Portal.ViewModels.Tenancies
         public bool IsRentPeriodsPage { get; set; }
     }
 
-    public class RentSummaryCardsVm
-    {
-        public RentSummaryDto Summary { get; set; } = new();
-        public DateTimeOffset? LeaseTerminationReminderDate { get; set; }
-    }
+public class RentSummaryCardsVm
+{
+    public RentSummaryDto Summary { get; set; } = new();
+    public DateTimeOffset? LeaseTerminationReminderDate { get; set; }
+    public int PaymentIntervalMonths { get; set; } = 1;
+}
 }

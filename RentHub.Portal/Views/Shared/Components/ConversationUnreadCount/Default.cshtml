@@ -1,5 +1,5 @@
 @model int
-@if (Model > 0)
-{
-    <span class="rh-nav-unread-badge" aria-label="@T["{0} unread message(s)", Model]">@(Model > 99 ? "99+" : Model)</span>
-}
+<span class="rh-nav-unread-badge"
+      data-conversation-unread-count
+      aria-label="@T["{0} unread message(s)", Model]"
+      hidden="@(Model <= 0 ? "hidden" : null)">@(Model > 99 ? "99+" : Model)</span>

@@ -11,9 +11,10 @@
   const sidebar = document.getElementById("rhSidebar");
   const sidebarClose = document.getElementById("rhSidebarClose");
   const sidebarScrim = document.getElementById("rhSidebarScrim");
-  const confirmationModalEl = document.getElementById("confirmationModal");
-  const confirmationTitleEl = document.getElementById("confirmationModalTitle");
-  const confirmationMessageEl = document.getElementById("confirmationModalMessage");
+const confirmationModalEl = document.getElementById("confirmationModal");
+const confirmationTitleEl = document.getElementById("confirmationModalTitle");
+const confirmationWarningEl = document.getElementById("confirmationModalWarning");
+const confirmationMessageEl = document.getElementById("confirmationModalMessage");
   const confirmationProceedEl = document.getElementById("confirmationModalProceed");
   const confirmationDurationEl = document.getElementById("confirmationModalDuration");
   const confirmationDurationSelectEl = document.getElementById("confirmationDurationMonths");
@@ -975,6 +976,29 @@
       : t("{0} request(s) awaiting a decision", count));
   };
 
+  const updateConversationUnreadCount = (countValue) => {
+    const count = Math.max(0, Number(countValue || 0));
+    document.querySelectorAll("[data-conversation-unread-count]").forEach((badge) => {
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.hidden = count <= 0;
+      badge.setAttribute("aria-label", t("{0} unread message(s)", count));
+    });
+  };
+
+  const refreshConversationUnreadCount = async () => {
+    if (!document.querySelector("[data-conversation-unread-count]")) return;
+
+    const response = await fetch("/Conversations/UnreadCount", {
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) return;
+
+    const result = await response.json();
+    updateConversationUnreadCount(result?.count);
+  };
+
   const conversationPageUrl = (url, liveRefresh = false) => {
     const target = new URL(url, window.location.origin);
     if (liveRefresh) target.searchParams.set("liveRefresh", "true");
@@ -1056,7 +1080,10 @@
     if (options.preserveDraft === true && sameConversation) {
       const form = replacement.querySelector("[data-rh-reply-message-id]")?.closest("form");
       const textarea = form?.querySelector("textarea[name='message']");
-      if (textarea && previousState.draft) textarea.value = previousState.draft;
+      if (textarea && previousState.draft) {
+        textarea.value = previousState.draft;
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      }
       if (form && previousState.reply) {
         const replyInput = form.querySelector("[data-rh-reply-message-id]");
         const preview = form.querySelector("[data-rh-reply-preview]");
@@ -1073,9 +1100,96 @@
     scheduleConversationScroll(replacement, previousState, options);
   };
 
+  const initCollapsibleConversationMessages = (root) => {
+    if (!root) return;
+
+    const language = (document.documentElement.lang || navigator.language || "en").toLowerCase();
+    const isFrench = language.startsWith("fr");
+    const moreLabel = isFrench ? "Voir plus" : "See more";
+    const lessLabel = isFrench ? "Voir moins" : "See less";
+
+    root.querySelectorAll(".rh-chat-bubble > p").forEach((messageBody) => {
+      if (messageBody.dataset.rhCollapsibleBound === "true") return;
+      messageBody.dataset.rhCollapsibleBound = "true";
+      messageBody.classList.add("rh-message-body-text", "is-collapsed");
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "rh-message-expand-button";
+      toggle.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.textContent = moreLabel;
+      messageBody.insertAdjacentElement("afterend", toggle);
+
+      window.requestAnimationFrame(() => {
+        const isOverflowing = messageBody.scrollHeight > messageBody.clientHeight + 1;
+        toggle.hidden = !isOverflowing;
+      });
+
+      toggle.addEventListener("click", () => {
+        const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+        messageBody.classList.toggle("is-collapsed", isExpanded);
+        toggle.setAttribute("aria-expanded", String(!isExpanded));
+        toggle.textContent = isExpanded ? moreLabel : lessLabel;
+      });
+    });
+  };
+
+const resizeConversationMessageInput = (textarea) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+    textarea.style.height = "auto";
+    const styles = window.getComputedStyle(textarea);
+    const minimumHeight = Number.parseFloat(styles.minHeight) || 0;
+    const parsedMaximumHeight = Number.parseFloat(styles.maxHeight);
+    const maximumHeight = Number.isFinite(parsedMaximumHeight)
+      ? parsedMaximumHeight
+      : Number.POSITIVE_INFINITY;
+    const contentHeight = textarea.scrollHeight;
+    const nextHeight = Math.min(Math.max(contentHeight, minimumHeight), maximumHeight);
+
+    textarea.style.height = `${Math.ceil(nextHeight)}px`;
+    textarea.classList.toggle("is-at-max-height", contentHeight > maximumHeight + 1);
+};
+
+const syncConversationMessageSubmitState = (textarea) => {
+  if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+  const form = textarea.closest("form");
+  const submit = form?.querySelector("button[type='submit'].rh-conversation-send-button");
+  if (!(submit instanceof HTMLButtonElement)) return;
+
+  const hasContent = textarea.value.trim().length > 0;
+  submit.disabled = !hasContent || workspaceState.conversationMutationInFlight;
+  submit.setAttribute("aria-disabled", submit.disabled ? "true" : "false");
+};
+
+const initConversationMessageInputs = (root) => {
+  if (!root) return;
+
+  root.querySelectorAll("textarea.rh-conversation-message-input").forEach((textarea) => {
+    if (textarea.dataset.rhAutoResizeBound !== "true") {
+      textarea.dataset.rhAutoResizeBound = "true";
+      textarea.addEventListener("input", () => {
+        resizeConversationMessageInput(textarea);
+        syncConversationMessageSubmitState(textarea);
+      });
+    }
+
+    resizeConversationMessageInput(textarea);
+    syncConversationMessageSubmitState(textarea);
+    window.requestAnimationFrame(() => {
+      resizeConversationMessageInput(textarea);
+      syncConversationMessageSubmitState(textarea);
+    });
+  });
+};
+
   const initConversationsPage = (root = document.querySelector("[data-conversations-page='true']"), options = {}) => {
     if (!root || root.dataset.bound === "true") return;
     root.dataset.bound = "true";
+    initCollapsibleConversationMessages(root);
+    initConversationMessageInputs(root);
 
     const syncApartmentOptions = (propertySelect, apartmentSelect) => {
       if (!propertySelect || !apartmentSelect) return;
@@ -1270,7 +1384,12 @@
         showFeedbackModal("error", error?.message || t("Unable to send this message right now."));
       } finally {
         workspaceState.conversationMutationInFlight = false;
-        if (submit) submit.disabled = false;
+        const messageInput = form.querySelector("textarea.rh-conversation-message-input");
+        if (messageInput) {
+          syncConversationMessageSubmitState(messageInput);
+        } else if (submit) {
+          submit.disabled = false;
+        }
       }
     });
 
@@ -1319,6 +1438,10 @@
       });
 
       workspaceState.connection.on("ConversationsChanged", () => {
+        refreshConversationUnreadCount().catch(() => {
+          // A later event, focus, or polling pass will retry the badge refresh.
+        });
+
         if (workspaceState.conversationMutationInFlight) return;
         window.clearTimeout(workspaceState.conversationRefreshTimer);
         workspaceState.conversationRefreshTimer = window.setTimeout(async () => {
@@ -1327,6 +1450,10 @@
             await replaceConversationPage(window.location.href, { updateHistory: false, liveRefresh: true, preserveDraft: true });
           } catch {
             // Keep the current thread visible; the next live event can retry.
+          } finally {
+            await refreshConversationUnreadCount().catch(() => {
+              // Keep the last known badge value when the count endpoint is unavailable.
+            });
           }
         }, 180);
       });
@@ -1334,6 +1461,7 @@
       workspaceState.connection.onreconnected(async () => {
         try {
           await refreshTenancyRequestPendingCount();
+          await refreshConversationUnreadCount();
           if (workspaceState.activePropertyId) {
             await workspaceState.connection.invoke("JoinPropertyGroup", workspaceState.activePropertyId);
           }
@@ -1871,6 +1999,12 @@
       event.preventDefault();
       pendingForm = form;
 
+      const confirmationStyle = form.dataset.confirmStyle || "danger";
+      const showsPaymentWarning = form.dataset.confirmWarning === "true";
+      confirmationModalEl.classList.toggle("rh-confirmation-is-warning", showsPaymentWarning);
+      confirmationWarningEl?.classList.toggle("d-none", !showsPaymentWarning);
+      confirmationWarningEl?.setAttribute("aria-hidden", showsPaymentWarning ? "false" : "true");
+
       if (confirmationTitleEl) {
         confirmationTitleEl.textContent = form.dataset.confirmTitle || t("Please confirm");
       }
@@ -1887,8 +2021,9 @@
       }
 
       confirmationProceedEl.textContent = form.dataset.confirmProceed || t("Proceed");
-      confirmationProceedEl.classList.toggle("rh-btn-primary", form.dataset.confirmStyle === "primary");
-      confirmationProceedEl.classList.toggle("rh-btn-outline-danger", form.dataset.confirmStyle !== "primary");
+      confirmationProceedEl.classList.toggle("rh-btn-primary", confirmationStyle === "primary");
+      confirmationProceedEl.classList.toggle("rh-btn-danger", confirmationStyle === "payment-danger");
+      confirmationProceedEl.classList.toggle("rh-btn-outline-danger", confirmationStyle !== "primary" && confirmationStyle !== "payment-danger");
 
       confirmationModal.show();
     });
@@ -1913,9 +2048,14 @@
 
     confirmationModalEl.addEventListener("hidden.bs.modal", () => {
       confirmationDurationEl?.classList.add("d-none");
-      pendingForm?.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+      confirmationModalEl.classList.remove("rh-confirmation-is-warning");
+      confirmationWarningEl?.classList.add("d-none");
+      confirmationWarningEl?.setAttribute("aria-hidden", "true");
+      const resetForm = pendingForm;
+      resetForm?.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
         checkbox.checked = checkbox.defaultChecked;
       });
+      resetForm?.dispatchEvent(new Event("rent-batch:refresh"));
       pendingForm = null;
     });
   }
@@ -1962,6 +2102,23 @@
   ensureWorkspaceConnection().catch(() => {
     // Live counters are progressive enhancement; normal navigation remains available.
   });
+  window.addEventListener("focus", () => {
+    refreshConversationUnreadCount().catch(() => {
+      // Keep the last known value until the next synchronization attempt.
+    });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    refreshConversationUnreadCount().catch(() => {
+      // Keep the last known value until the next synchronization attempt.
+    });
+  });
+  window.setInterval(() => {
+    if (document.visibilityState !== "visible") return;
+    refreshConversationUnreadCount().catch(() => {
+      // SignalR remains the primary path; polling only repairs missed events.
+    });
+  }, 30000);
   initPropertyOverview();
   initConversationsPage(undefined, { autoScroll: true });
   initPropertySettingsPage();

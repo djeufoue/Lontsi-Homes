@@ -1804,6 +1804,8 @@
   <data name="Mark the remaining group balance as paid in cash" xml:space="preserve"><value>Marquer le solde du groupe comme payé en espèces</value></data>
   <data name="Select consecutive monthly periods" xml:space="preserve"><value>Sélectionner des périodes mensuelles consécutives</value></data>
   <data name="Mark selected periods paid in cash" xml:space="preserve"><value>Marquer les périodes sélectionnées comme payées en espèces</value></data>
+  <data name="Mark the selected periods as paid by cash?" xml:space="preserve"><value>Marquer les périodes sélectionnées comme payées en espèces ?</value></data>
+  <data name="The consecutive periods will be recorded as one cash payment with one itemized receipt." xml:space="preserve"><value>Les périodes consécutives seront enregistrées comme un seul paiement en espèces avec un reçu détaillé.</value></data>
   <data name="Record the cash payment" xml:space="preserve"><value>Enregistrer le paiement en espèces</value></data>
   <data name="Invalidated reminder" xml:space="preserve"><value>Rappel invalidé</value></data>
   <data name="Sent using an old schedule — invalidated after correction." xml:space="preserve"><value>Envoyé selon un ancien calendrier — invalidé après correction.</value></data>
@@ -1841,4 +1843,31 @@
   <data name="New managers can edit apartment information by default. You can remove that permission here; managers can never manage other managers' access." xml:space="preserve"><value>Les nouveaux managers peuvent modifier les informations des appartements par défaut. Vous pouvez retirer cette autorisation ici ; un manager ne peut jamais gérer l’accès des autres managers.</value></data>
   <data name="Monthly periods remain independent. Their group is fixed by the tenancy calendar and its payment frequency." xml:space="preserve"><value>Les périodes mensuelles restent indépendantes. Leur regroupement est déterminé par le calendrier du bail et sa fréquence de paiement.</value></data>
   <data name="Selection must start with the oldest unpaid period. Selecting a period unlocks the next one." xml:space="preserve"><value>La sélection doit commencer par la plus ancienne période impayée. Chaque période sélectionnée déverrouille la suivante.</value></data>
+  <data name="Attention" xml:space="preserve">
+    <value>Attention</value>
+  </data>
+  <data name="Confirm that the payment was actually received before continuing. This action changes the rent balance and creates a receipt." xml:space="preserve">
+    <value>Assurez-vous d’avoir réellement reçu le paiement avant de continuer. Cette action modifiera le solde du loyer et créera un reçu.</value>
+  </data>
+  <data name="Rent payment frequency" xml:space="preserve">
+    <value>Fréquence de paiement du loyer</value>
+  </data>
+  <data name="Payment schedule requires attention" xml:space="preserve">
+    <value>Échéancier à régulariser</value>
+  </data>
+  <data name="Payment schedule is up to date" xml:space="preserve">
+    <value>Échéancier à jour</value>
+  </data>
+  <data name="Unpaid rent periods" xml:space="preserve">
+    <value>Périodes de loyer impayées</value>
+  </data>
+  <data name="1 unpaid month" xml:space="preserve">
+    <value>1 mois impayé</value>
+  </data>
+  <data name="{0} unpaid months" xml:space="preserve">
+    <value>{0} mois impayés</value>
+  </data>
+  <data name="Latest payment received on {0}" xml:space="preserve">
+    <value>Dernier paiement reçu le {0}</value>
+  </data>
 </root>

@@ -1800,12 +1800,10 @@ namespace RentHub.API.Controllers
             bool canSendManualReminder,
             DateTimeOffset nowUtc)
         {
-            var paidPeriods = periods
-                .Where(period => period.Status is RentPeriodStatusEnum.Paid
-                    or RentPeriodStatusEnum.PaidBeforeRentHub
-                    or RentPeriodStatusEnum.PaidInAdvance)
-                .OrderByDescending(period => period.PeriodEnd)
-                .ToList();
+        var paidPeriods = periods
+            .Where(period => RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)))
+            .OrderByDescending(period => period.PeriodEnd)
+            .ToList();
             var duePeriods = periods
                 .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(ResolveDisplayStatus(period, nowUtc)) &&
                                  period.DueDate <= nowUtc)
@@ -1846,16 +1844,29 @@ namespace RentHub.API.Controllers
                      lastManualSentAt.Value.AddHours(manualCooldownHours) > nowUtc)
                 unavailableReason = "The waiting period between manual reminders has not elapsed yet.";
 
-            var lastPaid = paidPeriods.FirstOrDefault();
-            var lastReminder = successfulReminders.FirstOrDefault();
+        var lastPaid = paidPeriods.FirstOrDefault();
+        var lastPaidAt = paidPeriods
+            .Where(period => period.PaidDate.HasValue)
+            .OrderByDescending(period => period.PaidDate)
+            .FirstOrDefault()
+            ?.PaidDate;
+        var lastReminder = successfulReminders.FirstOrDefault();
             return new RentSummaryDto
             {
-                DueNowAmount = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)),
-                DueNowPeriodCount = duePeriods.Count,
-                OldestUnpaidDueDate = duePeriods.FirstOrDefault()?.DueDate,
-                LastPaidPeriodStart = lastPaid?.PeriodStart,
-                LastPaidPeriodEnd = lastPaid?.PeriodEnd,
-                LastPaidAt = lastPaid?.PaidDate,
+            DueNowAmount = duePeriods.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)),
+            DueNowPeriodCount = duePeriods.Count,
+            OldestUnpaidDueDate = duePeriods.FirstOrDefault()?.DueDate,
+            OldestUnpaidPeriodStart = duePeriods
+                .OrderBy(period => period.PeriodStart)
+                .FirstOrDefault()
+                ?.PeriodStart,
+            LatestUnpaidPeriodEnd = duePeriods
+                .OrderByDescending(period => period.PeriodEnd)
+                .FirstOrDefault()
+                ?.PeriodEnd,
+            LastPaidPeriodStart = lastPaid?.PeriodStart,
+            LastPaidPeriodEnd = lastPaid?.PeriodEnd,
+            LastPaidAt = lastPaidAt,
                 NextPeriodStart = nextPeriod?.PeriodStart,
                 NextPeriodEnd = nextPeriod?.PeriodEnd,
                 NextPeriodDueDate = nextPeriod?.DueDate,

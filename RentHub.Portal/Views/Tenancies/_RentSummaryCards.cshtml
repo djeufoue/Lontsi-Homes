@@ -23,21 +23,92 @@
             _ => T["{0} ago", T["{0} days", Math.Abs(dayDifference)].Value].Value
         };
     }
+
+    string PaymentFrequencyLabel(int months) => months switch
+    {
+        <= 1 => T["Monthly"].Value,
+        3 => T["Quarterly"].Value,
+        6 => T["Semiannual"].Value,
+        12 => T["Annual"].Value,
+        _ => T["Every {0} months", months].Value
+    };
+
+    var scheduleNeedsAttention = summary.DueNowPeriodCount > 0;
+    var paymentFrequency = PaymentFrequencyLabel(Model.PaymentIntervalMonths);
+    var paymentFrequencyAriaLabel = T["Rent payment frequency"].Value;
+    var scheduleStatus = scheduleNeedsAttention
+        ? T["Payment schedule requires attention"].Value
+        : T["Payment schedule is up to date"].Value;
 }
 
-<div class="rh-apartment-commanddeck-grid rh-rent-summary-grid">
-    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card">
-        <span>@T["Last paid month"]</span>
-        <strong>@(summary.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture) ?? T["No paid month yet"].Value)</strong>
-        @if (summary.LastPaidAt.HasValue)
+<section class="rh-rent-cadence-strip @(scheduleNeedsAttention ? "is-alert" : "is-current")"
+         aria-label="@paymentFrequencyAriaLabel">
+    <div class="rh-rent-cadence-main">
+        <span class="rh-rent-cadence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 2v4M16 2v4M3 10h18"></path>
+                <rect x="3" y="4" width="18" height="17" rx="2"></rect>
+                <path d="m9 16 2 2 4-4"></path>
+            </svg>
+        </span>
+        <div class="rh-rent-cadence-heading">
+            <span>@T["Rent payment frequency"]</span>
+            <strong>@paymentFrequency</strong>
+        </div>
+    </div>
+    <div class="rh-rent-cadence-status">
+        @if (scheduleNeedsAttention)
         {
-            <small class="rh-rent-summary-detail">@T["Paid on {0}", LongDateLabel(summary.LastPaidAt.Value)]</small>
-            <small class="rh-rent-summary-meta">@TimeLabel(summary.LastPaidAt.Value)</small>
-            <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.LastPaidAt.Value)</small>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10.3 2.7 1.8 17.4A2 2 0 0 0 3.5 20h17a2 2 0 0 0 1.7-2.6L13.7 2.7a2 2 0 0 0-3.4 0Z"></path>
+                <path d="M12 9v4M12 17h.01"></path>
+            </svg>
         }
         else
         {
-            <small>@T["No payment date recorded"]</small>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"></circle>
+                <path d="m8.5 12 2.3 2.3 4.7-4.8"></path>
+            </svg>
+        }
+        <small>@scheduleStatus</small>
+    </div>
+</section>
+
+<div class="rh-apartment-commanddeck-grid rh-rent-summary-grid">
+    <article class="rh-apartment-stat-card rh-card-spotlight rh-rent-summary-card @(summary.DueNowPeriodCount > 0 ? "is-due" : "")">
+        @if (summary.DueNowPeriodCount > 0)
+        {
+            <span>@T["Unpaid rent periods"]</span>
+            <strong>@(summary.DueNowPeriodCount == 1 ? T["1 unpaid month"].Value : T["{0} unpaid months", summary.DueNowPeriodCount].Value)</strong>
+            @if (summary.OldestUnpaidPeriodStart.HasValue && summary.LatestUnpaidPeriodEnd.HasValue)
+            {
+                <small class="rh-rent-summary-detail">@T["From {0} to {1}", summary.OldestUnpaidPeriodStart.Value.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture), summary.LatestUnpaidPeriodEnd.Value.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture)]</small>
+            }
+            @if (summary.LastPaidAt.HasValue)
+            {
+                <small class="rh-rent-summary-meta">@T["Latest payment received on {0}", LongDateLabel(summary.LastPaidAt.Value)]</small>
+                <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.LastPaidAt.Value)</small>
+            }
+            else
+            {
+                <small>@T["No payment date recorded"]</small>
+            }
+        }
+        else
+        {
+            <span>@T["Last paid month"]</span>
+            <strong>@(summary.LastPaidPeriodStart?.LocalDateTime.ToString("MMMM yyyy", CultureInfo.CurrentCulture) ?? T["No paid month yet"].Value)</strong>
+            @if (summary.LastPaidAt.HasValue)
+            {
+                <small class="rh-rent-summary-detail">@T["Paid on {0}", LongDateLabel(summary.LastPaidAt.Value)]</small>
+                <small class="rh-rent-summary-meta">@TimeLabel(summary.LastPaidAt.Value)</small>
+                <small class="rh-rent-summary-relative">@RelativeDayLabel(summary.LastPaidAt.Value)</small>
+            }
+            else
+            {
+                <small>@T["No payment date recorded"]</small>
+            }
         }
     </article>
 

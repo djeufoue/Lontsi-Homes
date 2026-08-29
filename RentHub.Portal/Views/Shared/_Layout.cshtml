@@ -495,8 +495,8 @@
                 </div>
             </header>
 
-            <div class="rh-main-scroll">
-                <main role="main" class="rh-page @(isMarketingPage ? "rh-page-public" : null)">
+            <div class="rh-main-scroll @(isMessages ? "rh-main-scroll-conversations" : null)">
+                <main role="main" class="rh-page @(isMarketingPage ? "rh-page-public" : null) @(isMessages ? "rh-page-conversations" : null)">
                     @RenderBody()
                 </main>
 
@@ -588,12 +588,26 @@
     <div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered rh-action-modal-dialog">
             <div class="modal-content rh-confirm-modal">
-                <div class="modal-header border-0 pb-2">
-                    <h5 class="modal-title" id="confirmationModalTitle">@T["Please confirm"]</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+            <div class="modal-header border-0 rh-confirm-modal-header">
+                    <div class="rh-confirm-heading flex-grow-1">
+                        <div class="rh-confirm-warning d-none" id="confirmationModalWarning" role="alert" aria-hidden="true">
+                            <span class="rh-confirm-warning-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" focusable="false">
+                                    <path d="M10.3 3.7 2.2 17.8A2 2 0 0 0 3.9 21h16.2a2 2 0 0 0 1.7-3.2L13.7 3.7a2 2 0 0 0-3.4 0Z" />
+                                    <path d="M12 8v5.5M12 17.25v.05" />
+                                </svg>
+                            </span>
+                            <div>
+                                <strong class="d-block">@T["Attention"]</strong>
+                                <span>@T["Confirm that the payment was actually received before continuing. This action changes the rent balance and creates a receipt."]</span>
+                            </div>
+                        </div>
+                        <h5 class="modal-title" id="confirmationModalTitle">@T["Please confirm"]</h5>
+                    </div>
+                    <button type="button" class="btn-close rh-confirm-modal-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
                 </div>
-                <div class="modal-body pt-2">
-                    <p class="mb-0" id="confirmationModalMessage">@T["Are you sure you want to continue?"]</p>
+            <div class="modal-body rh-confirm-modal-body">
+                <p class="mb-0 rh-confirm-modal-message" id="confirmationModalMessage">@T["Are you sure you want to continue?"]</p>
                     <div class="mt-4 d-none" id="confirmationModalDuration">
                         <label class="form-label fw-semibold" for="confirmationDurationMonths">@T["Subscription duration"]</label>
                         <select class="form-select" id="confirmationDurationMonths">
@@ -605,7 +619,7 @@
                         <small class="text-muted d-block mt-2">@T["Choose between 6 months and 36 months (3 years)."]</small>
                     </div>
                 </div>
-                <div class="modal-footer border-0 pt-0">
+            <div class="modal-footer border-0 rh-confirm-modal-footer">
                     <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
                     <button type="button" class="btn rh-btn-outline-danger" id="confirmationModalProceed">@T["Proceed"]</button>
                 </div>

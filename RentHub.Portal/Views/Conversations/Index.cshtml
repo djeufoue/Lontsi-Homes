@@ -25,14 +25,6 @@
          data-conversations-page="true"
          data-selected-conversation-id="@(Model.SelectedConversationId?.ToString() ?? string.Empty)"
          data-selected-conversation-kind="@Model.SelectedKind">
-    <header class="rh-panel rh-panel-elevated rh-conversation-page-hero">
-        <div>
-            <span class="rh-public-kicker">@T["Property messaging"]</span>
-            <h1>@T["Conversations"]</h1>
-            <p>@T["Private messages between tenants and the property team. Tenant replies are never visible to other tenants."]</p>
-        </div>
-    </header>
-
     @if (residentProperties.Count > 0)
     {
         <section class="rh-panel rh-conversation-composer" data-rh-composer="resident" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="residentComposerTitle">
@@ -136,9 +128,9 @@
                 </div>
                 <div class="rh-compose-message-field">
                     <label class="form-label rh-auth-label" for="teamInitialMessage">@T["Message"]</label>
-                    <textarea id="teamInitialMessage" name="initialMessage" class="form-control rh-auth-input" rows="7" maxlength="1500" placeholder="@T["Write your internal message"]" required></textarea>
+                        <textarea id="teamInitialMessage" name="initialMessage" class="form-control rh-auth-input rh-conversation-message-input" rows="7" maxlength="1500" placeholder="@T["Write your internal message"]" required></textarea>
                 </div>
-                <button type="submit" class="btn rh-btn-primary rh-conversation-send-button">@T["Send"]</button>
+                        <button type="submit" class="btn rh-btn-primary rh-conversation-send-button" disabled aria-disabled="true">@T["Send"]</button>
             </form>
         </section>
     }
@@ -241,6 +233,7 @@
                 </form>
             }
 
+            <div class="rh-conversation-list-scroll">
             @if (Model.SubscriptionItems.Count > 0)
             {
                 <p class="rh-kicker mb-2">@T["Plan requests"]</p>
@@ -298,6 +291,7 @@
                     }
                 </div>
             }
+            </div>
         </aside>
 
         <section id="conversation-thread" class="rh-conversation-thread rh-panel rh-panel-elevated">
@@ -306,7 +300,7 @@
                 var inquiry = Model.SelectedSubscriptionInquiry;
                 <div class="rh-conversation-thread-head"><div><span class="rh-public-kicker">@T["Plan request"]</span><h2>@inquiry.PlanName</h2><p>@inquiry.RequesterName · @inquiry.RequesterEmail</p></div><div class="rh-conversation-thread-meta"><strong>@T["{0:N2} / month", inquiry.ProposedMonthlyPrice]</strong><small>@T["{0} months · {1:N2} total", inquiry.CommitmentMonths, inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths]</small><small>@T["{0} properties · {1} apartments · {2} tenants", inquiry.PropertyCount, inquiry.ApartmentCount, inquiry.TenantCount]</small></div></div>
                 <div class="rh-public-chat-thread rh-public-chat-thread-inbox">@foreach (var message in inquiry.Messages) { <div class="rh-chat-bubble @(message.SentByCurrentUser ? "is-self" : "is-other")"><strong>@message.SenderName</strong><p>@message.Body</p><small>@message.SentAt.ToLocalTime().ToString("g")</small></div> }</div>
-                <form asp-action="SendSubscriptionMessage" method="post" class="rh-public-chat-form mt-3" data-rh-conversation-mutation="true">@Html.AntiForgeryToken()<input type="hidden" name="conversationId" value="@inquiry.InquiryId" /><label class="form-label rh-auth-label">@T["Reply"]</label><textarea name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="7" placeholder="@T["Write your reply"]" required></textarea><button type="submit" class="btn rh-btn-primary mt-3 rh-conversation-send-button">@T["Send Reply"]</button></form>
+                                <form asp-action="SendSubscriptionMessage" method="post" class="rh-public-chat-form rh-conversation-compose-bar" data-rh-conversation-mutation="true">@Html.AntiForgeryToken()<input type="hidden" name="conversationId" value="@inquiry.InquiryId" /><label class="form-label rh-auth-label">@T["Reply"]</label><textarea name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="2" placeholder="@T["Write your reply"]" required></textarea><button type="submit" class="btn rh-btn-primary mt-3 rh-conversation-send-button" disabled aria-disabled="true">@T["Send Reply"]</button></form>
             }
             else if (Model.SelectedConversation != null)
             {
@@ -368,7 +362,7 @@
                 </div>
                 @if (conversation.CanReply)
                 {
-                    <form asp-action="SendMessage" method="post" class="rh-public-chat-form mt-3" data-rh-conversation-mutation="true">
+                    <form asp-action="SendMessage" method="post" class="rh-public-chat-form rh-conversation-compose-bar" data-rh-conversation-mutation="true">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="conversationId" value="@conversation.ConversationId" />
                         <input type="hidden" name="returnUrl" value="@returnUrl" />
@@ -382,8 +376,8 @@
                             </div>
                             <button type="button" data-rh-cancel-reply aria-label="@T["Cancel reply"]" title="@T["Cancel reply"]">&times;</button>
                         </div>
-                        <textarea id="conversationReply" name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="7" maxlength="1500" placeholder="@T["Write your reply"]" required></textarea>
-                        <div class="rh-conversation-reply-actions"><small>@T["Replies are sent only inside Lontsi Homes."]</small><button type="submit" class="btn rh-btn-primary rh-conversation-send-button">@T["Send reply"]</button></div>
+                        <textarea id="conversationReply" name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="2" maxlength="1500" placeholder="@T["Write your reply"]" required></textarea>
+                            <div class="rh-conversation-reply-actions"><small>@T["Replies are sent only inside Lontsi Homes."]</small><button type="submit" class="btn rh-btn-primary rh-conversation-send-button" disabled aria-disabled="true">@T["Send Reply"]</button></div>
                     </form>
                 }
                 else

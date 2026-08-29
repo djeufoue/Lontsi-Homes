@@ -69,10 +69,12 @@ namespace Common.CommunicationModels
 
     public class RentSummaryDto
     {
-        public decimal DueNowAmount { get; set; }
-        public int DueNowPeriodCount { get; set; }
-        public DateTimeOffset? OldestUnpaidDueDate { get; set; }
-        public DateTimeOffset? LastPaidPeriodStart { get; set; }
+    public decimal DueNowAmount { get; set; }
+    public int DueNowPeriodCount { get; set; }
+    public DateTimeOffset? OldestUnpaidDueDate { get; set; }
+    public DateTimeOffset? OldestUnpaidPeriodStart { get; set; }
+    public DateTimeOffset? LatestUnpaidPeriodEnd { get; set; }
+    public DateTimeOffset? LastPaidPeriodStart { get; set; }
         public DateTimeOffset? LastPaidPeriodEnd { get; set; }
         public DateTimeOffset? LastPaidAt { get; set; }
         public DateTimeOffset? NextPeriodStart { get; set; }

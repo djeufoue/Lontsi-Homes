@@ -258,7 +258,8 @@
           data-confirm-title="@T["Mark the selected periods as paid by cash?"]"
           data-confirm-message="@T["The consecutive periods will be recorded as one cash payment with one itemized receipt."]"
           data-confirm-proceed="@T["Record the cash payment"]"
-          data-confirm-style="primary">
+          data-confirm-style="payment-danger"
+          data-confirm-warning="true">
         <div class="card-body">
             <h3 class="h6">@T["Select consecutive monthly periods"]</h3>
             <p class="text-muted small">@T["Selection must start with the oldest unpaid period. Selecting a period unlocks the next one."]</p>
@@ -280,7 +281,7 @@
                     </label>
                 }
             </div>
-            <button type="submit" class="btn btn-sm rh-btn-primary" data-rent-batch-submit disabled>@T["Mark selected periods paid in cash"]</button>
+                <button type="submit" class="btn btn-sm rh-btn-danger" data-rent-batch-submit disabled>@T["Mark selected periods paid in cash"]</button>
         </div>
     </form>
 }
@@ -362,12 +363,13 @@
                                   data-confirm-title="@T["Mark the remaining group balance as paid by cash?"]"
                                   data-confirm-message="@T["One cash payment of {0} XAF will cover {1} consecutive monthly period(s) and create one itemized receipt.", remaining.ToString("N0"), unpaidGroupPeriods.Count]"
                                   data-confirm-proceed="@T["Mark group balance paid cash"]"
-                                  data-confirm-style="primary">
+                                  data-confirm-style="payment-danger"
+                                  data-confirm-warning="true">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                                 <input type="hidden" name="rentPeriodIds" value="@groupPeriodIds" />
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                <button type="submit" class="btn btn-sm rh-btn-primary">@T["Mark the remaining group balance as paid in cash"]</button>
+                                <button type="submit" class="btn btn-sm rh-btn-danger">@T["Mark the remaining group balance as paid in cash"]</button>
                             </form>
                         }
                     </div>
@@ -498,14 +500,15 @@ else
                                       data-confirm-title="@T["Mark this rent period as paid by cash?"]"
                                       data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a RentHub receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]"
                                       data-confirm-proceed="@T["Mark paid cash"]"
-                                      data-confirm-style="primary"
+                                      data-confirm-style="payment-danger"
+                                      data-confirm-warning="true"
                                       data-submit-progress="true"
                                       data-submit-progress-button-label="@T["Processing..."]">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="tenancyId" value="@tenancy.Id" />
                                     <input type="hidden" name="rentPeriodId" value="@period.Id" />
                                     <input type="hidden" name="returnUrl" value="@returnUrl" />
-                                    <button type="submit" class="btn btn-sm rh-btn-primary" data-submit-progress-button>@T["Mark paid cash"]</button>
+                                    <button type="submit" class="btn btn-sm rh-btn-danger" data-submit-progress-button>@T["Mark paid cash"]</button>
                                     <div class="rh-submit-progress"
                                          data-submit-progress-status
                                          role="status"
@@ -690,11 +693,22 @@ else
                     }
                     prefixComplete = prefixComplete && checkbox.checked;
                 });
-                const selected = checkboxes.filter(function (checkbox) { return checkbox.checked; });
+                const selected = checkboxes.filter(function (checkbox) {
+                    return checkbox.checked && !checkbox.disabled;
+                });
                 ids.value = selected.map(function (checkbox) { return checkbox.value; }).join(',');
                 submit.disabled = selected.length === 0;
+                submit.setAttribute('aria-disabled', submit.disabled ? 'true' : 'false');
             };
             checkboxes.forEach(function (checkbox) { checkbox.addEventListener('change', refresh); });
+            form.addEventListener('rent-batch:refresh', refresh);
+            form.addEventListener('submit', function (event) {
+                refresh();
+                if (submit.disabled || !ids.value) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            });
             refresh();
         });
     </script>

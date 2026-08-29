@@ -117,7 +117,7 @@
     <section class="rh-apartment-commanddeck rh-panel rh-panel-elevated">
         <div class="rh-overview-panel-head">
             <div>
-                <h2 class="rh-dashboard-panel-title">@T["Tenancy overview"]</h2>
+                <h2 class="rh-dashboard-panel-title">@T["Tenancy Overview"]</h2>
                 <p class="rh-dashboard-panel-copy">@T["Keep the tenancy contract and member structure clear in one focused workspace."]</p>
             </div>
             <div class="rh-dashboard-range-chip">@T["Live tenancy view"]</div>
@@ -209,11 +209,12 @@
                 </div>
             </div>
 
-            <partial name="_RentSummaryCards" model="@(new RentHub.Portal.ViewModels.Tenancies.RentSummaryCardsVm
-                {
-                    Summary = rentSummary,
-                    LeaseTerminationReminderDate = tenancy.LeaseTerminationReminderDate
-                })" />
+                                <partial name="_RentSummaryCards" model="@(new RentHub.Portal.ViewModels.Tenancies.RentSummaryCardsVm
+                                {
+                                    Summary = rentSummary,
+                                    LeaseTerminationReminderDate = tenancy.LeaseTerminationReminderDate,
+                                    PaymentIntervalMonths = tenancy.PaymentIntervalMonths
+                                })" />
         </section>
     }
 

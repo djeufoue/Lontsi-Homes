@@ -24,6 +24,21 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> UnreadCount()
+        {
+            try
+            {
+                var result = await _api.GetAsync<ConversationUnreadCountDto>("Conversations/unread-count");
+                return Json(new { count = result.UnreadCount });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to refresh the conversation unread count.");
+                return StatusCode(StatusCodes.Status503ServiceUnavailable);
+            }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Index(
             int? conversationId = null,
             string? kind = null,
