@@ -57,7 +57,7 @@
         </div>
     </div>
     <div class="rh-toolbar">
-        @if (isOwnProfile && isLandlord)
+        @if (isOwnProfile && isLandlord && !overview.IsSubscriptionExempt)
         {
             <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">@T["Payment Center"]</a>
         }
@@ -279,13 +279,13 @@
         }
     </article>
 
-    @if (isOwnProfile && (isLandlord || isAdmin))
+    @if (isOwnProfile && ((isLandlord && !overview.IsSubscriptionExempt) || isAdmin))
     {
         <article class="rh-panel rh-panel-elevated">
             <h2 class="rh-section-title mb-3">@T["Payments and Subscriptions"]</h2>
             <p class="text-muted">@T["Payment numbers, payout routing, subscription status, and plan actions now live in their own workspace."]</p>
             <div class="d-flex flex-wrap gap-2">
-                @if (isLandlord)
+                @if (isLandlord && !overview.IsSubscriptionExempt)
                 {
                     <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">@T["Open Payment Center"]</a>
                     @if (!overview.StripePayoutSetupComplete && overview.IsKycApproved && overview.StripeConnectPlatformEnabled)
