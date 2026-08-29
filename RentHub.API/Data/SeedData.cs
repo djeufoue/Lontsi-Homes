@@ -119,10 +119,9 @@ IF COL_LENGTH('dbo.RentReminders', 'InvalidationReason') IS NULL
 UPDATE [Apartments]
 SET [FloorNumber] = CASE
     WHEN [FloorNumber] IS NULL OR [FloorNumber] < 0 THEN 0
-    WHEN [FloorNumber] > 30 THEN 30
     ELSE [FloorNumber]
 END
-WHERE [FloorNumber] IS NULL OR [FloorNumber] < 0 OR [FloorNumber] > 30;
+WHERE [FloorNumber] IS NULL OR [FloorNumber] < 0;
 
 IF EXISTS
 (
@@ -152,7 +151,7 @@ IF NOT EXISTS
       AND [parent_object_id] = OBJECT_ID(N'[dbo].[Apartments]')
 )
     ALTER TABLE [Apartments] WITH CHECK ADD CONSTRAINT [CK_Apartments_FloorNumber]
-    CHECK ([FloorNumber] >= 0 AND [FloorNumber] <= 30);
+    CHECK ([FloorNumber] >= 0);
 
 UPDATE [Tenancies]
 SET [RentTrackingStartDate] = [StartDate]

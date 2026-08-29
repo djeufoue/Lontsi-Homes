@@ -1831,7 +1831,6 @@
   <data name="Floor" xml:space="preserve"><value>Étage</value></data>
   <data name="Ground floor" xml:space="preserve"><value>Rez-de-chaussée</value></data>
   <data name="Floor {0}" xml:space="preserve"><value>Étage {0}</value></data>
-  <data name="Enter 0 for the ground floor, or choose a floor from 1 to 30." xml:space="preserve"><value>Saisissez 0 pour le rez-de-chaussée, ou choisissez un étage de 1 à 30.</value></data>
   <data name="Edit email" xml:space="preserve"><value>Modifier le courriel</value></data>
   <data name="Edit email address" xml:space="preserve"><value>Modifier l’adresse courriel</value></data>
   <data name="New email address" xml:space="preserve"><value>Nouvelle adresse courriel</value></data>
@@ -1926,5 +1925,8 @@
   </data>
   <data name="Open active tenancy" xml:space="preserve">
     <value>Ouvrir la location active</value>
+  </data>
+  <data name="0 means ground floor." xml:space="preserve">
+    <value>0 signifie rez-de-chaussée.</value>
   </data>
 </root>

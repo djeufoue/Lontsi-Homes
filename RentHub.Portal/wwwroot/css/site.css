@@ -6972,6 +6972,25 @@ html.rh-auth-document body.rh-auth-body {
     align-self: end;
 }
 
+.rh-field-meaning-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--rh-accent) 35%, var(--rh-border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--rh-accent) 10%, var(--rh-bg-soft));
+    color: var(--rh-text);
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+
+.rh-field-meaning-hint > span {
+    color: var(--rh-accent);
+    font-size: 1rem;
+}
+
 .rh-reminder-rules-field,
 .rh-inline-editor-actions {
     grid-column: 1 / -1;

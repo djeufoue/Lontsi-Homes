@@ -595,7 +595,7 @@ namespace RentHub.API.Data
                 entity.Property(apartment => apartment.ManualRentReminderCooldownHours).HasDefaultValue(24);
                 entity.ToTable(table => table.HasCheckConstraint(
                     "CK_Apartments_FloorNumber",
-                    "[FloorNumber] >= 0 AND [FloorNumber] <= 30"));
+                    "[FloorNumber] >= 0"));
             });
             builder.Entity<Tenancy>().HasQueryFilter(t => !t.IsDeleted);
             builder.Entity<TenancyMember>().HasQueryFilter(tm => !tm.IsDeleted);

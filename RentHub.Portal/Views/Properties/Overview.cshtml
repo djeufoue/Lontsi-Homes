@@ -494,15 +494,11 @@
 
                         <div class="col-12">
                             <label class="form-label">@T["Floor"]</label>
-                            <input class="form-control rh-input" name="FloorNumber" type="number" min="0" max="30" value="0" list="newApartmentFloorOptions" required />
-                            <datalist id="newApartmentFloorOptions">
-                                <option value="0" label="@T["Ground floor"]"></option>
-                                @for (var floor = 1; floor <= 30; floor++)
-                                {
-                                    <option value="@floor" label="@T["Floor {0}", floor]"></option>
-                                }
-                            </datalist>
-                            <small class="text-muted">@T["Enter 0 for the ground floor, or choose a floor from 1 to 30."]</small>
+                            <input class="form-control rh-input" name="FloorNumber" type="number" min="0" value="0" required aria-describedby="newApartmentFloorHint" />
+                            <div class="rh-field-meaning-hint" id="newApartmentFloorHint">
+                                <span aria-hidden="true">&#9432;</span>
+                                <strong>@T["0 means ground floor."]</strong>
+                            </div>
                         </div>
                     </div>
 

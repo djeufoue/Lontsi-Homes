@@ -20,7 +20,7 @@ namespace RentHub.Portal.ViewModels.Properties
         [Range(0, int.MaxValue)]
         public int Area { get; set; }
 
-        [Range(0, 30)]
+        [Range(0, int.MaxValue)]
         public int FloorNumber { get; set; }
     }
 }
