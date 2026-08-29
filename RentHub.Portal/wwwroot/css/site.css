@@ -5704,6 +5704,10 @@ html.rh-auth-document body.rh-auth-body {
   gap: 1.5rem;
 }
 
+.rh-overview-sidecolumn-priority > [data-apartment-section="tenancies"] {
+  order: -1;
+}
+
 .rh-overview-bottomgrid {
   margin-top: 1.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));

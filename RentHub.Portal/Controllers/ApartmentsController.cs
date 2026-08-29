@@ -73,6 +73,26 @@ namespace RentHub.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> ReminderSettings(int id)
+        {
+            if (User.IsInRole("Tenant") && !User.IsInRole("Admin") && !User.IsInRole("Landlord"))
+            {
+                return Forbid();
+            }
+
+            try
+            {
+                var vm = await BuildOverviewVmAsync(id, null, null);
+                SuccessDialogHelper.ActivateForProperty(HttpContext.Session, vm.Apartment.PropertyId);
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                return await HandleApiFailureAsync(ex, RedirectToAction(nameof(Overview), new { id }));
+            }
+        }
+
         [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateApartment(int apartmentId, UpdateApartmentRequest request)
         {
@@ -241,7 +261,7 @@ namespace RentHub.Portal.Controllers
                 if (!ModelState.IsValid)
                 {
                     TempData["Error"] = "Please provide valid reminder settings for this apartment.";
-                    return await RedirectToApartmentOverviewAsync(apartmentId);
+                    return RedirectToAction(nameof(ReminderSettings), new { id = apartmentId });
                 }
 
                 await _api.PutAsync($"apartments/{apartmentId}/reminder-settings", request);
@@ -254,7 +274,7 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = SafeUserMessage(apiError.Message, "Unable to update the apartment reminder settings right now. Please try again.");
             }
 
-            return await RedirectToApartmentOverviewAsync(apartmentId);
+            return RedirectToAction(nameof(ReminderSettings), new { id = apartmentId });
         }
 
         [HttpPost, ValidateAntiForgeryToken]

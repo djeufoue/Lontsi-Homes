@@ -1850,6 +1850,14 @@ const initConversationMessageInputs = (root) => {
     initApartmentReminderEditor(root);
   };
 
+  const initApartmentReminderSettings = (root = document.querySelector("[data-apartment-reminder-root='true']")) => {
+    if (!root) {
+      return;
+    }
+
+    initApartmentReminderEditor(root);
+  };
+
   const initRentPeriodPickers = (root = document) => {
     root.querySelectorAll("[data-rent-period-picker]").forEach((picker) => {
       if (picker.dataset.bound === "true") {
@@ -2225,6 +2233,7 @@ const initConversationMessageInputs = (root) => {
   initConversationsPage(undefined, { autoScroll: true });
   initPropertySettingsPage();
   initApartmentOverview();
+  initApartmentReminderSettings();
   bindAutoSearchForms(document);
   restoreAutoSearchFocus();
   initCountrySelectors(document);
