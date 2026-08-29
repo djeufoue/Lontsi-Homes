@@ -28,6 +28,7 @@ namespace RentHub.API.Migrations
                     ALTER TABLE [Tenancies] DROP CONSTRAINT [CK_Tenancies_AutoExtensionMonths];
 
                 DECLARE @futureDefault sysname;
+                DECLARE @futureSql nvarchar(max);
                 SELECT @futureDefault = [dc].[name]
                 FROM sys.default_constraints [dc]
                 INNER JOIN sys.columns [column]
@@ -36,12 +37,16 @@ namespace RentHub.API.Migrations
                 WHERE [dc].[parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
                   AND [column].[name] = N'FutureRentPeriodCount';
                 IF @futureDefault IS NOT NULL
-                    EXEC(N'ALTER TABLE [Tenancies] DROP CONSTRAINT ' + QUOTENAME(@futureDefault));
+                BEGIN
+                    SET @futureSql = N'ALTER TABLE [Tenancies] DROP CONSTRAINT ' + QUOTENAME(@futureDefault);
+                    EXEC sys.sp_executesql @futureSql;
+                END;
 
                 IF COL_LENGTH('dbo.Tenancies', 'FutureRentPeriodCount') IS NOT NULL
                     ALTER TABLE [Tenancies] DROP COLUMN [FutureRentPeriodCount];
 
                 DECLARE @legacyDefault sysname;
+                DECLARE @legacySql nvarchar(max);
                 SELECT @legacyDefault = [dc].[name]
                 FROM sys.default_constraints [dc]
                 INNER JOIN sys.columns [column]
@@ -50,7 +55,10 @@ namespace RentHub.API.Migrations
                 WHERE [dc].[parent_object_id] = OBJECT_ID(N'[dbo].[Tenancies]')
                   AND [column].[name] = N'AutoExtensionMonths';
                 IF @legacyDefault IS NOT NULL
-                    EXEC(N'ALTER TABLE [Tenancies] DROP CONSTRAINT ' + QUOTENAME(@legacyDefault));
+                BEGIN
+                    SET @legacySql = N'ALTER TABLE [Tenancies] DROP CONSTRAINT ' + QUOTENAME(@legacyDefault);
+                    EXEC sys.sp_executesql @legacySql;
+                END;
 
                 IF COL_LENGTH('dbo.Tenancies', 'AutoExtensionMonths') IS NOT NULL
                     ALTER TABLE [Tenancies] DROP COLUMN [AutoExtensionMonths];

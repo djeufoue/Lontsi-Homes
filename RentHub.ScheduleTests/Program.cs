@@ -279,6 +279,10 @@ static void TestProductionMigrationGuards()
         "the obsolete rent horizon column removal is not guarded");
     True(cleanupScript.Contains("[column].[name] = N'FutureRentPeriodCount'", StringComparison.Ordinal),
         "the obsolete rent horizon default constraint is not removed dynamically");
+    True(cleanupScript.Contains("EXEC sys.sp_executesql @futureSql", StringComparison.Ordinal),
+        "the rent horizon default constraint cleanup does not use valid dynamic SQL");
+    True(cleanupScript.Contains("EXEC sys.sp_executesql @legacySql", StringComparison.Ordinal),
+        "the legacy auto-extension default constraint cleanup does not use valid dynamic SQL");
     True(cleanupScript.Contains("DROP COLUMN [FutureRentPeriodCount]", StringComparison.Ordinal),
         "the obsolete rent horizon column is not removed");
 }
