@@ -23,7 +23,12 @@ namespace RentHub.API.Migrations
                     INNER JOIN sys.columns c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
                     WHERE dc.parent_object_id = OBJECT_ID(N'dbo.PlatformPaymentSettings') AND c.name = N'SkipLandlordPhoneVerification';
                     IF @constraintName IS NOT NULL
-                        EXEC(N'ALTER TABLE [dbo].[PlatformPaymentSettings] DROP CONSTRAINT ' + QUOTENAME(@constraintName));
+                    BEGIN
+                        -- EXEC accepts a variable, not a concatenation containing a function call.
+                        DECLARE @dropConstraintSql nvarchar(max) =
+                            N'ALTER TABLE [dbo].[PlatformPaymentSettings] DROP CONSTRAINT ' + QUOTENAME(@constraintName);
+                        EXEC sp_executesql @dropConstraintSql;
+                    END;
                     ALTER TABLE [dbo].[PlatformPaymentSettings] DROP COLUMN [SkipLandlordPhoneVerification];
                 END;");
 

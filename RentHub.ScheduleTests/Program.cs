@@ -364,6 +364,10 @@ static void TestWhatsAppProductionMigration()
     var sql = context.GetService<IMigrator>().GenerateScript(migrations[index - 1], target, MigrationsSqlGenerationOptions.Idempotent);
     True(sql.Contains("THROW 51001", StringComparison.Ordinal), "legacy overlength values stop migration");
     True(sql.Contains("COL_LENGTH(N'dbo.PlatformPaymentSettings', N'SkipLandlordPhoneVerification') IS NOT NULL", StringComparison.Ordinal), "obsolete column drop guarded");
+    True(sql.Contains("DECLARE @dropConstraintSql nvarchar(max)", StringComparison.Ordinal) &&
+         sql.Contains("EXEC sp_executesql @dropConstraintSql;", StringComparison.Ordinal), "constraint drop executes precomputed SQL");
+    True(!sql.Contains("EXEC(N'ALTER TABLE [dbo].[PlatformPaymentSettings] DROP CONSTRAINT ' + QUOTENAME", StringComparison.Ordinal),
+         "EXEC must not receive a QUOTENAME function expression");
     True(sql.Contains("BEGIN TRANSACTION", StringComparison.Ordinal), "migration is transactional");
     True(sql.Contains("IF NOT EXISTS", StringComparison.Ordinal) && sql.Contains("[__EFMigrationsHistory]", StringComparison.Ordinal), "idempotent history guards");
     True(sql.Contains("CREATE UNIQUE INDEX [IX_AspNetUsers_NormalizedWhatsAppPhoneNumber]", StringComparison.Ordinal), "phone uniqueness index generated");
