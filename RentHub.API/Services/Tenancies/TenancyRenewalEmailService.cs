@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
+using RentHub.API.Services.Messaging;
 
 namespace RentHub.API.Services.Tenancies
 {
@@ -20,14 +21,17 @@ namespace RentHub.API.Services.Tenancies
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
+        private readonly INotificationDeliveryService _notificationDeliveryService;
 
         public TenancyRenewalEmailService(
             ApplicationDbContext context,
             IEmailService emailService,
+            INotificationDeliveryService notificationDeliveryService,
             IConfiguration configuration)
         {
             _context = context;
             _emailService = emailService;
+            _notificationDeliveryService = notificationDeliveryService;
             _configuration = configuration;
         }
 
@@ -36,7 +40,7 @@ namespace RentHub.API.Services.Tenancies
             Tenancy tenancy,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(tenant.Email) || !tenancy.EndDate.HasValue)
+            if (!tenancy.EndDate.HasValue)
             {
                 return;
             }
@@ -74,7 +78,20 @@ namespace RentHub.API.Services.Tenancies
                     "Lontsi Homes"
                 });
 
-            await _emailService.SendEmailAsync(tenant.Email, subject, body);
+            if (!string.IsNullOrWhiteSpace(tenant.Email))
+            {
+                await _emailService.SendEmailAsync(tenant.Email, subject, body);
+            }
+            await _notificationDeliveryService.EnqueueWhatsAppAsync(
+                new EnqueueWhatsAppNotification(
+                    "tenancy_ending_soon",
+                    tenant.Id,
+                    new[] { name, propertyName, apartmentName, endDate },
+                    $"tenancy:{tenancy.Id}:ending:{tenancy.EndDate.Value.UtcTicks}:{tenant.Id}:whatsapp",
+                    WhatsAppTemplateValues.UrlButton(_configuration, "tenancy_ending_soon", "tenancyId",
+                        tenancy.Id.ToString(CultureInfo.InvariantCulture)),
+                    RelatedEntityId: tenancy.Id.ToString()),
+                cancellationToken);
         }
 
         public async Task SendRequestSubmittedAsync(
@@ -128,12 +145,12 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var reviewUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={tenancy.Id}&requestType=Renewal");
             var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var proposedDate = FormatDate(request.ProposedEndDate, recipient.EmailLanguage);
                 var subject = recipient.EmailLanguage == PlatformLanguage.French
@@ -161,7 +178,13 @@ namespace RentHub.API.Services.Tenancies
                         "Lontsi Homes"
                     });
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, body);
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, body);
+                }
+
+                await QueueRequestReceivedAsync(request.Id, recipient, requesterName, property.Name,
+                    tenancy.Apartment.Name, "renewal", cancellationToken);
             }
         }
 
@@ -186,14 +209,14 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var reviewer = string.IsNullOrWhiteSpace(request.ApprovedById)
                 ? null
                 : await _context.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == request.ApprovedById, cancellationToken);
             var renewalUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={request.TenancyId}&requestType=Renewal");
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var french = recipient.EmailLanguage == PlatformLanguage.French;
                 var proposedDate = FormatDate(request.ProposedEndDate, recipient.EmailLanguage);
@@ -221,7 +244,13 @@ namespace RentHub.API.Services.Tenancies
                     "Lontsi Homes"
                 };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, requesterName: DisplayName(tenant),
+                    property.Name, tenancy.Apartment.Name, approved ? "approved" : "rejected", cancellationToken);
             }
         }
 
@@ -264,12 +293,12 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var requestsUrl = BuildPortalUrl($"/TenancyRequests?tenancyId={request.TenancyId}&requestType=Renewal");
             var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var french = recipient.EmailLanguage == PlatformLanguage.French;
                 var subject = french
@@ -289,8 +318,52 @@ namespace RentHub.API.Services.Tenancies
                         $"View the register: {requestsUrl}", string.Empty, "Lontsi Homes"
                     };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, requesterName,
+                    property.Name, tenancy.Apartment.Name, "cancelled", cancellationToken);
             }
+        }
+
+        private Task<long?> QueueRequestReceivedAsync(
+            int requestId,
+            ApplicationUser recipient,
+            string requesterName,
+            string propertyName,
+            string apartmentName,
+            string requestType,
+            CancellationToken cancellationToken)
+        {
+            return _notificationDeliveryService.EnqueueWhatsAppAsync(
+                new EnqueueWhatsAppNotification(
+                    "tenancy_request_received",
+                    recipient.Id,
+                    new[] { DisplayName(recipient), requesterName, WhatsAppTemplateValues.RequestType(requestType, recipient.EmailLanguage), $"{propertyName} — {apartmentName}" },
+                    $"tenancy-request:renewal:{requestId}:received:{recipient.Id}:whatsapp",
+                    RelatedEntityId: requestId.ToString()),
+                cancellationToken);
+        }
+
+        private Task<long?> QueueStatusUpdateAsync(
+            int requestId,
+            ApplicationUser recipient,
+            string requesterName,
+            string propertyName,
+            string apartmentName,
+            string status,
+            CancellationToken cancellationToken)
+        {
+            return _notificationDeliveryService.EnqueueWhatsAppAsync(
+                new EnqueueWhatsAppNotification(
+                    "tenancy_request_status_update",
+                    recipient.Id,
+                    new[] { DisplayName(recipient), WhatsAppTemplateValues.RequestType("renewal", recipient.EmailLanguage), requesterName, $"{propertyName} — {apartmentName}", WhatsAppTemplateValues.RequestStatus(status, recipient.EmailLanguage) },
+                    $"tenancy-request:renewal:{requestId}:status:{status}:{recipient.Id}:whatsapp",
+                    RelatedEntityId: requestId.ToString()),
+                cancellationToken);
         }
 
         private string BuildPortalUrl(string path)

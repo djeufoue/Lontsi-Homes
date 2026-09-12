@@ -1,4 +1,5 @@
 @model RentHub.Portal.ViewModels.Auth.VerifyVisitorAccountVm
+@inject Microsoft.Extensions.Configuration.IConfiguration OnboardingConfiguration
 @{
     ViewData["Title"] = "Verify Visitor Account";
     Layout = "_AuthLayout";
@@ -9,18 +10,20 @@
         <aside class="rh-auth-hero">
             <span class="rh-auth-kicker">Lontsi Homes Public Listings</span>
             <h1>Verify your visitor account.</h1>
-            <p>Enter the OTP codes sent to your email, phone number, and WhatsApp before contacting landlords privately.</p>
+            <p>Enter the verification code sent to your email. WhatsApp can be activated separately from your profile.</p>
             <ul class="rh-auth-points">
                 <li>Email OTP</li>
-                <li>Phone OTP</li>
-                <li>WhatsApp OTP</li>
+                @if (OnboardingConfiguration.GetValue("Onboarding:RequireMainPhoneVerification", true))
+                {
+                    <li>Phone OTP, if a phone number was provided</li>
+                }
             </ul>
         </aside>
 
         <section class="rh-auth-card">
             <div class="rh-auth-card-header">
                 <h2>Verify visitor OTPs</h2>
-                <p>All 3 codes are required before you can start a conversation.</p>
+                <p>Confirm the required verification codes to activate your account.</p>
             </div>
 
             @if (ViewBag.AuthInfo is string authInfo)
@@ -50,17 +53,14 @@
                     <span asp-validation-for="EmailOtp" class="text-danger small"></span>
                 </div>
 
+                @if (OnboardingConfiguration.GetValue("Onboarding:RequireMainPhoneVerification", true))
+                {
                 <div class="mb-3">
                     <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
                     <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="Code sent to your phone" />
                     <span asp-validation-for="PhoneOtp" class="text-danger small"></span>
                 </div>
-
-                <div class="mb-3">
-                    <label asp-for="WhatsAppOtp" class="form-label rh-auth-label"></label>
-                    <input asp-for="WhatsAppOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="Code from WhatsApp" />
-                    <span asp-validation-for="WhatsAppOtp" class="text-danger small"></span>
-                </div>
+                }
 
                 <button type="submit" class="btn rh-btn-primary w-100">Activate visitor account</button>
             </form>

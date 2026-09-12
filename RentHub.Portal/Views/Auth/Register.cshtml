@@ -22,8 +22,7 @@
     var progress = new LandlordOnboardingProgressVm
     {
         CurrentStep = LandlordOnboardingSteps.Account,
-        CountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode,
-        SmsVerificationTemporarilyUnavailable = !Configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false)
+        CountryCode = string.IsNullOrWhiteSpace(Model.CountryCode) ? "+1" : Model.CountryCode
     };
 }
 

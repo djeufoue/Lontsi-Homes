@@ -16,8 +16,6 @@ namespace RentHub.Portal.Controllers
     [Authorize]
     public class ProfileController : Controller
     {
-        private const string SmsVerificationUnavailableMessage = "Phone verification is not required for this account.";
-
         private readonly RentHubApiClient _api;
         private readonly PortalAuthSessionService _authSession;
         private readonly IStringLocalizer<SharedResource> _localizer;
@@ -116,7 +114,7 @@ namespace RentHub.Portal.Controllers
         {
             if (!ModelState.IsValid || !PlatformLanguageOptions.IsSupported(model.EmailLanguage))
             {
-                TempData["Error"] = _localizer["Select a supported email language."].Value;
+                TempData["Error"] = _localizer["Select a supported communication language."].Value;
                 return RedirectToAction(nameof(Index), new { userId = model.UserId, tenancyId = model.TenancyId });
             }
 
@@ -136,12 +134,12 @@ namespace RentHub.Portal.Controllers
                     throw new InvalidOperationException("The email language update response was incomplete.");
                 }
 
-                TempData["Success"] = _localizer["Your email language preference has been updated."].Value;
+                TempData["Success"] = _localizer["Your communication language preference has been updated."].Value;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to update the authenticated user's email language preference");
-                TempData["Error"] = _localizer["Unable to update your email language preference right now. Please try again."].Value;
+                TempData["Error"] = _localizer["Unable to update your communication language preference right now. Please try again."].Value;
             }
 
             return RedirectToAction(nameof(Index), new { userId = model.UserId, tenancyId = model.TenancyId });
@@ -167,6 +165,95 @@ namespace RentHub.Portal.Controllers
                 TempData["Error"] = _localizer["Unable to update your message email notification preference right now. Please try again."].Value;
             }
 
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> BeginWhatsAppVerification(
+            bool transactionalConsentAccepted,
+            bool usePrimaryPhoneNumber,
+            string? phoneNumber)
+        {
+            try
+            {
+                await _api.PostAsync<BeginWhatsAppVerificationRequest, WhatsAppPreferenceDto>(
+                    "Account/whatsapp/begin-verification",
+                    new BeginWhatsAppVerificationRequest(
+                        transactionalConsentAccepted,
+                        usePrimaryPhoneNumber,
+                        phoneNumber));
+                TempData["Success"] = _localizer["A verification code was sent to your WhatsApp number."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to begin WhatsApp verification");
+                var error = ParseApiErrorPayload(ex.Message);
+                TempData["Error"] = error.Code == "whatsapp_number_unchanged"
+                    ? _localizer["This WhatsApp number is already your current verified and active number. Enter a different number."].Value
+                    : SafeUserMessage(error.Message,
+                        _localizer["Unable to start WhatsApp verification right now. Please try again."].Value);
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyWhatsAppNumber(string? code)
+        {
+            try
+            {
+                await _api.PostAsync<VerifyWhatsAppNumberRequest, WhatsAppPreferenceDto>(
+                    "Account/whatsapp/verify",
+                    new VerifyWhatsAppNumberRequest(code));
+                TempData["Success"] = _localizer["Your WhatsApp number and transactional consent are now active."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to verify WhatsApp number");
+                TempData["Error"] = SafeUserMessage(
+                    ParseApiErrorPayload(ex.Message).Message,
+                    _localizer["Unable to verify your WhatsApp number. Please check the code and try again."].Value);
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RevokeWhatsAppConsent()
+        {
+            try
+            {
+                await _api.PostAsync<object, WhatsAppPreferenceDto>(
+                    "Account/whatsapp/revoke",
+                    new { });
+                TempData["Success"] = _localizer["WhatsApp notifications have been disabled."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to revoke WhatsApp consent");
+                TempData["Error"] = _localizer["Unable to disable WhatsApp notifications right now. Please try again."].Value;
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelWhatsAppVerification()
+        {
+            try
+            {
+                await _api.PostAsync<object, WhatsAppPreferenceDto>("Account/whatsapp/cancel-verification", new { });
+                TempData["Success"] = _localizer["Pending WhatsApp verification cancelled. Your existing number and consent have not changed."].Value;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to cancel WhatsApp verification");
+                TempData["Error"] = _localizer["Unable to cancel WhatsApp verification right now. Please try again."].Value;
+            }
             return RedirectToAction(nameof(Index));
         }
 
@@ -314,8 +401,7 @@ namespace RentHub.Portal.Controllers
                     PayoutChannel = overview.PayoutChannel?.ToString(),
                     overview.IsPayoutPhoneVerified,
                     overview.WhatsAppPhoneNumber,
-                    overview.IsWhatsAppPhoneVerified,
-                    overview.SmsVerificationEnabled
+                    overview.IsWhatsAppPhoneVerified
                 });
             }
             catch (Exception ex)
@@ -341,11 +427,6 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-                if (!overview.SmsVerificationEnabled)
-                {
-                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
-                }
-
                 if (string.IsNullOrWhiteSpace(phoneNumber))
                 {
                     return BadRequest(new { Message = "Enter the new phone number before requesting an OTP." });
@@ -419,11 +500,6 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-                if (!overview.SmsVerificationEnabled)
-                {
-                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
-                }
-
                 if (HasPendingMobilePaymentVerification(overview))
                 {
                     return BadRequest(new { Message = "Complete the pending OTP validation before changing Mobile Money setup again." });
@@ -437,8 +513,7 @@ namespace RentHub.Portal.Controllers
                     SubscriptionPaymentChannel = vm.SubscriptionPaymentChannel,
                     UsePrimaryPhoneForRentPayouts = vm.UsePrimaryPhoneForRentPayouts,
                     PayoutPhoneNumber = vm.PayoutPhoneNumber,
-                    PayoutChannel = vm.PayoutChannel,
-                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
+                    PayoutChannel = vm.PayoutChannel
                 };
 
                 var response = await _api.PostAsync<UpsertLandlordMobilePaymentsRequest, JsonElement>(
@@ -467,11 +542,6 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-                if (!overview.SmsVerificationEnabled)
-                {
-                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
-                }
-
                 if (string.IsNullOrWhiteSpace(otp))
                 {
                     return BadRequest(new { Message = "Enter the OTP code before verifying this number." });
@@ -507,11 +577,6 @@ namespace RentHub.Portal.Controllers
             try
             {
                 var overview = await _api.GetAsync<ProfileOverviewDto>("Account/profile-overview");
-                if (!overview.SmsVerificationEnabled)
-                {
-                    return BadRequest(new { Message = SmsVerificationUnavailableMessage });
-                }
-
                 var response = await _api.PostAsync<ResendMobilePaymentOtpRequest, JsonElement>(
                     "Account/mobile-payments/resend-otp",
                     new ResendMobilePaymentOtpRequest
@@ -809,12 +874,16 @@ namespace RentHub.Portal.Controllers
                 ? "Account/profile-overview"
                 : $"Account/profile-overview?userId={Uri.EscapeDataString(requestedUserId!.Trim())}&tenancyId={tenancyId}";
             var overview = await _api.GetAsync<ProfileOverviewDto>(endpoint);
+            var whatsAppPreference = isOwnProfile
+                ? await _api.GetAsync<WhatsAppPreferenceDto>("Account/whatsapp")
+                : null;
             return new ProfileIndexVm
             {
                 Overview = overview,
                 NowUtc = DateTimeOffset.UtcNow,
                 IsOwnProfile = isOwnProfile,
-                AccessTenancyId = tenancyId
+                AccessTenancyId = tenancyId,
+                WhatsAppPreference = whatsAppPreference
             };
         }
 
@@ -855,14 +924,8 @@ namespace RentHub.Portal.Controllers
 
         private static bool HasPendingMobilePaymentVerification(ProfileOverviewDto overview)
         {
-            if (!overview.SmsVerificationEnabled)
-            {
-                return false;
-            }
-
             return !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) && !overview.IsSubscriptionPaymentPhoneVerified ||
-                   !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) && !overview.IsPayoutPhoneVerified ||
-                   !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) && !overview.IsWhatsAppPhoneVerified;
+                   !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) && !overview.IsPayoutPhoneVerified;
         }
 
         private static UpsertLandlordMobilePaymentsRequest BuildMobileMoneyRequestFromOverview(
@@ -878,8 +941,7 @@ namespace RentHub.Portal.Controllers
                 SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney,
                 UsePrimaryPhoneForRentPayouts = overview.UsePrimaryPhoneForRentPayouts && hasPrimaryPhone,
                 PayoutPhoneNumber = overview.PayoutPhoneNumber ?? overview.PhoneNumber,
-                PayoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
-                WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber
+                PayoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney
             };
         }
 

@@ -2093,6 +2093,8 @@ const initConversationMessageInputs = (root) => {
 
   if (confirmationModalEl && confirmationProceedEl) {
     const confirmationModal = new bootstrap.Modal(confirmationModalEl);
+    const warningMessageEl = confirmationWarningEl?.querySelector("[data-confirm-warning-message]");
+    const defaultWarningMessage = warningMessageEl?.textContent || "";
     let pendingForm = null;
 
     document.addEventListener("submit", (event) => {
@@ -2110,10 +2112,13 @@ const initConversationMessageInputs = (root) => {
       pendingForm = form;
 
       const confirmationStyle = form.dataset.confirmStyle || "danger";
-      const showsPaymentWarning = form.dataset.confirmWarning === "true";
-      confirmationModalEl.classList.toggle("rh-confirmation-is-warning", showsPaymentWarning);
-      confirmationWarningEl?.classList.toggle("d-none", !showsPaymentWarning);
-      confirmationWarningEl?.setAttribute("aria-hidden", showsPaymentWarning ? "false" : "true");
+      const showsWarning = form.dataset.confirmWarning === "true";
+      confirmationModalEl.classList.toggle("rh-confirmation-is-warning", showsWarning);
+      confirmationWarningEl?.classList.toggle("d-none", !showsWarning);
+      confirmationWarningEl?.setAttribute("aria-hidden", showsWarning ? "false" : "true");
+      if (warningMessageEl) {
+        warningMessageEl.textContent = form.dataset.confirmWarningMessage || defaultWarningMessage;
+      }
 
       if (confirmationTitleEl) {
         confirmationTitleEl.textContent = form.dataset.confirmTitle || t("Please confirm");
@@ -2150,10 +2155,11 @@ const initConversationMessageInputs = (root) => {
         }
       }
 
-      pendingForm.dataset.confirmed = "true";
-      confirmationModal.hide();
-      pendingForm.requestSubmit();
+      const confirmedForm = pendingForm;
       pendingForm = null;
+      confirmedForm.dataset.confirmed = "true";
+      confirmationModal.hide();
+      confirmedForm.requestSubmit();
     });
 
     confirmationModalEl.addEventListener("hidden.bs.modal", () => {

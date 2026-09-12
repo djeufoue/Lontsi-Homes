@@ -11,9 +11,9 @@ namespace RentHub.Portal.ViewModels.Auth
     public class LandlordOnboardingProgressVm
     {
         public string CurrentStep { get; set; } = LandlordOnboardingSteps.Account;
+        public bool RequireMainPhoneVerification { get; set; } = true;
         public string? CountryCode { get; set; }
         public string? CountryIsoCode { get; set; }
-        public bool SmsVerificationTemporarilyUnavailable { get; set; } = true;
 
         public IReadOnlyList<string> Steps
         {
@@ -23,11 +23,13 @@ namespace RentHub.Portal.ViewModels.Auth
                 {
                     LandlordOnboardingSteps.Account,
                     LandlordOnboardingSteps.Email,
-                    LandlordOnboardingSteps.Country,
-                    LandlordOnboardingSteps.Phone
+                    LandlordOnboardingSteps.Country
                 };
 
-                if (!SmsVerificationTemporarilyUnavailable && IncludeCameroonMobileMoneySteps)
+                if (RequireMainPhoneVerification)
+                    steps.Add(LandlordOnboardingSteps.Phone);
+
+                if (IncludeCameroonMobileMoneySteps)
                 {
                     steps.Add(LandlordOnboardingSteps.MobilePayments);
                     steps.Add(LandlordOnboardingSteps.MobilePaymentVerification);
@@ -179,6 +181,9 @@ namespace RentHub.Portal.ViewModels.Auth
 
         [Display(Name = "Use my verified phone for rent payouts")]
         public bool UsePrimaryPhoneForRentPayouts { get; set; } = true;
+        public bool EnableWhatsAppNotifications { get; set; }
+        public bool UsePrimaryPhoneForWhatsApp { get; set; }
+        public bool TransactionalWhatsAppConsentAccepted { get; set; }
 
         [Display(Name = "Rent payout number")]
         [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Rent payout number must contain only digits and may start with +.")]

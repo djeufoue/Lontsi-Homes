@@ -1,4 +1,8 @@
 @model LandlordOnboardingProgressVm
+@inject Microsoft.Extensions.Configuration.IConfiguration OnboardingConfiguration
+@{
+    Model.RequireMainPhoneVerification = OnboardingConfiguration.GetValue("Onboarding:RequireMainPhoneVerification", true);
+}
 
 <span class="rh-auth-kicker"
       data-onboarding-kicker

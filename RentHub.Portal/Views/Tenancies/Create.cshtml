@@ -459,6 +459,9 @@
                     <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" />
                 </div>
                 <div class="col-12">
+                    <small class="text-muted">@T["This number is only proposed. The tenant must sign in, consent, and verify it before receiving WhatsApp notifications."]</small>
+                </div>
+                <div class="col-12">
                     <div class="rh-inline-settings-note">
                         @T["Tenant identity photos, KYC, and landlord payout setup are not required here. The tenant will confirm their email before opening rent payment pages."]
                     </div>

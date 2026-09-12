@@ -32,7 +32,7 @@ namespace RentHub.API.Services.Users
 
         Task SendVisitorActivationOtpAsync(ApplicationUser user);
 
-        Task<OtpSendThrottleStatus> GetTwilioOtpThrottleStatusAsync(ApplicationUser user, string purpose);
+        Task<OtpSendThrottleStatus> GetOtpThrottleStatusAsync(ApplicationUser user, string purpose);
     }
 
     public static class OtpSendPurposes

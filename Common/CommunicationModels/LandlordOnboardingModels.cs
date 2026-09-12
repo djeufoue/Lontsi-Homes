@@ -146,6 +146,9 @@ namespace Common.CommunicationModels
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
 
         public bool UsePrimaryPhoneForRentPayouts { get; set; } = true;
+        public bool EnableWhatsAppNotifications { get; set; }
+        public bool UsePrimaryPhoneForWhatsApp { get; set; }
+        public bool TransactionalWhatsAppConsentAccepted { get; set; }
 
         [Display(Name = "Rent payout number")]
         [RegularExpression(PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "Rent payout number must contain only digits and may start with +.")]
@@ -238,6 +241,7 @@ namespace Common.CommunicationModels
         public string? PhoneNumber { get; set; }
         public bool EmailConfirmed { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
+        public bool RequireMainPhoneVerification { get; set; } = true;
         public bool UsePrimaryPhoneForSubscriptionPayments { get; set; }
         public string? SubscriptionPaymentPhoneNumber { get; set; }
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
@@ -248,6 +252,7 @@ namespace Common.CommunicationModels
         public bool IsPayoutPhoneVerified { get; set; }
         public string? WhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
+        public string? PendingWhatsAppPhoneNumber { get; set; }
         public KycDocumentTypeEnum? KycDocumentType { get; set; }
         public LandlordKycStatusEnum KycStatus { get; set; } = LandlordKycStatusEnum.NotStarted;
         public bool IsKycSubmitted { get; set; }
@@ -264,7 +269,6 @@ namespace Common.CommunicationModels
         public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
-        public bool SmsVerificationEnabled { get; set; }
         public string NextStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsComplete { get; set; }
         public DateTimeOffset CreatedAt { get; set; }

@@ -16,6 +16,7 @@ namespace RentHub.API.Models.Entities
         public bool IsEnabled { get; set; } = true;
         public bool EmailEnabled { get; set; } = true;
         public bool SmsEnabled { get; set; }
+        public bool WhatsAppEnabled { get; set; }
         public int SortOrder { get; set; }
 
         public bool IsDeleted { get; set; }

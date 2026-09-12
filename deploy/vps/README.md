@@ -1,5 +1,10 @@
 # RentHub VPS Deployment
 
+For the WhatsApp update on an **existing VPS**, follow
+[WHATSAPP_PRODUCTION.md](WHATSAPP_PRODUCTION.md). It includes secret/webhook setup
+and `bash deploy-update.sh` (verified backup, startup migrations, schema checks).
+Do not overwrite the existing production `.env.production` with the example file.
+
 This deployment target is designed for a single low-cost Linux VPS that runs:
 
 - `RentHub.Portal` (public website and workspace UI)
@@ -93,7 +98,7 @@ Fill in:
 - SQL password
 - JWT signing key
 - Azure Blob connection string
-- Twilio secrets
+- Infobip API key, SMS sender, WhatsApp sender, and webhook secret
 - SMTP secrets
 - Google Geocoding API key (server-side only)
 - Stripe publishable key, secret key, and webhook signing secret

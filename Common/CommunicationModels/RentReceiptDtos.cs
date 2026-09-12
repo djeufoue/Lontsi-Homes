@@ -21,10 +21,12 @@ namespace Common.CommunicationModels
         public string TransactionId { get; set; } = string.Empty;
         public string ProviderReceiptUrl { get; set; } = string.Empty;
         public string TenantName { get; set; } = string.Empty;
+        public string TenantUserId { get; set; } = string.Empty;
         public string TenantEmail { get; set; } = string.Empty;
         public string TenantPhone { get; set; } = string.Empty;
         public PlatformLanguage TenantEmailLanguage { get; set; } = PlatformLanguage.English;
         public string LandlordName { get; set; } = string.Empty;
+        public string LandlordUserId { get; set; } = string.Empty;
         public string LandlordEmail { get; set; } = string.Empty;
         public PlatformLanguage LandlordEmailLanguage { get; set; } = PlatformLanguage.English;
         public string PropertyName { get; set; } = string.Empty;

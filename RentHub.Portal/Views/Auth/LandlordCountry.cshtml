@@ -8,8 +8,7 @@
     {
         CurrentStep = LandlordOnboardingSteps.Country,
         CountryCode = selectedCountryCode,
-        CountryIsoCode = selectedCountryIsoCode,
-        SmsVerificationTemporarilyUnavailable = Model.Status?.SmsVerificationEnabled != true
+        CountryIsoCode = selectedCountryIsoCode
     };
     var countries = new[]
     {
@@ -37,8 +36,8 @@
             <p>This controls which payment setup steps apply to your landlord account.</p>
             <ul class="rh-auth-points">
                 <li>Country rules are saved for your landlord account</li>
-                <li>SMS phone verification is temporarily unavailable</li>
-                <li>You can continue to identity verification after this</li>
+                <li>Your main phone number is confirmed by SMS OTP</li>
+                <li>You can continue after confirming the number</li>
             </ul>
         </aside>
 
@@ -105,12 +104,12 @@
             const currentStep = "country";
             const baseSteps = ["account", "email", "country", "phone", "kyc", "contract"];
             const cameroonSteps = ["account", "email", "country", "phone", "mobile-payments", "mobile-payment-verification", "kyc", "contract"];
-            const smsVerificationTemporarilyUnavailable = @((Model.Status?.SmsVerificationEnabled != true).ToString().ToLowerInvariant());
 
             const render = () => {
                 const selectedOption = select.options[select.selectedIndex];
                 countryCodeOutput.value = selectedOption?.dataset?.countryCode || "";
-                const steps = !smsVerificationTemporarilyUnavailable && select.value === "CM" ? cameroonSteps : baseSteps;
+                const steps = (select.value === "CM" ? cameroonSteps : baseSteps)
+                    .filter(step => step !== "phone" || stepper.dataset.requireMainPhone !== "false");
                 const activeIndex = steps.indexOf(currentStep);
                 stepper.style.setProperty("--rh-auth-step-count", steps.length.toString());
                 stepper.classList.toggle("rh-auth-stepper-wide", steps.length > 6);

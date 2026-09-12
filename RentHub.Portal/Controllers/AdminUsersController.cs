@@ -27,37 +27,14 @@ namespace RentHub.Portal.Controllers
 
             var usersTask = _api.GetAsync<List<AdminUserVerificationStatusDto>>(endpoint);
             var permissionsTask = _api.GetAsync<AdminUserManagementPermissionsDto>("AdminUsers/management-permissions");
-            var settingsTask = _api.GetAsync<PaymentAvailabilityDto>("PaymentSettings");
-
-            await Task.WhenAll(usersTask, permissionsTask, settingsTask);
+            await Task.WhenAll(usersTask, permissionsTask);
 
             return View(new AdminUsersIndexVm
             {
                 Search = search,
                 CanDeleteUsers = permissionsTask.Result.CanDeleteUsers,
-                SkipLandlordPhoneVerification = settingsTask.Result.SkipLandlordPhoneVerification,
                 Users = usersTask.Result
             });
-        }
-
-        [HttpPost]
-        [Authorize(Roles = "Admin")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateLandlordPhoneVerificationBypass(bool verificationRequired, string? search = null)
-        {
-            try
-            {
-                var bypassEnabled = !verificationRequired;
-                await _api.PutAsync(
-                    "PaymentSettings/platform/landlord-phone-verification-bypass",
-                    new UpdateLandlordPhoneVerificationBypassRequest { Enabled = bypassEnabled });
-            }
-            catch (Exception ex)
-            {
-                TempData["Error"] = ExtractMessage(ex.Message);
-            }
-
-            return RedirectToAction(nameof(Index), new { search });
         }
 
         [HttpGet]

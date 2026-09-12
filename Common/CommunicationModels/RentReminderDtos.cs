@@ -13,6 +13,7 @@ namespace Common.CommunicationModels
         public bool IsEnabled { get; set; } = true;
         public bool EmailEnabled { get; set; } = true;
         public bool SmsEnabled { get; set; }
+        public bool WhatsAppEnabled { get; set; }
         public int SortOrder { get; set; }
     }
 
@@ -27,6 +28,7 @@ namespace Common.CommunicationModels
         public bool IsEnabled { get; set; } = true;
         public bool EmailEnabled { get; set; } = true;
         public bool SmsEnabled { get; set; }
+        public bool WhatsAppEnabled { get; set; }
     }
 
     public class RentReminderPeriodSnapshotDto

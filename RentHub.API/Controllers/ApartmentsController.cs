@@ -342,6 +342,7 @@ namespace RentHub.API.Controllers
                                     IsEnabled = rule.IsEnabled,
                                     EmailEnabled = rule.EmailEnabled,
                                     SmsEnabled = rule.SmsEnabled,
+                                    WhatsAppEnabled = rule.WhatsAppEnabled,
                                     SortOrder = rule.SortOrder
                                 })
                                 .ToList(),
@@ -636,8 +637,8 @@ namespace RentHub.API.Controllers
                 if (requestedRules.Any(rule => rule.Timing != RentReminderTimingEnum.OnDueDate && rule.Days == 0))
                     return BadRequest("Before-due and after-due reminders must use at least 1 day.");
 
-                if (requestedRules.Any(rule => rule.IsEnabled && !rule.EmailEnabled && !rule.SmsEnabled))
-                    return BadRequest("Each enabled reminder rule must use email or SMS.");
+                if (requestedRules.Any(rule => rule.IsEnabled && !rule.EmailEnabled && !rule.SmsEnabled && !rule.WhatsAppEnabled))
+                    return BadRequest("Each enabled reminder rule must use email, SMS, or WhatsApp.");
 
                 if (requestedRules
                     .GroupBy(rule => new { rule.Timing, Days = rule.Timing == RentReminderTimingEnum.OnDueDate ? 0 : rule.Days })
@@ -700,6 +701,7 @@ namespace RentHub.API.Controllers
                     rule.IsEnabled = input.IsEnabled;
                     rule.EmailEnabled = input.EmailEnabled;
                     rule.SmsEnabled = input.SmsEnabled;
+                    rule.WhatsAppEnabled = input.WhatsAppEnabled;
                     rule.SortOrder = index;
                     rule.UpdatedBy = userId;
                     rule.UpdatedAt = updatedAt;
@@ -822,7 +824,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
-                    null,
+                    request.WhatsAppPhoneNumber,
                     requestedRoleName)).User;
 
                 var already = await _context.ApartmentOwners.AnyAsync(o =>

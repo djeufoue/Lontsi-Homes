@@ -5,8 +5,7 @@
     var progress = new LandlordOnboardingProgressVm
     {
         CurrentStep = LandlordOnboardingSteps.Email,
-        CountryCode = Model.Status?.CountryCode ?? "+1",
-        SmsVerificationTemporarilyUnavailable = Model.Status?.SmsVerificationEnabled != true
+        CountryCode = Model.Status?.CountryCode ?? "+1"
     };
 }
 

@@ -5,6 +5,27 @@
 @{
     var overview = Model.Overview;
     var user = overview.User;
+    var whatsapp = overview.WhatsAppActivation;
+    var whatsAppLabel = whatsapp.State switch
+    {
+        "active" => "WhatsApp active",
+        "pending" => "WhatsApp verification pending",
+        "expired" => "WhatsApp code expired",
+        "proposed" => "WhatsApp number to verify",
+        "revoked" => "WhatsApp consent withdrawn",
+        "consent-missing" => "WhatsApp consent missing",
+        _ => "WhatsApp number missing"
+    };
+    var whatsAppHelp = whatsapp.State switch
+    {
+        "active" => "The verified number and consent allow transactional WhatsApp notifications.",
+        "pending" => "The user must enter the code received on WhatsApp in their profile.",
+        "expired" => "The code has expired. The user must request a new code from their profile.",
+        "proposed" => "The user must confirm the proposed number, accept consent and request a verification code from their profile.",
+        "revoked" => "Notifications are disabled. Only the user can renew consent and verify the number from their profile.",
+        "consent-missing" => "The number is verified but notifications are disabled until the user completes the consent flow from their profile.",
+        _ => "The user must provide a WhatsApp number and complete verification from their profile to enable this channel."
+    };
     var completedSteps = overview.Steps.Count(step => step.IsComplete);
     var totalSteps = overview.Steps.Count;
     var progressPercent = totalSteps == 0 ? 0 : (int)Math.Round(completedSteps * 100m / totalSteps);
@@ -45,7 +66,7 @@
     </article>
 
     <article class="rh-panel rh-panel-elevated">
-        <p class="rh-kicker">@T["Progress"]</p>
+        <p class="rh-kicker">@T["Registration progress"]</p>
         <div class="rh-admin-progress-summary">
             <strong>@completedSteps / @totalSteps</strong>
             <span>@T["{0}% complete", progressPercent]</span>
@@ -54,6 +75,7 @@
             <span style="width: @progressPercent%"></span>
         </div>
         <p class="rh-card-meta mt-2">@T["Current step:"] <strong>@(user.IsOnboardingComplete ? T["Complete"] : OnboardingStepLabel(user.NextOnboardingStep))</strong></p>
+        <p class="rh-card-meta">@T[whatsAppLabel]</p>
     </article>
 
     <article class="rh-panel rh-panel-elevated">
@@ -61,6 +83,42 @@
         <h2 class="rh-admin-overview-name">@FormatDate(user.CreatedAt)</h2>
         <p class="rh-card-meta">@T["User id:"] @user.UserId</p>
     </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3" aria-labelledby="whatsapp-activation-title">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title" id="whatsapp-activation-title">@T["WhatsApp activation"]</h2>
+            <p class="rh-card-meta mb-0">@T["Optional for account access. A verified number and consent are required for WhatsApp notifications."]</p>
+        </div>
+        <span class="rh-chip @(whatsapp.State == "active" ? "rh-chip-success" : "rh-chip-warning")">@T[whatsAppLabel]</span>
+    </div>
+    <div class="rh-admin-overview-grid">
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["1. WhatsApp number"]</p>
+            <h3>@TextOrFallback(whatsapp.PhoneNumber, T["Not provided"].Value)</h3>
+            <span class="rh-chip @(whatsapp.HasNumber ? "rh-chip-primary" : "rh-chip-warning")">@(whatsapp.HasNumber ? T["Provided"] : T["To complete"])</span>
+        </article>
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["2. Number verification"]</p>
+            @StatusChip(whatsapp.IsVerified)
+            @if (whatsapp.VerifiedAt.HasValue)
+            {
+                <small>@T["Verified {0}", FormatDate(whatsapp.VerifiedAt.Value)]</small>
+            }
+            @if (whatsapp.CodeExpiresAt.HasValue)
+            {
+                <small>@T["Code expiry: {0}", FormatDate(whatsapp.CodeExpiresAt.Value)]</small>
+            }
+        </article>
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["3. Transactional consent"]</p>
+            <span class="rh-chip @(whatsapp.HasConsent ? "rh-chip-success" : "rh-chip-warning")">@(whatsapp.HasConsent ? T["Granted"] : whatsapp.State == "revoked" ? T["Withdrawn"] : T["Not activated"])</span>
+            <small>@T["Consent is activated after successful code verification."]</small>
+        </article>
+    </div>
+    <p class="mt-3 mb-1">@T[whatsAppHelp]</p>
+    <small class="text-muted">@T["The WhatsApp code is confidential and cannot be displayed here. Refresh this page after the user completes an action."]</small>
 </section>
 
 @if (isAdmin && overview.Kyc != null)
@@ -221,7 +279,7 @@ else if (isAdmin && user.Roles.Any(role => string.Equals(role, "Landlord", Strin
             <p class="rh-kicker mb-1">@T["Testing OTPs"]</p>
             <h2 class="rh-section-title">@T["Current verification codes"]</h2>
         </div>
-        <small class="text-muted" data-otp-refresh-state>@T["Visible only to admins"]</small>
+        <small class="text-muted" data-otp-refresh-state role="status" hidden></small>
     </div>
 
     @if (!overview.OtpCodes.Any())
@@ -302,11 +360,11 @@ else if (isAdmin && user.Roles.Any(role => string.Equals(role, "Landlord", Strin
     </article>
     <article class="rh-admin-detail-card">
         <p class="rh-kicker">@T["WhatsApp"]</p>
-        <h3>@TextOrFallback(user.WhatsAppPhoneNumber, T["Not provided"].Value)</h3>
-        @StatusChip(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) || user.IsWhatsAppPhoneVerified)
-        @if (user.WhatsAppPhoneVerifiedAt.HasValue)
+        <h3>@TextOrFallback(whatsapp.PhoneNumber, T["Not provided"].Value)</h3>
+        <span class="rh-chip @(whatsapp.State == "active" ? "rh-chip-success" : "rh-chip-warning")">@T[whatsAppLabel]</span>
+        @if (whatsapp.VerifiedAt.HasValue)
         {
-            <small>@T["Verified {0}", FormatDate(user.WhatsAppPhoneVerifiedAt.Value)]</small>
+            <small>@T["Verified {0}", FormatDate(whatsapp.VerifiedAt.Value)]</small>
         }
     </article>
 </section>
@@ -562,7 +620,6 @@ else if (isAdmin && user.Roles.Any(role => string.Equals(role, "Landlord", Strin
                 expiresAt: @Html.Raw(JsonSerializer.Serialize(T["Expires {0}"].Value)),
                 noOtpGenerated: @Html.Raw(JsonSerializer.Serialize(T["No OTP has been generated yet"].Value)),
                 noDestination: @Html.Raw(JsonSerializer.Serialize(T["no destination"].Value)),
-                statusUpdated: @Html.Raw(JsonSerializer.Serialize(T["OTP status updated {0}"].Value)),
                 statusRefreshFailed: @Html.Raw(JsonSerializer.Serialize(T["OTP status refresh failed"].Value)),
                 copied: @Html.Raw(JsonSerializer.Serialize(T["Copied"].Value)),
                 copyFailed: @Html.Raw(JsonSerializer.Serialize(T["Copy failed"].Value)),
@@ -740,9 +797,15 @@ else if (isAdmin && user.Roles.Any(role => string.Equals(role, "Landlord", Strin
                     if (!response.ok) throw new Error("OTP refresh failed");
                     const otps = await response.json();
                     otps.map(normalizeOtp).forEach(applyOtp);
-                    if (refreshState) refreshState.textContent = formatText(i18n.statusUpdated, new Date().toLocaleTimeString());
+                    if (refreshState) {
+                        refreshState.textContent = "";
+                        refreshState.hidden = true;
+                    }
                 } catch {
-                    if (refreshState) refreshState.textContent = i18n.statusRefreshFailed;
+                    if (refreshState) {
+                        refreshState.textContent = i18n.statusRefreshFailed;
+                        refreshState.hidden = false;
+                    }
                 }
             };
 

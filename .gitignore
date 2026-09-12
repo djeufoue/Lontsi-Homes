@@ -13,3 +13,8 @@ build-verify/
 DocumentLayout.json
 DocumentLayout.backup.json
 HierarchyCache.v1.txt
+.env
+.env.production
+/tmp/
+/output/
+/deploy/vps/backups/

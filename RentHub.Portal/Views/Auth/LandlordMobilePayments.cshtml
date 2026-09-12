@@ -9,8 +9,7 @@
     {
         CurrentStep = LandlordOnboardingSteps.MobilePayments,
         CountryCode = Model.Status?.CountryCode ?? "+237",
-        CountryIsoCode = Model.Status?.CountryIsoCode,
-        SmsVerificationTemporarilyUnavailable = Model.Status?.SmsVerificationEnabled != true
+        CountryIsoCode = Model.Status?.CountryIsoCode
     };
 }
 
@@ -114,9 +113,31 @@
                 </div>
 
                 <div class="mb-3">
-                    <label asp-for="WhatsAppPhoneNumber" class="form-label rh-auth-label"></label>
-                    <input asp-for="WhatsAppPhoneNumber" class="form-control rh-auth-input" inputmode="numeric" placeholder="Optional WhatsApp number for alerts" />
-                    <span asp-validation-for="WhatsAppPhoneNumber" class="text-danger small"></span>
+                    <div class="form-check">
+                        <input asp-for="EnableWhatsAppNotifications" class="form-check-input" data-whatsapp-enable />
+                        <label asp-for="EnableWhatsAppNotifications" class="form-check-label">I want to receive WhatsApp verification codes and transactional notifications</label>
+                    </div>
+                    <small class="text-muted">Optional. Conversation messages and marketing are not included.</small>
+                </div>
+
+                <div data-whatsapp-options hidden>
+                    @if (!string.IsNullOrWhiteSpace(Model.PrimaryPhoneNumber))
+                    {
+                        <div class="form-check mb-3">
+                            <input asp-for="UsePrimaryPhoneForWhatsApp" class="form-check-input" data-whatsapp-use-primary />
+                            <label asp-for="UsePrimaryPhoneForWhatsApp" class="form-check-label">My WhatsApp number is the same as my main phone number (@Model.PrimaryPhoneNumber)</label>
+                        </div>
+                    }
+                    <div class="mb-3" data-whatsapp-number>
+                        <label asp-for="WhatsAppPhoneNumber" class="form-label rh-auth-label"></label>
+                        <input asp-for="WhatsAppPhoneNumber" class="form-control rh-auth-input" inputmode="tel" placeholder="+237691478387" data-whatsapp-number-input />
+                        <small class="text-muted">Use international format. This number will receive a separate WhatsApp OTP even if it is your main phone.</small>
+                        <span asp-validation-for="WhatsAppPhoneNumber" class="text-danger small"></span>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input asp-for="TransactionalWhatsAppConsentAccepted" class="form-check-input" required data-whatsapp-consent />
+                        <label asp-for="TransactionalWhatsAppConsentAccepted" class="form-check-label">I agree to receive WhatsApp verification codes and transactional notifications from Lontsi Homes about my account, tenancy and payments. I can withdraw my consent in my profile.</label>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn rh-btn-primary w-100">@(isAccountUpdate ? "Save changes and send OTPs" : "Save and send required OTPs")</button>
@@ -143,6 +164,32 @@
                 checkbox.addEventListener("change", () => sync(checkbox));
                 sync(checkbox);
             });
+
+            const whatsAppEnabled = document.querySelector("[data-whatsapp-enable]");
+            const whatsAppOptions = document.querySelector("[data-whatsapp-options]");
+            const usePrimaryForWhatsApp = document.querySelector("[data-whatsapp-use-primary]");
+            const whatsAppNumber = document.querySelector("[data-whatsapp-number]");
+            const whatsAppNumberInput = document.querySelector("[data-whatsapp-number-input]");
+            const whatsAppConsent = document.querySelector("[data-whatsapp-consent]");
+
+            const syncWhatsApp = () => {
+                if (!whatsAppEnabled || !whatsAppOptions) return;
+                whatsAppOptions.hidden = !whatsAppEnabled.checked;
+                if (whatsAppConsent) {
+                    whatsAppConsent.disabled = !whatsAppEnabled.checked;
+                    whatsAppConsent.required = whatsAppEnabled.checked;
+                }
+                const usePrimary = whatsAppEnabled.checked && usePrimaryForWhatsApp?.checked;
+                if (whatsAppNumber) whatsAppNumber.hidden = usePrimary;
+                if (whatsAppNumberInput) {
+                    whatsAppNumberInput.disabled = !whatsAppEnabled.checked || usePrimary;
+                    whatsAppNumberInput.required = whatsAppEnabled.checked && !usePrimary;
+                }
+            };
+
+            whatsAppEnabled?.addEventListener("change", syncWhatsApp);
+            usePrimaryForWhatsApp?.addEventListener("change", syncWhatsApp);
+            syncWhatsApp();
         })();
     </script>
 }

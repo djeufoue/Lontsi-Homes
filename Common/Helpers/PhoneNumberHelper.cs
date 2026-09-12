@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Common.Helpers
 {
@@ -24,6 +25,56 @@ namespace Common.Helpers
         public static string NormalizeOrEmpty(string? value)
         {
             return Normalize(value) ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Converts a country code and a local/international number to E.164.
+        /// The method deliberately accepts only digits, spaces and common visual
+        /// separators; extensions and ambiguous national formats are rejected.
+        /// </summary>
+        public static bool TryNormalizeE164(string? countryCode, string? phoneNumber, out string normalized)
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+            {
+                return false;
+            }
+
+            var rawNumber = phoneNumber.Trim();
+            if (!Regex.IsMatch(rawNumber, @"^\+?[0-9\s().-]+$"))
+            {
+                return false;
+            }
+
+            string digits;
+            if (rawNumber.StartsWith('+'))
+            {
+                digits = new string(rawNumber.Skip(1).Where(char.IsDigit).ToArray());
+            }
+            else
+            {
+                var countryDigits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+                if (countryDigits.Length == 0)
+                {
+                    return false;
+                }
+
+                var nationalDigits = new string(rawNumber.Where(char.IsDigit).ToArray()).TrimStart('0');
+                digits = countryDigits + nationalDigits;
+            }
+
+            if (digits.Length is < 8 or > 15 || digits[0] == '0')
+            {
+                return false;
+            }
+
+            normalized = "+" + digits;
+            return true;
+        }
+
+        public static string ToProviderDigits(string e164)
+        {
+            return new string((e164 ?? string.Empty).Where(char.IsDigit).ToArray());
         }
     }
 }

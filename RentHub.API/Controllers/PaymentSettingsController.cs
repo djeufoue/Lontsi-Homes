@@ -24,7 +24,6 @@ namespace RentHub.API.Controllers
         public async Task<IActionResult> Get([FromQuery] int? propertyId = null)
         {
             var platformEnabled = await PaymentAvailabilityHelper.IsPlatformAutomaticPaymentEnabledAsync(_context);
-            var skipLandlordPhoneVerification = await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context);
             bool? propertyEnabled = null;
 
             if (propertyId.HasValue)
@@ -40,7 +39,7 @@ namespace RentHub.API.Controllers
                 }
             }
 
-            return Ok(BuildResponse(platformEnabled, propertyId, propertyEnabled, skipLandlordPhoneVerification));
+            return Ok(BuildResponse(platformEnabled, propertyId, propertyEnabled));
         }
 
         [HttpPut("platform")]
@@ -75,32 +74,7 @@ namespace RentHub.API.Controllers
             }
 
             await _context.SaveChangesAsync();
-            return Ok(BuildResponse(request.Enabled, null, null, settings.SkipLandlordPhoneVerification));
-        }
-
-        [HttpPut("platform/landlord-phone-verification-bypass")]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> UpdateLandlordPhoneVerificationBypass(
-            UpdateLandlordPhoneVerificationBypassRequest request)
-        {
-            var actor = UserHelpers.GetUserId(User);
-            var settings = await _context.PlatformPaymentSettings.FirstOrDefaultAsync(item => item.Id == 1);
-            if (settings == null)
-            {
-                settings = new PlatformPaymentSettings { Id = 1 };
-                _context.PlatformPaymentSettings.Add(settings);
-            }
-
-            settings.SkipLandlordPhoneVerification = request.Enabled;
-            settings.UpdatedBy = actor;
-            settings.UpdatedAt = DateTimeOffset.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return Ok(BuildResponse(
-                settings.AutomaticPaymentsEnabled,
-                null,
-                null,
-                settings.SkipLandlordPhoneVerification));
+            return Ok(BuildResponse(request.Enabled, null, null));
         }
 
         [HttpPut("properties/{propertyId:int}")]
@@ -130,15 +104,13 @@ namespace RentHub.API.Controllers
             property.UpdatedAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync();
 
-            var skipLandlordPhoneVerification = await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context);
-            return Ok(BuildResponse(platformEnabled, propertyId, property.AutomaticPaymentsEnabled, skipLandlordPhoneVerification));
+            return Ok(BuildResponse(platformEnabled, propertyId, property.AutomaticPaymentsEnabled));
         }
 
         private static PaymentAvailabilityDto BuildResponse(
             bool platformEnabled,
             int? propertyId,
-            bool? propertyEnabled,
-            bool skipLandlordPhoneVerification)
+            bool? propertyEnabled)
         {
             var effective = platformEnabled && propertyEnabled.GetValueOrDefault(platformEnabled);
             return new PaymentAvailabilityDto
@@ -147,7 +119,6 @@ namespace RentHub.API.Controllers
                 PropertyId = propertyId,
                 PropertyAutomaticPaymentsEnabled = propertyEnabled,
                 EffectiveAutomaticPaymentsEnabled = effective,
-                SkipLandlordPhoneVerification = skipLandlordPhoneVerification,
                 Message = effective
                     ? "Automatic payments are enabled."
                     : PaymentAvailabilityHelper.AutomaticPaymentsUnavailableMessage

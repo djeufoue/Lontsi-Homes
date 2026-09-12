@@ -28,6 +28,8 @@ namespace RentHub.API.Data
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
         public DbSet<OtpSendLog> OtpSendLogs => Set<OtpSendLog>();
+        public DbSet<UserCommunicationConsent> UserCommunicationConsents => Set<UserCommunicationConsent>();
+        public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
         public DbSet<LandlordKycProfile> LandlordKycProfiles => Set<LandlordKycProfile>();
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<SystemTransferAccount> SystemTransferAccounts => Set<SystemTransferAccount>();
@@ -76,7 +78,25 @@ namespace RentHub.API.Data
                 entry.Entity.PhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.PhoneNumber);
                 entry.Entity.SubscriptionPaymentPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.SubscriptionPaymentPhoneNumber);
                 entry.Entity.PayoutPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.PayoutPhoneNumber);
-                entry.Entity.WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(entry.Entity.WhatsAppPhoneNumber);
+                var user = entry.Entity;
+                if (user.UsePrimaryPhoneForWhatsApp &&
+                    PhoneNumberHelper.TryNormalizeE164(user.CountryCode, user.PhoneNumber, out var primaryE164))
+                {
+                    if (!string.Equals(user.WhatsAppPhoneNumber, primaryE164, StringComparison.Ordinal))
+                    {
+                        user.PendingWhatsAppPhoneNumber = primaryE164;
+                        user.WhatsAppPhoneNumber = null;
+                        user.NormalizedWhatsAppPhoneNumber = null;
+                        user.IsWhatsAppPhoneVerified = false;
+                        user.WhatsAppPhoneVerifiedAt = null;
+                    }
+                }
+
+                user.PendingWhatsAppPhoneNumber = NormalizeE164OrNull(user.CountryCode, user.PendingWhatsAppPhoneNumber);
+                user.WhatsAppPhoneNumber = NormalizeE164OrNull(user.CountryCode, user.WhatsAppPhoneNumber);
+                user.NormalizedWhatsAppPhoneNumber = user.IsWhatsAppPhoneVerified
+                    ? user.WhatsAppPhoneNumber
+                    : null;
             }
 
             foreach (var entry in ChangeTracker.Entries<Property>()
@@ -97,6 +117,21 @@ namespace RentHub.API.Data
             {
                 entry.Entity.RecipientPhone = PhoneNumberHelper.NormalizeOrEmpty(entry.Entity.RecipientPhone);
             }
+        }
+
+        private static string? NormalizeE164OrNull(string? countryCode, string? phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+            {
+                return null;
+            }
+
+            if (!PhoneNumberHelper.TryNormalizeE164(countryCode, phoneNumber, out var normalized))
+            {
+                throw new InvalidOperationException("Phone number must be a valid E.164 number.");
+            }
+
+            return normalized;
         }
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -135,6 +170,19 @@ namespace RentHub.API.Data
 
                 entity.Property(u => u.CountryIsoCode)
                     .HasMaxLength(2);
+
+                entity.Property(u => u.PendingWhatsAppPhoneNumber)
+                    .HasMaxLength(16);
+
+                entity.Property(u => u.WhatsAppPhoneNumber)
+                    .HasMaxLength(16);
+
+                entity.Property(u => u.NormalizedWhatsAppPhoneNumber)
+                    .HasMaxLength(16);
+
+                entity.HasIndex(u => u.NormalizedWhatsAppPhoneNumber)
+                    .IsUnique()
+                    .HasFilter("[NormalizedWhatsAppPhoneNumber] IS NOT NULL AND [IsWhatsAppPhoneVerified] = 1");
 
                 entity.Property(u => u.StripeConnectAccountId)
                     .HasMaxLength(128);
@@ -458,6 +506,57 @@ namespace RentHub.API.Data
 
                 entity.HasIndex(e => new { e.UserId, e.Purpose, e.SentAt });
                 entity.HasIndex(e => new { e.UserId, e.Purpose, e.Recipient, e.SentAt });
+            });
+
+            builder.Entity<UserCommunicationConsent>(entity =>
+            {
+                entity.Property(e => e.UserId).HasMaxLength(450);
+                entity.Property(e => e.Channel).HasMaxLength(20);
+                entity.Property(e => e.Purpose).HasMaxLength(32);
+                entity.Property(e => e.Status).HasMaxLength(20);
+                entity.Property(e => e.PhoneNumberE164).HasMaxLength(16);
+                entity.Property(e => e.TextVersion).HasMaxLength(64);
+                entity.Property(e => e.Source).HasMaxLength(64);
+                entity.Property(e => e.IpAddress).HasMaxLength(64);
+                entity.Property(e => e.UserAgent).HasMaxLength(512);
+
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.CommunicationConsents)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => new { e.UserId, e.Channel, e.Purpose, e.Status });
+                entity.HasIndex(e => new { e.UserId, e.Channel, e.Purpose })
+                    .IsUnique()
+                    .HasFilter("[Status] = N'Granted'");
+            });
+
+            builder.Entity<NotificationDelivery>(entity =>
+            {
+                entity.Property(e => e.Channel).HasMaxLength(20);
+                entity.Property(e => e.EventType).HasMaxLength(80);
+                entity.Property(e => e.TemplateName).HasMaxLength(128);
+                entity.Property(e => e.RelatedEntityId).HasMaxLength(160);
+                entity.Property(e => e.TemplateLanguage).HasMaxLength(16);
+                entity.Property(e => e.RecipientUserId).HasMaxLength(450);
+                entity.Property(e => e.RecipientPhoneNumberE164).HasMaxLength(16);
+                entity.Property(e => e.Status).HasMaxLength(20);
+                entity.Property(e => e.ProviderMessageId).HasMaxLength(160);
+                entity.Property(e => e.LastErrorCode).HasMaxLength(100);
+                entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+                entity.Property(e => e.IdempotencyKey).HasMaxLength(200);
+                entity.Property(e => e.PayloadJson).HasMaxLength(8000);
+                entity.Property(e => e.ButtonPayloadsJson).HasMaxLength(4000);
+
+                entity.HasOne(e => e.RecipientUser)
+                    .WithMany(u => u.NotificationDeliveries)
+                    .HasForeignKey(e => e.RecipientUserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.IdempotencyKey).IsUnique();
+                entity.HasIndex(e => e.ProviderMessageId)
+                    .HasFilter("[ProviderMessageId] IS NOT NULL AND [ProviderMessageId] <> N''");
+                entity.HasIndex(e => new { e.Status, e.CreatedAt });
             });
 
             builder.Entity<LandlordKycProfile>(entity =>

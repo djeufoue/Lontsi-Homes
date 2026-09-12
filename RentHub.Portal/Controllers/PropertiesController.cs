@@ -523,6 +523,7 @@ namespace RentHub.Portal.Controllers
                     FullName = vm.FullName,
                     CountryCode = vm.CountryCode ?? string.Empty,
                     PhoneNumber = vm.PhoneNumber ?? string.Empty,
+                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber,
                     Permission = vm.Permission
                 };
 

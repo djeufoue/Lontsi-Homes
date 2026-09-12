@@ -1764,7 +1764,7 @@
   <data name="{0} new request decision(s)" xml:space="preserve"><value>{0} nouvelle(s) décision(s) concernant vos demandes</value></data>
   <data name="Message email notifications" xml:space="preserve"><value>Notifications de messagerie par courriel</value></data>
   <data name="Choose whether a follow-up email is sent when a new message is waiting for you in Lontsi Homes." xml:space="preserve"><value>Choisissez si un courriel supplémentaire doit être envoyé lorsqu’un nouveau message vous attend dans Lontsi Homes.</value></data>
-  <data name="Receive an email for new messages" xml:space="preserve"><value>Recevoir un courriel pour les nouveaux messages</value></data>
+  <data name="Receive an email for new messages" xml:space="preserve"><value>Recevoir par email les notifications de nouveaux messages</value></data>
   <data name="Disabling this option does not block messages in the platform. It only stops the additional email notification." xml:space="preserve"><value>La désactivation de cette option ne bloque pas les messages dans la plateforme. Elle empêche uniquement l’envoi du courriel de notification supplémentaire.</value></data>
   <data name="Save notification preference" xml:space="preserve"><value>Enregistrer la préférence de notification</value></data>
   <data name="Message email notifications have been enabled." xml:space="preserve"><value>Les notifications de messagerie par courriel ont été activées.</value></data>
@@ -1929,4 +1929,76 @@
   <data name="0 means ground floor." xml:space="preserve">
     <value>0 signifie rez-de-chaussée.</value>
   </data>
+  <data name="Rental information" xml:space="preserve"><value>Informations de location</value></data>
+  <data name="Paid period" xml:space="preserve"><value>Période réglée</value></data>
+  <data name="Paid period details" xml:space="preserve"><value>Détail des périodes réglées</value></data>
+  <data name="Total paid" xml:space="preserve"><value>Total payé</value></data>
+  <data name="Landlord email" xml:space="preserve"><value>Courriel du propriétaire</value></data>
+  <data name="WhatsApp activation" xml:space="preserve"><value>Activation WhatsApp</value></data>
+  <data name="WhatsApp active" xml:space="preserve"><value>WhatsApp actif</value></data>
+  <data name="WhatsApp verification pending" xml:space="preserve"><value>Vérification WhatsApp en attente</value></data>
+  <data name="WhatsApp code expired" xml:space="preserve"><value>Code WhatsApp expiré</value></data>
+  <data name="WhatsApp number to verify" xml:space="preserve"><value>Numéro WhatsApp à vérifier</value></data>
+  <data name="WhatsApp consent withdrawn" xml:space="preserve"><value>Consentement WhatsApp retiré</value></data>
+  <data name="WhatsApp consent missing" xml:space="preserve"><value>Consentement WhatsApp manquant</value></data>
+  <data name="WhatsApp number missing" xml:space="preserve"><value>Numéro WhatsApp non renseigné</value></data>
+  <data name="Optional for account access. A verified number and consent are required for WhatsApp notifications." xml:space="preserve"><value>Facultatif pour accéder au compte. Un numéro vérifié et le consentement sont nécessaires pour recevoir les notifications WhatsApp.</value></data>
+  <data name="1. WhatsApp number" xml:space="preserve"><value>1. Numéro WhatsApp</value></data>
+  <data name="2. Number verification" xml:space="preserve"><value>2. Vérification du numéro</value></data>
+  <data name="3. Transactional consent" xml:space="preserve"><value>3. Consentement transactionnel</value></data>
+  <data name="Provided" xml:space="preserve"><value>Renseigné</value></data>
+  <data name="To complete" xml:space="preserve"><value>À compléter</value></data>
+  <data name="Granted" xml:space="preserve"><value>Accordé</value></data>
+  <data name="Withdrawn" xml:space="preserve"><value>Retiré</value></data>
+  <data name="Not activated" xml:space="preserve"><value>Non activé</value></data>
+  <data name="Code expiry: {0}" xml:space="preserve"><value>Expiration du code : {0}</value></data>
+  <data name="Consent is activated after successful code verification." xml:space="preserve"><value>Le consentement est activé après validation du code.</value></data>
+  <data name="The verified number and consent allow transactional WhatsApp notifications." xml:space="preserve"><value>Le numéro vérifié et le consentement permettent l’envoi des notifications WhatsApp transactionnelles.</value></data>
+  <data name="The user must enter the code received on WhatsApp in their profile." xml:space="preserve"><value>L’utilisateur doit saisir dans son profil le code reçu sur WhatsApp.</value></data>
+  <data name="The code has expired. The user must request a new code from their profile." xml:space="preserve"><value>Le code a expiré. L’utilisateur doit demander un nouveau code depuis son profil.</value></data>
+  <data name="The user must confirm the proposed number, accept consent and request a verification code from their profile." xml:space="preserve"><value>L’utilisateur doit confirmer le numéro proposé, accepter le consentement et demander un code de vérification depuis son profil.</value></data>
+  <data name="Notifications are disabled. Only the user can renew consent and verify the number from their profile." xml:space="preserve"><value>Les notifications sont désactivées. Seul l’utilisateur peut renouveler son consentement et vérifier son numéro depuis son profil.</value></data>
+  <data name="The number is verified but notifications are disabled until the user completes the consent flow from their profile." xml:space="preserve"><value>Le numéro est vérifié, mais les notifications restent désactivées tant que l’utilisateur n’a pas terminé le parcours de consentement depuis son profil.</value></data>
+  <data name="The user must provide a WhatsApp number and complete verification from their profile to enable this channel." xml:space="preserve"><value>L’utilisateur doit renseigner un numéro WhatsApp et terminer sa vérification depuis son profil pour activer ce canal.</value></data>
+  <data name="The WhatsApp code is confidential and cannot be displayed here. Refresh this page after the user completes an action." xml:space="preserve"><value>Le code WhatsApp est confidentiel et ne peut pas être affiché ici. Actualisez cette page après une action de l’utilisateur.</value></data>
+  <data name="Communication language" xml:space="preserve"><value>Langue des communications</value></data>
+  <data name="Save communication language" xml:space="preserve"><value>Enregistrer la langue des communications</value></data>
+  <data name="Choose the language for automated messages sent to you by Lontsi Homes, including emails and WhatsApp messages: verification codes, reminders, receipts, invitations, renewals and account notifications." xml:space="preserve"><value>Choisissez la langue des messages automatiques envoyés par Lontsi Homes, notamment les courriels et les messages WhatsApp : codes de vérification, rappels, reçus, invitations, renouvellements et notifications de compte.</value></data>
+  <data name="This preference is independent from the interface language and does not translate messages written by other users." xml:space="preserve"><value>Cette préférence est indépendante de la langue de l’interface et ne traduit pas les messages rédigés par les autres utilisateurs.</value></data>
+  <data name="Select a supported communication language." xml:space="preserve"><value>Choisissez une langue de communication prise en charge.</value></data>
+  <data name="Your communication language preference has been updated." xml:space="preserve"><value>Votre préférence de langue des communications a été mise à jour.</value></data>
+  <data name="Unable to update your communication language preference right now. Please try again." xml:space="preserve"><value>Impossible de modifier la langue des communications pour le moment. Veuillez réessayer.</value></data>
+  <data name="A verification code was sent to your WhatsApp number." xml:space="preserve"><value>Un code de vérification a été envoyé à votre numéro WhatsApp.</value></data>
+  <data name="Disable WhatsApp notifications" xml:space="preserve"><value>Désactiver les notifications WhatsApp</value></data>
+  <data name="I agree to receive WhatsApp verification codes and transactional notifications from Lontsi Homes about my account, tenancy, and payments. I can withdraw my consent at any time." xml:space="preserve"><value>J’accepte de recevoir sur WhatsApp les codes de vérification et les notifications transactionnelles de Lontsi Homes concernant mon compte, ma location et mes paiements. Je peux retirer mon consentement à tout moment.</value></data>
+  <data name="My WhatsApp number is the same as my main phone number" xml:space="preserve"><value>Mon numéro WhatsApp est identique à mon numéro de téléphone principal</value></data>
+  <data name="Send WhatsApp verification code" xml:space="preserve"><value>Envoyer le code de vérification WhatsApp</value></data>
+  <data name="This consent does not include marketing messages." xml:space="preserve"><value>Ce consentement n’inclut pas les messages publicitaires.</value></data>
+  <data name="Unable to disable WhatsApp notifications right now. Please try again." xml:space="preserve"><value>Impossible de désactiver les notifications WhatsApp pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to start WhatsApp verification right now. Please try again." xml:space="preserve"><value>Impossible de démarrer la vérification WhatsApp pour le moment. Veuillez réessayer.</value></data>
+  <data name="Unable to verify your WhatsApp number. Please check the code and try again." xml:space="preserve"><value>Impossible de vérifier votre numéro WhatsApp. Vérifiez le code et réessayez.</value></data>
+  <data name="Use the international format, for example +237691478387." xml:space="preserve"><value>Utilisez le format international, par exemple +237691478387.</value></data>
+  <data name="Verify WhatsApp number" xml:space="preserve"><value>Vérifier le numéro WhatsApp</value></data>
+  <data name="WhatsApp is used only for verification codes and automatic transactional property-management notifications. Messages from the Conversations section are never sent to WhatsApp." xml:space="preserve"><value>WhatsApp est utilisé uniquement pour les codes de vérification et les notifications transactionnelles automatiques liées à la gestion locative. Les messages de la section Conversations ne sont jamais envoyés sur WhatsApp.</value></data>
+  <data name="WhatsApp notifications" xml:space="preserve"><value>Notifications WhatsApp</value></data>
+  <data name="WhatsApp notifications have been disabled." xml:space="preserve"><value>Les notifications WhatsApp ont été désactivées.</value></data>
+  <data name="WhatsApp verification code" xml:space="preserve"><value>Code de vérification WhatsApp</value></data>
+  <data name="You can withdraw your consent at any time. Automatic WhatsApp notifications will stop, while messages and emails in Lontsi Homes remain unchanged." xml:space="preserve"><value>Vous pouvez retirer votre consentement à tout moment. Les notifications WhatsApp automatiques cesseront, sans modifier les messages et les courriels de Lontsi Homes.</value></data>
+  <data name="Your WhatsApp number and transactional consent are now active." xml:space="preserve"><value>Votre numéro WhatsApp et votre consentement aux notifications transactionnelles sont maintenant actifs.</value></data>
+  <data name="Proposed number" xml:space="preserve"><value>Numéro proposé</value></data>
+  <data name="Verification pending" xml:space="preserve"><value>Vérification en attente</value></data>
+  <data name="Consent withdrawn" xml:space="preserve"><value>Consentement retiré</value></data>
+  <data name="Disable WhatsApp notifications?" xml:space="preserve"><value>Désactiver les notifications WhatsApp ?</value></data>
+  <data name="You are about to withdraw your consent to WhatsApp notifications." xml:space="preserve"><value>Vous êtes sur le point de retirer votre consentement aux notifications WhatsApp.</value></data>
+  <data name="You will no longer receive automatic WhatsApp notifications about your account, tenancy and payments. Emails and messages in the application will remain unchanged. You can reactivate WhatsApp from your profile." xml:space="preserve"><value>Vous ne recevrez plus de notifications WhatsApp automatiques concernant votre compte, votre location et vos paiements. Les courriels et les messages dans l’application resteront inchangés. Vous pourrez réactiver WhatsApp depuis votre profil.</value></data>
+  <data name="Yes, disable" xml:space="preserve"><value>Oui, désactiver</value></data>
+  <data name="Change WhatsApp number" xml:space="preserve"><value>Changer de numéro WhatsApp</value></data>
+  <data name="Resend code or change number" xml:space="preserve"><value>Renvoyer le code ou changer de numéro</value></data>
+  <data name="Set up WhatsApp" xml:space="preserve"><value>Configurer WhatsApp</value></data>
+  <data name="Your current verified WhatsApp number remains active until you verify the new number." xml:space="preserve"><value>Votre numéro WhatsApp actuel reste actif jusqu’à la vérification du nouveau numéro.</value></data>
+  <data name="The new number must not be linked to another account. It will only be activated after you enter the code received on that number." xml:space="preserve"><value>Le nouveau numéro ne doit pas être associé à un autre compte. Il sera activé uniquement après la saisie du code reçu sur ce numéro.</value></data>
+  <data name="Cancel pending verification" xml:space="preserve"><value>Annuler la vérification en cours</value></data>
+  <data name="Pending WhatsApp verification cancelled. Your existing number and consent have not changed." xml:space="preserve"><value>Vérification WhatsApp annulée. Votre numéro actuel et votre consentement restent inchangés.</value></data>
+  <data name="Unable to cancel WhatsApp verification right now. Please try again." xml:space="preserve"><value>Impossible d’annuler la vérification WhatsApp pour le moment. Veuillez réessayer.</value></data>
+  <data name="This WhatsApp number is already your current verified and active number. Enter a different number." xml:space="preserve"><value>Ce numéro WhatsApp est déjà votre numéro actuel vérifié et actif. Saisissez un autre numéro.</value></data>
 </root>

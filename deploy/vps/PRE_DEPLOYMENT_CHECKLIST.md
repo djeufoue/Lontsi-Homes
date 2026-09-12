@@ -64,7 +64,7 @@ Prepare these production values before deployment:
 - Azure Blob connection string
 - Azure Blob container name
 - SMTP host / port / username / password
-- Twilio Account SID / Auth Token / sender numbers
+- Infobip API key / SMS sender / WhatsApp sender / webhook secret
 - Stripe publishable key
 - Stripe secret key
 - Stripe webhook signing secret
@@ -73,6 +73,19 @@ Prepare these production values before deployment:
 - Google Geocoding API key, restricted to the VPS public IP and to the Geocoding API
 
 The geocoding key belongs only in `deploy/vps/.env.production` as `GOOGLE_GEOCODING_API_KEY`; never commit the production value. The browser continues to render OpenStreetMap and does not receive this secret.
+
+For WhatsApp, keep every entry under `Infobip:Templates` disabled until that exact
+language variant is active in Meta/Infobip. Then add its provider template ID and set
+only that entry's `Approved` value to `true`. Do not enable the accidental Afrikaans
+`whatsapp_verification_code_v38` template or a template categorized as Marketing.
+
+Configure Infobip's WhatsApp delivery reports and inbound-message webhook to call:
+
+`https://api.lontsihomes.com/api/webhooks/infobip/whatsapp`
+
+Add the custom header `X-Infobip-Webhook-Secret` with the exact value of
+`INFOBIP_WEBHOOK_SECRET`. This is a shared secret, not an HMAC signing configuration.
+See [WHATSAPP_PRODUCTION.md](WHATSAPP_PRODUCTION.md) for the existing-VPS update.
 
 ## 6. Server target
 

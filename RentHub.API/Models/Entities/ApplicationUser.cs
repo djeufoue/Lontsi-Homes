@@ -22,7 +22,10 @@ namespace RentHub.API.Models.Entities
         public PayoutChannelEnum? PayoutChannel { get; set; }
         public bool IsPayoutPhoneVerified { get; set; }
         public DateTimeOffset? PayoutPhoneVerifiedAt { get; set; }
+        public bool UsePrimaryPhoneForWhatsApp { get; set; }
+        public string? PendingWhatsAppPhoneNumber { get; set; }
         public string? WhatsAppPhoneNumber { get; set; }
+        public string? NormalizedWhatsAppPhoneNumber { get; set; }
         public bool IsWhatsAppPhoneVerified { get; set; }
         public DateTimeOffset? WhatsAppPhoneVerifiedAt { get; set; }
         public bool PlatformTermsAccepted { get; set; }
@@ -48,5 +51,7 @@ namespace RentHub.API.Models.Entities
         // Navigation properties
         public ICollection<Property> OwnedProperties { get; set; } = new List<Property>();
         public LandlordKycProfile? KycProfile { get; set; }
+        public ICollection<UserCommunicationConsent> CommunicationConsents { get; set; } = new List<UserCommunicationConsent>();
+        public ICollection<NotificationDelivery> NotificationDeliveries { get; set; } = new List<NotificationDelivery>();
     }
 }

@@ -11,6 +11,7 @@ using RentHub.API.Services.Auth;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Users;
 using RentHub.API.Services.Kyc;
+using System.Data;
 using System.Net;
 using System.Security.Claims;
 using System.Linq;
@@ -46,6 +47,7 @@ namespace RentHub.API.Controllers
         private readonly IUserOnboardingService _userOnboardingService;
         private readonly IKycFileStorageService _kycFileStorageService;
         private readonly IConfiguration _configuration;
+        private bool RequireMainPhoneVerification => _configuration.GetValue("Onboarding:RequireMainPhoneVerification", true);
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -69,9 +71,6 @@ namespace RentHub.API.Controllers
             _configuration = configuration;
             _logger = logger;
         }
-
-        private bool IsSmsVerificationEnabled =>
-            _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
 
         private bool IsStripeConnectPlatformEnabled =>
             _configuration.GetValue<bool?>("Stripe:Connect:Enabled").GetValueOrDefault(false);
@@ -142,7 +141,7 @@ namespace RentHub.API.Controllers
                     SubscriptionPaymentChannel = request.PayoutChannel,
                     PayoutPhoneNumber = normalizedPayoutPhone,
                     PayoutChannel = request.PayoutChannel,
-                    WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(request.WhatsAppPhoneNumber),
+                    PendingWhatsAppPhoneNumber = NormalizeProposedWhatsAppNumber(request.CountryCode, request.WhatsAppPhoneNumber),
                     EmailConfirmed = false
                 };
 
@@ -193,7 +192,7 @@ namespace RentHub.API.Controllers
                 {
                     RequiresActivation = true,
                     Email = user.Email,
-                    Message = "Registration successful. Check your email, payout number, and WhatsApp for OTP codes to activate your account."
+                    Message = "Registration successful. Check your email and required phone numbers for OTP codes. You can activate WhatsApp notifications from your profile after signing in."
                 });
             }
             catch (OtpSendThrottledException ex)
@@ -502,9 +501,7 @@ namespace RentHub.API.Controllers
                     Email = user.Email,
                     NextStep = nextStep,
                     Status = status,
-                    Message = !status.SmsVerificationEnabled
-                        ? "Country saved. Continue with identity verification."
-                        : IsCameroonCountry(countryIsoCode, countryCode)
+                    Message = IsCameroonCountry(countryIsoCode, countryCode)
                         ? "Country saved. Verify your Cameroon phone number next."
                         : "Country saved. Verify your main phone number next."
                 });
@@ -611,19 +608,7 @@ namespace RentHub.API.Controllers
                     return BadRequest(updateResult.Errors);
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
-                    return Ok(new
-                    {
-                        Email = user.Email,
-                        NextStep = deferredStatus.NextStep,
-                        Status = deferredStatus,
-                        Message = "Continue with identity verification."
-                    });
-                }
-
-                if (!user.PhoneNumberConfirmed)
+                if (RequireMainPhoneVerification && !user.PhoneNumberConfirmed)
                 {
                     await _userOnboardingService.SendLandlordPhoneOtpAsync(user);
                 }
@@ -634,7 +619,9 @@ namespace RentHub.API.Controllers
                     Email = user.Email,
                     NextStep = status.NextStep,
                     Status = status,
-                    Message = user.PhoneNumberConfirmed
+                    Message = !RequireMainPhoneVerification
+                        ? "Phone number saved. SMS verification is temporarily not required."
+                        : user.PhoneNumberConfirmed
                         ? "Phone number is already verified."
                         : "Phone OTP sent. Enter it to continue."
                 });
@@ -663,18 +650,6 @@ namespace RentHub.API.Controllers
                 if (user == null)
                 {
                     return BadRequest("Invalid landlord account.");
-                }
-
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    var deferredStatus = await BuildLandlordOnboardingStatusAsync(user);
-                    return Ok(new
-                    {
-                        Email = user.Email,
-                        NextStep = deferredStatus.NextStep,
-                        Status = deferredStatus,
-                        Message = "Continue with identity verification."
-                    });
                 }
 
                 if (string.IsNullOrWhiteSpace(user.PhoneNumber))
@@ -761,14 +736,8 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    return Ok(await BuildMobilePaymentOtpResponseAsync(
-                        user,
-                        "Continue with identity verification."));
-                }
-
-                if (!user.EmailConfirmed || !user.PhoneNumberConfirmed || string.IsNullOrWhiteSpace(user.PhoneNumber))
+                if (!user.EmailConfirmed || string.IsNullOrWhiteSpace(user.CountryCode) ||
+                    (RequireMainPhoneVerification && (!user.PhoneNumberConfirmed || string.IsNullOrWhiteSpace(user.PhoneNumber))))
                 {
                     return StatusCode(StatusCodes.Status403Forbidden, new
                     {
@@ -840,12 +809,35 @@ namespace RentHub.API.Controllers
                     return payoutValidation;
                 }
 
+                string? normalizedWhatsAppPhone = null;
+                if (request.EnableWhatsAppNotifications)
+                {
+                    if (!request.TransactionalWhatsAppConsentAccepted)
+                    {
+                        return BadRequest("Accept transactional WhatsApp notifications before adding a WhatsApp number.");
+                    }
+
+                    var proposedWhatsApp = request.UsePrimaryPhoneForWhatsApp
+                        ? user.PhoneNumber
+                        : request.WhatsAppPhoneNumber;
+                    if (!PhoneNumberHelper.TryNormalizeE164(user.CountryCode, proposedWhatsApp, out normalizedWhatsAppPhone))
+                    {
+                        return BadRequest("Enter a valid WhatsApp number in international format.");
+                    }
+
+                    if (await _context.Users.AnyAsync(candidate =>
+                            candidate.Id != user.Id &&
+                            candidate.IsWhatsAppPhoneVerified &&
+                            candidate.NormalizedWhatsAppPhoneNumber == normalizedWhatsAppPhone))
+                    {
+                        return Conflict("Ce numéro WhatsApp est déjà associé à un autre compte.");
+                    }
+                }
+
                 var oldSubscriptionPhone = user.SubscriptionPaymentPhoneNumber;
                 var oldSubscriptionVerified = user.IsSubscriptionPaymentPhoneVerified;
                 var oldPayoutPhone = user.PayoutPhoneNumber;
                 var oldPayoutVerified = user.IsPayoutPhoneVerified;
-                var oldWhatsAppPhone = user.WhatsAppPhoneNumber;
-                var oldWhatsAppVerified = user.IsWhatsAppPhoneVerified;
 
                 user.UsePrimaryPhoneForSubscriptionPayments = request.UsePrimaryPhoneForSubscriptionPayments;
                 user.SubscriptionPaymentPhoneNumber = normalizedSubscriptionPhone;
@@ -853,9 +845,15 @@ namespace RentHub.API.Controllers
                 user.UsePrimaryPhoneForRentPayouts = request.UsePrimaryPhoneForRentPayouts;
                 user.PayoutPhoneNumber = normalizedPayoutPhone;
                 user.PayoutChannel = request.PayoutChannel;
-                user.WhatsAppPhoneNumber = string.IsNullOrWhiteSpace(request.WhatsAppPhoneNumber)
-                    ? null
-                    : PhoneNumberHelper.NormalizeOrEmpty(request.WhatsAppPhoneNumber);
+                if (request.EnableWhatsAppNotifications)
+                {
+                    user.UsePrimaryPhoneForWhatsApp = request.UsePrimaryPhoneForWhatsApp;
+                    user.WhatsAppPhoneNumber = normalizedWhatsAppPhone;
+                    user.PendingWhatsAppPhoneNumber = normalizedWhatsAppPhone;
+                    user.NormalizedWhatsAppPhoneNumber = null;
+                    user.IsWhatsAppPhoneVerified = false;
+                    user.WhatsAppPhoneVerifiedAt = null;
+                }
 
                 user.IsSubscriptionPaymentPhoneVerified =
                     (oldSubscriptionVerified && SamePhone(oldSubscriptionPhone, user.SubscriptionPaymentPhoneNumber)) ||
@@ -872,14 +870,6 @@ namespace RentHub.API.Controllers
                     ? user.PayoutPhoneVerifiedAt ?? DateTimeOffset.UtcNow
                     : null;
 
-                user.IsWhatsAppPhoneVerified =
-                    string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) ||
-                    (oldWhatsAppVerified && SamePhone(oldWhatsAppPhone, user.WhatsAppPhoneNumber)) ||
-                    SamePhone(user.WhatsAppPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed;
-                user.WhatsAppPhoneVerifiedAt = user.IsWhatsAppPhoneVerified && !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber)
-                    ? user.WhatsAppPhoneVerifiedAt ?? DateTimeOffset.UtcNow
-                    : null;
-
                 var updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
                 {
@@ -888,7 +878,9 @@ namespace RentHub.API.Controllers
 
                 var sendSubscriptionOtp = !user.IsSubscriptionPaymentPhoneVerified;
                 var sendPayoutOtp = !user.IsPayoutPhoneVerified && !SamePhone(user.PayoutPhoneNumber, user.SubscriptionPaymentPhoneNumber);
-                var sendWhatsAppOtp = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
+                var sendWhatsAppOtp = request.EnableWhatsAppNotifications &&
+                                      !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) &&
+                                      !user.IsWhatsAppPhoneVerified;
 
                 if (sendSubscriptionOtp || sendPayoutOtp || sendWhatsAppOtp)
                 {
@@ -945,13 +937,6 @@ namespace RentHub.API.Controllers
                     return BadRequest("Invalid landlord account.");
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    return Ok(await BuildMobilePaymentOtpResponseAsync(
-                        user,
-                        "Continue with identity verification."));
-                }
-
                 if (string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) || user.SubscriptionPaymentChannel == null)
                 {
                     return BadRequest("Configure subscription payment details before verifying them.");
@@ -963,6 +948,11 @@ namespace RentHub.API.Controllers
                 }
 
                 var verifiedAt = DateTimeOffset.UtcNow;
+                var needsWhatsAppVerification = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) &&
+                                                !user.IsWhatsAppPhoneVerified;
+                await using var whatsAppTransaction = needsWhatsAppVerification
+                    ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                    : null;
 
                 if (!user.IsSubscriptionPaymentPhoneVerified)
                 {
@@ -1019,31 +1009,81 @@ namespace RentHub.API.Controllers
 
                 if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified)
                 {
-                    if (SamePhone(user.WhatsAppPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed)
+                    var otpResult = await ValidateOtpAsync(
+                        user,
+                        WhatsAppOtpTokenName,
+                        WhatsAppOtpExpiryTokenName,
+                        request.WhatsAppOtp?.Trim() ?? string.Empty,
+                        "WhatsApp");
+
+                    if (otpResult != null)
                     {
-                        user.IsWhatsAppPhoneVerified = true;
-                        user.WhatsAppPhoneVerifiedAt = verifiedAt;
+                        return otpResult;
                     }
-                    else
+
+                    if (!PhoneNumberHelper.TryNormalizeE164(user.CountryCode, user.WhatsAppPhoneNumber, out var verifiedWhatsAppPhone))
                     {
-                        var otpResult = await ValidateOtpAsync(
-                            user,
-                            WhatsAppOtpTokenName,
-                            WhatsAppOtpExpiryTokenName,
-                            request.WhatsAppOtp?.Trim() ?? string.Empty,
-                            "WhatsApp");
+                        return BadRequest("The WhatsApp number is invalid.");
+                    }
 
-                        if (otpResult != null)
+                    if (await _context.Users.AnyAsync(candidate =>
+                            candidate.Id != user.Id &&
+                            candidate.IsWhatsAppPhoneVerified &&
+                            candidate.NormalizedWhatsAppPhoneNumber == verifiedWhatsAppPhone))
+                    {
+                        return Conflict("Ce numéro WhatsApp est déjà associé à un autre compte.");
+                    }
+
+                    user.WhatsAppPhoneNumber = verifiedWhatsAppPhone;
+                    user.NormalizedWhatsAppPhoneNumber = verifiedWhatsAppPhone;
+                    user.PendingWhatsAppPhoneNumber = null;
+                    user.IsWhatsAppPhoneVerified = true;
+                    user.WhatsAppPhoneVerifiedAt = verifiedAt;
+
+                    var priorConsents = await _context.UserCommunicationConsents
+                        .Where(consent => consent.UserId == user.Id &&
+                                          consent.Channel == CommunicationChannels.WhatsApp &&
+                                          consent.Status == CommunicationConsentStatuses.Granted)
+                        .ToListAsync();
+                    foreach (var consent in priorConsents)
+                    {
+                        consent.Status = CommunicationConsentStatuses.Revoked;
+                        consent.RevokedAt = verifiedAt;
+                    }
+
+                    foreach (var purpose in new[] { CommunicationPurposes.Authentication, CommunicationPurposes.Transactional })
+                    {
+                        _context.UserCommunicationConsents.Add(new UserCommunicationConsent
                         {
-                            return otpResult;
-                        }
-
-                        user.IsWhatsAppPhoneVerified = true;
-                        user.WhatsAppPhoneVerifiedAt = verifiedAt;
+                            UserId = user.Id,
+                            Channel = CommunicationChannels.WhatsApp,
+                            Purpose = purpose,
+                            Status = CommunicationConsentStatuses.Granted,
+                            PhoneNumberE164 = verifiedWhatsAppPhone,
+                            TextVersion = "whatsapp-transactional-v1",
+                            Source = "landlord-registration",
+                            GrantedAt = verifiedAt,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers.UserAgent.ToString()
+                        });
                     }
                 }
 
-                var updateResult = await _userManager.UpdateAsync(user);
+                IdentityResult updateResult;
+                try
+                {
+                    updateResult = await _userManager.UpdateAsync(user);
+                    if (updateResult.Succeeded && whatsAppTransaction != null)
+                    {
+                        await whatsAppTransaction.CommitAsync();
+                    }
+                }
+                catch (DbUpdateException) when (whatsAppTransaction != null)
+                {
+                    await whatsAppTransaction.RollbackAsync();
+                    return Conflict("Ce numéro WhatsApp est déjà associé à un autre compte.");
+                }
+
                 if (!updateResult.Succeeded)
                 {
                     return BadRequest(updateResult.Errors);
@@ -1129,13 +1169,6 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    return Ok(await BuildMobilePaymentOtpResponseAsync(
-                        user,
-                        "Continue with identity verification."));
-                }
-
                 if (!IsCameroonCountryCode(user.CountryCode))
                 {
                     return BadRequest("Mobile Money setup is only available for Cameroon landlord accounts.");
@@ -1200,14 +1233,6 @@ namespace RentHub.API.Controllers
                         updateRequest.PayoutChannel = request.Channel;
                         break;
 
-                    case "whatsapp":
-                        if (SamePhone(newPhone, user.WhatsAppPhoneNumber))
-                        {
-                            return BadRequest("Enter a different WhatsApp alerts number before requesting an OTP.");
-                        }
-
-                        updateRequest.WhatsAppPhoneNumber = newPhone;
-                        break;
                 }
 
                 await StoreMobilePaymentRollbackSnapshotAsync(user, target);
@@ -1323,13 +1348,6 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    return Ok(await BuildMobilePaymentOtpResponseAsync(
-                        user,
-                        "Continue with identity verification."));
-                }
-
                 if (!IsCameroonCountryCode(user.CountryCode))
                 {
                     return BadRequest("Mobile Money verification is only available for Cameroon landlord accounts.");
@@ -1427,41 +1445,6 @@ namespace RentHub.API.Controllers
                         targetLabel = "Rent payout number";
                         break;
 
-                    case "whatsapp":
-                        if (string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
-                        {
-                            return BadRequest("Configure a WhatsApp alerts number before verifying it.");
-                        }
-
-                        if (!user.IsWhatsAppPhoneVerified)
-                        {
-                            if (SamePhone(user.WhatsAppPhoneNumber, user.PhoneNumber) && user.PhoneNumberConfirmed)
-                            {
-                                user.IsWhatsAppPhoneVerified = true;
-                                user.WhatsAppPhoneVerifiedAt = verifiedAt;
-                            }
-                            else
-                            {
-                                var otpResult = await ValidateOtpAsync(
-                                    user,
-                                    WhatsAppOtpTokenName,
-                                    WhatsAppOtpExpiryTokenName,
-                                    otp,
-                                    "WhatsApp");
-
-                                if (otpResult != null)
-                                {
-                                    return otpResult;
-                                }
-
-                                user.IsWhatsAppPhoneVerified = true;
-                                user.WhatsAppPhoneVerifiedAt = verifiedAt;
-                            }
-                        }
-
-                        targetLabel = "WhatsApp alerts number";
-                        break;
-
                     default:
                         return BadRequest("Choose a valid mobile payment number to verify.");
                 }
@@ -1480,11 +1463,6 @@ namespace RentHub.API.Controllers
                 if (user.IsPayoutPhoneVerified)
                 {
                     await RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName);
-                }
-
-                if (user.IsWhatsAppPhoneVerified)
-                {
-                    await RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName);
                 }
 
                 var verifiedTarget = NormalizeMobilePaymentTarget(request.Target);
@@ -1540,13 +1518,6 @@ namespace RentHub.API.Controllers
                     return Forbid();
                 }
 
-                if (!await IsLandlordPhoneVerificationEnabledAsync())
-                {
-                    return Ok(await BuildMobilePaymentOtpResponseAsync(
-                        user,
-                        "Continue with identity verification."));
-                }
-
                 if (!IsCameroonCountryCode(user.CountryCode))
                 {
                     return BadRequest("Mobile Money OTP resend is only available for Cameroon landlord accounts.");
@@ -1555,7 +1526,6 @@ namespace RentHub.API.Controllers
                 var target = (request.Target ?? string.Empty).Trim().ToLowerInvariant();
                 var sendSubscriptionOtp = false;
                 var sendPayoutOtp = false;
-                var sendWhatsAppOtp = false;
                 var targetLabel = string.Empty;
 
                 switch (target)
@@ -1602,23 +1572,6 @@ namespace RentHub.API.Controllers
                         targetLabel = "rent payout number";
                         break;
 
-                    case "whatsapp":
-                        if (string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
-                        {
-                            return BadRequest("Configure a WhatsApp alerts number before requesting an OTP.");
-                        }
-
-                        if (user.IsWhatsAppPhoneVerified)
-                        {
-                            return Ok(await BuildMobilePaymentOtpResponseAsync(
-                                user,
-                                "WhatsApp alerts number is already verified."));
-                        }
-
-                        sendWhatsAppOtp = true;
-                        targetLabel = "WhatsApp alerts number";
-                        break;
-
                     default:
                         return BadRequest("Choose a valid mobile payment number to resend an OTP.");
                 }
@@ -1627,7 +1580,7 @@ namespace RentHub.API.Controllers
                     user,
                     sendSubscriptionOtp,
                     sendPayoutOtp,
-                    sendWhatsAppOtp);
+                    sendWhatsAppOtp: false);
 
                 return Ok(await BuildMobilePaymentOtpResponseAsync(
                     user,
@@ -1925,7 +1878,7 @@ namespace RentHub.API.Controllers
                     Email = request.Email,
                     FullName = request.FullName?.Trim(),
                     PhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber),
-                    WhatsAppPhoneNumber = PhoneNumberHelper.Normalize(request.WhatsAppPhoneNumber),
+                    PendingWhatsAppPhoneNumber = NormalizeProposedWhatsAppNumber(null, request.WhatsAppPhoneNumber),
                     EmailConfirmed = false,
                     PhoneNumberConfirmed = false,
                     IsWhatsAppPhoneVerified = false
@@ -1953,7 +1906,7 @@ namespace RentHub.API.Controllers
                 {
                     RequiresActivation = true,
                     Email = user.Email,
-                    Message = "Visitor account created. Check your email, phone number, and WhatsApp for OTP codes to activate your account."
+                    Message = "Visitor account created. Check your email and phone number for OTP codes. WhatsApp notifications require separate consent after sign-in."
                 });
             }
             catch (OtpSendThrottledException ex)
@@ -2013,7 +1966,7 @@ namespace RentHub.API.Controllers
                 var requiresPhoneActivationOtps = requiresAllContactOtps ||
                     roles.Contains("Landlord", StringComparer.OrdinalIgnoreCase);
 
-                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+                if (RequireMainPhoneVerification && requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
                 {
                     var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp?.Trim() ?? string.Empty, "phone number");
                     if (phoneOtpResult != null)
@@ -2050,7 +2003,7 @@ namespace RentHub.API.Controllers
                 }
 
                 user.EmailConfirmed = true;
-                if (requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+                if (RequireMainPhoneVerification && requiresAllContactOtps && !string.IsNullOrWhiteSpace(user.PhoneNumber))
                 {
                     user.PhoneNumberConfirmed = true;
                 }
@@ -2128,7 +2081,7 @@ namespace RentHub.API.Controllers
                     return emailOtpResult;
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
+                if (RequireMainPhoneVerification && !string.IsNullOrWhiteSpace(user.PhoneNumber))
                 {
                     var phoneOtpResult = await ValidateOtpAsync(user, PhoneOtpTokenName, PhoneOtpExpiryTokenName, request.PhoneOtp?.Trim() ?? string.Empty, "phone number");
                     if (phoneOtpResult != null)
@@ -2137,19 +2090,9 @@ namespace RentHub.API.Controllers
                     }
                 }
 
-                if (!string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber))
-                {
-                    var whatsAppOtpResult = await ValidateOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName, request.WhatsAppOtp?.Trim() ?? string.Empty, "WhatsApp");
-                    if (whatsAppOtpResult != null)
-                    {
-                        return whatsAppOtpResult;
-                    }
-                }
-
                 user.EmailConfirmed = true;
-                user.PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(user.PhoneNumber);
-                user.IsWhatsAppPhoneVerified = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber);
-                user.WhatsAppPhoneVerifiedAt = user.IsWhatsAppPhoneVerified ? DateTimeOffset.UtcNow : null;
+                if (RequireMainPhoneVerification && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+                    user.PhoneNumberConfirmed = true;
 
                 var updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
@@ -2240,13 +2183,14 @@ namespace RentHub.API.Controllers
                     return BadRequest("This account is not registered as a visitor account.");
                 }
 
-                if (user.EmailConfirmed && user.PhoneNumberConfirmed && user.IsWhatsAppPhoneVerified)
+                if (user.EmailConfirmed &&
+                    (!RequireMainPhoneVerification || string.IsNullOrWhiteSpace(user.PhoneNumber) || user.PhoneNumberConfirmed))
                 {
                     return BadRequest("Visitor account is already activated.");
                 }
 
                 await _userOnboardingService.SendVisitorActivationOtpAsync(user);
-                return Ok(new { Message = "New OTP codes have been sent to your email, phone number, and WhatsApp." });
+                return Ok(new { Message = "New OTP codes have been sent to your email and phone number. WhatsApp can be enabled separately from the profile." });
             }
             catch (OtpSendThrottledException ex)
             {
@@ -2327,7 +2271,7 @@ namespace RentHub.API.Controllers
 
                 if (isVisitor)
                 {
-                    var visitorPhonePending = !string.IsNullOrWhiteSpace(user.PhoneNumber) && !user.PhoneNumberConfirmed;
+                    var visitorPhonePending = RequireMainPhoneVerification && !string.IsNullOrWhiteSpace(user.PhoneNumber) && !user.PhoneNumberConfirmed;
                     var visitorWhatsAppPending = !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
                     if (visitorPhonePending || visitorWhatsAppPending)
                     {
@@ -2580,7 +2524,6 @@ namespace RentHub.API.Controllers
                     SubscriptionPaymentOtpRequestLimit = landlordStatus?.SubscriptionPaymentOtpRequestLimit,
                     PayoutOtpRequestLimit = landlordStatus?.PayoutOtpRequestLimit,
                     WhatsAppOtpRequestLimit = landlordStatus?.WhatsAppOtpRequestLimit,
-                    SmsVerificationEnabled = landlordStatus?.SmsVerificationEnabled ?? IsSmsVerificationEnabled,
                     Roles = roles.ToList(),
                     IsSubscriptionExempt = user.IsSubscriptionExempt,
                     Language = user.Language,
@@ -3023,6 +2966,7 @@ namespace RentHub.API.Controllers
                 PhoneNumber = user.PhoneNumber,
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumberConfirmed = user.PhoneNumberConfirmed,
+                RequireMainPhoneVerification = RequireMainPhoneVerification,
                 UsePrimaryPhoneForSubscriptionPayments = user.UsePrimaryPhoneForSubscriptionPayments,
                 SubscriptionPaymentPhoneNumber = user.SubscriptionPaymentPhoneNumber,
                 SubscriptionPaymentChannel = user.SubscriptionPaymentChannel,
@@ -3033,6 +2977,7 @@ namespace RentHub.API.Controllers
                 IsPayoutPhoneVerified = user.IsPayoutPhoneVerified,
                 WhatsAppPhoneNumber = user.WhatsAppPhoneNumber,
                 IsWhatsAppPhoneVerified = user.IsWhatsAppPhoneVerified,
+                PendingWhatsAppPhoneNumber = user.PendingWhatsAppPhoneNumber,
                 KycDocumentType = kycProfile?.DocumentType,
                 KycStatus = kycProfile?.Status ?? LandlordKycStatusEnum.NotStarted,
                 IsKycSubmitted = kycProfile?.Status is LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved,
@@ -3045,8 +2990,6 @@ namespace RentHub.API.Controllers
                 PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                 PlatformTermsSignatureName = user.PlatformTermsSignatureName,
                 PlatformTermsVersion = user.PlatformTermsVersion,
-                SmsVerificationEnabled = IsSmsVerificationEnabled &&
-                    !await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context),
                 CreatedAt = user.CreatedAt,
                 Roles = roles
             };
@@ -3062,15 +3005,9 @@ namespace RentHub.API.Controllers
             return status;
         }
 
-        private async Task<bool> IsLandlordPhoneVerificationEnabledAsync()
-        {
-            return IsSmsVerificationEnabled &&
-                !await PaymentAvailabilityHelper.ShouldSkipLandlordPhoneVerificationAsync(_context);
-        }
-
         private async Task<OtpRequestLimitDto> BuildOtpRequestLimitAsync(ApplicationUser user, string purpose)
         {
-            var status = await _userOnboardingService.GetTwilioOtpThrottleStatusAsync(user, purpose);
+            var status = await _userOnboardingService.GetOtpThrottleStatusAsync(user, purpose);
             return new OtpRequestLimitDto
             {
                 DailyRequestLimit = status.DailyRequestLimit,
@@ -3112,8 +3049,7 @@ namespace RentHub.API.Controllers
         private static bool HasPendingMobilePaymentVerification(ApplicationUser user)
         {
             return !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) && !user.IsSubscriptionPaymentPhoneVerified ||
-                   !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) && !user.IsPayoutPhoneVerified ||
-                   !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) && !user.IsWhatsAppPhoneVerified;
+                   !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) && !user.IsPayoutPhoneVerified;
         }
 
         private static string? NormalizeMobilePaymentTarget(string? target)
@@ -3122,7 +3058,6 @@ namespace RentHub.API.Controllers
             {
                 "subscription" or "subscription-payment" => "subscription",
                 "payout" or "rent-payout" => "payout",
-                "whatsapp" => "whatsapp",
                 _ => null
             };
         }
@@ -3139,13 +3074,6 @@ namespace RentHub.API.Controllers
                     Channel = user.PayoutChannel,
                     IsVerified = user.IsPayoutPhoneVerified,
                     VerifiedAt = user.PayoutPhoneVerifiedAt
-                },
-                "whatsapp" => new MobilePaymentRollbackSnapshot
-                {
-                    Target = target,
-                    PhoneNumber = user.WhatsAppPhoneNumber,
-                    IsVerified = user.IsWhatsAppPhoneVerified,
-                    VerifiedAt = user.WhatsAppPhoneVerifiedAt
                 },
                 _ => new MobilePaymentRollbackSnapshot
                 {
@@ -3216,12 +3144,6 @@ namespace RentHub.API.Controllers
                     user.PayoutPhoneVerifiedAt = snapshot.VerifiedAt;
                     break;
 
-                case "whatsapp":
-                    user.WhatsAppPhoneNumber = snapshot.PhoneNumber;
-                    user.IsWhatsAppPhoneVerified = snapshot.IsVerified;
-                    user.WhatsAppPhoneVerifiedAt = snapshot.VerifiedAt;
-                    break;
-
                 default:
                     user.UsePrimaryPhoneForSubscriptionPayments = snapshot.UsePrimaryPhone;
                     user.SubscriptionPaymentPhoneNumber = snapshot.PhoneNumber;
@@ -3237,7 +3159,6 @@ namespace RentHub.API.Controllers
             return target switch
             {
                 "payout" => RemoveOtpAsync(user, PayoutOtpTokenName, PayoutOtpExpiryTokenName),
-                "whatsapp" => RemoveOtpAsync(user, WhatsAppOtpTokenName, WhatsAppOtpExpiryTokenName),
                 _ => RemoveOtpAsync(user, SubscriptionPaymentOtpTokenName, SubscriptionPaymentOtpExpiryTokenName)
             };
         }
@@ -3266,22 +3187,8 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Country;
             }
 
-            if (!status.SmsVerificationEnabled)
-            {
-                if (!status.IsKycSubmitted)
-                {
-                    return LandlordOnboardingSteps.Kyc;
-                }
-
-                if (!status.PlatformTermsAccepted)
-                {
-                    return LandlordOnboardingSteps.Contract;
-                }
-
-                return LandlordOnboardingSteps.Complete;
-            }
-
-            if (string.IsNullOrWhiteSpace(status.PhoneNumber) || !status.PhoneNumberConfirmed)
+            if (status.RequireMainPhoneVerification &&
+                (string.IsNullOrWhiteSpace(status.PhoneNumber) || !status.PhoneNumberConfirmed))
             {
                 return LandlordOnboardingSteps.Phone;
             }
@@ -3358,6 +3265,7 @@ namespace RentHub.API.Controllers
                 PhoneNumber = status.PhoneNumber,
                 EmailConfirmed = status.EmailConfirmed,
                 PhoneNumberConfirmed = status.PhoneNumberConfirmed,
+                RequireMainPhoneVerification = status.RequireMainPhoneVerification,
                 UsePrimaryPhoneForSubscriptionPayments = status.UsePrimaryPhoneForSubscriptionPayments,
                 SubscriptionPaymentChannel = status.SubscriptionPaymentChannel,
                 IsSubscriptionPaymentPhoneVerified = status.IsSubscriptionPaymentPhoneVerified,
@@ -3381,7 +3289,6 @@ namespace RentHub.API.Controllers
                 SubscriptionPaymentOtpRequestLimit = status.SubscriptionPaymentOtpRequestLimit,
                 PayoutOtpRequestLimit = status.PayoutOtpRequestLimit,
                 WhatsAppOtpRequestLimit = status.WhatsAppOtpRequestLimit,
-                SmsVerificationEnabled = status.SmsVerificationEnabled,
                 NextStep = status.NextStep,
                 IsComplete = status.IsComplete,
                 CreatedAt = status.CreatedAt
@@ -3857,6 +3764,13 @@ namespace RentHub.API.Controllers
             return normalizedLeft.Length > 0 &&
                    normalizedRight.Length > 0 &&
                    string.Equals(normalizedLeft, normalizedRight, StringComparison.Ordinal);
+        }
+
+        private static string? NormalizeProposedWhatsAppNumber(string? countryCode, string? phoneNumber)
+        {
+            return PhoneNumberHelper.TryNormalizeE164(countryCode, phoneNumber, out var e164)
+                ? e164
+                : null;
         }
 
         private static string NormalizePhone(string? phoneNumber)

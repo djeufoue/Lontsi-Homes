@@ -9,6 +9,7 @@ namespace RentHub.Portal.ViewModels.Properties
         [Required] public string FullName { get; set; } = "";
         private string? _countryCode;
         private string? _phoneNumber;
+        private string? _whatsAppPhoneNumber;
 
         [RegularExpression(Common.Helpers.PhoneNumberHelper.CountryCodePattern, ErrorMessage = "Country code must contain only digits and may start with +.")]
         public string? CountryCode
@@ -23,6 +24,14 @@ namespace RentHub.Portal.ViewModels.Properties
             get => _phoneNumber;
             set => _phoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
         }
+
+        [RegularExpression(Common.Helpers.PhoneNumberHelper.DigitsWithOptionalLeadingPlusPattern, ErrorMessage = "WhatsApp number must contain only digits and may start with +.")]
+        public string? WhatsAppPhoneNumber
+        {
+            get => _whatsAppPhoneNumber;
+            set => _whatsAppPhoneNumber = Common.Helpers.PhoneNumberHelper.Normalize(value);
+        }
+
         public PermissionLevelEnum Permission { get; set; } = PermissionLevelEnum.ReadOnly;
     }
 }

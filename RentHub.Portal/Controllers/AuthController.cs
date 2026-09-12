@@ -289,6 +289,8 @@ namespace RentHub.Portal.Controllers
                 ViewBag.AuthError = error;
 
             var status = await TryGetOnboardingStatusAsync(email);
+            if (status is { RequireMainPhoneVerification: false })
+                return RedirectToOnboardingStep(status.NextStep, status.Email, returnUrl);
             if (status != null && status.NextStep == LandlordOnboardingSteps.Email)
                 return RedirectToAction(nameof(VerifyLandlordEmail), new { email = status.Email, returnUrl });
             if (status != null && status.NextStep == LandlordOnboardingSteps.Country)
@@ -323,6 +325,10 @@ namespace RentHub.Portal.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveLandlordPhone(VerifyLandlordPhoneVm vm)
         {
+            var status = await TryGetOnboardingStatusAsync(vm.Email);
+            if (status is { RequireMainPhoneVerification: false })
+                return RedirectToOnboardingStep(status.NextStep, status.Email, vm.ReturnUrl);
+
             ModelState.Remove(nameof(vm.PhoneOtp));
 
             if (string.IsNullOrWhiteSpace(vm.Email))
@@ -365,6 +371,10 @@ namespace RentHub.Portal.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyLandlordPhone(VerifyLandlordPhoneVm vm)
         {
+            var status = await TryGetOnboardingStatusAsync(vm.Email);
+            if (status is { RequireMainPhoneVerification: false })
+                return RedirectToOnboardingStep(status.NextStep, status.Email, vm.ReturnUrl);
+
             ModelState.Remove(nameof(vm.CountryCode));
             ModelState.Remove(nameof(vm.PhoneNumber));
 
@@ -435,7 +445,9 @@ namespace RentHub.Portal.Controllers
                 UsePrimaryPhoneForRentPayouts = status?.UsePrimaryPhoneForRentPayouts ?? true,
                 PayoutPhoneNumber = status?.PayoutPhoneNumber,
                 PayoutChannel = status?.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
-                WhatsAppPhoneNumber = status?.WhatsAppPhoneNumber,
+                WhatsAppPhoneNumber = status?.WhatsAppPhoneNumber ?? status?.PendingWhatsAppPhoneNumber,
+                EnableWhatsAppNotifications = status?.IsWhatsAppPhoneVerified == true || !string.IsNullOrWhiteSpace(status?.PendingWhatsAppPhoneNumber),
+                UsePrimaryPhoneForWhatsApp = false,
                 PrimaryPhoneNumber = status?.PhoneNumber,
                 ReturnUrl = returnUrl,
                 Status = status
@@ -480,7 +492,10 @@ namespace RentHub.Portal.Controllers
                     UsePrimaryPhoneForRentPayouts = vm.UsePrimaryPhoneForRentPayouts,
                     PayoutPhoneNumber = vm.PayoutPhoneNumber,
                     PayoutChannel = vm.PayoutChannel,
-                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber
+                    WhatsAppPhoneNumber = vm.WhatsAppPhoneNumber,
+                    EnableWhatsAppNotifications = vm.EnableWhatsAppNotifications,
+                    UsePrimaryPhoneForWhatsApp = vm.UsePrimaryPhoneForWhatsApp,
+                    TransactionalWhatsAppConsentAccepted = vm.TransactionalWhatsAppConsentAccepted
                 };
 
                 var res = await _api.PostAnonymousAsync<UpsertLandlordMobilePaymentsRequest, JsonElement>("Account/landlord-registration/mobile-payments", req);
@@ -1327,6 +1342,7 @@ namespace RentHub.Portal.Controllers
                 PayoutPhoneNumber = overview.PayoutPhoneNumber,
                 PayoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney,
                 WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber,
+                EnableWhatsAppNotifications = overview.IsWhatsAppPhoneVerified || !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber),
                 PrimaryPhoneNumber = overview.PhoneNumber,
                 ReturnUrl = returnUrl,
                 Status = BuildLandlordStatusFromProfileOverview(overview)
@@ -1372,9 +1388,7 @@ namespace RentHub.Portal.Controllers
                 CountryIsoCode = overview.CountryIsoCode,
                 PhoneNumber = overview.PhoneNumber,
                 EmailConfirmed = true,
-                PhoneNumberConfirmed = overview.SmsVerificationEnabled
-                    ? !string.IsNullOrWhiteSpace(overview.PhoneNumber)
-                    : true,
+                PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(overview.PhoneNumber),
                 UsePrimaryPhoneForSubscriptionPayments = overview.UsePrimaryPhoneForSubscriptionPayments,
                 SubscriptionPaymentPhoneNumber = overview.SubscriptionPaymentPhoneNumber,
                 SubscriptionPaymentChannel = overview.SubscriptionPaymentChannel,
@@ -1384,11 +1398,11 @@ namespace RentHub.Portal.Controllers
                 PayoutChannel = overview.PayoutChannel,
                 IsPayoutPhoneVerified = overview.IsPayoutPhoneVerified,
                 WhatsAppPhoneNumber = overview.WhatsAppPhoneNumber,
+                PendingWhatsAppPhoneNumber = null,
                 IsWhatsAppPhoneVerified = overview.IsWhatsAppPhoneVerified,
                 SubscriptionPaymentOtpRequestLimit = overview.SubscriptionPaymentOtpRequestLimit,
                 PayoutOtpRequestLimit = overview.PayoutOtpRequestLimit,
                 WhatsAppOtpRequestLimit = overview.WhatsAppOtpRequestLimit,
-                SmsVerificationEnabled = overview.SmsVerificationEnabled,
                 KycDocumentType = overview.KycDocumentType,
                 KycStatus = overview.KycStatus,
                 IsKycSubmitted = overview.IsKycSubmitted,

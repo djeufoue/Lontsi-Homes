@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
+using RentHub.API.Services.Messaging;
 
 namespace RentHub.API.Services.Tenancies
 {
@@ -21,14 +22,17 @@ namespace RentHub.API.Services.Tenancies
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
+        private readonly INotificationDeliveryService _notificationDeliveryService;
 
         public TenancyTerminationEmailService(
             ApplicationDbContext context,
             IEmailService emailService,
+            INotificationDeliveryService notificationDeliveryService,
             IConfiguration configuration)
         {
             _context = context;
             _emailService = emailService;
+            _notificationDeliveryService = notificationDeliveryService;
             _configuration = configuration;
         }
 
@@ -65,12 +69,12 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var requestsUrl = BuildPortalUrl("/TenancyRequests");
             var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var requestedDate = FormatDate(request.RequestedEndDate, recipient.EmailLanguage);
                 var french = recipient.EmailLanguage == PlatformLanguage.French;
@@ -93,7 +97,13 @@ namespace RentHub.API.Services.Tenancies
                         $"Review the request: {requestsUrl}", string.Empty, "Lontsi Homes"
                     };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueRequestReceivedAsync(request.Id, recipient, requesterName,
+                    property.Name, tenancy.Apartment.Name, cancellationToken);
             }
         }
 
@@ -113,7 +123,7 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var reviewer = string.IsNullOrWhiteSpace(request.ReviewedById)
                 ? null
@@ -121,7 +131,7 @@ namespace RentHub.API.Services.Tenancies
             var approved = request.Status == TenancyTerminationRequestStatusEnum.Approved;
             var requestsUrl = BuildPortalUrl("/TenancyRequests");
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var french = recipient.EmailLanguage == PlatformLanguage.French;
                 var requestedDate = FormatDate(request.RequestedEndDate, recipient.EmailLanguage);
@@ -151,7 +161,13 @@ namespace RentHub.API.Services.Tenancies
                     "Lontsi Homes"
                 };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, requesterName: request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy),
+                    property.Name, tenancy.Apartment.Name, approved ? "approved" : "rejected", cancellationToken);
             }
         }
 
@@ -187,12 +203,12 @@ namespace RentHub.API.Services.Tenancies
 
             var recipients = await _context.Users
                 .AsNoTracking()
-                .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                .Where(user => recipientIds.Contains(user.Id))
                 .ToListAsync(cancellationToken);
             var requestsUrl = BuildPortalUrl("/TenancyRequests");
             var requesterName = request.RequestedBy == null ? "Tenant" : DisplayName(request.RequestedBy);
 
-            foreach (var recipient in recipients.DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase))
+            foreach (var recipient in recipients.DistinctBy(user => user.Id))
             {
                 var french = recipient.EmailLanguage == PlatformLanguage.French;
                 var subject = french
@@ -212,7 +228,13 @@ namespace RentHub.API.Services.Tenancies
                         $"View the register: {requestsUrl}", string.Empty, "Lontsi Homes"
                     };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, requesterName,
+                    property.Name, tenancy.Apartment.Name, "cancelled", cancellationToken);
             }
         }
 
@@ -258,7 +280,13 @@ namespace RentHub.API.Services.Tenancies
                         $"View the register: {requestsUrl}", string.Empty, "Lontsi Homes"
                     };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, actorName,
+                    property.Name, tenancy.Apartment.Name, "approved", cancellationToken);
             }
         }
 
@@ -299,7 +327,13 @@ namespace RentHub.API.Services.Tenancies
                         $"View the register: {requestsUrl}", string.Empty, "Lontsi Homes"
                     };
 
-                await _emailService.SendEmailAsync(recipient.Email!, subject, string.Join(Environment.NewLine, lines));
+                if (!string.IsNullOrWhiteSpace(recipient.Email))
+                {
+                    await _emailService.SendEmailAsync(recipient.Email, subject, string.Join(Environment.NewLine, lines));
+                }
+
+                await QueueStatusUpdateAsync(request.Id, recipient, actorName,
+                    property.Name, tenancy.Apartment.Name, "cancelled", cancellationToken);
             }
         }
 
@@ -322,10 +356,47 @@ namespace RentHub.API.Services.Tenancies
 
             return (await _context.Users
                     .AsNoTracking()
-                    .Where(user => recipientIds.Contains(user.Id) && user.Email != null && user.Email != string.Empty)
+                    .Where(user => recipientIds.Contains(user.Id))
                     .ToListAsync(cancellationToken))
-                .DistinctBy(user => user.Email, StringComparer.OrdinalIgnoreCase)
+                .DistinctBy(user => user.Id)
                 .ToList();
+        }
+
+        private Task<long?> QueueRequestReceivedAsync(
+            int requestId,
+            ApplicationUser recipient,
+            string requesterName,
+            string propertyName,
+            string apartmentName,
+            CancellationToken cancellationToken)
+        {
+            return _notificationDeliveryService.EnqueueWhatsAppAsync(
+                new EnqueueWhatsAppNotification(
+                    "tenancy_request_received",
+                    recipient.Id,
+                    new[] { DisplayName(recipient), requesterName, WhatsAppTemplateValues.RequestType("termination", recipient.EmailLanguage), $"{propertyName} — {apartmentName}" },
+                    $"tenancy-request:termination:{requestId}:received:{recipient.Id}:whatsapp",
+                    RelatedEntityId: requestId.ToString()),
+                cancellationToken);
+        }
+
+        private Task<long?> QueueStatusUpdateAsync(
+            int requestId,
+            ApplicationUser recipient,
+            string requesterName,
+            string propertyName,
+            string apartmentName,
+            string status,
+            CancellationToken cancellationToken)
+        {
+            return _notificationDeliveryService.EnqueueWhatsAppAsync(
+                new EnqueueWhatsAppNotification(
+                    "tenancy_request_status_update",
+                    recipient.Id,
+                    new[] { DisplayName(recipient), WhatsAppTemplateValues.RequestType("termination", recipient.EmailLanguage), requesterName, $"{propertyName} — {apartmentName}", WhatsAppTemplateValues.RequestStatus(status, recipient.EmailLanguage) },
+                    $"tenancy-request:termination:{requestId}:status:{status}:{recipient.Id}:whatsapp",
+                    RelatedEntityId: requestId.ToString()),
+                cancellationToken);
         }
 
         private static bool HasPermissionForApartment(

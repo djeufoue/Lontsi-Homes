@@ -20,15 +20,6 @@ namespace RentHub.API.Helpers
                 .FirstOrDefaultAsync();
         }
 
-        public static async Task<bool> ShouldSkipLandlordPhoneVerificationAsync(ApplicationDbContext context)
-        {
-            return await context.PlatformPaymentSettings
-                .AsNoTracking()
-                .Where(settings => settings.Id == 1)
-                .Select(settings => settings.SkipLandlordPhoneVerification)
-                .FirstOrDefaultAsync();
-        }
-
         public static async Task<bool> IsAutomaticPaymentEnabledForPropertyAsync(
             ApplicationDbContext context,
             int propertyId)

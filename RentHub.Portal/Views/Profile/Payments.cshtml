@@ -41,7 +41,6 @@
         };
     }
     var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
-    var smsVerificationUnavailable = !overview.SmsVerificationEnabled;
     var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
         overview.PendingPaymentStatus == PaymentStatusEnum.Pending &&
         overview.PendingPaymentMethod != PaymentMethodEnum.Card;
@@ -57,8 +56,7 @@
         PayoutChannelEnum.OrangeMoney => "Orange Money",
         _ => T["Not configured"].Value
     };
-    var hasRegisteredMobileMoneyPayment = !smsVerificationUnavailable &&
-        !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
+    var hasRegisteredMobileMoneyPayment = !string.IsNullOrWhiteSpace(registeredMobileMoneyNumber) &&
         registeredPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney &&
         overview.IsSubscriptionPaymentPhoneVerified;
     var isLandlord = overview.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase));
@@ -90,17 +88,12 @@
     var cancelMobileMoneyUpdateUrl = Url.Action("CancelMobileMoneyUpdate", "Profile");
     var verifyMobileMoneyOtpUrl = Url.Action("VerifyMobileMoneyOtp", "Profile");
     var resendMobileMoneyOtpUrl = Url.Action("ResendMobileMoneyOtp", "Profile");
-    var subscriptionPending = !smsVerificationUnavailable &&
-        !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) &&
+    var subscriptionPending = !string.IsNullOrWhiteSpace(overview.SubscriptionPaymentPhoneNumber) &&
         !overview.IsSubscriptionPaymentPhoneVerified;
-    var payoutPending = !smsVerificationUnavailable &&
-        !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) &&
+    var payoutPending = !string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) &&
         !overview.IsPayoutPhoneVerified;
-    var whatsAppPending = !smsVerificationUnavailable &&
-        !string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) &&
-        !overview.IsWhatsAppPhoneVerified;
-    var hasPendingMobilePaymentVerification = subscriptionPending || payoutPending || whatsAppPending;
-    var mobileMoneyActionDisabled = smsVerificationUnavailable || hasPendingMobilePaymentVerification;
+    var hasPendingMobilePaymentVerification = subscriptionPending || payoutPending;
+    var mobileMoneyActionDisabled = hasPendingMobilePaymentVerification;
     var payoutSharesSubscriptionPendingNumber = payoutPending &&
         subscriptionPending &&
         string.Equals(
@@ -109,14 +102,10 @@
             StringComparison.OrdinalIgnoreCase);
     var subscriptionRetryAfter = Math.Max(0, overview.SubscriptionPaymentOtpRequestLimit?.RetryAfterSeconds ?? 0);
     var payoutRetryAfter = Math.Max(0, overview.PayoutOtpRequestLimit?.RetryAfterSeconds ?? 0);
-    var whatsAppRetryAfter = Math.Max(0, overview.WhatsAppOtpRequestLimit?.RetryAfterSeconds ?? 0);
     var subscriptionDailyLimitReached = overview.SubscriptionPaymentOtpRequestLimit?.DailyLimitReached ?? false;
     var payoutDailyLimitReached = overview.PayoutOtpRequestLimit?.DailyLimitReached ?? false;
-    var whatsAppDailyLimitReached = overview.WhatsAppOtpRequestLimit?.DailyLimitReached ?? false;
     var boolText = (Func<bool, string>)(value => value.ToString().ToLowerInvariant());
-    var primaryPhone = smsVerificationUnavailable
-        ? T["not required for this account"].Value
-        : string.IsNullOrWhiteSpace(overview.PhoneNumber) ? T["your verified phone"].Value : overview.PhoneNumber;
+    var primaryPhone = string.IsNullOrWhiteSpace(overview.PhoneNumber) ? T["your verified phone"].Value : overview.PhoneNumber;
     var subscriptionChannel = overview.SubscriptionPaymentChannel ?? PayoutChannelEnum.MtnMoney;
     var payoutChannel = overview.PayoutChannel ?? PayoutChannelEnum.MtnMoney;
     var paymentClientTranslations = new Dictionary<string, string>
@@ -125,7 +114,6 @@
         ["Working..."] = T["Working..."].Value,
         ["Confirming..."] = T["Confirming..."].Value,
         ["Rent payout number"] = T["Rent payout number"].Value,
-        ["WhatsApp alerts number"] = T["WhatsApp alerts number"].Value,
         ["Subscription payment number"] = T["Subscription payment number"].Value,
         ["Not provided"] = T["Not provided"].Value,
         ["Verified"] = T["Verified"].Value,
@@ -186,12 +174,12 @@ else
         {
             <article class="rh-summary-card">
                 <p>@T["Payment Method"]</p>
-                <h3>@(smsVerificationUnavailable ? T["Card testing"].Value : registeredPaymentMethodLabel)</h3>
-                <small>@(smsVerificationUnavailable ? T["Phone verification is not required"].Value : hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : T["Card payment available"].Value)</small>
+                <h3>@registeredPaymentMethodLabel</h3>
+                <small>@(hasRegisteredMobileMoneyPayment ? registeredMobileMoneyNumber : T["Card payment available"].Value)</small>
             </article>
             <article class="rh-summary-card">
                 <p>@T["Mobile Money Payout"]</p>
-                <h3>@(smsVerificationUnavailable ? T["Temporarily skipped"].Value : overview.IsPayoutPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
+                <h3>@(overview.IsPayoutPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
                 <small>@(!string.IsNullOrWhiteSpace(overview.PayoutPhoneNumber) ? overview.PayoutPhoneNumber : T["Not configured"].Value)</small>
             </article>
         }
@@ -279,7 +267,7 @@ else
                     <button type="button" class="btn btn-sm rh-btn-subtle" data-mobile-money-open @(mobileMoneyActionDisabled ? "disabled" : null)>@T["Edit setup"]</button>
                 </div>
 
-                @if (!smsVerificationUnavailable && hasPendingMobilePaymentVerification)
+                @if (hasPendingMobilePaymentVerification)
                 {
                     <div class="alert alert-warning py-2 rh-mobile-pending-banner">
                         @T["Finish OTP validation for the pending number before changing Mobile Money setup again."]
@@ -328,7 +316,7 @@ else
                     </div>
                     <div class="rh-profile-info-item">
                         <p>@T["Subscription Payment Verification"]</p>
-                        <h3>@(smsVerificationUnavailable ? T["Temporarily skipped"].Value : overview.IsSubscriptionPaymentPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
+                        <h3>@(overview.IsSubscriptionPaymentPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
                     </div>
                     <div class="rh-profile-info-item rh-payment-phone-section @(payoutPending ? "is-pending" : string.Empty)" data-otp-section="payout">
                         <p>@T["Rent Payout Number"]</p>
@@ -378,46 +366,7 @@ else
                     </div>
                     <div class="rh-profile-info-item">
                         <p>@T["Rent Payout Verification"]</p>
-                        <h3>@(smsVerificationUnavailable ? T["Temporarily skipped"].Value : overview.IsPayoutPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
-                    </div>
-                    <div class="rh-profile-info-item rh-payment-phone-section @(whatsAppPending ? "is-pending" : string.Empty)" data-otp-section="whatsapp">
-                        <p>@T["WhatsApp Alerts Number"]</p>
-                        <h3>@(!string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? overview.WhatsAppPhoneNumber : T["Not provided"].Value)</h3>
-                        @if (whatsAppPending)
-                        {
-                            <div class="rh-payment-pending-note">
-                                @T["Pending OTP verification. WhatsApp alerts will use this number after confirmation."]
-                            </div>
-                            <form action="@verifyMobileMoneyOtpUrl" method="post" class="rh-otp-form" data-mobile-otp-form>
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="target" value="whatsapp" />
-                                <label class="form-label rh-mini-label" for="whatsAppOtp">@T["OTP code"]</label>
-                                <div class="rh-otp-input-row">
-                                    <input id="whatsAppOtp" name="otp" class="form-control form-control-sm" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="@T["Enter OTP"]" required />
-                                    <button type="submit" class="btn btn-sm rh-btn-primary" data-otp-verify>@T["Verify"]</button>
-                                </div>
-                            </form>
-                            <form action="@resendMobileMoneyOtpUrl" method="post" class="rh-otp-resend-form" data-mobile-resend-form>
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="target" value="whatsapp" />
-                                <button type="submit"
-                                        class="btn btn-sm rh-btn-subtle"
-                                        data-otp-resend
-                                        data-target="whatsapp"
-                                        data-retry-after="@whatsAppRetryAfter"
-                                        data-daily-limit-reached="@boolText(whatsAppDailyLimitReached)"
-                                        @(whatsAppDailyLimitReached || whatsAppRetryAfter > 0 ? "disabled" : null)>
-                                    @T["Resend OTP"]
-                                </button>
-                            </form>
-                            <small class="text-muted d-block mt-2 @(whatsAppRetryAfter > 0 && !whatsAppDailyLimitReached ? string.Empty : "d-none")" data-otp-countdown></small>
-                            <small class="text-danger d-block mt-2 @(whatsAppDailyLimitReached ? string.Empty : "d-none")" data-otp-daily-limit>@T["You have reached today's OTP request limit. Please try again after the daily reset."]</small>
-                            <small class="d-block mt-2 d-none" data-otp-message></small>
-                        }
-                    </div>
-                    <div class="rh-profile-info-item">
-                        <p>@T["WhatsApp Alerts Verification"]</p>
-                        <h3>@(smsVerificationUnavailable ? T["Temporarily skipped"].Value : string.IsNullOrWhiteSpace(overview.WhatsAppPhoneNumber) ? T["Not required"].Value : overview.IsWhatsAppPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
+                        <h3>@(overview.IsPayoutPhoneVerified ? T["Verified"].Value : T["Pending"].Value)</h3>
                     </div>
                 </div>
             </article>
@@ -631,7 +580,7 @@ else
         }
     </section>
 
-    @if (isCameroonLandlord && !smsVerificationUnavailable)
+    @if (isCameroonLandlord)
     {
         <div class="modal fade rh-mobile-money-modal" id="mobileMoneyModal" tabindex="-1" aria-labelledby="mobileMoneyModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -662,7 +611,6 @@ else
                                 <select class="form-select" id="MobileMoneyTarget" data-mobile-target>
                                     <option value="subscription">@T["Subscription payment number"]</option>
                                     <option value="payout">@T["Rent payout number"]</option>
-                                    <option value="whatsapp">@T["WhatsApp alerts number"]</option>
                                 </select>
                             </div>
 
@@ -947,7 +895,6 @@ else
 
             const targetLabel = (target) => {
                 if (target === "payout") return pt("Rent payout number");
-                if (target === "whatsapp") return pt("WhatsApp alerts number");
                 return pt("Subscription payment number");
             };
 
@@ -964,10 +911,6 @@ else
                     return setup.payout;
                 }
 
-                if (target === "whatsapp") {
-                    return setup.whatsapp;
-                }
-
                 return setup.subscription;
             };
 
@@ -977,9 +920,7 @@ else
             const modalSignature = (form) => {
                 const target = getSelectedTarget(form);
                 const phone = cleanLocalCameroonPhone(form.querySelector("[data-mobile-phone]")?.value);
-                const channel = target === "whatsapp"
-                    ? ""
-                    : form.querySelector("[data-mobile-channel]")?.value || "";
+                const channel = form.querySelector("[data-mobile-channel]")?.value || "";
 
                 return `${target}|${phone}|${channel}`;
             };
@@ -999,10 +940,6 @@ else
 
                 if (target === "payout") {
                     return asBool(pick(status, "isPayoutPhoneVerified", "IsPayoutPhoneVerified"));
-                }
-
-                if (target === "whatsapp") {
-                    return asBool(pick(status, "isWhatsAppPhoneVerified", "IsWhatsAppPhoneVerified"));
                 }
 
                 return asBool(pick(status, "isSubscriptionPaymentPhoneVerified", "IsSubscriptionPaymentPhoneVerified"));
@@ -1046,15 +983,15 @@ else
 
                 if (currentMeta) {
                     const meta = [];
-                    if (target !== "whatsapp" && targetState.channel) {
+                    if (targetState.channel) {
                         meta.push(targetState.channel === "OrangeMoney" ? "Orange Money" : "MTN Money");
                     }
                     meta.push(targetState.verified ? pt("Verified") : pt("Pending verification"));
                     currentMeta.textContent = meta.join(" - ");
                 }
 
-                const usesOperator = target !== "whatsapp";
-                operatorGroup?.classList.toggle("d-none", !usesOperator);
+                const usesOperator = true;
+                operatorGroup?.classList.remove("d-none");
                 if (channel) {
                     channel.required = usesOperator;
                     channel.disabled = !usesOperator;
@@ -1108,7 +1045,7 @@ else
                 }
 
                 if (channel) {
-                    channel.value = target === "whatsapp" ? "" : targetState.channel || "MtnMoney";
+                    channel.value = targetState.channel || "MtnMoney";
                 }
 
                 if (otp) {
@@ -1178,10 +1115,6 @@ else
                     return pick(status, "payoutOtpRequestLimit", "PayoutOtpRequestLimit");
                 }
 
-                if (target === "whatsapp") {
-                    return pick(status, "whatsAppOtpRequestLimit", "WhatsAppOtpRequestLimit");
-                }
-
                 return null;
             };
 
@@ -1247,11 +1180,6 @@ else
                         number: pick(data, "payoutPhoneNumber", "PayoutPhoneNumber") || "",
                         channel: pick(data, "payoutChannel", "PayoutChannel") || "MtnMoney",
                         verified: asBool(pick(data, "isPayoutPhoneVerified", "IsPayoutPhoneVerified"))
-                    },
-                    whatsapp: {
-                        number: pick(data, "whatsAppPhoneNumber", "WhatsAppPhoneNumber") || "",
-                        channel: "",
-                        verified: asBool(pick(data, "isWhatsAppPhoneVerified", "IsWhatsAppPhoneVerified"))
                     }
                 };
 

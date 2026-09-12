@@ -16,11 +16,36 @@ namespace RentHub.API.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IRentReceiptService _receiptService;
+        private readonly WhatsAppReceiptMedia _media;
 
-        public ReceiptsController(ApplicationDbContext context, IRentReceiptService receiptService)
+        public ReceiptsController(ApplicationDbContext context, IRentReceiptService receiptService, WhatsAppReceiptMedia media)
         {
             _context = context;
             _receiptService = receiptService;
+            _media = media;
+        }
+
+        [HttpGet("whatsapp.pdf")]
+        [AllowAnonymous]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> WhatsAppPdf([FromQuery] string? token, CancellationToken cancellationToken)
+        {
+            Response.Headers["Cache-Control"] = "no-store, private";
+            Response.Headers["Referrer-Policy"] = "no-referrer";
+            Response.Headers["X-Content-Type-Options"] = "nosniff";
+            var grant = _media.Validate(token);
+            if (grant == null) return NotFound();
+
+            // A valid token cannot be used for a different tenant, revoked receipt or failed payment.
+            // GetReceiptAsync excludes deleted payments. It does not create/modify a receipt.
+            var receipt = await _receiptService.GetReceiptAsync(grant.PaymentId, cancellationToken);
+            if (receipt == null || receipt.PaymentId != grant.PaymentId || receipt.Status != PaymentStatusEnum.Success ||
+                receipt.TenantUserId != grant.RecipientUserId || receipt.VerificationCode != grant.VerificationCode)
+                return NotFound();
+
+            var language = grant.Language == "fr" ? PlatformLanguage.French : PlatformLanguage.English;
+            return File(Common.Helpers.RentReceiptPdfBuilder.Build(receipt, language),
+                "application/pdf", $"receipt-{receipt.PaymentId}.pdf");
         }
 
         [HttpGet("payment/{paymentId:int}")]

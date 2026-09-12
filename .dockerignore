@@ -12,3 +12,9 @@ build-verify/
 *.pdb
 *.zip
 deploy/vps/.env.production
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/App_Data/
+tmp/
+output/
+deploy/vps/backups/

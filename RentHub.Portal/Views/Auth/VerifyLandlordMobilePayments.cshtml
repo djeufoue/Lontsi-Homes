@@ -5,14 +5,14 @@
     var status = Model.Status;
     var needsSubscriptionOtp = status == null || !status.IsSubscriptionPaymentPhoneVerified;
     var needsPayoutOtp = status == null || !status.IsPayoutPhoneVerified;
-    var needsWhatsAppOtp = status == null || !status.IsWhatsAppPhoneVerified;
+    var whatsAppNumber = status?.PendingWhatsAppPhoneNumber ?? status?.WhatsAppPhoneNumber;
+    var needsWhatsAppOtp = !string.IsNullOrWhiteSpace(whatsAppNumber) && status?.IsWhatsAppPhoneVerified != true;
     var isAccountUpdate = User.Identity?.IsAuthenticated == true;
     var progress = new LandlordOnboardingProgressVm
     {
         CurrentStep = LandlordOnboardingSteps.MobilePaymentVerification,
         CountryCode = status?.CountryCode ?? "+237",
-        CountryIsoCode = status?.CountryIsoCode,
-        SmsVerificationTemporarilyUnavailable = status?.SmsVerificationEnabled != true
+        CountryIsoCode = status?.CountryIsoCode
     };
 }
 
@@ -78,7 +78,7 @@
                         </div>
                         <div>
                             <span>WhatsApp alerts</span>
-                            <strong>@(string.IsNullOrWhiteSpace(status.WhatsAppPhoneNumber) ? "Optional number" : status.WhatsAppPhoneNumber)</strong>
+                            <strong>@(string.IsNullOrWhiteSpace(whatsAppNumber) ? "Optional number" : whatsAppNumber)</strong>
                             <small>@(status.IsWhatsAppPhoneVerified ? "Verified" : "Pending if configured")</small>
                         </div>
                     </div>

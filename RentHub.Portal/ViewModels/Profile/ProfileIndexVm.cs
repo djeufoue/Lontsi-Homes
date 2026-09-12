@@ -8,5 +8,6 @@ namespace RentHub.Portal.ViewModels.Profile
         public DateTimeOffset NowUtc { get; set; } = DateTimeOffset.UtcNow;
         public bool IsOwnProfile { get; set; } = true;
         public int? AccessTenancyId { get; set; }
+        public WhatsAppPreferenceDto? WhatsAppPreference { get; set; }
     }
 }

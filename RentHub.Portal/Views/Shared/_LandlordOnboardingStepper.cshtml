@@ -1,9 +1,14 @@
 @model LandlordOnboardingProgressVm
+@inject Microsoft.Extensions.Configuration.IConfiguration OnboardingConfiguration
+@{
+    Model.RequireMainPhoneVerification = OnboardingConfiguration.GetValue("Onboarding:RequireMainPhoneVerification", true);
+}
 
 <div class="rh-auth-stepper @(Model.TotalSteps > 6 ? "rh-auth-stepper-wide" : null)"
      style="--rh-auth-step-count: @Model.TotalSteps"
      aria-label="Registration progress"
      data-onboarding-stepper
+     data-require-main-phone="@Model.RequireMainPhoneVerification.ToString().ToLowerInvariant()"
      data-current-step="@Model.CurrentStep">
     @for (var index = 0; index < Model.TotalSteps; index++)
     {

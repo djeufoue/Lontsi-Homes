@@ -50,11 +50,14 @@
                     <span asp-validation-for="EmailOtp" class="text-danger small"></span>
                 </div>
 
+                @if (Context.RequestServices.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>().GetValue("Onboarding:RequireMainPhoneVerification", true))
+                {
                 <div class="mb-3">
                     <label asp-for="PhoneOtp" class="form-label rh-auth-label"></label>
                     <input asp-for="PhoneOtp" class="form-control rh-auth-input" autocomplete="one-time-code" placeholder="@T["Only if a phone code was sent"]" />
                     <span asp-validation-for="PhoneOtp" class="text-danger small"></span>
                 </div>
+                }
 
                 <div class="mb-3">
                     <label asp-for="SubscriptionPaymentOtp" class="form-label rh-auth-label"></label>

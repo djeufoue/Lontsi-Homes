@@ -27,7 +27,6 @@ namespace Common.CommunicationModels
         public OtpRequestLimitDto? SubscriptionPaymentOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? PayoutOtpRequestLimit { get; set; }
         public OtpRequestLimitDto? WhatsAppOtpRequestLimit { get; set; }
-        public bool SmsVerificationEnabled { get; set; }
         public List<string> Roles { get; set; } = new();
         public bool IsSubscriptionExempt { get; set; }
         public PlatformLanguage Language { get; set; } = PlatformLanguage.English;

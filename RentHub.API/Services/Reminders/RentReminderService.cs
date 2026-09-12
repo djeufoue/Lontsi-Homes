@@ -8,7 +8,7 @@ using RentHub.API.Data;
 using RentHub.API.Helpers;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
-using RentHub.API.Services.Sms;
+using RentHub.API.Services.Messaging;
 using RentHub.API.Services.Tenancies;
 using System.Data;
 using System.Globalization;
@@ -35,7 +35,8 @@ namespace RentHub.API.Services.Reminders
 
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
-        private readonly ISmsService _smsService;
+        private readonly ISmsMessagingService _smsMessagingService;
+        private readonly INotificationDeliveryService _notificationDeliveryService;
         private readonly ITenancyRenewalEmailService _renewalEmailService;
         private readonly IBackgroundJobClient _backgroundJobs;
         private readonly IConfiguration _configuration;
@@ -44,7 +45,8 @@ namespace RentHub.API.Services.Reminders
         public RentReminderService(
             ApplicationDbContext context,
             IEmailService emailService,
-            ISmsService smsService,
+            ISmsMessagingService smsMessagingService,
+            INotificationDeliveryService notificationDeliveryService,
             ITenancyRenewalEmailService renewalEmailService,
             IBackgroundJobClient backgroundJobs,
             IConfiguration configuration,
@@ -52,7 +54,8 @@ namespace RentHub.API.Services.Reminders
         {
             _context = context;
             _emailService = emailService;
-            _smsService = smsService;
+            _smsMessagingService = smsMessagingService;
+            _notificationDeliveryService = notificationDeliveryService;
             _renewalEmailService = renewalEmailService;
             _backgroundJobs = backgroundJobs;
             _configuration = configuration;
@@ -78,7 +81,7 @@ namespace RentHub.API.Services.Reminders
                 join period in _context.RentPeriods.AsNoTracking()
                     on tenancy.Id equals period.TenancyId
                 where rule.IsEnabled
-                      && (rule.EmailEnabled || rule.SmsEnabled)
+                      && (rule.EmailEnabled || rule.SmsEnabled || rule.WhatsAppEnabled)
                       && !tenancy.RentScheduleNeedsReview
                       && (!tenancy.TerminatedAt.HasValue || tenancy.TerminatedAt.Value.Date > today)
                       && (!tenancy.EndDate.HasValue
@@ -107,6 +110,7 @@ namespace RentHub.API.Services.Reminders
                     item.rule.Days,
                     item.rule.EmailEnabled,
                     item.rule.SmsEnabled,
+                    item.rule.WhatsAppEnabled,
                     item.rule.Timing == RentReminderTimingEnum.BeforeDue
                         ? item.period.DueDate.AddDays(-item.rule.Days)
                         : item.rule.Timing == RentReminderTimingEnum.AfterDue
@@ -192,6 +196,7 @@ namespace RentHub.API.Services.Reminders
                 var category = ResolveBatchCategory(groupCandidates.Select(candidate => candidate.Timing));
                 var requestEmail = groupCandidates.Any(candidate => candidate.EmailEnabled);
                 var requestSms = groupCandidates.Any(candidate => candidate.SmsEnabled);
+                var requestWhatsApp = groupCandidates.Any(candidate => candidate.WhatsAppEnabled);
                 var reminder = BuildReminder(
                     tenancy,
                     tenant,
@@ -202,6 +207,7 @@ namespace RentHub.API.Services.Reminders
                     groupCandidates.Min(candidate => candidate.ScheduledFor),
                     requestEmail,
                     requestSms,
+                    requestWhatsApp,
                     null,
                     nowUtc);
 
@@ -357,6 +363,7 @@ namespace RentHub.API.Services.Reminders
                 nowUtc,
                 true,
                 false,
+                false,
                 requestedByUserId,
                 nowUtc);
             reminder.Triggers.Add(new RentReminderTrigger
@@ -471,13 +478,58 @@ namespace RentHub.API.Services.Reminders
             if (reminder.SmsStatus is ReminderDeliveryStatusEnum.Pending or ReminderDeliveryStatusEnum.Failed)
             {
                 reminder.SmsAttemptCount++;
-                var result = await _smsService.TrySendSmsAsync(reminder.RecipientPhone, BuildSms(reminder));
+                var result = await _smsMessagingService.SendAsync(reminder.RecipientPhone, BuildSms(reminder));
                 reminder.SmsStatus = result.Succeeded
                     ? ReminderDeliveryStatusEnum.Sent
                     : ReminderDeliveryStatusEnum.Failed;
                 if (!result.Succeeded)
                 {
-                    failures.Add($"SMS: {result.Error}");
+                    failures.Add($"SMS: {result.ErrorMessage}");
+                }
+            }
+
+            var whatsAppQueued = false;
+            if (reminder.WhatsAppRequested && reminder.Tenancy != null)
+            {
+                var tenant = ResolvePrimaryTenant(reminder.Tenancy);
+                var eventType = reminder.Category switch
+                {
+                    RentReminderCategoryEnum.BeforeDue => "rent_due_soon",
+                    RentReminderCategoryEnum.DueDate => "rent_due_today",
+                    RentReminderCategoryEnum.AfterDue => "rent_overdue",
+                    _ => string.Empty
+                };
+                if (tenant != null && !string.IsNullOrWhiteSpace(eventType))
+                {
+                    var apartment = reminder.Tenancy.Apartment;
+                    var property = apartment?.Property;
+                    var dueDate = reminder.Periods
+                        .Where(period => period.IsTrigger)
+                        .Select(period => (DateTimeOffset?)period.DueDateSnapshot)
+                        .Min() ?? reminder.ScheduledFor;
+                    var deliveryId = await _notificationDeliveryService.EnqueueWhatsAppAsync(
+                        new EnqueueWhatsAppNotification(
+                            eventType,
+                            tenant.Id,
+                            WhatsAppTemplateValues.Reminder(
+                                string.IsNullOrWhiteSpace(tenant.FullName) ? "Client" : tenant.FullName.Trim(),
+                                property?.Name ?? string.Empty, apartment?.Name ?? string.Empty,
+                                reminder.Category, reminder.Periods, dueDate,
+                                reminder.OutstandingAmountSnapshot, Currency, tenant.EmailLanguage),
+                            $"rent-reminder:{reminder.Id}:whatsapp",
+                            WhatsAppTemplateValues.UrlButton(_configuration, eventType, "tenancyId",
+                                reminder.Tenancy.Id.ToString(CultureInfo.InvariantCulture)),
+                            RelatedEntityId: reminder.Id.ToString()));
+                    if (deliveryId.HasValue)
+                    {
+                        whatsAppQueued = await _context.NotificationDeliveries.AnyAsync(delivery =>
+                            delivery.Id == deliveryId.Value && delivery.Status == NotificationDeliveryStatuses.Pending);
+                    }
+                }
+
+                if (!whatsAppQueued)
+                {
+                    failures.Add("WhatsApp: recipient consent, verified number, or approved template is unavailable.");
                 }
             }
 
@@ -485,10 +537,12 @@ namespace RentHub.API.Services.Reminders
                 .Where(status => status != ReminderDeliveryStatusEnum.NotRequested
                                  && status != ReminderDeliveryStatusEnum.Skipped)
                 .ToList();
-            var sentCount = requestedStatuses.Count(status => status == ReminderDeliveryStatusEnum.Sent);
-            var failedCount = requestedStatuses.Count(status => status == ReminderDeliveryStatusEnum.Failed);
+            var sentCount = requestedStatuses.Count(status => status == ReminderDeliveryStatusEnum.Sent) + (whatsAppQueued ? 1 : 0);
+            var failedCount = requestedStatuses.Count(status => status == ReminderDeliveryStatusEnum.Failed) +
+                              (reminder.WhatsAppRequested && !whatsAppQueued ? 1 : 0);
+            var requestedCount = requestedStatuses.Count + (reminder.WhatsAppRequested ? 1 : 0);
 
-            reminder.Status = requestedStatuses.Count == 0
+            reminder.Status = requestedCount == 0
                 ? RentReminderStatusEnum.Failed
                 : failedCount == 0
                     ? RentReminderStatusEnum.Sent
@@ -500,7 +554,7 @@ namespace RentHub.API.Services.Reminders
             reminder.UpdatedAt = DateTimeOffset.UtcNow;
             await _context.SaveChangesAsync();
 
-            if (failedCount > 0 || requestedStatuses.Count == 0)
+            if (failedCount > 0 || requestedCount == 0)
             {
                 throw new InvalidOperationException(
                     string.IsNullOrWhiteSpace(reminder.FailureReason)
@@ -608,7 +662,7 @@ namespace RentHub.API.Services.Reminders
 
                 var rule = trigger.ApartmentRentReminderRule;
                 if (rule == null || rule.IsDeleted || !rule.IsEnabled ||
-                    (!rule.EmailEnabled && !rule.SmsEnabled))
+                    (!rule.EmailEnabled && !rule.SmsEnabled && !rule.WhatsAppEnabled))
                 {
                     continue;
                 }
@@ -693,6 +747,7 @@ namespace RentHub.API.Services.Reminders
             DateTimeOffset scheduledFor,
             bool requestEmail,
             bool requestSms,
+            bool requestWhatsApp,
             string? requestedByUserId,
             DateTimeOffset nowUtc)
         {
@@ -736,6 +791,7 @@ namespace RentHub.API.Services.Reminders
                 SmsStatus = requestSms && !string.IsNullOrWhiteSpace(tenant.PhoneNumber)
                     ? ReminderDeliveryStatusEnum.Pending
                     : ReminderDeliveryStatusEnum.NotRequested,
+                WhatsAppRequested = requestWhatsApp,
                 RequestedByUserId = requestedByUserId,
                 CreatedAt = nowUtc
             };
@@ -1110,6 +1166,7 @@ namespace RentHub.API.Services.Reminders
             int Days,
             bool EmailEnabled,
             bool SmsEnabled,
+            bool WhatsAppEnabled,
             DateTimeOffset ScheduledFor,
             DateTimeOffset DueDate,
             DateTimeOffset ScheduleVersion,

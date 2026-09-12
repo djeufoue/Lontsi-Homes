@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using Common.CommunicationModels;
@@ -22,17 +23,28 @@ namespace Common.Helpers
 
         public static byte[] Build(RentReceiptDto receipt, PlatformLanguage language)
         {
-            var content = BuildContent(receipt, language);
-            var contentBytes = Encoding.ASCII.GetBytes(content);
+            var pages = new List<string> { BuildContent(receipt, language) };
+            if (receipt.Lines.Count > 1)
+            {
+                var ordered = receipt.Lines.OrderBy(line => line.PeriodStart).ToList();
+                for (var offset = 0; offset < ordered.Count; offset += 15)
+                    pages.Add(BuildContent(receipt, language, ordered.Skip(offset).Take(15).ToList()));
+            }
+
             var objects = new List<byte[]>
             {
                 PdfObject("<< /Type /Catalog /Pages 2 0 R >>"),
-                PdfObject("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-                PdfObject("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>"),
-                PdfStreamObject(contentBytes),
+                PdfObject($"<< /Type /Pages /Kids [{string.Join(" ", Enumerable.Range(0, pages.Count).Select(index => $"{5 + index * 2} 0 R"))}] /Count {pages.Count} >>"),
                 PdfObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
                 PdfObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
             };
+            for (var index = 0; index < pages.Count; index++)
+            {
+                var content = new StringBuilder(pages[index]);
+                Text(content, "F1", 8, Margin, 22, $"{index + 1} / {pages.Count}", (1d, 0.98, 0.95));
+                objects.Add(PdfObject($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {6 + index * 2} 0 R >>"));
+                objects.Add(PdfStreamObject(Encoding.ASCII.GetBytes(content.ToString())));
+            }
 
             using var stream = new MemoryStream();
             WriteAscii(stream, "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
@@ -58,7 +70,7 @@ namespace Common.Helpers
             return stream.ToArray();
         }
 
-        private static string BuildContent(RentReceiptDto receipt, PlatformLanguage language)
+        private static string BuildContent(RentReceiptDto receipt, PlatformLanguage language, List<RentReceiptLineDto>? details = null)
         {
             var isFrench = language == PlatformLanguage.French;
             var culture = CultureInfo.GetCultureInfo(language.ToCultureName());
@@ -85,7 +97,7 @@ namespace Common.Helpers
                 sb,
                 "F1",
                 titleSize,
-                (PageWidth - EstimateTextWidth(fittedTitle, titleSize)) / 2,
+                (PageWidth - MeasureTextWidth(fittedTitle, titleSize, "F1") - (fittedTitle.Length - 1) * 2.8) / 2,
                 735,
                 fittedTitle,
                 ink,
@@ -95,88 +107,94 @@ namespace Common.Helpers
             const double brandFontSize = 15;
             const double brandMarkSize = 26;
             const double brandGap = 8;
-            var brandGroupWidth = brandMarkSize + brandGap + EstimateTextWidth(brand, brandFontSize);
+            var brandGroupWidth = brandMarkSize + brandGap + MeasureTextWidth(brand, brandFontSize, "F2");
             var brandGroupLeft = (PageWidth - brandGroupWidth) / 2;
             DrawBrandMark(sb, brandGroupLeft, 691, brandMarkSize, (0.541, 0.624, 0.235), ink, paper);
             Text(sb, "F2", brandFontSize, brandGroupLeft + brandMarkSize + brandGap, 699, brand, ink);
             var tagline = isFrench ? "GESTION IMMOBILIERE ET SERVICES DE LOCATION" : "PROPERTY MANAGEMENT AND RENT SERVICES";
             var taglineSize = FitFontSize(tagline, 8, 6.5, width - 90);
-            Text(sb, "F2", taglineSize, (PageWidth - EstimateTextWidth(tagline, taglineSize)) / 2, 683, tagline, muted, 0.9);
+            Text(sb, "F2", taglineSize, (PageWidth - MeasureTextWidth(tagline, taglineSize, "F2") - (tagline.Length - 1) * 0.9) / 2, 683, tagline, muted, 0.9);
             Line(sb, left, 659, right, 659, accent, 1.2);
 
-            var receiptReference = AbbreviateReceiptReference(receipt.ReceiptNumber);
-
-            Text(sb, "F2", 8, left, 628, isFrench ? "NUMERO DE FACTURE" : "INVOICE NUMBER", accent, 0.8);
-            TextFitted(sb, "F2", 11, 8, left, 610, receiptReference, ink, 230);
-            if (!string.IsNullOrWhiteSpace(receipt.LandlordName))
+            var border = (0.85, 0.8, 0.76);
+            var top = 641d;
+            void Fact(string label, string value, double height = 26, bool boxed = false, bool total = false)
             {
-                TextFitted(sb, "F1", 9, 7, left, 590, receipt.LandlordName, muted, 230);
-            }
-            if (!string.IsNullOrWhiteSpace(receipt.LandlordEmail))
-            {
-                TextFitted(sb, "F1", 8.5, 7, left, 574, receipt.LandlordEmail, muted, 230);
-            }
-
-            TextRightFitted(sb, "F2", 8, 7, right, 628, isFrench ? "DATE D'EMISSION" : "ISSUE DATE", accent, 150);
-            TextRightFitted(sb, "F2", 11, 8, right, 610, DateLabel(receipt.IssuedAt, language), ink, 150);
-            if (!string.IsNullOrWhiteSpace(receipt.PropertyName))
-            {
-                TextRightFitted(sb, "F1", 9, 7, right, 590, receipt.PropertyName, muted, 210);
-            }
-            if (!string.IsNullOrWhiteSpace(receipt.ApartmentName))
-            {
-                TextRightFitted(sb, "F1", 8.5, 7, right, 574, receipt.ApartmentName, muted, 210);
-            }
-
-            FillRect(sb, left, 510, width, 32, accent.Item1, accent.Item2, accent.Item3);
-            Text(sb, "F2", 9, left + 10, 521, isFrench ? "PERIODE MENSUELLE" : "MONTHLY PERIOD", 1, 0.98, 0.95);
-            TextRightFitted(sb, "F2", 9, 7, right - 112, 521, isFrench ? "MONTANT" : "AMOUNT", (1d, 0.98, 0.95), 92);
-            TextRightFitted(sb, "F2", 9, 7, right - 10, 521, isFrench ? "PAYE" : "PAID", (1d, 0.98, 0.95), 92);
-
-            var receiptLines = receipt.Lines.Count > 0
-                ? receipt.Lines
-                : new List<RentReceiptLineDto>
+                var bottom = top - height;
+                var background = total ? accent : paperAlt;
+                if (boxed || total)
                 {
-                    new()
-                    {
-                        PeriodStart = receipt.PeriodStart ?? receipt.PaymentDate,
-                        PeriodEnd = receipt.PeriodEnd ?? receipt.PaymentDate,
-                        PeriodAmount = receipt.Amount,
-                        PaidAmount = receipt.Amount
-                    }
-                };
-            var rowHeight = Math.Max(12d, Math.Min(46d, 144d / Math.Max(1, receiptLines.Count)));
-            var rowTop = 510d;
-            foreach (var line in receiptLines)
+                    FillRect(sb, left, bottom, width, height, background.Item1, background.Item2, background.Item3);
+                    StrokeRect(sb, left, bottom, width, height, border);
+                    Line(sb, left + 170, bottom, left + 170, top, border, 0.5);
+                }
+                else Line(sb, left, bottom, right, bottom, border, 0.5);
+                var color = total ? (1d, 0.98, 0.95) : ink;
+                TextFitted(sb, total ? "F2" : "F1", 10, 8, left + 10, bottom + 9, label, color, 150);
+                TextRightFitted(sb, total ? "F2" : "F1", total ? 12 : 10, 7,
+                    right - 10, bottom + 9, value, color, width - 195);
+                top = bottom;
+            }
+            void Heading(string label)
             {
-                var rowBottom = rowTop - rowHeight;
-                FillRect(sb, left, rowBottom, width, rowHeight, paperAlt.Item1, paperAlt.Item2, paperAlt.Item3);
-                var baseline = rowBottom + Math.Max(3, (rowHeight - 8) / 2);
-                var periodLabel = $"{line.PeriodStart.ToString("dd MMM yyyy", culture)} - {line.PeriodEnd.ToString("dd MMM yyyy", culture)}";
-                TextFitted(sb, "F1", 8.5, 6.5, left + 10, baseline, periodLabel, ink, 270);
-                TextRightFitted(sb, "F1", 8.5, 6.5, right - 112, baseline, $"{line.PeriodAmount.ToString("N0", culture)} {receipt.Currency}", ink, 92);
-                TextRightFitted(sb, "F2", 8.5, 6.5, right - 10, baseline, $"{line.PaidAmount.ToString("N0", culture)} {receipt.Currency}", ink, 92);
-                rowTop = rowBottom;
+                top -= 23;
+                Text(sb, "F2", 11, left, top, label, accent);
+                top -= 12;
             }
 
-            var paymentHeadingY = rowTop - 22;
-            Text(sb, "F2", 8, left, paymentHeadingY, isFrench ? "PAIEMENT" : "PAYMENT", accent, 0.8);
-            TextFitted(sb, "F2", 10, 8, left, paymentHeadingY - 19, MethodLabel(receipt.Method, language), ink, 220);
-            TextFitted(sb, "F1", 8.5, 7, left, paymentHeadingY - 36, PaymentNote(receipt, language), muted, 220);
-            TextFitted(
-                sb,
-                "F1",
-                8.5,
-                7,
-                left,
-                paymentHeadingY - 53,
-                isFrench ? $"Date du paiement : {DateLabel(receipt.PaymentDate, language)}" : $"Payment date: {DateLabel(receipt.PaymentDate, language)}",
-                muted,
-                220);
+            if (details == null)
+            {
+                Fact(isFrench ? "Facture" : "Invoice", receipt.ReceiptNumber, boxed: true);
+                Fact(isFrench ? "Date du paiement" : "Payment date", DateLabel(receipt.PaymentDate, language), boxed: true);
+                Fact(isFrench ? "Statut" : "Status", receipt.Status == PaymentStatusEnum.Success
+                    ? (isFrench ? "PAYE" : "PAID") : receipt.Status.ToString().ToUpperInvariant(), boxed: true);
 
-            TextRightFitted(sb, "F2", 8, 7, right, paymentHeadingY, isFrench ? "MONTANT PAYE" : "AMOUNT PAID", accent, 145);
-            TextRightFitted(sb, "F2", 18, 12, right, paymentHeadingY - 28, AmountLabel(receipt, culture), ink, 185);
+                Heading(isFrench ? "Informations de location" : "Rental information");
+                Fact(isFrench ? "Locataire" : "Tenant", receipt.TenantName);
+                Fact(isFrench ? "Propriete" : "Property", receipt.PropertyName);
+                Fact(isFrench ? "Logement" : "Rental unit", receipt.ApartmentName);
+                var period = receipt.Lines.Count > 0
+                    ? $"{receipt.Lines.Min(line => line.PeriodStart).ToString("dd MMM yyyy", culture)} - {receipt.Lines.Max(line => line.PeriodEnd).ToString("dd MMM yyyy", culture)}"
+                    : PeriodLabel(receipt, culture);
+                Fact(isFrench ? "Periode reglee" : "Paid period", period);
+                if (!string.IsNullOrWhiteSpace(receipt.LandlordName))
+                    Fact(isFrench ? "Bailleur" : "Landlord", receipt.LandlordName, 23);
+                if (!string.IsNullOrWhiteSpace(receipt.LandlordEmail))
+                    Fact(isFrench ? "Courriel du bailleur" : "Landlord email", receipt.LandlordEmail, 23);
 
+                Heading(isFrench ? "Paiement" : "Payment");
+                Fact(isFrench ? "Loyer" : "Rent", AmountLabel(receipt, culture), 25, boxed: true);
+                Fact(isFrench ? "Mode de paiement" : "Payment method", MethodLabel(receipt.Method, language), 25, boxed: true);
+                Fact(isFrench ? "Total paye" : "Total paid", AmountLabel(receipt, culture), 29, total: true);
+                TextFitted(sb, "F1", 8, 7, left, top - 16, PaymentNote(receipt, language), muted, width);
+                TextFitted(sb, "F1", 8, 7, left, top - 30,
+                    (isFrench ? "Date d'emission : " : "Issue date: ") + DateLabel(receipt.IssuedAt, language), muted, width);
+            }
+            else
+            {
+                Text(sb, "F2", 12, left, top, isFrench ? "Detail des periodes reglees" : "Paid period details", accent);
+                TextFitted(sb, "F1", 9, 7, left, top - 20, receipt.ReceiptNumber, ink, width);
+                top -= 62;
+                FillRect(sb, left, top, width, 26, accent.Item1, accent.Item2, accent.Item3);
+                Text(sb, "F2", 9, left + 10, top + 9, isFrench ? "PERIODE" : "PERIOD", (1d, 0.98, 0.95));
+                TextRightFitted(sb, "F2", 9, 7, right - 114, top + 9, isFrench ? "MONTANT" : "AMOUNT", (1d, 0.98, 0.95), 95);
+                TextRightFitted(sb, "F2", 9, 7, right - 10, top + 9, isFrench ? "PAYE" : "PAID", (1d, 0.98, 0.95), 95);
+                foreach (var line in details)
+                {
+                    top -= 23;
+                    FillRect(sb, left, top, width, 23, paperAlt.Item1, paperAlt.Item2, paperAlt.Item3);
+                    Line(sb, left, top, right, top, border, 0.5);
+                    TextFitted(sb, "F1", 9, 7, left + 10, top + 8,
+                        $"{line.PeriodStart.ToString("dd MMM yyyy", culture)} - {line.PeriodEnd.ToString("dd MMM yyyy", culture)}", ink, 265);
+                    TextRightFitted(sb, "F1", 9, 7, right - 114, top + 8,
+                        $"{line.PeriodAmount.ToString("N0", culture)} {receipt.Currency}", ink, 95);
+                    TextRightFitted(sb, "F2", 9, 7, right - 10, top + 8,
+                        $"{line.PaidAmount.ToString("N0", culture)} {receipt.Currency}", ink, 95);
+                }
+            }
+
+            // Preserve the existing footer content and QR, with a more compact band.
+            sb.Append("q\n1 0 0 1 0 -95 cm\n");
             FillRect(sb, 0, 0, PageWidth, 294, footer.Item1, footer.Item2, footer.Item3);
             Text(sb, "F2", 8, left, 260, isFrench ? "INFORMATIONS DU LOCATAIRE" : "TENANT INFORMATION", 1, 0.98, 0.95, 0.8);
             TextFitted(sb, "F2", 14, 10, left, 235, receipt.TenantName, (1d, 0.98, 0.95), 315);
@@ -226,6 +244,7 @@ namespace Common.Helpers
             // Align the QR card with the top of the tenant-information block so the
             // footer keeps the same visual grid as the browser invoice.
             DrawQrCode(sb, receipt.QrCodeSvg, right - 112, 166, 106);
+            sb.Append("Q\n");
             return sb.ToString();
         }
 
@@ -404,7 +423,7 @@ namespace Common.Helpers
 
         private static void TextRight(StringBuilder sb, string font, double size, double right, double y, string text, double r, double g, double b)
         {
-            var estimatedWidth = EstimateTextWidth(text, size);
+            var estimatedWidth = MeasureTextWidth(text, size, font);
             Text(sb, font, size, Math.Max(Margin, right - estimatedWidth), y, text, r, g, b);
         }
 
@@ -437,7 +456,7 @@ namespace Common.Helpers
         {
             var size = FitFontSize(text, preferredSize, minimumSize, maxWidth);
             var fittedText = FitTextToWidth(text, size, maxWidth);
-            var width = EstimateTextWidth(fittedText, size);
+            var width = MeasureTextWidth(fittedText, size, font);
             Text(sb, font, size, right - width, y, fittedText, color);
         }
 
@@ -524,6 +543,17 @@ namespace Common.Helpers
             return units * size * 1.25;
         }
 
+        // Standard Helvetica advance widths, ASCII 32-126, in thousandths of an em.
+        // Use real metrics for alignment; conservative estimates above remain for fitting.
+        private static readonly int[] RegularWidths = { 278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584 };
+        private static readonly int[] BoldWidths = { 278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584 };
+
+        private static double MeasureTextWidth(string text, double size, string font)
+        {
+            var widths = font == "F2" ? BoldWidths : RegularWidths;
+            return NormalizePdfText(text).Sum(character => widths[character - ' ']) * size / 1000d;
+        }
+
         private static void FillRect(StringBuilder sb, double x, double y, double width, double height, double r, double g, double b)
         {
             sb.AppendFormat(CultureInfo.InvariantCulture, "{0:0.###} {1:0.###} {2:0.###} rg\n", r, g, b);
@@ -563,6 +593,9 @@ namespace Common.Helpers
         }
 
         private static string EscapePdfText(string? value)
+            => NormalizePdfText(value).Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
+
+        private static string NormalizePdfText(string? value)
         {
             var normalized = (value ?? string.Empty).Normalize(NormalizationForm.FormD);
             var builder = new StringBuilder();
@@ -574,12 +607,7 @@ namespace Common.Helpers
                     continue;
                 }
 
-                var safe = c is >= ' ' and <= '~' ? c : '?';
-                if (safe is '\\' or '(' or ')')
-                {
-                    builder.Append('\\');
-                }
-
+                var safe = char.IsWhiteSpace(c) ? ' ' : c is >= ' ' and <= '~' ? c : '?';
                 builder.Append(safe);
             }
 

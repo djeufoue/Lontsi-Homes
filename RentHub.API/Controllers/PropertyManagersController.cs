@@ -116,7 +116,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
-                    null,
+                    request.WhatsAppPhoneNumber,
                     "Manager",
                     sendActivationEmail: false);
                 var managerUser = invitedUser.User;

@@ -18,6 +18,8 @@ namespace RentHub.API.Data
             var schemaLogger = scope.ServiceProvider
                 .GetRequiredService<ILoggerFactory>()
                 .CreateLogger("RentHub.DatabaseSchema");
+            // Index/table changes on a populated production database may exceed the default 30s.
+            context.Database.SetCommandTimeout(180);
             context.Database.Migrate();
 
             // Safety net for existing databases that may have missed the snapshot migration.

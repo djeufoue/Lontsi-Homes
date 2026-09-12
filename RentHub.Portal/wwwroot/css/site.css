@@ -3132,6 +3132,39 @@ html.rh-auth-document body.rh-auth-body {
   gap: 1rem;
 }
 
+.rh-profile-overview-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.rh-profile-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.rh-profile-column > .rh-panel {
+  min-width: 0;
+}
+
+.rh-profile-overview-grid .rh-profile-language-controls {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.rh-profile-overview-grid .rh-profile-language-controls > .form-select,
+.rh-profile-overview-grid .rh-profile-language-controls > .form-control {
+  flex: 1 1 14rem;
+  min-width: 0;
+  width: auto;
+}
+
+.rh-profile-overview-grid .rh-profile-language-controls > .btn {
+  flex: 1 1 auto;
+  white-space: normal;
+}
+
 .rh-profile-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

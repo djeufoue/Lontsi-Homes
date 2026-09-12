@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
 using RentHub.API.Services.Email;
+using RentHub.API.Services.Messaging;
 
 namespace RentHub.API.Services.Receipts
 {
@@ -16,17 +17,20 @@ namespace RentHub.API.Services.Receipts
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
+        private readonly INotificationDeliveryService _notificationDeliveryService;
         private readonly ILogger<RentReceiptService> _logger;
 
         public RentReceiptService(
             ApplicationDbContext context,
             IConfiguration configuration,
             IEmailService emailService,
+            INotificationDeliveryService notificationDeliveryService,
             ILogger<RentReceiptService> logger)
         {
             _context = context;
             _configuration = configuration;
             _emailService = emailService;
+            _notificationDeliveryService = notificationDeliveryService;
             _logger = logger;
         }
 
@@ -151,6 +155,43 @@ namespace RentHub.API.Services.Receipts
                     BuildReceiptAttachment(receipt, receipt.LandlordEmailLanguage),
                     cancellationToken);
             }
+
+            var propertyReference = $"{receipt.PropertyName} — {receipt.ApartmentName}";
+            if (notifyTenant && !string.IsNullOrWhiteSpace(receipt.TenantUserId))
+            {
+                await _notificationDeliveryService.EnqueueWhatsAppAsync(
+                    new EnqueueWhatsAppNotification(
+                        "tenant_rent_payment_received",
+                        receipt.TenantUserId,
+                        WhatsAppTemplateValues.Receipt(receipt),
+                        $"rent-payment:{receipt.PaymentId}:tenant:whatsapp",
+                        RelatedEntityId: receipt.PaymentId.ToString(),
+                        ReceiptDocument: new WhatsAppReceiptReference(receipt.PaymentId, receipt.VerificationCode, receipt.ReceiptNumber)),
+                    cancellationToken);
+            }
+
+            if (notifyLandlord && !string.IsNullOrWhiteSpace(receipt.LandlordUserId))
+            {
+                await _notificationDeliveryService.EnqueueWhatsAppAsync(
+                    new EnqueueWhatsAppNotification(
+                        "landlord_rent_payment_received",
+                        receipt.LandlordUserId,
+                        new[]
+                        {
+                            receipt.LandlordName,
+                            $"{WhatsAppTemplateValues.Amount(receipt.Amount, receipt.LandlordEmailLanguage)} {receipt.Currency}",
+                            receipt.TenantName,
+                            propertyReference,
+                            receipt.PeriodStart.HasValue && receipt.PeriodEnd.HasValue
+                                ? $"{WhatsAppTemplateValues.Date(receipt.PeriodStart.Value, receipt.LandlordEmailLanguage)} – {WhatsAppTemplateValues.Date(receipt.PeriodEnd.Value, receipt.LandlordEmailLanguage)}"
+                                : receipt.PeriodLabel
+                        },
+                        $"rent-payment:{receipt.PaymentId}:landlord:whatsapp",
+                        WhatsAppTemplateValues.UrlButton(_configuration, "landlord_rent_payment_received",
+                            "verificationCode", receipt.VerificationCode),
+                        RelatedEntityId: receipt.PaymentId.ToString()),
+                    cancellationToken);
+            }
         }
 
         private async Task<Payment?> LoadPaymentAsync(int paymentId, CancellationToken cancellationToken)
@@ -195,10 +236,12 @@ namespace RentHub.API.Services.Receipts
                 TransactionId = payment.TransactionId,
                 ProviderReceiptUrl = payment.ProviderReceiptUrl ?? string.Empty,
                 TenantName = payment.Tenant?.FullName ?? payment.Tenant?.Email ?? "Tenant",
+                TenantUserId = payment.TenantId,
                 TenantEmail = payment.Tenant?.Email ?? string.Empty,
                 TenantPhone = payment.Tenant?.PhoneNumber ?? string.Empty,
                 TenantEmailLanguage = payment.Tenant?.EmailLanguage ?? PlatformLanguage.English,
                 LandlordName = payment.Landlord?.FullName ?? payment.Landlord?.Email ?? "Landlord",
+                LandlordUserId = payment.LandlordId,
                 LandlordEmail = payment.Landlord?.Email ?? string.Empty,
                 LandlordEmailLanguage = payment.Landlord?.EmailLanguage ?? PlatformLanguage.English,
                 PropertyName = payment.Tenancy?.Apartment?.Property?.Name ?? string.Empty,

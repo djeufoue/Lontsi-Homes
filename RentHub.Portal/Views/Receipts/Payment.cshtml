@@ -6,9 +6,13 @@
 
     var culture = CultureInfo.CurrentCulture;
     string DateLabel(DateTimeOffset value) => value.LocalDateTime.ToString("dd MMM yyyy", culture);
-    string PeriodLabel() => Model.PeriodStart.HasValue && Model.PeriodEnd.HasValue
+    string PeriodDateLabel(DateTimeOffset value) => value.ToString("dd MMM yyyy", culture);
+    string PeriodLabel() => Model.Lines.Count > 0
+        ? $"{PeriodDateLabel(Model.Lines.Min(line => line.PeriodStart))} - {PeriodDateLabel(Model.Lines.Max(line => line.PeriodEnd))}"
+        : Model.PeriodStart.HasValue && Model.PeriodEnd.HasValue
         ? $"{Model.PeriodStart.Value.ToString("dd MMM yyyy", culture)} - {Model.PeriodEnd.Value.ToString("dd MMM yyyy", culture)}"
         : Model.PeriodLabel;
+    string PeriodUnitName() => string.IsNullOrWhiteSpace(Model.ApartmentName) ? "-" : Model.ApartmentName;
     string MethodLabel(PaymentMethodEnum method) => method switch
     {
         PaymentMethodEnum.Cash => T["Cash / off-platform"].Value,
@@ -51,82 +55,70 @@
             <span>@T["Property management and rent services"]</span>
         </header>
 
-        <section class="rh-rent-invoice__meta">
-            <div>
-                <span>@T["Invoice number"]</span>
-                <strong>@Model.ReceiptNumber</strong>
-                @if (!string.IsNullOrWhiteSpace(Model.LandlordName))
-                {
-                    <p>@Model.LandlordName</p>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.LandlordEmail))
-                {
-                    <p>@Model.LandlordEmail</p>
-                }
-            </div>
-            <div>
-                <span>@T["Issue date"]</span>
-                <strong>@DateLabel(Model.IssuedAt)</strong>
-                @if (!string.IsNullOrWhiteSpace(Model.PropertyName))
-                {
-                    <p>@Model.PropertyName</p>
-                }
-                @if (!string.IsNullOrWhiteSpace(Model.ApartmentName))
-                {
-                    <p>@Model.ApartmentName</p>
-                }
-            </div>
-        </section>
-
-        <div class="table-responsive rh-responsive-table-wrap rh-rent-invoice__table-wrap">
-            <table class="rh-responsive-data-table rh-rent-invoice__table">
-                <thead>
-                    <tr>
-                        <th>@T["Description"]</th>
-                        <th>@T["Period"]</th>
-                        <th class="text-end">@T["Period amount"]</th>
-                        <th class="text-end">@T["Amount paid"]</th>
-                    </tr>
-                </thead>
+        <div class="rh-rent-invoice__body">
+            <table class="rh-rent-invoice__facts rh-rent-invoice__summary">
                 <tbody>
-                    @if (Model.Lines.Any())
-                    {
-                        @foreach (var line in Model.Lines.OrderBy(item => item.PeriodStart))
-                        {
-                            <tr>
-                                <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Monthly rent"]</td>
-                                <td data-label="@T["Period"]">@DateLabel(line.PeriodStart) - @DateLabel(line.PeriodEnd)</td>
-                                <td class="text-end" data-label="@T["Period amount"]">@line.PeriodAmount.ToString("N0", culture) @Model.Currency</td>
-                                <td class="text-end" data-label="@T["Amount paid"]"><strong>@line.PaidAmount.ToString("N0", culture) @Model.Currency</strong></td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
-                        <tr>
-                            <td class="rh-mobile-card-title" data-label="@T["Description"]">@T["Rent for the rental unit"]</td>
-                            <td data-label="@T["Period"]">@PeriodLabel()</td>
-                            <td class="text-end" data-label="@T["Period amount"]">@Model.Amount.ToString("N0", culture) @Model.Currency</td>
-                            <td class="text-end" data-label="@T["Amount paid"]"><strong>@Model.Amount.ToString("N0", culture) @Model.Currency</strong></td>
-                        </tr>
-                    }
+                    <tr><th scope="row">@T["Invoice number"]</th><td>@Model.ReceiptNumber</td></tr>
+                    <tr><th scope="row">@T["Payment date"]</th><td>@DateLabel(Model.PaymentDate)</td></tr>
+                    <tr><th scope="row">@T["Status"]</th><td><strong>@T[Model.Status == PaymentStatusEnum.Success ? "Paid" : Model.Status.ToString()]</strong></td></tr>
                 </tbody>
             </table>
-        </div>
 
-        <section class="rh-rent-invoice__settlement">
-            <div>
-                <span>@T["Payment"]</span>
-                <strong>@MethodLabel(Model.Method)</strong>
-                <p>@PaymentNote()</p>
-                <p>@T["Payment date"]: @DateLabel(Model.PaymentDate)</p>
-            </div>
-            <div class="rh-rent-invoice__amount">
-                <span>@T["Amount paid"]</span>
-                <strong>@Model.Amount.ToString("N0", culture) @Model.Currency</strong>
-                <em>@T["Paid"]</em>
-            </div>
-        </section>
+            <section class="rh-rent-invoice__section">
+                <h2>@T["Rental information"]</h2>
+                <table class="rh-rent-invoice__facts">
+                    <tbody>
+                        <tr><th scope="row">@T["Tenant"]</th><td>@Model.TenantName</td></tr>
+                        <tr><th scope="row">@T["Property"]</th><td>@Model.PropertyName</td></tr>
+                        <tr><th scope="row">@T["Rental unit"]</th><td>@PeriodUnitName()</td></tr>
+                        <tr><th scope="row">@T["Paid period"]</th><td>@PeriodLabel()</td></tr>
+                        @if (!string.IsNullOrWhiteSpace(Model.LandlordName))
+                        {
+                            <tr><th scope="row">@T["Landlord"]</th><td>@Model.LandlordName</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.LandlordEmail))
+                        {
+                            <tr><th scope="row">@T["Landlord email"]</th><td>@Model.LandlordEmail</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="rh-rent-invoice__section">
+                <h2>@T["Payment"]</h2>
+                <table class="rh-rent-invoice__facts rh-rent-invoice__payment">
+                    <tbody>
+                        <tr><th scope="row">@T["Rent"]</th><td>@Model.Amount.ToString("N0", culture) @Model.Currency</td></tr>
+                        <tr><th scope="row">@T["Payment method"]</th><td>@MethodLabel(Model.Method)</td></tr>
+                        <tr class="rh-rent-invoice__total"><th scope="row">@T["Total paid"]</th><td>@Model.Amount.ToString("N0", culture) @Model.Currency</td></tr>
+                    </tbody>
+                </table>
+                <p class="rh-rent-invoice__note">@PaymentNote()</p>
+                <p class="rh-rent-invoice__note">@T["Issue date"]: @DateLabel(Model.IssuedAt)</p>
+            </section>
+
+            @if (Model.Lines.Count > 1)
+            {
+                <section class="rh-rent-invoice__section">
+                    <h2>@T["Paid period details"]</h2>
+                    <div class="table-responsive">
+                        <table class="rh-rent-invoice__details">
+                            <thead><tr><th>@T["Period"]</th><th>@T["Period amount"]</th><th>@T["Amount paid"]</th></tr></thead>
+                            <tbody>
+                                @foreach (var line in Model.Lines.OrderBy(item => item.PeriodStart))
+                                {
+                                    <tr>
+                                        <td>@PeriodDateLabel(line.PeriodStart) - @PeriodDateLabel(line.PeriodEnd)</td>
+                                        <td>@line.PeriodAmount.ToString("N0", culture) @Model.Currency</td>
+                                        <td>@line.PaidAmount.ToString("N0", culture) @Model.Currency</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        </div>
 
         <footer class="rh-rent-invoice__footer">
             <div class="rh-rent-invoice__tenant">
@@ -202,19 +194,6 @@
         color: var(--invoice-muted);
     }
 
-    .rh-rent-invoice__meta {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 40px;
-        padding: 22px 64px 34px;
-    }
-
-    .rh-rent-invoice__meta > div:last-child {
-        text-align: right;
-    }
-
-    .rh-rent-invoice__meta span,
-    .rh-rent-invoice__settlement span,
     .rh-rent-invoice__tenant > span {
         display: block;
         margin-bottom: 8px;
@@ -223,79 +202,7 @@
         font-weight: 800;
         font-size: .78rem;
     }
-
-    .rh-rent-invoice__meta strong {
-        display: inline-block;
-        padding: 5px 9px;
-        border-radius: 4px;
-        background: var(--invoice-accent);
-        color: #fffaf3;
-    }
-
-    .rh-rent-invoice__meta p,
-    .rh-rent-invoice__settlement p,
-    .rh-rent-invoice__tenant p {
-        margin: 7px 0 0;
-        color: var(--invoice-muted);
-    }
-
-    .rh-rent-invoice__table-wrap {
-        padding-inline: 64px;
-    }
-
-    .rh-rent-invoice__table {
-        width: 100%;
-        border-collapse: collapse;
-        color: var(--invoice-ink);
-    }
-
-    .rh-rent-invoice__table th {
-        padding: 14px 16px;
-        color: #fffaf3;
-        background: var(--invoice-accent);
-        font-size: .8rem;
-        text-transform: uppercase;
-        letter-spacing: .05em;
-    }
-
-    .rh-rent-invoice__table td {
-        padding: 18px 16px;
-        background: var(--invoice-paper-alt);
-        border-bottom: 8px solid var(--invoice-paper);
-        vertical-align: middle;
-    }
-
-    .rh-rent-invoice__settlement {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 40px;
-        padding: 38px 64px 44px;
-    }
-
-    .rh-rent-invoice__settlement strong {
-        display: block;
-        font-size: 1.05rem;
-    }
-
-    .rh-rent-invoice__amount {
-        min-width: 260px;
-        text-align: right;
-    }
-
-    .rh-rent-invoice__amount strong {
-        font-size: 2rem;
-    }
-
-    .rh-rent-invoice__amount em {
-        display: inline-flex;
-        margin-top: 10px;
-        padding: 5px 12px;
-        border-radius: 999px;
-        background: var(--invoice-accent);
-        color: #fffaf3;
-        font-style: normal;
-        font-weight: 800;
-    }
+    .rh-rent-invoice__tenant p { margin: 7px 0 0; }
 
     .rh-rent-invoice__footer {
         min-height: 190px;
@@ -343,31 +250,35 @@
         }
 
         .rh-rent-invoice__masthead,
-        .rh-rent-invoice__meta,
-        .rh-rent-invoice__table-wrap,
-        .rh-rent-invoice__settlement,
         .rh-rent-invoice__footer {
             padding-left: 24px;
             padding-right: 24px;
-        }
-
-        .rh-rent-invoice__meta,
-        .rh-rent-invoice__settlement {
-            grid-template-columns: 1fr;
-        }
-
-        .rh-rent-invoice__meta > div:last-child,
-        .rh-rent-invoice__amount {
-            text-align: left;
-        }
-
-        .rh-rent-invoice__amount {
-            min-width: 0;
         }
 
         .rh-rent-invoice__footer {
             align-items: flex-start;
             flex-direction: column;
         }
+    }
+
+    .rh-rent-invoice__body { padding: 8px 64px 38px; }
+    .rh-rent-invoice__section { margin-top: 28px; }
+    .rh-rent-invoice__section h2 { margin: 0 0 12px; font-size: 1.1rem; font-weight: 750; color: var(--invoice-accent); }
+    .rh-rent-invoice__facts { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .rh-rent-invoice__facts th, .rh-rent-invoice__facts td { padding: 14px 16px; border-bottom: 1px solid #d9ccc2; vertical-align: top; overflow-wrap: anywhere; }
+    .rh-rent-invoice__facts th { width: 38%; text-align: left; font-weight: 500; }
+    .rh-rent-invoice__facts td { text-align: right; }
+    .rh-rent-invoice__summary, .rh-rent-invoice__payment { background: var(--invoice-paper-alt); border: 1px solid #d9ccc2; }
+    .rh-rent-invoice__summary th, .rh-rent-invoice__payment th { border-right: 1px solid #d9ccc2; }
+    .rh-rent-invoice__total { background: var(--invoice-accent); color: #fffaf3; }
+    .rh-rent-invoice__total th, .rh-rent-invoice__total td { font-weight: 800; font-size: 1.1rem; }
+    .rh-rent-invoice__note { font-size: .85rem; margin: 10px 0 0; color: var(--invoice-ink); }
+    .rh-rent-invoice__details { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .rh-rent-invoice__details th, .rh-rent-invoice__details td { padding: 12px 8px; border-bottom: 1px solid #d9ccc2; text-align: right; }
+    .rh-rent-invoice__details th:first-child, .rh-rent-invoice__details td:first-child { text-align: left; }
+    .rh-rent-invoice__details th { background: var(--invoice-accent); color: #fffaf3; }
+    @@media (max-width: 720px) {
+        .rh-rent-invoice__body { padding: 8px 24px 28px; }
+        .rh-rent-invoice__facts th, .rh-rent-invoice__facts td { padding: 12px 8px; font-size: .9rem; }
     }
 </style>

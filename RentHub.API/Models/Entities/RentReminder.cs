@@ -36,6 +36,7 @@ namespace RentHub.API.Models.Entities
 
         public ReminderDeliveryStatusEnum EmailStatus { get; set; } = ReminderDeliveryStatusEnum.NotRequested;
         public ReminderDeliveryStatusEnum SmsStatus { get; set; } = ReminderDeliveryStatusEnum.NotRequested;
+        public bool WhatsAppRequested { get; set; }
         public int EmailAttemptCount { get; set; }
         public int SmsAttemptCount { get; set; }
         public DateTimeOffset? SentAt { get; set; }

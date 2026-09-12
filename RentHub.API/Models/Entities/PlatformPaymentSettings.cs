@@ -7,7 +7,6 @@ namespace RentHub.API.Models.Entities
         [Key]
         public int Id { get; set; } = 1;
         public bool AutomaticPaymentsEnabled { get; set; }
-        public bool SkipLandlordPhoneVerification { get; set; }
         public string? UpdatedBy { get; set; }
         public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     }

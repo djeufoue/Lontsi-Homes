@@ -10,6 +10,7 @@ using System.Text;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.DataProtection;
 
 using RentHub.API.Data;
 using RentHub.API.Models.Entities;
@@ -17,7 +18,6 @@ using RentHub.API.Models.Settings;
 using RentHub.API.Middleware;
 using RentHub.API.Services.Payments;
 using RentHub.API.Services.Storage;
-using RentHub.API.Services.Sms;
 using RentHub.API.Services.Email;
 using RentHub.API.Services.Reminders;
 using RentHub.API.Services.Tenancies;
@@ -26,6 +26,8 @@ using RentHub.API.Services.Kyc;
 using RentHub.API.Services.Subscriptions;
 using RentHub.API.Services.Receipts;
 using RentHub.API.Services.Conversations;
+using RentHub.API.Services.Messaging;
+using RentHub.API.Services.Otp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -196,14 +198,49 @@ builder.Services.AddScoped<IManagerInvitationEmailService, ManagerInvitationEmai
 builder.Services.AddScoped<RentHub.API.Services.Permissions.IManagerPermissionService, RentHub.API.Services.Permissions.ManagerPermissionService>();
 builder.Services.AddScoped<RentHub.API.Services.Maps.IPropertyGeocodingService, RentHub.API.Services.Maps.GooglePropertyGeocodingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
+var apiDataProtection = builder.Services.AddDataProtection().SetApplicationName("LontsiHomes.API");
+var apiKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(apiKeysPath))
+{
+    apiDataProtection.PersistKeysToFileSystem(new DirectoryInfo(apiKeysPath));
+}
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<WhatsAppReceiptMedia>();
 builder.Services.AddScoped<ITenancyRenewalEmailService, TenancyRenewalEmailService>();
 builder.Services.AddScoped<ITenancyTerminationEmailService, TenancyTerminationEmailService>();
 builder.Services.AddScoped<IOpenEndedTenancyRentPeriodService, OpenEndedTenancyRentPeriodService>();
 builder.Services.AddScoped<IRentReminderService, RentReminderService>();
 builder.Services.AddScoped<IConversationNotificationJob, ConversationNotificationJob>();
+builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 
-// SMS & Email
-builder.Services.AddScoped<ISmsService, TwilioSmsService>();
+// Infobip is intentionally inert until every required value is configured.
+builder.Services.AddOptions<InfobipOptions>()
+    .Bind(builder.Configuration.GetSection(InfobipOptions.SectionName));
+builder.Services.PostConfigure<InfobipOptions>(options =>
+{
+    options.BindTemplateConfiguration(builder.Configuration);
+    options.BaseUrl = Environment.GetEnvironmentVariable("INFOBIP_BASE_URL") ?? options.BaseUrl;
+    options.ApiKey = Environment.GetEnvironmentVariable("INFOBIP_API_KEY") ?? options.ApiKey;
+    options.SmsSender = Environment.GetEnvironmentVariable("INFOBIP_SMS_SENDER") ?? options.SmsSender;
+    options.WhatsAppSender = Environment.GetEnvironmentVariable("INFOBIP_WHATSAPP_SENDER") ?? options.WhatsAppSender;
+    options.WebhookSecret = Environment.GetEnvironmentVariable("INFOBIP_WEBHOOK_SECRET") ?? options.WebhookSecret;
+});
+builder.Services.AddSingleton<IOtpService, CryptographicOtpService>();
+builder.Services.AddSingleton<IWhatsAppTemplateRegistry, WhatsAppTemplateRegistry>();
+builder.Services.AddHttpClient<ISmsMessagingService, InfobipSmsMessagingService>((services, client) =>
+{
+    var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<InfobipOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient<IWhatsAppMessagingService, InfobipWhatsAppMessagingService>((services, client) =>
+{
+    var options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<InfobipOptions>>().Value;
+    client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/", UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Email
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
 {
     builder.Services.AddScoped<IEmailService, SmtpEmailService>();
@@ -330,6 +367,15 @@ void RegisterRecurringJobs(IServiceProvider services, IConfiguration configurati
         "rent-reminder-processing",
         service => service.ProcessDailyRemindersAsync(),
         "5 0 * * *",
+        new RecurringJobOptions
+        {
+            TimeZone = TimeZoneInfo.Utc
+        });
+
+    recurringJobs.AddOrUpdate<INotificationDeliveryService>(
+        "infobip-whatsapp-outbox",
+        service => service.ProcessPendingAsync(CancellationToken.None),
+        Cron.Minutely(),
         new RecurringJobOptions
         {
             TimeZone = TimeZoneInfo.Utc

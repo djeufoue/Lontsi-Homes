@@ -57,7 +57,6 @@
                         var rule = reminderRules[ruleIndex];
                         <div class="rh-card-spotlight p-3" data-reminder-rule-row>
                             <input type="hidden" data-reminder-field="Id" name="RentReminderRules[@ruleIndex].Id" value="@rule.Id" />
-                            <input type="hidden" data-reminder-field="SmsEnabled" name="RentReminderRules[@ruleIndex].SmsEnabled" value="false" />
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-4">
                                     <label class="form-label">@T["When"]</label>
@@ -82,6 +81,16 @@
                                         <label class="form-check-label">@T["Email"]</label>
                                     </div>
                                     <input type="hidden" data-reminder-field="EmailEnabled" name="RentReminderRules[@ruleIndex].EmailEnabled" value="false" />
+                                    <div class="form-check">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="SmsEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].SmsEnabled" value="true" checked="@rule.SmsEnabled" />
+                                        <label class="form-check-label">@T["SMS"]</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="SmsEnabled" name="RentReminderRules[@ruleIndex].SmsEnabled" value="false" />
+                                    <div class="form-check">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="WhatsAppEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].WhatsAppEnabled" value="true" checked="@rule.WhatsAppEnabled" />
+                                        <label class="form-check-label">WhatsApp</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="WhatsAppEnabled" name="RentReminderRules[@ruleIndex].WhatsAppEnabled" value="false" />
                                 </div>
                                 <div class="col-md-2 text-md-end">
                                     <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>
@@ -127,7 +136,6 @@
 
         <template id="apartmentReminderRuleTemplate">
             <div class="rh-card-spotlight p-3" data-reminder-rule-row>
-                <input type="hidden" data-reminder-field="SmsEnabled" value="false" />
                 <div class="row g-2 align-items-end">
                     <div class="col-md-4">
                         <label class="form-label">@T["When"]</label>
@@ -152,6 +160,16 @@
                             <label class="form-check-label">@T["Email"]</label>
                         </div>
                         <input type="hidden" data-reminder-field="EmailEnabled" value="false" />
+                        <div class="form-check">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="SmsEnabled" type="checkbox" value="true" />
+                            <label class="form-check-label">@T["SMS"]</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="SmsEnabled" value="false" />
+                        <div class="form-check">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="WhatsAppEnabled" type="checkbox" value="true" />
+                            <label class="form-check-label">WhatsApp</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="WhatsAppEnabled" value="false" />
                     </div>
                     <div class="col-md-2 text-md-end">
                         <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>

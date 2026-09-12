@@ -374,6 +374,9 @@ namespace RentHub.API.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("WhatsAppEnabled")
+                        .HasColumnType("bit");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApartmentId", "Timing", "Days")
@@ -485,6 +488,10 @@ namespace RentHub.API.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("NormalizedWhatsAppPhoneNumber")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
@@ -496,6 +503,10 @@ namespace RentHub.API.Migrations
 
                     b.Property<DateTimeOffset?>("PayoutPhoneVerifiedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PendingWhatsAppPhoneNumber")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
@@ -569,12 +580,16 @@ namespace RentHub.API.Migrations
                     b.Property<bool>("UsePrimaryPhoneForSubscriptionPayments")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("UsePrimaryPhoneForWhatsApp")
+                        .HasColumnType("bit");
+
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("WhatsAppPhoneNumber")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<DateTimeOffset?>("WhatsAppPhoneVerifiedAt")
                         .HasColumnType("datetimeoffset");
@@ -588,6 +603,10 @@ namespace RentHub.API.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
+
+                    b.HasIndex("NormalizedWhatsAppPhoneNumber")
+                        .IsUnique()
+                        .HasFilter("[NormalizedWhatsAppPhoneNumber] IS NOT NULL AND [IsWhatsAppPhoneVerified] = 1");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -958,6 +977,116 @@ namespace RentHub.API.Migrations
                     b.ToTable("ManagerPermissionAuditLogs");
                 });
 
+            modelBuilder.Entity("RentHub.API.Models.Entities.NotificationDelivery", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ButtonPayloadsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTimeOffset?>("FailedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("LastAttemptAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RecipientPhoneNumberE164")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("RecipientUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("RelatedEntityId")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TemplateLanguage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TemplateName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ProviderMessageId")
+                        .HasFilter("[ProviderMessageId] IS NOT NULL AND [ProviderMessageId] <> N''");
+
+                    b.HasIndex("RecipientUserId");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("NotificationDeliveries");
+                });
+
             modelBuilder.Entity("RentHub.API.Models.Entities.OtpSendLog", b =>
                 {
                     b.Property<int>("Id")
@@ -1170,9 +1299,6 @@ namespace RentHub.API.Migrations
                         .HasColumnType("int");
 
                     b.Property<bool>("AutomaticPaymentsEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("SkipLandlordPhoneVerification")
                         .HasColumnType("bit");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
@@ -1562,6 +1688,9 @@ namespace RentHub.API.Migrations
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("WhatsAppRequested")
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -2201,6 +2330,74 @@ namespace RentHub.API.Migrations
                     b.ToTable("TenancyTerminationRequests");
                 });
 
+            modelBuilder.Entity("RentHub.API.Models.Entities.UserCommunicationConsent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset?>("GrantedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PhoneNumberE164")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TextVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Channel", "Purpose")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'Granted'");
+
+                    b.HasIndex("UserId", "Channel", "Purpose", "Status");
+
+                    b.ToTable("UserCommunicationConsents");
+                });
+
             modelBuilder.Entity("RentHub.API.Models.Entities.UserSubscription", b =>
                 {
                     b.Property<int>("Id")
@@ -2585,6 +2782,17 @@ namespace RentHub.API.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("RentHub.API.Models.Entities.NotificationDelivery", b =>
+                {
+                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "RecipientUser")
+                        .WithMany("NotificationDeliveries")
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RecipientUser");
+                });
+
             modelBuilder.Entity("RentHub.API.Models.Entities.OtpSendLog", b =>
                 {
                     b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "User")
@@ -2851,6 +3059,17 @@ namespace RentHub.API.Migrations
                     b.Navigation("Tenancy");
                 });
 
+            modelBuilder.Entity("RentHub.API.Models.Entities.UserCommunicationConsent", b =>
+                {
+                    b.HasOne("RentHub.API.Models.Entities.ApplicationUser", "User")
+                        .WithMany("CommunicationConsents")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RentHub.API.Models.Entities.UserSubscription", b =>
                 {
                     b.HasOne("RentHub.API.Models.Entities.SubscriptionPlan", "SubscriptionPlan")
@@ -2886,7 +3105,11 @@ namespace RentHub.API.Migrations
 
             modelBuilder.Entity("RentHub.API.Models.Entities.ApplicationUser", b =>
                 {
+                    b.Navigation("CommunicationConsents");
+
                     b.Navigation("KycProfile");
+
+                    b.Navigation("NotificationDeliveries");
 
                     b.Navigation("OwnedProperties");
                 });

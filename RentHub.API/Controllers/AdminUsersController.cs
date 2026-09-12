@@ -34,6 +34,7 @@ namespace RentHub.API.Controllers
         private readonly IKycFileStorageService _kycFileStorageService;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
+        private bool RequireMainPhoneVerification => _configuration.GetValue("Onboarding:RequireMainPhoneVerification", true);
         private readonly ILogger<AdminUsersController> _logger;
 
         public AdminUsersController(
@@ -53,9 +54,6 @@ namespace RentHub.API.Controllers
             _configuration = configuration;
             _logger = logger;
         }
-
-        private bool IsSmsVerificationEnabled =>
-            _configuration.GetValue<bool?>("Onboarding:SmsVerificationEnabled").GetValueOrDefault(false);
 
         [HttpGet("verification-status")]
         [Authorize(Roles = "Admin")]
@@ -352,6 +350,7 @@ namespace RentHub.API.Controllers
             return Ok(new AdminUserOverviewDto
             {
                 User = status,
+                WhatsAppActivation = await BuildWhatsAppActivationAsync(user),
                 Kyc = isAdmin ? BuildKycSummary(kyc, user.Id) : null,
                 OtpCodes = isAdmin ? await BuildOtpDtosAsync(user) : new List<AdminUserOtpDto>(),
                 Steps = BuildStepDtos(status)
@@ -659,7 +658,7 @@ namespace RentHub.API.Controllers
 
         private AdminUserVerificationStatusDto BuildStatusDto(ApplicationUser user, List<string> roles, LandlordKycProfile? kycProfile)
         {
-            var nextStep = ResolveLandlordOnboardingStep(user, roles, kycProfile, IsSmsVerificationEnabled);
+            var nextStep = ResolveLandlordOnboardingStep(user, roles, kycProfile);
             return new AdminUserVerificationStatusDto
             {
                 UserId = user.Id,
@@ -670,6 +669,7 @@ namespace RentHub.API.Controllers
                 PhoneNumber = user.PhoneNumber,
                 EmailConfirmed = user.EmailConfirmed,
                 PhoneNumberConfirmed = user.PhoneNumberConfirmed,
+                RequireMainPhoneVerification = RequireMainPhoneVerification,
                 SubscriptionPaymentPhoneNumber = user.SubscriptionPaymentPhoneNumber,
                 SubscriptionPaymentChannel = user.SubscriptionPaymentChannel,
                 IsSubscriptionPaymentPhoneVerified = user.IsSubscriptionPaymentPhoneVerified,
@@ -692,7 +692,6 @@ namespace RentHub.API.Controllers
                 PlatformTermsAccepted = user.PlatformTermsAccepted,
                 PlatformTermsAcceptedAt = user.PlatformTermsAcceptedAt,
                 PlatformTermsSignatureName = user.PlatformTermsSignatureName,
-                SmsVerificationEnabled = IsSmsVerificationEnabled,
                 StripeConnectAccountId = user.StripeConnectAccountId ?? string.Empty,
                 HasStripePayoutAccount = !string.IsNullOrWhiteSpace(user.StripeConnectAccountId),
                 StripePayoutDetailsSubmitted = user.StripePayoutDetailsSubmitted,
@@ -1161,11 +1160,33 @@ namespace RentHub.API.Controllers
             return string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName.Trim();
         }
 
+        private async Task<AdminWhatsAppActivationDto> BuildWhatsAppActivationAsync(ApplicationUser user)
+        {
+            var consents = await _context.UserCommunicationConsents.AsNoTracking()
+                .Where(c => c.UserId == user.Id &&
+                    c.Channel == CommunicationChannels.WhatsApp &&
+                    c.Purpose == CommunicationPurposes.Transactional)
+                .Select(c => new { c.Status, c.PhoneNumberE164 })
+                .ToListAsync();
+            var active = consents.Any(c => c.Status == CommunicationConsentStatuses.Granted &&
+                c.PhoneNumberE164 == user.NormalizedWhatsAppPhoneNumber);
+            var number = user.PendingWhatsAppPhoneNumber ?? user.WhatsAppPhoneNumber;
+            var revoked = consents.Any(c => c.Status == CommunicationConsentStatuses.Revoked &&
+                c.PhoneNumberE164 == number);
+            var hash = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, "WhatsAppConsentOtpHashV1");
+            var expiry = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, "WhatsAppConsentOtpExpiryV1");
+            return WhatsAppActivationStatus.Build(user, active, revoked,
+                !string.IsNullOrWhiteSpace(hash), ParseUnixExpiry(expiry), DateTimeOffset.UtcNow);
+        }
+
         private async Task<List<AdminUserOtpDto>> BuildOtpDtosAsync(ApplicationUser user)
         {
             var result = new List<AdminUserOtpDto>();
             foreach (var (codeToken, expiryToken) in OtpTokens)
             {
+                // Profile WhatsApp activation has its own hashed OTP and consent lifecycle.
+                // Never expose its hash (or a legacy code) as a readable test OTP.
+                if (codeToken == "WhatsAppOtpCode") continue;
                 var code = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, codeToken);
                 var expiryValue = await _userManager.GetAuthenticationTokenAsync(user, OtpLoginProvider, expiryToken);
                 var expiresAt = ParseUnixExpiry(expiryValue);
@@ -1224,7 +1245,6 @@ namespace RentHub.API.Controllers
             }
 
             var isCameroonLandlord = IsCameroonCountry(status.CountryIsoCode, status.CountryCode);
-            var smsVerificationUnavailable = !status.SmsVerificationEnabled;
             var hasSubscriptionPaymentDetails =
                 !string.IsNullOrWhiteSpace(status.SubscriptionPaymentPhoneNumber) &&
                 status.SubscriptionPaymentChannel is PayoutChannelEnum.MtnMoney or PayoutChannelEnum.OrangeMoney;
@@ -1246,14 +1266,19 @@ namespace RentHub.API.Controllers
                 CreateStep(LandlordOnboardingSteps.Country, "Country selected", "The landlord chooses the country for payment setup rules.", !string.IsNullOrWhiteSpace(status.CountryIsoCode) || !string.IsNullOrWhiteSpace(status.CountryCode), status.NextOnboardingStep == LandlordOnboardingSteps.Country, CountryDetails(status)),
                 CreateStep(
                     LandlordOnboardingSteps.Phone,
-                    smsVerificationUnavailable ? "Primary phone paused" : "Primary phone verified",
-                    smsVerificationUnavailable ? "Phone verification is not required for this onboarding flow." : "The landlord confirms the verification code for the primary phone.",
-                    smsVerificationUnavailable || !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed,
+                    "Primary phone verified",
+                    "The landlord confirms the verification code for the primary phone.",
+                    !string.IsNullOrWhiteSpace(status.PhoneNumber) && status.PhoneNumberConfirmed,
                     status.NextOnboardingStep == LandlordOnboardingSteps.Phone,
-                    smsVerificationUnavailable ? "Temporarily skipped." : status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")
+                    status.PhoneNumberConfirmed ? status.PhoneNumber : "Waiting for primary phone OTP.")
             };
 
-            if (isCameroonLandlord && !smsVerificationUnavailable)
+            if (!status.RequireMainPhoneVerification)
+            {
+                steps.RemoveAll(step => step.Key == LandlordOnboardingSteps.Phone);
+            }
+
+            if (isCameroonLandlord)
             {
                 steps.Add(CreateStep(LandlordOnboardingSteps.MobilePayments, "Mobile money configured", "Subscription and rent payout numbers are selected with MTN or Orange Money.", hasSubscriptionPaymentDetails && hasPayoutDetails, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePayments, MobileMoneyDetails(status)));
                 steps.Add(CreateStep(LandlordOnboardingSteps.MobilePaymentVerification, "Payment numbers verified", "Every distinct mobile transaction number is validated by OTP.", mobilePaymentVerificationComplete, status.NextOnboardingStep == LandlordOnboardingSteps.MobilePaymentVerification, MobileVerificationDetails(status)));
@@ -1309,12 +1334,12 @@ namespace RentHub.API.Controllers
             };
         }
 
-        private static bool IsOtpRequired(ApplicationUser user, string codeToken)
+        private bool IsOtpRequired(ApplicationUser user, string codeToken)
         {
             return codeToken switch
             {
                 "ActivationOtpCode" => !string.IsNullOrWhiteSpace(user.Email),
-                "PhoneOtpCode" => !string.IsNullOrWhiteSpace(user.PhoneNumber),
+                "PhoneOtpCode" => RequireMainPhoneVerification && !string.IsNullOrWhiteSpace(user.PhoneNumber),
                 "SubscriptionPaymentOtpCode" => !string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber),
                 "PayoutOtpCode" => !string.IsNullOrWhiteSpace(user.PayoutPhoneNumber),
                 "WhatsAppOtpCode" => !string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber),
@@ -1545,11 +1570,10 @@ namespace RentHub.API.Controllers
                 : (path, contentType ?? string.Empty, originalFileName ?? string.Empty);
         }
 
-        private static string ResolveLandlordOnboardingStep(
+        private string ResolveLandlordOnboardingStep(
             ApplicationUser user,
             IReadOnlyCollection<string> roles,
-            LandlordKycProfile? kycProfile,
-            bool smsVerificationEnabled)
+            LandlordKycProfile? kycProfile)
         {
             if (roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase)))
             {
@@ -1571,19 +1595,7 @@ namespace RentHub.API.Controllers
                 return LandlordOnboardingSteps.Country;
             }
 
-            if (!smsVerificationEnabled)
-            {
-                if (kycProfile?.Status is not (LandlordKycStatusEnum.Submitted or LandlordKycStatusEnum.Approved))
-                {
-                    return LandlordOnboardingSteps.Kyc;
-                }
-
-                return user.PlatformTermsAccepted
-                    ? LandlordOnboardingSteps.Complete
-                    : LandlordOnboardingSteps.Contract;
-            }
-
-            if (string.IsNullOrWhiteSpace(user.PhoneNumber) || !user.PhoneNumberConfirmed)
+            if (RequireMainPhoneVerification && (string.IsNullOrWhiteSpace(user.PhoneNumber) || !user.PhoneNumberConfirmed))
             {
                 return LandlordOnboardingSteps.Phone;
             }

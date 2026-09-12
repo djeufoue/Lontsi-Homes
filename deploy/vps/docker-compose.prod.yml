@@ -32,6 +32,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       Api__BaseUrl: http://api:8080/api/
       DataProtection__KeysPath: /var/aspnet/data-protection-keys
+      Onboarding__RequireMainPhoneVerification: ${REQUIRE_MAIN_PHONE_VERIFICATION:-false}
       PublicSite__SiteName: ${PUBLIC_SITE_NAME}
       PublicSite__LegalEntityName: ${PUBLIC_SITE_LEGAL_ENTITY_NAME}
       PublicSite__SupportEmail: ${PUBLIC_SITE_SUPPORT_EMAIL}
@@ -39,7 +40,6 @@ services:
       PublicSite__SupportPhone: ${PUBLIC_SITE_SUPPORT_PHONE}
       PublicSite__SupportWhatsApp: ${PUBLIC_SITE_SUPPORT_WHATSAPP}
       PublicSite__CompanyAddress: ${PUBLIC_SITE_COMPANY_ADDRESS}
-      Onboarding__SmsVerificationEnabled: ${ONBOARDING_SMS_VERIFICATION_ENABLED}
       Subscriptions__UsdToXafRate: ${SUBSCRIPTIONS_USD_TO_XAF_RATE}
     volumes:
       - portal_keys:/var/aspnet/data-protection-keys
@@ -69,12 +69,20 @@ services:
       AzureStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
       AzureStorage__ContainerName: ${AZURE_STORAGE_CONTAINER}
       Portal__BaseUrl: https://${PORTAL_DOMAIN}
+      DataProtection__KeysPath: /var/aspnet/data-protection-keys
+      Onboarding__RequireMainPhoneVerification: ${REQUIRE_MAIN_PHONE_VERIFICATION:-false}
+      Infobip__ReceiptMediaBaseUrl: https://${API_DOMAIN}
+      Infobip__UrlButtonParameters__landlord_rent_payment_received: ${WHATSAPP_BUTTON_LANDLORD_RECEIPT:-}
+      Infobip__UrlButtonParameters__rent_due_soon: ${WHATSAPP_BUTTON_RENT_DUE_SOON:-}
+      Infobip__UrlButtonParameters__rent_due_today: ${WHATSAPP_BUTTON_RENT_DUE_TODAY:-}
+      Infobip__UrlButtonParameters__rent_overdue: ${WHATSAPP_BUTTON_RENT_OVERDUE:-}
+      Infobip__UrlButtonParameters__tenancy_ending_soon: ${WHATSAPP_BUTTON_TENANCY_ENDING:-}
       Maps__GoogleGeocodingApiKey: ${GOOGLE_GEOCODING_API_KEY}
-      Onboarding__SmsVerificationEnabled: ${ONBOARDING_SMS_VERIFICATION_ENABLED}
-      Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
-      Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
-      Twilio__FromNumber: ${TWILIO_FROM_NUMBER}
-      Twilio__WhatsAppFromNumber: ${TWILIO_WHATSAPP_FROM_NUMBER}
+      Infobip__BaseUrl: ${INFOBIP_BASE_URL:-https://api.infobip.com}
+      Infobip__ApiKey: ${INFOBIP_API_KEY:?Set the production Infobip API key}
+      Infobip__SmsSender: ${INFOBIP_SMS_SENDER}
+      Infobip__WhatsAppSender: ${INFOBIP_WHATSAPP_SENDER:?Set the approved WhatsApp sender}
+      Infobip__WebhookSecret: ${INFOBIP_WEBHOOK_SECRET:?Set a random production webhook secret}
       Email__Smtp__Host: ${EMAIL_SMTP_HOST}
       Email__Smtp__Port: ${EMAIL_SMTP_PORT}
       Email__Smtp__Username: ${EMAIL_SMTP_USERNAME}
@@ -107,6 +115,8 @@ services:
       AdminSeed__CountryCode: ${ADMIN_SEED_COUNTRY_CODE}
       ReminderSettings__DaysBeforeDue: ${REMINDER_DAYS_BEFORE_DUE}
       ReminderSettings__DaysAfterUnpaid: ${REMINDER_DAYS_AFTER_UNPAID}
+    volumes:
+      - api_keys:/var/aspnet/data-protection-keys
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -154,5 +164,6 @@ volumes:
   caddy_data:
   caddy_config:
   portal_keys:
+  api_keys:
   sqlserver_data:
   sqlserver_backup:

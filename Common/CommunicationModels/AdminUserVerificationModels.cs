@@ -14,6 +14,7 @@ namespace Common.CommunicationModels
         public string? PhoneNumber { get; set; }
         public bool EmailConfirmed { get; set; }
         public bool PhoneNumberConfirmed { get; set; }
+        public bool RequireMainPhoneVerification { get; set; } = true;
         public string? SubscriptionPaymentPhoneNumber { get; set; }
         public PayoutChannelEnum? SubscriptionPaymentChannel { get; set; }
         public bool IsSubscriptionPaymentPhoneVerified { get; set; }
@@ -36,7 +37,6 @@ namespace Common.CommunicationModels
         public bool PlatformTermsAccepted { get; set; }
         public DateTimeOffset? PlatformTermsAcceptedAt { get; set; }
         public string? PlatformTermsSignatureName { get; set; }
-        public bool SmsVerificationEnabled { get; set; }
         public string NextOnboardingStep { get; set; } = LandlordOnboardingSteps.Account;
         public bool IsOnboardingComplete { get; set; }
         public bool IsSubscriptionExempt { get; set; }
@@ -57,10 +57,22 @@ namespace Common.CommunicationModels
 
     public class AdminUserOverviewDto
     {
+        public AdminWhatsAppActivationDto WhatsAppActivation { get; set; } = new();
         public AdminUserVerificationStatusDto User { get; set; } = new();
         public LandlordKycSummaryDto? Kyc { get; set; }
         public List<AdminUserOtpDto> OtpCodes { get; set; } = new();
         public List<AdminUserOnboardingStepDto> Steps { get; set; } = new();
+    }
+
+    public class AdminWhatsAppActivationDto
+    {
+        public string State { get; set; } = "missing";
+        public string? PhoneNumber { get; set; }
+        public bool HasNumber { get; set; }
+        public bool IsVerified { get; set; }
+        public bool HasConsent { get; set; }
+        public DateTimeOffset? VerifiedAt { get; set; }
+        public DateTimeOffset? CodeExpiresAt { get; set; }
     }
 
     public class AdminUserManagementPermissionsDto

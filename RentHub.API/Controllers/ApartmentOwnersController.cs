@@ -140,7 +140,7 @@ namespace RentHub.API.Controllers
                     request.FullName,
                     request.CountryCode,
                     request.PhoneNumber,
-                    null,
+                    request.WhatsAppPhoneNumber,
                     "Owner")).User;
                 // Check if assignment already exists
                 var existing = await _context.ApartmentOwners
