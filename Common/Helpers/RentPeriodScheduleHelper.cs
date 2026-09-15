@@ -93,6 +93,19 @@ namespace Common.Helpers
             return periods;
         }
 
+        public static DateTimeOffset ResolveExtensionReferenceDate(
+            DateTimeOffset nowUtc,
+            DateTimeOffset? latestPeriodEnd,
+            bool hasOpenPeriod)
+        {
+            // GeneratePeriods already includes the next complete payment group.
+            // Stay in the last paid group when payment is ahead of the calendar;
+            // advancing to the following day would provision two more groups.
+            return !hasOpenPeriod && latestPeriodEnd.HasValue && latestPeriodEnd.Value.Date > nowUtc.Date
+                ? latestPeriodEnd.Value
+                : nowUtc;
+        }
+
         public static DateTimeOffset MonthlyBoundary(DateTimeOffset tenancyStart, int periodIndex)
         {
             if (periodIndex < 0)

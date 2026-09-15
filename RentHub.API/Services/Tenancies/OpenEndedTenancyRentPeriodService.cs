@@ -119,11 +119,8 @@ namespace RentHub.API.Services.Tenancies
             var newPeriods = new List<RentPeriod>();
             foreach (var schedule in schedulesToExtend)
             {
-                var generationAsOf = !schedule.HasOpenPeriod &&
-                                     schedule.LatestPeriodEnd.HasValue &&
-                                     schedule.LatestPeriodEnd.Value.Date > nowUtc.Date
-                    ? schedule.LatestPeriodEnd.Value.AddDays(1)
-                    : nowUtc;
+                var generationAsOf = RentPeriodScheduleHelper.ResolveExtensionReferenceDate(
+                    nowUtc, schedule.LatestPeriodEnd, schedule.HasOpenPeriod);
                 var seeds = RentPeriodScheduleHelper.GeneratePeriods(
                     schedule.StartDate,
                     null,
