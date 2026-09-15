@@ -36,10 +36,20 @@ namespace Common.CommunicationModels
         public DateTimeOffset? PeriodEnd { get; set; }
         public List<RentReceiptLineDto> Lines { get; set; } = new();
         public bool IsValid { get; set; } = true;
+        public bool IsCorrected { get; set; }
+        public string CorrectionReason { get; set; } = string.Empty;
+        public DateTimeOffset? CorrectedAt { get; set; }
+        public int? ReplacementPaymentId { get; set; }
+        public string ReplacementReceiptNumber { get; set; } = string.Empty;
     }
 
     public class RentReceiptVerificationDto
     {
+        public bool IsCorrected { get; set; }
+        public string ReplacementReceiptNumber { get; set; } = string.Empty;
+        public int? ReplacementPaymentId { get; set; }
+        public string CorrectionReason { get; set; } = string.Empty;
+        public DateTimeOffset? CorrectedAt { get; set; }
         public bool IsValid { get; set; }
         public string ReceiptNumber { get; set; } = string.Empty;
         public DateTimeOffset? IssuedAt { get; set; }

@@ -11,6 +11,7 @@ namespace RentHub.API.Models.Entities
     /// </summary>
     [Index(nameof(RequestKey), IsUnique = true)]
     [Index(nameof(TransactionId), IsUnique = true)]
+    [Index(nameof(CorrectionRequestId))]
     [Index(nameof(TenancyId), nameof(Status), nameof(PaymentDate))]
     public class Payment
     {
@@ -36,6 +37,13 @@ namespace RentHub.API.Models.Entities
         public string? SystemReceiptNumber { get; set; }
         public string? ReceiptVerificationCode { get; set; }
         public DateTimeOffset? ReceiptIssuedAt { get; set; }
+        // Immutable receipt snapshots and actor/reason retained when a manual payment is corrected.
+        public string? CorrectionJson { get; set; }
+        [MaxLength(36)]
+        public string? CorrectionRequestId { get; set; }
+        public int? ReplacementPaymentId { get; set; }
+        public DateTimeOffset? CorrectionTenantNotifiedAt { get; set; }
+        public DateTimeOffset? CorrectionLandlordNotifiedAt { get; set; }
         public PaymentStatusEnum Status { get; set; } = PaymentStatusEnum.Pending;
         public DateTimeOffset PaymentDate { get; set; } = DateTimeOffset.UtcNow;
 

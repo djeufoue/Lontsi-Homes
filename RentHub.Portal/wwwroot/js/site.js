@@ -2114,6 +2114,7 @@ const initConversationMessageInputs = (root) => {
       const confirmationStyle = form.dataset.confirmStyle || "danger";
       const showsWarning = form.dataset.confirmWarning === "true";
       confirmationModalEl.classList.toggle("rh-confirmation-is-warning", showsWarning);
+      confirmationModalEl.classList.toggle("rh-confirmation-is-correction", form.dataset.correctionReady === "true");
       confirmationWarningEl?.classList.toggle("d-none", !showsWarning);
       confirmationWarningEl?.setAttribute("aria-hidden", showsWarning ? "false" : "true");
       if (warningMessageEl) {
@@ -2165,6 +2166,7 @@ const initConversationMessageInputs = (root) => {
     confirmationModalEl.addEventListener("hidden.bs.modal", () => {
       confirmationDurationEl?.classList.add("d-none");
       confirmationModalEl.classList.remove("rh-confirmation-is-warning");
+      confirmationModalEl.classList.remove("rh-confirmation-is-correction");
       confirmationWarningEl?.classList.add("d-none");
       confirmationWarningEl?.setAttribute("aria-hidden", "true");
       const resetForm = pendingForm;

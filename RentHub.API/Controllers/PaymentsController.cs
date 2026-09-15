@@ -1082,6 +1082,10 @@ namespace RentHub.API.Controllers
                 {
                     return Forbid();
                 }
+                if (payment.CorrectionJson != null)
+                {
+                    return Conflict("A corrected payment cannot be reactivated. Record a new payment for the unpaid periods.");
+                }
                 if (payment.Status == PaymentStatusEnum.Success)
                 {
                     return BadRequest("Payment is already marked as paid.");

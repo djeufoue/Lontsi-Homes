@@ -198,6 +198,7 @@ builder.Services.AddScoped<IManagerInvitationEmailService, ManagerInvitationEmai
 builder.Services.AddScoped<RentHub.API.Services.Permissions.IManagerPermissionService, RentHub.API.Services.Permissions.ManagerPermissionService>();
 builder.Services.AddScoped<RentHub.API.Services.Maps.IPropertyGeocodingService, RentHub.API.Services.Maps.GooglePropertyGeocodingService>();
 builder.Services.AddScoped<IRentReceiptService, RentReceiptService>();
+builder.Services.AddScoped<PaymentCorrectionNotifications>();
 var apiDataProtection = builder.Services.AddDataProtection().SetApplicationName("LontsiHomes.API");
 var apiKeysPath = builder.Configuration["DataProtection:KeysPath"];
 if (!string.IsNullOrWhiteSpace(apiKeysPath))
@@ -380,6 +381,9 @@ void RegisterRecurringJobs(IServiceProvider services, IConfiguration configurati
         {
             TimeZone = TimeZoneInfo.Utc
         });
+
+    recurringJobs.AddOrUpdate<PaymentCorrectionNotifications>(
+        "manual-payment-correction-emails", service => service.ProcessAsync(), Cron.Minutely());
 
     // Run an idempotent catch-up after each deployment/startup so existing
     // open-ended tenancies do not need to wait until the next midnight cycle.

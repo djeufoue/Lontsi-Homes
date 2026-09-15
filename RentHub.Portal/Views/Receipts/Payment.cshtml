@@ -21,7 +21,9 @@
         PaymentMethodEnum.Card => T["Card"].Value,
         _ => method.ToString()
     };
-    string PaymentNote() => Model.Method == PaymentMethodEnum.Cash
+    string PaymentNote() => Model.IsCorrected
+        ? T["This receipt is kept for history only and is no longer proof of payment."].Value
+        : Model.Method == PaymentMethodEnum.Cash
         ? T["Recorded manually by landlord"].Value
         : string.IsNullOrWhiteSpace(Model.ProviderReceiptUrl)
             ? T["Processed by platform"].Value
@@ -29,11 +31,23 @@
 }
 
 <section class="rh-overview-shell">
+    @if (Model.IsCorrected)
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>@T[Model.ReplacementPaymentId.HasValue ? "Cancelled and replaced invoice" : "Cancelled invoice"]</strong>
+            <p>@T["This receipt is kept for history only and is no longer proof of payment."]</p>
+            <p>@T["Reason for correction"]: @Model.CorrectionReason</p>
+            @if (Model.ReplacementPaymentId.HasValue)
+            {
+                <a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@Model.ReplacementPaymentId">@T["Replacement invoice"]: @Model.ReplacementReceiptNumber</a>
+            }
+        </div>
+    }
     <section class="rh-overview-hero rh-panel rh-panel-elevated">
         <div class="rh-overview-hero-copy">
             <p class="rh-kicker">@T["Rent invoice"]</p>
             <h1 class="rh-heading-title">@Model.ReceiptNumber</h1>
-            <p class="rh-heading-subtitle">@T["Official invoice for a completed rent payment."]</p>
+            <p class="rh-heading-subtitle">@T[Model.IsCorrected ? "Cancelled invoice" : "Official invoice for a completed rent payment."]</p>
         </div>
         <div class="rh-overview-hero-actions">
             <a class="btn rh-btn-subtle" asp-action="DownloadPayment" asp-route-paymentId="@Model.PaymentId">@T["Download invoice"]</a>
@@ -90,7 +104,7 @@
                     <tbody>
                         <tr><th scope="row">@T["Rent"]</th><td>@Model.Amount.ToString("N0", culture) @Model.Currency</td></tr>
                         <tr><th scope="row">@T["Payment method"]</th><td>@MethodLabel(Model.Method)</td></tr>
-                        <tr class="rh-rent-invoice__total"><th scope="row">@T["Total paid"]</th><td>@Model.Amount.ToString("N0", culture) @Model.Currency</td></tr>
+                        <tr class="rh-rent-invoice__total"><th scope="row">@T[Model.IsCorrected ? "Original recorded amount" : "Total paid"]</th><td>@Model.Amount.ToString("N0", culture) @Model.Currency</td></tr>
                     </tbody>
                 </table>
                 <p class="rh-rent-invoice__note">@PaymentNote()</p>

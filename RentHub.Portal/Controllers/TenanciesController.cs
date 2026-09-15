@@ -723,6 +723,28 @@ namespace RentHub.Portal.Controllers
         }
 
         [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> CorrectManualRentPayments(CorrectManualRentPaymentRequest request, string? returnUrl = null)
+        {
+            if (!ModelState.IsValid || request.RentPeriodIds == null || request.RentPeriodIds.Count == 0)
+            {
+                TempData["Error"] = "Select periods and provide a correction reason (5 to 1000 characters). Maximum: 120 periods.";
+                return RedirectToRentPeriodSource(request.TenancyId, returnUrl);
+            }
+            try
+            {
+                await _api.PostAsync<CorrectManualRentPaymentRequest, JsonElement>("payments/rent-periods/correct-manual", request);
+                TempData["Success"] = "Payment correction saved. Selected periods are unpaid again. Old receipts are cancelled and correction emails are queued.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual payment correction failed for tenancy {TenancyId}", request.TenancyId);
+                var error = ParseApiError(ex.Message);
+                TempData["Error"] = SafeUserMessage(error.Message, "Unable to correct the payment. Reload the page before trying again.");
+            }
+            return RedirectToRentPeriodSource(request.TenancyId, returnUrl);
+        }
+
+        [HttpPost, ValidateAntiForgeryToken]
         public async Task<IActionResult> ArchivePaidBeforePlatformPeriods(
             int tenancyId,
             string? returnUrl = null)
@@ -1221,6 +1243,7 @@ namespace RentHub.Portal.Controllers
 
             return new TenancyOverviewVm
             {
+                PaymentCorrections = overview.PaymentCorrections,
                 Tenancy = overview.Tenancy,
                 Members = members,
                 Documents = (overview.Documents ?? new List<DocumentDto>())

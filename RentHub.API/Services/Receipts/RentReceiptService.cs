@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.IO;
+using System.Text.Json;
 using Common.CommunicationModels;
 using Common.Enums;
 using Common.Helpers;
@@ -42,7 +43,7 @@ namespace RentHub.API.Services.Receipts
                 return null;
             }
 
-            if (payment.Status != PaymentStatusEnum.Success)
+            if (payment.Status != PaymentStatusEnum.Success || payment.CorrectionJson != null)
             {
                 throw new InvalidOperationException("Receipts can only be generated for successful payments.");
             }
@@ -86,12 +87,24 @@ namespace RentHub.API.Services.Receipts
                 .FirstOrDefaultAsync(p =>
                     !p.IsDeleted &&
                     p.ReceiptVerificationCode == normalized &&
-                    p.Status == PaymentStatusEnum.Success,
+                    (p.Status == PaymentStatusEnum.Success || p.CorrectionJson != null),
                     cancellationToken);
 
             if (payment == null)
             {
                 return null;
+            }
+
+            if (payment.CorrectionJson != null)
+            {
+                var corrected = await BuildDtoAsync(payment, cancellationToken);
+                return new RentReceiptVerificationDto {
+                    IsValid = false, IsCorrected = true, ReceiptNumber = corrected.ReceiptNumber,
+                    Amount = corrected.Amount, Currency = corrected.Currency,
+                    CorrectionReason = corrected.CorrectionReason, CorrectedAt = corrected.CorrectedAt,
+                    ReplacementPaymentId = corrected.ReplacementPaymentId,
+                    ReplacementReceiptNumber = corrected.ReplacementReceiptNumber
+                };
             }
 
             var periods = await _context.RentPeriods
@@ -134,6 +147,10 @@ namespace RentHub.API.Services.Receipts
             bool notifyLandlord,
             CancellationToken cancellationToken = default)
         {
+            if (receipt.IsCorrected || !receipt.IsValid)
+            {
+                return;
+            }
             if (notifyTenant && !string.IsNullOrWhiteSpace(receipt.TenantEmail))
             {
                 var isFrench = receipt.TenantEmailLanguage == PlatformLanguage.French;
@@ -207,6 +224,20 @@ namespace RentHub.API.Services.Receipts
 
         private async Task<RentReceiptDto> BuildDtoAsync(Payment payment, CancellationToken cancellationToken)
         {
+            if (payment.CorrectionJson != null)
+            {
+                var audit = JsonSerializer.Deserialize<ManualPaymentCorrection>(payment.CorrectionJson)
+                    ?? throw new InvalidOperationException("Missing receipt correction snapshot.");
+                var old = audit.OriginalReceipt;
+                old.IsValid = false;
+                old.IsCorrected = true;
+                old.Status = PaymentStatusEnum.Cancelled;
+                old.CorrectionReason = audit.Reason;
+                old.CorrectedAt = audit.CorrectedAt;
+                old.ReplacementPaymentId = payment.ReplacementPaymentId;
+                old.ReplacementReceiptNumber = audit.ReplacementReceipt?.ReceiptNumber ?? string.Empty;
+                return old;
+            }
             var periods = await _context.RentPeriods
                 .AsNoTracking()
                 .Where(period => period.PaymentId == payment.Id && !period.IsDeleted)

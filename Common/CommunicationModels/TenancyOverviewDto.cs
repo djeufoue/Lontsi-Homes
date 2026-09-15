@@ -9,6 +9,7 @@ namespace Common.CommunicationModels
 {
     public class TenancyOverviewDto
     {
+        public List<PaymentCorrectionSummaryDto> PaymentCorrections { get; set; } = new();
         public TenancyDetailsDto Tenancy { get; set; } = new();
 
         public List<TenancyMemberDto> Members { get; set; } = new();

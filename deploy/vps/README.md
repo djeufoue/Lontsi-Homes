@@ -144,12 +144,35 @@ docker compose -f docker-compose.prod.yml logs -f caddy
 
 ## Update deployment
 
+Use the update script so the database is backed up before applying new columns:
+
 ```bash
 cd /opt/renthub
-git pull
+git pull --ff-only
 cd deploy/vps
-docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+bash deploy-update.sh
 ```
+
+The script builds first, stops the API and portal, backs up and verifies the database,
+then starts the new version and waits for API readiness. Startup applies EF migrations
+before serving requests. The script checks both WhatsApp and payment correction schemas.
+There is a maintenance window while the API and portal are stopped.
+
+The payment correction release includes migration
+`20260914214102_AddManualPaymentCorrections`: five nullable columns and a non-unique
+index on `Payments`. It does not delete or rewrite existing payments. Deploy the API
+and portal together. An API image using these fields needs this migration to succeed.
+
+If the update fails or `api` remains unhealthy, collect the actual startup error:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production logs --tail 200 api
+docker compose -f docker-compose.prod.yml --env-file .env.production ps
+```
+
+Missing columns, a duplicate column/index, SQL connection errors and timeouts require
+different fixes; do not mark a migration as applied or delete database volumes to
+bypass the error. Keep the verified backup and error logs before attempting recovery.
 
 ## Backups
 

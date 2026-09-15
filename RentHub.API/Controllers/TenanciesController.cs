@@ -1117,8 +1117,24 @@ namespace RentHub.API.Controllers
                     (!tenancy.TerminatedAt.HasValue || tenancy.TerminatedAt.Value.Date > nowUtc.Date),
                     nowUtc);
 
+                var correctionPayments = canViewRent
+                    ? await _context.Payments.AsNoTracking().Where(p => p.TenancyId == tenancy.Id && !p.IsDeleted && p.CorrectionJson != null)
+                        .OrderByDescending(p => p.UpdatedAt).ToListAsync()
+                    : new List<Payment>();
+                var corrections = correctionPayments.Select(p =>
+                {
+                    var audit = System.Text.Json.JsonSerializer.Deserialize<RentHub.API.Services.Receipts.ManualPaymentCorrection>(p.CorrectionJson!)!;
+                    return new PaymentCorrectionSummaryDto {
+                        OriginalPaymentId = p.Id, OriginalReceiptNumber = audit.OriginalReceipt.ReceiptNumber,
+                        ReplacementPaymentId = p.ReplacementPaymentId, ReplacementReceiptNumber = audit.ReplacementReceipt?.ReceiptNumber ?? string.Empty,
+                        CorrectedAt = audit.CorrectedAt, Reason = audit.Reason,
+                        RemovedAmount = audit.OriginalReceipt.Amount - (audit.ReplacementReceipt?.Amount ?? 0), Currency = p.Currency,
+                        EmailsSent = p.CorrectionTenantNotifiedAt.HasValue && p.CorrectionLandlordNotifiedAt.HasValue
+                    };
+                }).ToList();
                 return Ok(new TenancyOverviewDto
                 {
+                    PaymentCorrections = corrections,
                     Tenancy = new TenancyDetailsDto
                     {
                         Id = tenancy.Id,
@@ -1921,6 +1937,9 @@ namespace RentHub.API.Controllers
                     CanCancelPendingPayment = status == RentPeriodStatusEnum.PendingPayment &&
                                               firstUnpaidId == period.Id &&
                                               period.PaymentId.HasValue,
+                    IsCorrectableManualPayment = status == RentPeriodStatusEnum.Paid && period.PaidAmount == period.Amount && period.PaidAmount > 0 &&
+                        period.Payment is { IsDeleted: false, Status: PaymentStatusEnum.Success, Method: PaymentMethodEnum.Cash, CorrectionJson: null } &&
+                        period.Payment.TransactionId.StartsWith("manual-", StringComparison.Ordinal),
                     LockedReason = isPaid || isPayable
                         ? string.Empty
                         : firstUnpaidId.HasValue

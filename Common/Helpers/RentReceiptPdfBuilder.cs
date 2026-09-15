@@ -38,6 +38,10 @@ namespace Common.Helpers
                 Text(content, "F1", 8, Margin, 16,
                     language == PlatformLanguage.French ? $"Page {index + 1} sur {pages.Count}" : $"Page {index + 1} of {pages.Count}",
                     index == pages.Count - 1 ? (1d, 0.98, 0.95) : (0.396, 0.286, 0.282));
+                if (receipt.IsCorrected)
+                    TextRightFitted(content, "F2", 9, 7, PageWidth - Margin, 16,
+                        language == PlatformLanguage.French ? "ANNULEE - NE PAS UTILISER" : "CANCELLED - DO NOT USE",
+                        index == pages.Count - 1 ? (1d, 0.98, 0.95) : (0.65, 0.1, 0.1), 300);
                 objects.Add(PdfObject($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {6 + index * 2} 0 R >>"));
                 objects.Add(PdfStreamObject(Encoding.ASCII.GetBytes(content.ToString())));
             }
@@ -142,7 +146,7 @@ namespace Common.Helpers
             {
                 Fact(isFrench ? "Facture" : "Invoice", receipt.ReceiptNumber, boxed: true);
                 Fact(isFrench ? "Date du paiement" : "Payment date", DateLabel(receipt.PaymentDate, language), boxed: true);
-                Fact(isFrench ? "Statut" : "Status", receipt.Status == PaymentStatusEnum.Success
+                Fact(isFrench ? "Statut" : "Status", receipt.IsCorrected ? (isFrench ? "ANNULEE" : "CANCELLED") : receipt.Status == PaymentStatusEnum.Success
                     ? (isFrench ? "PAYE" : "PAID") : receipt.Status.ToString().ToUpperInvariant(), boxed: true);
 
                 Heading(isFrench ? "Informations de location" : "Rental information");
@@ -161,7 +165,7 @@ namespace Common.Helpers
                 Heading(isFrench ? "Paiement" : "Payment");
                 Fact(isFrench ? "Loyer" : "Rent", AmountLabel(receipt, culture), 25, boxed: true);
                 Fact(isFrench ? "Mode de paiement" : "Payment method", MethodLabel(receipt.Method, language), 25, boxed: true);
-                Fact(isFrench ? "Total paye" : "Total paid", AmountLabel(receipt, culture), 29, total: true);
+                Fact(receipt.IsCorrected ? (isFrench ? "Ancien montant" : "Original amount") : (isFrench ? "Total paye" : "Total paid"), AmountLabel(receipt, culture), 29, total: true);
                 TextFitted(sb, "F1", 8, 7, left, top - 16, PaymentNote(receipt, language), muted, width);
                 TextFitted(sb, "F1", 8, 7, left, top - 30,
                     (isFrench ? "Date d'emission : " : "Issue date: ") + DateLabel(receipt.IssuedAt, language), muted, width);
@@ -380,6 +384,10 @@ namespace Common.Helpers
         private static string PaymentNote(RentReceiptDto receipt, PlatformLanguage language)
         {
             var isFrench = language == PlatformLanguage.French;
+            if (receipt.IsCorrected)
+                return string.IsNullOrWhiteSpace(receipt.ReplacementReceiptNumber)
+                    ? (isFrench ? "Facture annulee. Consultez le QR pour la rectification." : "Cancelled invoice. Scan the QR for correction details.")
+                    : (isFrench ? "Remplacee par : " : "Replaced by: ") + receipt.ReplacementReceiptNumber;
             if (receipt.Method == PaymentMethodEnum.Cash)
             {
                 return isFrench ? "Enregistre manuellement par le bailleur" : "Recorded manually by landlord";

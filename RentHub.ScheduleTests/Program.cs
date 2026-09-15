@@ -65,6 +65,7 @@ var tests = new (string Name, Action Run)[]
     ("French and English decimal amounts parse identically", TestFlexibleDecimalAmounts),
     ("Production migration repairs partially-applied columns", TestProductionMigrationGuards),
     ("WhatsApp production migration has guarded legacy changes and idempotent SQL", TestWhatsAppProductionMigration),
+    ("Manual payment correction migration preserves existing payments", TestManualPaymentCorrectionMigration),
     ("EF migration snapshot matches the current model", TestMigrationModel)
 };
 
@@ -317,8 +318,22 @@ static void TestReceiptLayout()
     }).ToList();
     receipt.Amount = receipt.Lines.Sum(line => line.PaidAmount);
     var multi = Encoding.ASCII.GetString(RentReceiptPdfBuilder.Build(receipt, PlatformLanguage.English));
-    True(multi.Contains("/Count 4"), "32 periods must be retained across three detail pages plus summary");
-    True(multi.Contains("15 Jan 2024") && multi.Contains("14 Sep 2026"), "first and last periods must not be lost");
+    var pageCount = System.Text.RegularExpressions.Regex.Matches(multi, @"/Type /Page /Parent").Count;
+    True(pageCount > 1 && multi.Contains($"/Count {pageCount} "), "long receipts must have consistent multipage metadata");
+    foreach (var line in receipt.Lines)
+    {
+        var label = $"{line.PeriodStart.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)} - {line.PeriodEnd.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";
+        Equal(1, System.Text.RegularExpressions.Regex.Matches(multi, System.Text.RegularExpressions.Regex.Escape(label)).Count,
+            "each period must appear exactly once across all detail pages");
+    }
+    receipt.IsCorrected = true;
+    receipt.IsValid = false;
+    receipt.Status = PaymentStatusEnum.Cancelled;
+    var cancelled = Encoding.ASCII.GetString(RentReceiptPdfBuilder.Build(receipt, PlatformLanguage.English));
+    Equal(pageCount, System.Text.RegularExpressions.Regex.Matches(cancelled, "CANCELLED - DO NOT USE").Count,
+        "every page of a cancelled receipt must carry the cancellation notice");
+    True(cancelled.Contains("Original amount") && cancelled.Contains("Cancelled invoice."),
+        "cancelled receipts must explain that the original amount is no longer proof of payment");
 }
 
 static void TestMigrationModel()
@@ -351,6 +366,33 @@ static void TestMigrationModel()
     True(
         !modelDiffer.HasDifferences(snapshotModel.GetRelationalModel(), currentModel.GetRelationalModel()),
         "the migration snapshot has pending model changes");
+}
+
+static void TestManualPaymentCorrectionMigration()
+{
+    using var context = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+        .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=UnusedSqlGeneration;Trusted_Connection=True;").Options);
+    const string target = "20260914214102_AddManualPaymentCorrections";
+    var assembly = context.GetService<IMigrationsAssembly>();
+    True(assembly.Migrations.ContainsKey(target), "correction migration must be discovered at API startup");
+    var migration = assembly.CreateMigration(assembly.Migrations[target], context.Database.ProviderName!);
+    var columns = migration.UpOperations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.AddColumnOperation>().ToArray();
+    var expected = new[] { "CorrectionJson", "CorrectionRequestId", "ReplacementPaymentId",
+        "CorrectionTenantNotifiedAt", "CorrectionLandlordNotifiedAt" };
+    True(columns.Select(column => column.Name).OrderBy(name => name).SequenceEqual(expected.OrderBy(name => name)),
+        "migration must add all correction fields");
+    True(columns.All(column => column.Table == "Payments" && column.IsNullable && column.DefaultValue == null),
+        "existing payments must remain valid without a correction or backfill");
+    True(migration.UpOperations.Count == columns.Length + 1 &&
+        migration.UpOperations.OfType<Microsoft.EntityFrameworkCore.Migrations.Operations.CreateIndexOperation>()
+            .Any(index => index.Table == "Payments" && index.Name == "IX_Payments_CorrectionRequestId" && !index.IsUnique),
+        "upgrade must only add nullable columns and a non-unique request index; one correction may affect several payments");
+    var sql = context.GetService<IMigrator>().GenerateScript(
+        "20260911020456_AddInfobipMessagingAndWhatsAppConsent", target, MigrationsSqlGenerationOptions.Idempotent);
+    True(sql.Contains("BEGIN TRANSACTION", StringComparison.Ordinal) && sql.Contains("COMMIT", StringComparison.Ordinal),
+        "schema and migration history must be committed together");
+    True(sql.Contains("IF NOT EXISTS", StringComparison.Ordinal) && sql.Contains("[__EFMigrationsHistory]", StringComparison.Ordinal),
+        "generated deployment script must skip an already-applied migration");
 }
 
 static void TestWhatsAppProductionMigration()

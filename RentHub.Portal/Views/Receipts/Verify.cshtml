@@ -158,6 +158,18 @@
             <h1>@T["Invoice access denied"]</h1>
             <p>@T["You are not authorized to view this invoice. Sign in with the tenant, landlord, or property manager account linked to it."]</p>
         }
+        else if (Model.IsCorrected)
+        {
+            <span class="status">@T[Model.ReplacementPaymentId.HasValue ? "Cancelled and replaced invoice" : "Cancelled invoice"]</span>
+            <h1>@Model.ReceiptNumber</h1>
+            <p>@T["This receipt is kept for history only and is no longer proof of payment."]</p>
+            <p>@T["Reason for correction"]: @Model.CorrectionReason</p>
+            <p>@DateLabel(Model.CorrectedAt)</p>
+            @if (Model.ReplacementPaymentId.HasValue)
+            {
+                <a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@Model.ReplacementPaymentId">@T["Replacement invoice"]: @Model.ReplacementReceiptNumber</a>
+            }
+        }
         else if (Model.IsValid)
         {
             <span class="status">@T["Valid system invoice"]</span>

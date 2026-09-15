@@ -23,7 +23,7 @@ printf 'Building API and portal while the current version is still running...\n'
 "${compose[@]}" build api portal
 printf 'Starting maintenance window: API and portal will be stopped for backup and migration.\n'
 "${compose[@]}" stop portal api
-backup="before-whatsapp-$(date -u +%Y%m%dT%H%M%SZ).bak"
+backup="before-deploy-$(date -u +%Y%m%dT%H%M%SZ).bak"
 "${compose[@]}" exec -T -e DEPLOY_DB="$database" -e DEPLOY_BACKUP="$backup" sqlserver bash -ceu '
     export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"
     /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -d "$DEPLOY_DB" -Q "
@@ -44,5 +44,9 @@ printf 'Verified database backup: %s/backups/%s (also retained in SQL backup vol
     export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"
     exec /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -d "$DEPLOY_DB" -i /dev/stdin
 ' < verify-whatsapp.sql
+"${compose[@]}" exec -T -e DEPLOY_DB="$database" sqlserver bash -ceu '
+    export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"
+    exec /opt/mssql-tools18/bin/sqlcmd -C -b -S localhost -U sa -d "$DEPLOY_DB" -i /dev/stdin
+' < verify-payment-corrections.sql
 "${compose[@]}" ps
-printf 'Deployment and WhatsApp schema checks succeeded. Now test OTP, PDF receipt and webhook delivery.\n'
+printf 'Deployment, WhatsApp and payment correction schema checks succeeded. Now test login, rent periods, receipt correction and email delivery.\n'

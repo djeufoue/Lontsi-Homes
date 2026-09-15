@@ -74,12 +74,14 @@ namespace RentHub.API.Controllers
                 return Forbid();
             }
 
-            if (payment.Status != PaymentStatusEnum.Success)
+            if (payment.Status != PaymentStatusEnum.Success && payment.CorrectionJson == null)
             {
                 return BadRequest("A receipt is available only after the payment succeeds.");
             }
 
-            var receipt = await _receiptService.EnsureReceiptAsync(payment.Id, userId);
+            var receipt = payment.CorrectionJson != null
+                ? await _receiptService.GetReceiptAsync(payment.Id)
+                : await _receiptService.EnsureReceiptAsync(payment.Id, userId);
             return receipt == null ? NotFound("Receipt not found.") : Ok(receipt);
         }
 
@@ -107,7 +109,7 @@ namespace RentHub.API.Controllers
                 .FirstOrDefaultAsync(item =>
                     !item.IsDeleted &&
                     item.ReceiptVerificationCode == normalizedCode &&
-                    item.Status == PaymentStatusEnum.Success);
+                    (item.Status == PaymentStatusEnum.Success || item.CorrectionJson != null));
 
             if (payment == null)
             {

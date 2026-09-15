@@ -186,6 +186,31 @@
     </div>
 }
 
+@if (Model.IsRentPeriodsPage && tenancy.CanMarkRentPaid && tenancy.CanCancelPendingPayment)
+{
+    <partial name="_ManualPaymentCorrection" model="Model" />
+}
+
+@if (Model.IsRentPeriodsPage && Model.PaymentCorrections.Any())
+{
+    <details class="rh-panel mb-3">
+        <summary class="fw-bold">@T["Payment correction history"]</summary>
+        @foreach (var correction in Model.PaymentCorrections)
+        {
+            <div class="py-3 border-bottom">
+                <strong>@DateTimeLabel(correction.CorrectedAt) · @correction.RemovedAmount.ToString("N0") @correction.Currency</strong>
+                <p>@correction.Reason</p>
+                <a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@correction.OriginalPaymentId">@T["Cancelled invoice"]: @correction.OriginalReceiptNumber</a>
+                @if (correction.ReplacementPaymentId.HasValue)
+                {
+                    <span> · </span><a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@correction.ReplacementPaymentId">@T["Replacement invoice"]: @correction.ReplacementReceiptNumber</a>
+                }
+                <p class="small text-muted mt-2">@T[correction.EmailsSent ? "Correction emails sent" : "Correction emails pending or being retried"]</p>
+            </div>
+        }
+    </details>
+}
+
 @if (Model.IsRentPeriodsPage && tenancy.CanDeleteHistoricalRentPeriods)
 {
     <form method="post"

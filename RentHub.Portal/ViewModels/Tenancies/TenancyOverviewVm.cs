@@ -4,6 +4,7 @@ namespace RentHub.Portal.ViewModels.Tenancies
 {
     public class TenancyOverviewVm
     {
+        public List<PaymentCorrectionSummaryDto> PaymentCorrections { get; set; } = new();
         public TenancyDetailsDto Tenancy { get; set; } = new();
         public List<TenancyMemberDto> Members { get; set; } = new();
         public List<DocumentDto> Documents { get; set; } = new();

@@ -25,6 +25,7 @@ namespace Common.CommunicationModels
         public string StatusLabel { get; set; } = string.Empty;
         public bool IsPayable { get; set; }
         public bool CanCancelPendingPayment { get; set; }
+        public bool IsCorrectableManualPayment { get; set; }
         public string LockedReason { get; set; } = string.Empty;
         public int ReminderCount { get; set; }
         public int ManualReminderCount { get; set; }
