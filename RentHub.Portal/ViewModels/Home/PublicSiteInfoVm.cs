@@ -4,10 +4,10 @@ namespace RentHub.Portal.ViewModels.Home
     {
         public string SiteName { get; set; } = "Lontsi Homes";
         public string LegalEntityName { get; set; } = "Lontsi Homes";
-        public string SupportEmail { get; set; } = "REMOVED_PRIVATE_VALUE";
-        public string RefundEmail { get; set; } = "REMOVED_PRIVATE_VALUE";
-        public string SupportPhone { get; set; } = "REMOVED_PRIVATE_VALUE";
-        public string SupportWhatsApp { get; set; } = "REMOVED_PRIVATE_VALUE";
-        public string CompanyAddress { get; set; } = "London, Ontario, Canada";
+        public string SupportEmail { get; set; } = "support@example.com";
+        public string RefundEmail { get; set; } = "refunds@example.com";
+        public string SupportPhone { get; set; } = "";
+        public string SupportWhatsApp { get; set; } = "";
+        public string CompanyAddress { get; set; } = "";
     }
 }

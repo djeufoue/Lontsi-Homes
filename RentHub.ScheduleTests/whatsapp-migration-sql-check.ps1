@@ -21,7 +21,7 @@ try {
     Invoke-TestSql "CREATE DATABASE [$database]"
     $created = $true
     $connection.ChangeDatabase($database)
-    Invoke-TestSql 'CREATE TABLE dbo.AspNetUsers (WhatsAppPhoneNumber nvarchar(max) NULL); INSERT dbo.AspNetUsers VALUES (N''REMOVED_PRIVATE_VALUE'');'
+    Invoke-TestSql 'CREATE TABLE dbo.AspNetUsers (WhatsAppPhoneNumber nvarchar(max) NULL); INSERT dbo.AspNetUsers VALUES (N''+237600000001'');'
     foreach ($case in @('default', 'no-default', 'already-removed')) {
         Invoke-TestSql 'CREATE TABLE dbo.PlatformPaymentSettings (Id int NOT NULL);'
         if ($case -eq 'default') {

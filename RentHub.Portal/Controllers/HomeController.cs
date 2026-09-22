@@ -130,11 +130,11 @@ namespace RentHub.Portal.Controllers
             {
                 SiteName = _configuration["PublicSite:SiteName"] ?? "Lontsi Homes",
                 LegalEntityName = _configuration["PublicSite:LegalEntityName"] ?? "Lontsi Homes",
-                SupportEmail = _configuration["PublicSite:SupportEmail"] ?? "REMOVED_PRIVATE_VALUE",
-                RefundEmail = _configuration["PublicSite:RefundEmail"] ?? "REMOVED_PRIVATE_VALUE",
-                SupportPhone = _configuration["PublicSite:SupportPhone"] ?? "REMOVED_PRIVATE_VALUE",
-                SupportWhatsApp = _configuration["PublicSite:SupportWhatsApp"] ?? "REMOVED_PRIVATE_VALUE",
-                CompanyAddress = _configuration["PublicSite:CompanyAddress"] ?? "London, Ontario, Canada"
+                SupportEmail = _configuration["PublicSite:SupportEmail"] ?? "support@example.com",
+                RefundEmail = _configuration["PublicSite:RefundEmail"] ?? "refunds@example.com",
+                SupportPhone = _configuration["PublicSite:SupportPhone"] ?? "",
+                SupportWhatsApp = _configuration["PublicSite:SupportWhatsApp"] ?? "",
+                CompanyAddress = _configuration["PublicSite:CompanyAddress"] ?? ""
             };
         }
     }

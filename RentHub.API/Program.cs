@@ -50,7 +50,7 @@ builder.Services.AddSwaggerGen(c =>
 
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "RentHub API",
+        Title = "Lontsi Homes API",
         Version = "v1",
         Description = "Property & rent management API"
     });
@@ -275,7 +275,7 @@ app.UseAuthorization();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "RentHub API v1");
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lontsi Homes API v1");
     // Optional: show Swagger at root instead of /swagger
     // c.RoutePrefix = string.Empty;
 });

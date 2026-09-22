@@ -109,6 +109,7 @@ services:
       Stripe__Connect__RequirePayoutSetup: ${STRIPE_CONNECT_REQUIRE_PAYOUT_SETUP}
       Stripe__Connect__DefaultCountry: ${STRIPE_CONNECT_DEFAULT_COUNTRY}
       Stripe__Connect__BusinessProfileUrl: ${STRIPE_CONNECT_BUSINESS_PROFILE_URL}
+      AdminSeed__Enabled: ${ADMIN_SEED_ENABLED:-false}
       AdminSeed__Email: ${ADMIN_SEED_EMAIL}
       AdminSeed__Password: ${ADMIN_SEED_PASSWORD}
       AdminSeed__FullName: ${ADMIN_SEED_FULL_NAME}

@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public character alphabet used to generate random receipt tokens; not a credential."
+regexTarget = "match"
+regexes = ['''TokenAlphabet\s*=\s*"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"''']

@@ -559,7 +559,7 @@ namespace RentHub.API.Controllers
                         return BadRequest(new
                         {
                             Code = "PHONE_NUMBER_INVALID",
-                            Message = "Enter the 9-digit Cameroon phone number without the country code. Example: REMOVED_PRIVATE_VALUE."
+                            Message = "Enter the 9-digit Cameroon phone number without the country code. Example: 600000001."
                         });
                     }
                 }

@@ -779,7 +779,7 @@
   <data name="Document type" xml:space="preserve"><value>Type de document</value></data>
   <data name="e.g. +1" xml:space="preserve"><value>p. ex. +1</value></data>
   <data name="e.g. +237" xml:space="preserve"><value>p. ex. +237</value></data>
-  <data name="e.g. REMOVED_PRIVATE_VALUE" xml:space="preserve"><value>p. ex. REMOVED_PRIVATE_VALUE</value></data>
+  <data name="e.g. 600000001" xml:space="preserve"><value>p. ex. 600000001</value></data>
   <data name="Edit Apartment Member" xml:space="preserve"><value>Modifier le membre de l'appartement</value></data>
   <data name="Edit apartment reminder settings" xml:space="preserve"><value>Modifier les paramètres de rappel de l'appartement</value></data>
   <data name="Edit details" xml:space="preserve"><value>Modifier les détails</value></data>

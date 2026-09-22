@@ -794,11 +794,11 @@ static void TestWhatsAppUnchangedNumber()
 {
     var user = new ApplicationUser
     {
-        CountryCode = "+237", PhoneNumber = "REMOVED_PRIVATE_VALUE",
-        WhatsAppPhoneNumber = "REMOVED_PRIVATE_VALUE", NormalizedWhatsAppPhoneNumber = "REMOVED_PRIVATE_VALUE",
+        CountryCode = "+237", PhoneNumber = "600000001",
+        WhatsAppPhoneNumber = "+237600000001", NormalizedWhatsAppPhoneNumber = "+237600000001",
         IsWhatsAppPhoneVerified = true, PendingWhatsAppPhoneNumber = "+237690000001"
     };
-    foreach (var input in new[] { "REMOVED_PRIVATE_VALUE", "REMOVED_PRIVATE_VALUE", "REMOVED_PRIVATE_VALUE", user.PhoneNumber })
+    foreach (var input in new[] { "+237600000001", "+237 600 00 00 01", "+237(600)00-00-01", user.PhoneNumber })
     {
         True(PhoneNumberHelper.TryNormalizeE164(user.CountryCode, input, out var normalized), "valid number normalizes");
         True(!WhatsAppNumberChange.RequiresVerification(user, normalized, true), "same active number rejected including formatting/main-phone variants");

@@ -66,7 +66,7 @@
                     </div>
                     <div class="col-md-8">
                         <label asp-for="PhoneNumber" class="form-label rh-auth-label"></label>
-                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel-national" inputmode="tel" placeholder="@(isCameroon ? "REMOVED_PRIVATE_VALUE" : "Local phone number")" />
+                        <input asp-for="PhoneNumber" class="form-control rh-auth-input" autocomplete="tel-national" inputmode="tel" placeholder="@(isCameroon ? "600000001" : "Local phone number")" />
                         <div class="form-text">Enter the local number only. Do not include @selectedCountryCode.</div>
                         <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
                     </div>

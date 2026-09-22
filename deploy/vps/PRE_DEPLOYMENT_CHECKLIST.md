@@ -16,21 +16,19 @@ These pages are important because they make the website look complete and help w
 
 ## 2. Public site details to update
 
-Before going live, update these values in:
-
-- `C:\Projects\Rent Management Project\RentHub\RentHub.Portal\appsettings.json`
-
-Section:
+Before going live, supply these values through `PUBLIC_SITE_*` variables in the
+ignored `deploy/vps/.env.production` file. For local development, use an ignored
+`RentHub.Portal/appsettings.Development.json` file with this section:
 
 ```json
 "PublicSite": {
   "SiteName": "Lontsi Homes",
   "LegalEntityName": "Lontsi Homes",
-  "SupportEmail": "REMOVED_PRIVATE_VALUE",
-  "RefundEmail": "REMOVED_PRIVATE_VALUE",
-  "SupportPhone": "REMOVED_PRIVATE_VALUE",
-  "SupportWhatsApp": "REMOVED_PRIVATE_VALUE",
-  "CompanyAddress": "London, Ontario, Canada"
+  "SupportEmail": "support@example.com",
+  "RefundEmail": "refunds@example.com",
+  "SupportPhone": "",
+  "SupportWhatsApp": "",
+  "CompanyAddress": ""
 }
 ```
 

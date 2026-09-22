@@ -722,6 +722,13 @@ END
 
         private static void SeedDefaultAdministrator(IServiceProvider serviceProvider, IConfiguration configuration)
         {
+            // Enable only for initial setup using private environment configuration.
+            // Never store an administrator email or password in source control.
+            if (!configuration.GetValue<bool>("AdminSeed:Enabled"))
+            {
+                return;
+            }
+
             var adminEmail = configuration["AdminSeed:Email"];
             var adminPassword = configuration["AdminSeed:Password"];
             var adminFullName = configuration["AdminSeed:FullName"] ?? "System Administrator";

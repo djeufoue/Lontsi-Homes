@@ -18,3 +18,35 @@ HierarchyCache.v1.txt
 /tmp/
 /output/
 /deploy/vps/backups/
+
+# Machine-specific configuration and credentials (examples stay public).
+**/appsettings.*.json
+!**/appsettings.*.example.json
+.env.*
+!.env.example
+!.env.*.example
+**/secrets.json
+**/credentials.json
+**/*.pubxml
+**/*.pubxml.user
+.nuget-appdata/
+.nuget-packages/
+
+# Private keys, database copies, logs, and archived source/configuration.
+*.pfx
+*.p12
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+*.bak
+*.bacpac
+*.mdf
+*.ldf
+*.db
+*.sqlite*
+*.log
+*.zip
+*.7z
+*.tar
+*.gz
