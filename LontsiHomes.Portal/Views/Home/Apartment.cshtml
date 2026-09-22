@@ -1,0 +1,132 @@
+@using System.Linq
+@using LontsiHomes.Portal.Helpers
+@model LontsiHomes.Portal.ViewModels.Home.PublicApartmentPageVm
+@{
+    ViewData["Title"] = Model.Apartment.ApartmentName;
+    var gallery = Model.Apartment.ApartmentImages.Any() ? Model.Apartment.ApartmentImages : Model.Apartment.PropertyImages;
+    var statusClass = $"status-{Model.Apartment.Status.ToLowerInvariant()}";
+    var currentPath = Context.Request.Path + Context.Request.QueryString;
+}
+
+<section class="rh-public-apartment-page">
+    <div class="rh-public-breadcrumbs">
+        <a asp-action="Index">Home</a>
+        <span>/</span>
+        <span>@Model.Apartment.PropertyName</span>
+        <span>/</span>
+        <strong>@Model.Apartment.ApartmentName</strong>
+    </div>
+
+    <section class="rh-public-apartment-hero">
+        <div class="rh-public-apartment-mainmedia rh-panel rh-panel-elevated">
+            @if (gallery.Any())
+            {
+                <img src="@gallery[0].Url" alt="@Model.Apartment.ApartmentName" />
+            }
+            else
+            {
+                <img src="https://placehold.co/1200x720/e7efe7/17324c?text=Lontsi+Homes+Apartment" alt="Apartment placeholder" />
+            }
+        </div>
+
+        <div class="rh-public-apartment-summary rh-panel rh-panel-elevated">
+            <span class="rh-public-status @statusClass">@Model.Apartment.Status</span>
+            <h1>@Model.Apartment.ApartmentName</h1>
+            <p class="rh-public-subcopy">@Model.Apartment.PropertyName, @Model.Apartment.City</p>
+            <strong class="rh-public-price">@Model.Apartment.Price.ToString("N0") XAF</strong>
+            <p class="rh-public-card-address">@Model.Apartment.Address</p>
+
+            <div class="rh-public-spec-grid">
+                <div><span>@T["Type"]</span><strong>@T[ApartmentTypeDisplayHelper.ResourceKey(Model.Apartment.Type)]</strong></div>
+                <div><span>Area</span><strong>@Model.Apartment.Area m²</strong></div>
+                <div><span>Rooms</span><strong>@Model.Apartment.NumberOfRooms</strong></div>
+                <div><span>Bathrooms</span><strong>@Model.Apartment.NumberOfBathrooms</strong></div>
+                <div><span>Floor</span><strong>@(Model.Apartment.FloorNumber?.ToString() ?? "-" )</strong></div>
+                <div><span>Deposit</span><strong>@Model.Apartment.DepositPrice.ToString("N0") XAF</strong></div>
+            </div>
+        </div>
+    </section>
+
+    @if (gallery.Count > 1)
+    {
+        <section class="rh-public-gallery-grid">
+            @foreach (var image in gallery.Skip(1))
+            {
+                <div class="rh-public-gallery-card rh-panel rh-panel-elevated">
+                    <img src="@image.Url" alt="@image.Label" />
+                </div>
+            }
+        </section>
+    }
+
+    <section class="rh-public-detail-grid">
+        <article class="rh-panel rh-panel-elevated">
+            <span class="rh-public-kicker">Property Overview</span>
+            <h2>@Model.Apartment.PropertyName</h2>
+            <p>@(string.IsNullOrWhiteSpace(Model.Apartment.PropertyDescription) ? "This property is managed on Lontsi Homes. Use the private conversation space to ask the landlord questions about availability, visits, or move-in details." : Model.Apartment.PropertyDescription)</p>
+        </article>
+
+        <article class="rh-panel rh-panel-elevated" id="contact-chat">
+            <span class="rh-public-kicker">Private Contact</span>
+            <h2>Contact the landlord</h2>
+            <p>The landlord is notified by email when a visitor starts or updates a private apartment conversation.</p>
+
+            @if (!Model.IsAuthenticated)
+            {
+                <div class="rh-public-chat-cta">
+                    <p>Create a verified visitor account or sign in to start a private conversation about this apartment.</p>
+                    <div class="rh-public-hero-actions">
+                        <a class="btn rh-btn-primary" asp-controller="Auth" asp-action="RegisterVisitor" asp-route-returnUrl="@Model.RegisterVisitorReturnUrl">Create Visitor Account</a>
+                        <a class="btn rh-btn-subtle" asp-controller="Auth" asp-action="Login" asp-route-returnUrl="@Model.LoginReturnUrl">Log In</a>
+                    </div>
+                </div>
+            }
+            else if (Model.IsVisitor)
+            {
+                if (Model.Conversation == null)
+                {
+                    <form asp-controller="Conversations" asp-action="Start" method="post" class="rh-public-chat-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="apartmentId" value="@Model.Apartment.ApartmentId" />
+                        <input type="hidden" name="returnUrl" value="@currentPath" />
+                        <label class="form-label rh-auth-label">Your first message</label>
+                        <textarea name="initialMessage" class="form-control rh-auth-input" rows="5" placeholder="Hello, I am interested in this apartment. Is it still available?"></textarea>
+                        <button type="submit" class="btn rh-btn-primary mt-3">Start Private Chat</button>
+                    </form>
+                }
+                else
+                {
+                    <div class="rh-public-chat-thread">
+                        @foreach (var message in Model.Conversation.Messages)
+                        {
+                            <div class="rh-chat-bubble @(message.SentByCurrentUser ? "is-self" : "is-other")">
+                                <strong>@message.SenderName</strong>
+                                <p>@message.Body</p>
+                                <small>@message.SentAt.ToLocalTime().ToString("dd MMM yyyy HH:mm")</small>
+                            </div>
+                        }
+                    </div>
+
+                    <form asp-controller="Conversations" asp-action="SendMessage" method="post" class="rh-public-chat-form mt-3">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="conversationId" value="@Model.Conversation.ConversationId" />
+                        <input type="hidden" name="returnUrl" value="@currentPath" />
+                        <label class="form-label rh-auth-label">Continue the conversation</label>
+                        <textarea name="message" class="form-control rh-auth-input" rows="4" placeholder="Write your message"></textarea>
+                        <button type="submit" class="btn rh-btn-primary mt-3">Send Message</button>
+                    </form>
+                }
+            }
+            else if (Model.IsLandlord)
+            {
+                <p>You are signed in as a landlord. Use your inbox to review and answer private apartment inquiries.</p>
+                <a class="btn rh-btn-primary" asp-controller="Conversations" asp-action="Index">Open Inbox</a>
+            }
+            else
+            {
+                <p>This contact space is reserved for verified visitor accounts and the landlord inbox.</p>
+            }
+        </article>
+    </section>
+</section>
+

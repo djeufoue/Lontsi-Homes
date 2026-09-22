@@ -1,0 +1,398 @@
+@using System
+@using System.Linq
+@model LontsiHomes.Portal.ViewModels.Conversations.ConversationInboxVm
+@{
+    ViewData["Title"] = T["Conversations"].Value;
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+    var residentProperties = Model.Workspace.Properties
+        .Where(property => property.Apartments.Any(apartment => apartment.CanStartConversation))
+        .ToList();
+    var broadcastProperties = Model.Workspace.Properties.Where(property => property.CanBroadcast).ToList();
+    var teamProperties = Model.Workspace.Properties.Where(property => property.CanUsePropertyTeamConversation).ToList();
+    var filterProperties = Model.Workspace.Properties;
+    var selectedFilterPropertyId = Model.SelectedPropertyId ?? (filterProperties.Count == 1 ? filterProperties[0].PropertyId : (int?)null);
+    var filterApartments = selectedFilterPropertyId.HasValue
+        ? filterProperties.FirstOrDefault(property => property.PropertyId == selectedFilterPropertyId.Value)?.Apartments ?? new()
+        : filterProperties.SelectMany(property => property.Apartments).ToList();
+    var showApartmentFilter = selectedFilterPropertyId.HasValue &&
+                              (filterApartments.Count > 1 || Model.SelectedApartmentId.HasValue);
+    var availableComposerCount = (residentProperties.Count > 0 ? 1 : 0) +
+                                 (broadcastProperties.Count > 0 ? 1 : 0) +
+                                 (teamProperties.Count > 0 ? 1 : 0);
+}
+
+<section class="rh-conversation-page"
+         data-conversations-page="true"
+         data-selected-conversation-id="@(Model.SelectedConversationId?.ToString() ?? string.Empty)"
+         data-selected-conversation-kind="@Model.SelectedKind">
+    @if (residentProperties.Count > 0)
+    {
+        <section class="rh-panel rh-conversation-composer" data-rh-composer="resident" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="residentComposerTitle">
+            <div class="rh-section-heading">
+                <div>
+                    <span class="rh-kicker">@T["Private conversation"]</span>
+                    <h2 id="residentComposerTitle">@T["Contact the property team"]</h2>
+                    <p>@T["Choose the apartment concerned. Your message will be visible only to you and the authorized property team."]</p>
+                </div>
+                <button type="button" class="rh-conversation-composer-close" data-rh-close-composer aria-label="@T["Close"]">&times;</button>
+            </div>
+            <form asp-action="Start" method="post" class="rh-conversation-compose-form" data-rh-conversation-mutation="true">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                @if (residentProperties.Count > 1)
+                {
+                    <div>
+                        <label class="form-label rh-auth-label" for="residentProperty">@T["Property"]</label>
+                        <select id="residentProperty" class="form-select rh-auth-input" data-rh-property-target="residentApartment" required>
+                            @foreach (var property in residentProperties)
+                            {
+                                <option value="@property.PropertyId">@property.PropertyName</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="rh-compose-apartment-field">
+                    <label class="form-label rh-auth-label" for="residentApartment">@T["Apartment"]</label>
+                    <select id="residentApartment" name="apartmentId" class="form-select rh-auth-input" required>
+                        @foreach (var property in residentProperties)
+                        {
+                            @foreach (var apartment in property.Apartments.Where(apartment => apartment.CanStartConversation))
+                            {
+                                <option value="@apartment.ApartmentId" data-property-id="@property.PropertyId">@property.PropertyName · @apartment.ApartmentName</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="rh-compose-message-field">
+                    <label class="form-label rh-auth-label" for="initialMessage">@T["Message"]</label>
+                    <textarea id="initialMessage" name="initialMessage" class="form-control rh-auth-input" rows="7" maxlength="1500" placeholder="@T["Write your message"]" required></textarea>
+                </div>
+                <button type="submit" class="btn rh-btn-primary">@T["Send message"]</button>
+            </form>
+        </section>
+    }
+
+    @if (broadcastProperties.Count > 0)
+    {
+        <section class="rh-panel rh-conversation-composer" data-rh-composer="broadcast" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="broadcastComposerTitle">
+            <div class="rh-section-heading">
+                <div>
+                    <span class="rh-kicker">@T["Property announcement"]</span>
+                    <h2 id="broadcastComposerTitle">@T["Send to every current tenant"]</h2>
+                    <p>@T["Each tenant receives the announcement in a private thread. Their replies remain private."]</p>
+                </div>
+                <button type="button" class="rh-conversation-composer-close" data-rh-close-composer aria-label="@T["Close"]">&times;</button>
+            </div>
+            <form asp-action="Broadcast" method="post" class="rh-conversation-compose-form" data-rh-conversation-mutation="true">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                <div>
+                    <label class="form-label rh-auth-label" for="broadcastProperty">@T["Property"]</label>
+                    <select id="broadcastProperty" name="propertyId" class="form-select rh-auth-input" required>
+                        @foreach (var property in broadcastProperties)
+                        {
+                            <option value="@property.PropertyId">@property.PropertyName · @T["{0} active tenant(s)", property.ActiveTenantCount]</option>
+                        }
+                    </select>
+                </div>
+                <div class="rh-compose-message-field">
+                    <label class="form-label rh-auth-label" for="broadcastMessage">@T["Announcement"]</label>
+                    <textarea id="broadcastMessage" name="message" class="form-control rh-auth-input" rows="7" maxlength="1500" placeholder="@T["Write the property announcement"]" required></textarea>
+                </div>
+                <button type="submit" class="btn rh-btn-primary">@T["Send property announcement"]</button>
+            </form>
+        </section>
+    }
+
+    @if (teamProperties.Count > 0)
+    {
+        <section class="rh-panel rh-conversation-composer" data-rh-composer="team" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="teamComposerTitle">
+            <div class="rh-section-heading">
+                <div>
+                    <span class="rh-kicker">@T["Internal property team"]</span>
+                    <h2 id="teamComposerTitle">@T["Message landlords, managers and administrators"]</h2>
+                    <p>@T["This internal conversation is never visible to tenants."]</p>
+                </div>
+                <button type="button" class="rh-conversation-composer-close" data-rh-close-composer aria-label="@T["Close"]">&times;</button>
+            </div>
+            <form asp-action="StartTeamConversation" method="post" class="rh-conversation-compose-form" data-rh-conversation-mutation="true">
+                @Html.AntiForgeryToken()
+                <div>
+                    <label class="form-label rh-auth-label" for="teamProperty">@T["Property"]</label>
+                    <select id="teamProperty" name="propertyId" class="form-select rh-auth-input" required>
+                        @foreach (var property in teamProperties)
+                        {
+                            <option value="@property.PropertyId">@property.PropertyName</option>
+                        }
+                    </select>
+                </div>
+                <div class="rh-compose-message-field">
+                    <label class="form-label rh-auth-label" for="teamInitialMessage">@T["Message"]</label>
+                        <textarea id="teamInitialMessage" name="initialMessage" class="form-control rh-auth-input rh-conversation-message-input" rows="7" maxlength="1500" placeholder="@T["Write your internal message"]" required></textarea>
+                </div>
+                        <button type="submit" class="btn rh-btn-primary rh-conversation-send-button" disabled aria-disabled="true">@T["Send"]</button>
+            </form>
+        </section>
+    }
+
+    <button type="button" class="rh-conversation-composer-backdrop" data-rh-close-composer aria-label="@T["Close message composer"]" tabindex="-1"></button>
+
+    <div class="rh-conversation-layout">
+        <aside id="conversation-inbox" class="rh-conversation-sidebar rh-panel rh-panel-elevated">
+            <div class="rh-conversation-head">
+                <div>
+                    <span class="rh-public-kicker">@T["Inbox"]</span>
+                    <h2>@T["Messages"]</h2>
+                </div>
+                @if (availableComposerCount == 1)
+                {
+                    if (residentProperties.Count > 0)
+                    {
+                        <button type="button" class="btn rh-btn-primary rh-conversation-compose-trigger" data-rh-toggle-composer="resident" aria-expanded="false">
+                            <span class="rh-conversation-compose-plus" aria-hidden="true">+</span>
+                            <span>@T["Write"]</span>
+                        </button>
+                    }
+                    else if (broadcastProperties.Count > 0)
+                    {
+                        <button type="button" class="btn rh-btn-primary rh-conversation-compose-trigger" data-rh-toggle-composer="broadcast" aria-expanded="false">
+                            <span class="rh-conversation-compose-plus" aria-hidden="true">+</span>
+                            <span>@T["Announcement"]</span>
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn rh-btn-primary rh-conversation-compose-trigger" data-rh-toggle-composer="team" aria-expanded="false">
+                            <span class="rh-conversation-compose-plus" aria-hidden="true">+</span>
+                            <span>@T["Internal message"]</span>
+                        </button>
+                    }
+                }
+                else if (availableComposerCount > 1)
+                {
+                    <details class="rh-conversation-compose-menu" data-rh-compose-menu>
+                        <summary class="btn rh-btn-primary rh-conversation-compose-trigger">
+                            <span class="rh-conversation-compose-plus" aria-hidden="true">+</span>
+                            <span>@T["Write"]</span>
+                        </summary>
+                        <div class="rh-conversation-compose-menu-items">
+                            @if (residentProperties.Count > 0)
+                            {
+                                <button type="button" data-rh-toggle-composer="resident" aria-expanded="false">@T["Private message"]</button>
+                            }
+                            @if (broadcastProperties.Count > 0)
+                            {
+                                <button type="button" data-rh-toggle-composer="broadcast" aria-expanded="false">@T["Property announcement"]</button>
+                            }
+                            @if (teamProperties.Count > 0)
+                            {
+                                <button type="button" data-rh-toggle-composer="team" aria-expanded="false">@T["Internal team message"]</button>
+                            }
+                        </div>
+                    </details>
+                }
+            </div>
+
+            @if (filterProperties.Count > 1 || filterApartments.Count > 1 || Model.SelectedPropertyId.HasValue || Model.SelectedApartmentId.HasValue)
+            {
+                <form asp-action="Index" method="get" class="rh-conversation-filters" data-rh-conversation-filters>
+                    <input type="hidden" name="kind" value="apartment" />
+                    @if (filterProperties.Count > 1)
+                    {
+                        <div>
+                            <label class="form-label rh-auth-label" for="conversationPropertyFilter">@T["Property"]</label>
+                            <select id="conversationPropertyFilter" name="propertyId" class="form-select rh-auth-input" data-rh-property-target="conversationApartmentFilter">
+                                <option value="">@T["All properties"]</option>
+                                @foreach (var property in filterProperties)
+                                {
+                                    <option value="@property.PropertyId" selected="@(Model.SelectedPropertyId == property.PropertyId)">@property.PropertyName</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (showApartmentFilter)
+                    {
+                        <div>
+                            <label class="form-label rh-auth-label" for="conversationApartmentFilter">@T["Apartment"]</label>
+                            <select id="conversationApartmentFilter" name="apartmentId" class="form-select rh-auth-input">
+                                <option value="">@T["All apartments"]</option>
+                                @foreach (var property in filterProperties)
+                                {
+                                    @foreach (var apartment in property.Apartments)
+                                    {
+                                        <option value="@apartment.ApartmentId" data-property-id="@property.PropertyId" selected="@(Model.SelectedApartmentId == apartment.ApartmentId)">@property.PropertyName · @apartment.ApartmentName</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="rh-conversation-filter-actions">
+                        <button type="submit" class="btn rh-btn-primary">@T["Filter"]</button>
+                        <a asp-action="Index" class="btn rh-btn-secondary" data-rh-conversation-link="true">@T["Clear"]</a>
+                    </div>
+                </form>
+            }
+
+            <div class="rh-conversation-list-scroll">
+            @if (Model.SubscriptionItems.Count > 0)
+            {
+                <p class="rh-kicker mb-2">@T["Plan requests"]</p>
+                <div class="rh-conversation-list">
+                    @foreach (var item in Model.SubscriptionItems)
+                    {
+                        <a data-rh-conversation-link="true" class="rh-conversation-list-item @(Model.SelectedKind == "subscription" && Model.SelectedConversationId == item.InquiryId ? "is-active" : null)" asp-action="Index" asp-route-kind="subscription" asp-route-conversationId="@item.InquiryId">
+                            <div class="rh-conversation-thumb"><span>@item.PlanName.Substring(0, 1).ToUpperInvariant()</span></div>
+                            <div><strong>@item.PlanName</strong><p>@item.RequesterName</p><small>@item.LastMessagePreview</small></div>
+                            @if (item.HasUnreadMessages) { <span class="rh-conversation-unread" aria-label="@T["Unread"]"></span> }
+                        </a>
+                    }
+                </div>
+            }
+
+            @if (Model.Items.Count > 0)
+            {
+                <div class="rh-conversation-list">
+                    @foreach (var item in Model.Items)
+                    {
+                        <a data-rh-conversation-link="true" class="rh-conversation-list-item @((Model.SelectedKind == "apartment" || Model.SelectedKind == "team") && Model.SelectedConversationId == item.ConversationId ? "is-active" : null) @(item.HasUnreadMessages ? "has-unread" : null)"
+                           asp-action="Index"
+                           asp-route-kind="@(item.IsPropertyTeamConversation ? "team" : "apartment")"
+                           asp-route-conversationId="@item.ConversationId"
+                           asp-route-propertyId="@Model.SelectedPropertyId"
+                           asp-route-apartmentId="@Model.SelectedApartmentId">
+                            <div class="rh-conversation-thumb">
+                                @if (!string.IsNullOrWhiteSpace(item.LeadImageUrl)) { <img src="@item.LeadImageUrl" alt="@item.ApartmentName" /> }
+                                else { <span>@(string.IsNullOrWhiteSpace(item.PropertyName) ? "?" : item.PropertyName.Substring(0, 1).ToUpperInvariant())</span> }
+                            </div>
+                            <div class="rh-conversation-list-copy">
+                                <strong>@item.CounterpartyName</strong>
+                                <p>@item.PropertyName@(item.IsPropertyTeamConversation ? " · " + T["Internal team"].Value : " · " + item.ApartmentName)</p>
+                                <small>@item.LastMessagePreview</small>
+                            </div>
+                            @if (item.UnreadCount > 0)
+                            {
+                                <span class="rh-conversation-unread-count" aria-label="@T["{0} unread message(s)", item.UnreadCount]">@(item.UnreadCount > 99 ? "99+" : item.UnreadCount)</span>
+                            }
+                        </a>
+                    }
+                </div>
+            }
+            else if (Model.SubscriptionItems.Count == 0)
+            {
+                <div class="rh-empty">
+                    <strong>@T["No conversations yet."]</strong>
+                    @if (residentProperties.Count > 0)
+                    {
+                        <p>@T["Send a first private message to your property team."]</p>
+                    }
+                    else if (broadcastProperties.Count > 0)
+                    {
+                        <p>@T["Send a property announcement to start tenant threads."]</p>
+                    }
+                </div>
+            }
+            </div>
+        </aside>
+
+        <section id="conversation-thread" class="rh-conversation-thread rh-panel rh-panel-elevated">
+            @if (Model.SelectedKind == "subscription" && Model.SelectedSubscriptionInquiry != null)
+            {
+                var inquiry = Model.SelectedSubscriptionInquiry;
+                <div class="rh-conversation-thread-head"><div><span class="rh-public-kicker">@T["Plan request"]</span><h2>@inquiry.PlanName</h2><p>@inquiry.RequesterName · @inquiry.RequesterEmail</p></div><div class="rh-conversation-thread-meta"><strong>@T["{0:N2} / month", inquiry.ProposedMonthlyPrice]</strong><small>@T["{0} months · {1:N2} total", inquiry.CommitmentMonths, inquiry.ProposedMonthlyPrice * inquiry.CommitmentMonths]</small><small>@T["{0} properties · {1} apartments · {2} tenants", inquiry.PropertyCount, inquiry.ApartmentCount, inquiry.TenantCount]</small></div></div>
+                <div class="rh-public-chat-thread rh-public-chat-thread-inbox">@foreach (var message in inquiry.Messages) { <div class="rh-chat-bubble @(message.SentByCurrentUser ? "is-self" : "is-other")"><strong>@message.SenderName</strong><p>@message.Body</p><small>@message.SentAt.ToLocalTime().ToString("g")</small></div> }</div>
+                                <form asp-action="SendSubscriptionMessage" method="post" class="rh-public-chat-form rh-conversation-compose-bar" data-rh-conversation-mutation="true">@Html.AntiForgeryToken()<input type="hidden" name="conversationId" value="@inquiry.InquiryId" /><label class="form-label rh-auth-label">@T["Reply"]</label><textarea name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="2" placeholder="@T["Write your reply"]" required></textarea><button type="submit" class="btn rh-btn-primary mt-3 rh-conversation-send-button" disabled aria-disabled="true">@T["Send Reply"]</button></form>
+            }
+            else if (Model.SelectedConversation != null)
+            {
+                var conversation = Model.SelectedConversation;
+                <div class="rh-conversation-thread-head">
+                    <div>
+                        <span class="rh-public-kicker">@(conversation.IsPropertyTeamConversation ? T["Internal property team"] : conversation.IsResidentView ? T["Property team"] : T["Private tenant thread"])</span>
+                        <h2>@conversation.CounterpartyName</h2>
+                        <p>@conversation.PropertyName@(!conversation.IsPropertyTeamConversation ? " · " + conversation.ApartmentName : null)</p>
+                    </div>
+                    <div class="rh-conversation-thread-meta">@if (!conversation.IsPropertyTeamConversation) { <span class="rh-public-status status-@conversation.Status.ToLowerInvariant()">@T[conversation.Status]</span> }<small>@(conversation.IsPropertyTeamConversation ? T["Tenant-invisible internal conversation"] : T["Private conversation"])</small></div>
+                </div>
+                <div class="rh-conversation-privacy-note">
+                    <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-shield"></use></svg>
+                    <span>@(conversation.IsPropertyTeamConversation ? T["Only the landlord, authorized managers and administrators can see this conversation. Tenants never receive it."] : T["Only this tenant and the authorized property team can see this conversation."])</span>
+                </div>
+                <div class="rh-public-chat-thread rh-public-chat-thread-inbox">
+                    @foreach (var message in conversation.Messages)
+                    {
+                        <article class="rh-chat-bubble @(message.SentByCurrentUser ? "is-self" : "is-other") @(message.IsPropertyBroadcast ? "is-announcement" : null)"
+                                 id="conversation-message-@message.MessageId"
+                                 data-rh-message-id="@message.MessageId"
+                                 data-rh-message-sender="@message.SenderName"
+                                 data-rh-message-body="@message.Body">
+                            @if (conversation.CanReply)
+                            {
+                                <button type="button" class="rh-message-reply-button" data-rh-reply-to-message aria-label="@T["Reply to this message"]" title="@T["Reply to this message"]">
+                                    <span aria-hidden="true">↩</span>
+                                </button>
+                            }
+                            @if (message.ReplyToMessageId.HasValue)
+                            {
+                                <button type="button" class="rh-message-quoted" data-rh-scroll-to-message="@message.ReplyToMessageId.Value">
+                                    <strong>@message.ReplyToSenderName</strong>
+                                    <span>@message.ReplyToBody</span>
+                                </button>
+                            }
+                            <div class="rh-message-sender-row">
+                                <strong>@message.SenderName</strong>
+                                <span class="rh-message-context">@T[message.SenderContextLabel]</span>
+                            </div>
+                            <p>@message.Body</p>
+                            <small>
+                                @message.SentAt.ToLocalTime().ToString("g")
+                                @if (message.SentByCurrentUser)
+                                {
+                                    @if (message.ReadBy.Count > 0)
+                                    {
+                                        <span> · @T["Read by"] @string.Join(", ", message.ReadBy.Select(receipt => $"{receipt.UserName} ({T[receipt.RoleLabel].Value})"))</span>
+                                    }
+                                    else
+                                    {
+                                        <span> · @T["Sent"]</span>
+                                    }
+                                }
+                            </small>
+                        </article>
+                    }
+                </div>
+                @if (conversation.CanReply)
+                {
+                    <form asp-action="SendMessage" method="post" class="rh-public-chat-form rh-conversation-compose-bar" data-rh-conversation-mutation="true">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="conversationId" value="@conversation.ConversationId" />
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <input type="hidden" name="replyToMessageId" value="" data-rh-reply-message-id />
+                        <label class="form-label rh-auth-label" for="conversationReply">@T["Your reply"]</label>
+                        <div class="rh-reply-preview" data-rh-reply-preview hidden>
+                            <div>
+                                <small>@T["Replying to"]</small>
+                                <strong data-rh-reply-sender></strong>
+                                <p data-rh-reply-body></p>
+                            </div>
+                            <button type="button" data-rh-cancel-reply aria-label="@T["Cancel reply"]" title="@T["Cancel reply"]">&times;</button>
+                        </div>
+                        <textarea id="conversationReply" name="message" class="form-control rh-auth-input rh-conversation-message-input" rows="2" maxlength="1500" placeholder="@T["Write your reply"]" required></textarea>
+                            <div class="rh-conversation-reply-actions"><small>@T["Replies are sent only inside Lontsi Homes."]</small><button type="submit" class="btn rh-btn-primary rh-conversation-send-button" disabled aria-disabled="true">@T["Send Reply"]</button></div>
+                    </form>
+                }
+                else
+                {
+                    <div class="rh-conversation-readonly">@T["You have read-only access to this conversation."]</div>
+                }
+            }
+            else
+            {
+                <div class="rh-empty rh-conversation-empty-thread">
+                    <svg class="rh-nav-icon" aria-hidden="true"><use href="#rh-icon-inbox"></use></svg>
+                    <strong>@T["Select a conversation to read and reply."]</strong>
+                    <p>@T["Unread conversations are marked with a counter in the inbox."]</p>
+                </div>
+            }
+        </section>
+    </div>
+</section>

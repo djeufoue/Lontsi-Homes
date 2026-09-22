@@ -1,0 +1,875 @@
+@model LontsiHomes.Portal.ViewModels.AdminUsers.AdminUserOverviewVm
+@using Common.Enums
+@using System.Globalization
+@using System.Text.Json
+@{
+    var overview = Model.Overview;
+    var user = overview.User;
+    var whatsapp = overview.WhatsAppActivation;
+    var whatsAppLabel = whatsapp.State switch
+    {
+        "active" => "WhatsApp active",
+        "pending" => "WhatsApp verification pending",
+        "expired" => "WhatsApp code expired",
+        "proposed" => "WhatsApp number to verify",
+        "revoked" => "WhatsApp consent withdrawn",
+        "consent-missing" => "WhatsApp consent missing",
+        _ => "WhatsApp number missing"
+    };
+    var whatsAppHelp = whatsapp.State switch
+    {
+        "active" => "The verified number and consent allow transactional WhatsApp notifications.",
+        "pending" => "The user must enter the code received on WhatsApp in their profile.",
+        "expired" => "The code has expired. The user must request a new code from their profile.",
+        "proposed" => "The user must confirm the proposed number, accept consent and request a verification code from their profile.",
+        "revoked" => "Notifications are disabled. Only the user can renew consent and verify the number from their profile.",
+        "consent-missing" => "The number is verified but notifications are disabled until the user completes the consent flow from their profile.",
+        _ => "The user must provide a WhatsApp number and complete verification from their profile to enable this channel."
+    };
+    var completedSteps = overview.Steps.Count(step => step.IsComplete);
+    var totalSteps = overview.Steps.Count;
+    var progressPercent = totalSteps == 0 ? 0 : (int)Math.Round(completedSteps * 100m / totalSteps);
+    var isAdmin = User.IsInRole("Admin");
+    ViewData["Title"] = T["User overview"].Value;
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">@(isAdmin ? T["Admin Workspace"] : T["Property Member"])</p>
+        <h1 class="rh-heading-title">@T["User overview"]</h1>
+        <p class="rh-heading-subtitle">@(isAdmin ? T["Inspect registration progress, verification status, and administrative details."] : T["Review the profile and contact status for a user assigned to your properties."])</p>
+    </div>
+    @if (isAdmin)
+    {
+        <a asp-action="Index" class="btn rh-btn-subtle">@T["Back to validation monitor"]</a>
+    }
+    else
+    {
+        <a asp-controller="Members" asp-action="Index" class="btn rh-btn-subtle">@T["Back to members"]</a>
+    }
+</section>
+
+<section class="rh-admin-overview-grid mb-3">
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">@T["Identity"]</p>
+        <h2 class="rh-admin-overview-name">@TextOrFallback(user.FullName, T["Unnamed user"].Value)</h2>
+        <p class="rh-card-meta">@TextOrFallback(user.Email, T["No email"].Value)</p>
+        <div class="rh-admin-chip-row mt-3">
+            @foreach (var role in user.Roles)
+            {
+                <span class="rh-chip rh-chip-info">@T[role]</span>
+            }
+            <span class="rh-chip @(user.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
+                @(user.IsOnboardingComplete ? T["Complete"] : OnboardingStepLabel(user.NextOnboardingStep))
+            </span>
+        </div>
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">@T["Registration progress"]</p>
+        <div class="rh-admin-progress-summary">
+            <strong>@completedSteps / @totalSteps</strong>
+            <span>@T["{0}% complete", progressPercent]</span>
+        </div>
+        <div class="rh-admin-progress-bar" aria-label="@T["Registration progress"]">
+            <span style="width: @progressPercent%"></span>
+        </div>
+        <p class="rh-card-meta mt-2">@T["Current step:"] <strong>@(user.IsOnboardingComplete ? T["Complete"] : OnboardingStepLabel(user.NextOnboardingStep))</strong></p>
+        <p class="rh-card-meta">@T[whatsAppLabel]</p>
+    </article>
+
+    <article class="rh-panel rh-panel-elevated">
+        <p class="rh-kicker">@T["Created"]</p>
+        <h2 class="rh-admin-overview-name">@FormatDate(user.CreatedAt)</h2>
+        <p class="rh-card-meta">@T["User id:"] @user.UserId</p>
+    </article>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3" aria-labelledby="whatsapp-activation-title">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="rh-section-title" id="whatsapp-activation-title">@T["WhatsApp activation"]</h2>
+            <p class="rh-card-meta mb-0">@T["Optional for account access. A verified number and consent are required for WhatsApp notifications."]</p>
+        </div>
+        <span class="rh-chip @(whatsapp.State == "active" ? "rh-chip-success" : "rh-chip-warning")">@T[whatsAppLabel]</span>
+    </div>
+    <div class="rh-admin-overview-grid">
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["1. WhatsApp number"]</p>
+            <h3>@TextOrFallback(whatsapp.PhoneNumber, T["Not provided"].Value)</h3>
+            <span class="rh-chip @(whatsapp.HasNumber ? "rh-chip-primary" : "rh-chip-warning")">@(whatsapp.HasNumber ? T["Provided"] : T["To complete"])</span>
+        </article>
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["2. Number verification"]</p>
+            @StatusChip(whatsapp.IsVerified)
+            @if (whatsapp.VerifiedAt.HasValue)
+            {
+                <small>@T["Verified {0}", FormatDate(whatsapp.VerifiedAt.Value)]</small>
+            }
+            @if (whatsapp.CodeExpiresAt.HasValue)
+            {
+                <small>@T["Code expiry: {0}", FormatDate(whatsapp.CodeExpiresAt.Value)]</small>
+            }
+        </article>
+        <article class="rh-admin-detail-card">
+            <p class="rh-kicker">@T["3. Transactional consent"]</p>
+            <span class="rh-chip @(whatsapp.HasConsent ? "rh-chip-success" : "rh-chip-warning")">@(whatsapp.HasConsent ? T["Granted"] : whatsapp.State == "revoked" ? T["Withdrawn"] : T["Not activated"])</span>
+            <small>@T["Consent is activated after successful code verification."]</small>
+        </article>
+    </div>
+    <p class="mt-3 mb-1">@T[whatsAppHelp]</p>
+    <small class="text-muted">@T["The WhatsApp code is confidential and cannot be displayed here. Refresh this page after the user completes an action."]</small>
+</section>
+
+@if (isAdmin && overview.Kyc != null)
+{
+    var documentBackRequired = RequiresDocumentBack(overview.Kyc.DocumentType);
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+            <div>
+                <p class="rh-kicker mb-1">@T["Identity Review"]</p>
+                <h2 class="rh-section-title">@T["KYC documents and face photos"]</h2>
+                <p class="rh-card-meta mb-0">@T["Review the submitted identity files before unlocking subscription payments and property creation."]</p>
+            </div>
+            <span class="rh-chip @KycChipClass(overview.Kyc.Status)">@T[overview.Kyc.Status.ToString()]</span>
+        </div>
+
+        <div class="rh-kyc-review-grid">
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">@T["Document type"]</p>
+                <h3>@(overview.Kyc.DocumentType.HasValue ? T[overview.Kyc.DocumentType.Value.ToString()] : T["Not provided"])</h3>
+                <p>@T["Submitted:"] @(overview.Kyc.SubmittedAt.HasValue ? FormatDate(overview.Kyc.SubmittedAt.Value) : T["Not submitted"])</p>
+            </article>
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">@T["Verification Method"]</p>
+                <h3>@T["Manual Review"]</h3>
+                <p>@T["Admin reviews the uploaded selfies and identity documents."]</p>
+            </article>
+            <article class="rh-admin-detail-card">
+                <p class="rh-kicker">@T["Review"]</p>
+                <h3>@(overview.Kyc.ReviewedAt.HasValue ? T["Reviewed"] : T["Waiting"])</h3>
+                <p>@(overview.Kyc.ReviewedByName ?? T["No reviewer yet"].Value)</p>
+                @if (!string.IsNullOrWhiteSpace(overview.Kyc.ReviewNote))
+                {
+                    <small>@overview.Kyc.ReviewNote</small>
+                }
+                @if (overview.Kyc.Status == LandlordKycStatusEnum.Rejected && overview.Kyc.RejectedFiles.Any)
+                {
+                    <small class="d-block mt-2">
+                        @T["Rejected files:"] @string.Join(", ", RejectedFileLabels(overview.Kyc.RejectedFiles, overview.Kyc.DocumentType))
+                    </small>
+                }
+            </article>
+        </div>
+
+        @if (overview.Kyc.Media.Any())
+        {
+            <div class="rh-kyc-media-grid mt-3">
+                @foreach (var media in overview.Kyc.Media)
+                {
+                    var mediaUrl = Url.Action("KycFile", "AdminUsers", new { userId = user.UserId, key = media.Key });
+                    <article class="rh-kyc-media-card">
+                        <div class="rh-kyc-media-preview">
+                            @if (media.IsImage)
+                            {
+                                <button type="button"
+                                        class="rh-kyc-media-button"
+                                        data-kyc-preview
+                                        data-image-url="@mediaUrl"
+                                        data-image-title="@KycMediaLabel(media.Key, media.Label)">
+                                    <img src="@mediaUrl" alt="@KycMediaLabel(media.Key, media.Label)" />
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="rh-kyc-document-link" href="@mediaUrl" target="_blank" rel="noopener">@T["Open file"]</a>
+                            }
+                        </div>
+                        <h3>@KycMediaLabel(media.Key, media.Label)</h3>
+                        <p>@TextOrFallback(media.OriginalFileName, T["Uploaded file"].Value)</p>
+                    </article>
+                }
+            </div>
+        }
+
+        <div class="rh-kyc-review-actions mt-3">
+            <button type="button"
+                    class="btn rh-btn-primary"
+                    disabled="@(overview.Kyc.Status != LandlordKycStatusEnum.Submitted)"
+                    data-kyc-review-trigger
+                    data-initial-decision="approve"
+                    data-user-id="@user.UserId"
+                    data-user-label="@TextOrFallback(user.FullName, user.Email)"
+                    data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                    data-return-to="overview">
+                @T["Approve KYC"]
+            </button>
+            <button type="button"
+                    class="btn rh-btn-outline-danger"
+                    disabled="@(overview.Kyc.Status != LandlordKycStatusEnum.Submitted)"
+                    data-kyc-review-trigger
+                    data-initial-decision="reject"
+                    data-user-id="@user.UserId"
+                    data-user-label="@TextOrFallback(user.FullName, user.Email)"
+                    data-document-back-required="@documentBackRequired.ToString().ToLowerInvariant()"
+                    data-return-to="overview">
+                @T["Reject KYC"]
+            </button>
+        </div>
+    </section>
+
+    <div class="modal fade" id="kycPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content rh-modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title" data-kyc-preview-title>@T["KYC image"]</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                </div>
+                <div class="modal-body pt-0">
+                    <img class="rh-kyc-preview-large" src="" alt="" data-kyc-preview-image />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else if (isAdmin && user.Roles.Any(role => string.Equals(role, "Landlord", StringComparison.OrdinalIgnoreCase)))
+{
+    <section class="rh-panel rh-panel-elevated mb-3">
+        <p class="rh-kicker mb-1">@T["Identity Review"]</p>
+        <h2 class="rh-section-title">@T["No KYC profile submitted"]</h2>
+        <p class="rh-card-meta mb-0">@T["The landlord has not uploaded identity documents yet."]</p>
+    </section>
+}
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <p class="rh-kicker mb-1">@T["Registration Timeline"]</p>
+            <h2 class="rh-section-title">@T["Step completion"]</h2>
+        </div>
+        <span class="rh-chip rh-chip-primary">@progressPercent%</span>
+    </div>
+
+    <div class="rh-admin-timeline">
+        @foreach (var step in overview.Steps)
+        {
+            <div class="rh-admin-timeline-item @(step.IsComplete ? "is-complete" : string.Empty) @(step.IsCurrent ? "is-current" : string.Empty)">
+                <div class="rh-admin-timeline-node" aria-hidden="true"></div>
+                <div class="rh-admin-timeline-content">
+                    <div class="rh-admin-timeline-header">
+                        <h3>@T[step.Title]</h3>
+                        @StepChip(step)
+                    </div>
+                    <p>@T[step.Description]</p>
+                    @if (!string.IsNullOrWhiteSpace(step.Detail))
+                    {
+                        <small>@LocalizeStepDetail(step.Detail)</small>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@if (isAdmin)
+{
+<section class="rh-panel rh-panel-elevated mb-3" data-otp-section data-otp-refresh-url="@Url.Action("OtpStatus", "AdminUsers", new { userId = user.UserId })">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <p class="rh-kicker mb-1">@T["Testing OTPs"]</p>
+            <h2 class="rh-section-title">@T["Current verification codes"]</h2>
+        </div>
+        <small class="text-muted" data-otp-refresh-state role="status" hidden></small>
+    </div>
+
+    @if (!overview.OtpCodes.Any())
+    {
+        <div class="rh-empty">@T["No OTP records were found for this user."]</div>
+    }
+    else
+    {
+        <div class="rh-otp-grid" data-otp-grid>
+            @foreach (var otp in overview.OtpCodes)
+            {
+                <article class="rh-otp-card @OtpCardClass(otp.Status)"
+                         data-otp-card
+                         data-otp-key="@otp.Key"
+                         data-expires-at="@(otp.ExpiresAt.HasValue ? otp.ExpiresAt.Value.ToUniversalTime().ToString("O") : string.Empty)"
+                         data-status="@otp.Status">
+                    <div class="rh-otp-card-header">
+                        <div>
+                            <h3 data-otp-label>@T[otp.Label]</h3>
+                            <p><span data-otp-channel>@T[otp.Channel]</span> @T["to"] <span data-otp-destination>@TextOrFallback(otp.Destination, T["no destination"].Value)</span></p>
+                        </div>
+                        <span class="rh-chip @OtpChipClass(otp.Status)" data-otp-status>
+                            @T[otp.StatusLabel]
+                        </span>
+                    </div>
+                    <div class="rh-otp-code-row">
+                        <code data-otp-code>@OtpDisplayCode(otp)</code>
+                        <button type="button"
+                                class="rh-copy-btn"
+                                title="@T["Copy OTP"]"
+                                aria-label="@T["Copy {0}", T[otp.Label]]"
+                                data-copy-value="@otp.Code"
+                                disabled="@(!CanCopyOtp(otp))">
+                            <span class="rh-copy-icon" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="rh-otp-meta">
+                        <span data-otp-countdown>@OtpMetaText(otp)</span>
+                        <span class="rh-copy-feedback" aria-live="polite"></span>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+}
+
+<section class="rh-admin-details-grid">
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">@T["Email"]</p>
+        <h3>@TextOrFallback(user.Email, T["No email"].Value)</h3>
+        @StatusChip(user.EmailConfirmed)
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">@T["Primary Phone"]</p>
+        <h3>@TextOrFallback(FormatPhone(user.CountryCode, user.PhoneNumber), T["Not provided"].Value)</h3>
+        @StatusChip(user.PhoneNumberConfirmed)
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">@T["Subscription Payment"]</p>
+        <h3>@TextOrFallback(user.SubscriptionPaymentPhoneNumber, T["Not provided"].Value)</h3>
+        <p>@ChannelLabel(user.SubscriptionPaymentChannel)</p>
+        @StatusChip(user.IsSubscriptionPaymentPhoneVerified)
+        @if (user.SubscriptionPaymentPhoneVerifiedAt.HasValue)
+        {
+            <small>@T["Verified {0}", FormatDate(user.SubscriptionPaymentPhoneVerifiedAt.Value)]</small>
+        }
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">@T["Rent Payout"]</p>
+        <h3>@TextOrFallback(user.PayoutPhoneNumber, T["Not provided"].Value)</h3>
+        <p>@ChannelLabel(user.PayoutChannel)</p>
+        @StatusChip(user.IsPayoutPhoneVerified)
+        @if (user.PayoutPhoneVerifiedAt.HasValue)
+        {
+            <small>@T["Verified {0}", FormatDate(user.PayoutPhoneVerifiedAt.Value)]</small>
+        }
+    </article>
+    <article class="rh-admin-detail-card">
+        <p class="rh-kicker">@T["WhatsApp"]</p>
+        <h3>@TextOrFallback(whatsapp.PhoneNumber, T["Not provided"].Value)</h3>
+        <span class="rh-chip @(whatsapp.State == "active" ? "rh-chip-success" : "rh-chip-warning")">@T[whatsAppLabel]</span>
+        @if (whatsapp.VerifiedAt.HasValue)
+        {
+            <small>@T["Verified {0}", FormatDate(whatsapp.VerifiedAt.Value)]</small>
+        }
+    </article>
+</section>
+
+@functions {
+    private static string TextOrFallback(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private static string? FormatPhone(string? countryCode, string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(countryCode) || phoneNumber.StartsWith("+", StringComparison.Ordinal))
+        {
+            return phoneNumber;
+        }
+
+        return $"{countryCode} {phoneNumber}";
+    }
+
+    private static string FormatDate(DateTimeOffset value)
+    {
+        return value.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+    }
+
+    private string KycMediaLabel(string key, string fallback)
+    {
+        return key switch
+        {
+            "document-front" => T["Document front file"].Value,
+            "document-back" => T["Document back file"].Value,
+            _ => T[fallback].Value
+        };
+    }
+
+    private string OnboardingStepLabel(string? step)
+    {
+        return step switch
+        {
+            "account" => T["Account"].Value,
+            "email" => T["Email"].Value,
+            "country" => T["Country"].Value,
+            "phone" => T["Phone"].Value,
+            "mobile-payments" => T["Mobile payments"].Value,
+            "mobile-payment-verification" => T["Payment number verification"].Value,
+            "kyc" => T["Identity verification"].Value,
+            "contract" => T["Contract"].Value,
+            "complete" => T["Complete"].Value,
+            _ => string.IsNullOrWhiteSpace(step) ? T["Unknown"].Value : step
+        };
+    }
+
+    private string LocalizeStepDetail(string detail)
+    {
+        var localized = T[detail];
+        if (!localized.ResourceNotFound)
+        {
+            return localized.Value;
+        }
+
+        const string kycPrefix = "KYC status: ";
+        const string reviewSuffix = ". Manual admin review required.";
+        if (detail.StartsWith(kycPrefix, StringComparison.Ordinal) && detail.EndsWith(reviewSuffix, StringComparison.Ordinal))
+        {
+            var status = detail[kycPrefix.Length..^reviewSuffix.Length];
+            return T["KYC status: {0}. Manual admin review required.", T[status]].Value;
+        }
+
+        if (detail.StartsWith(kycPrefix, StringComparison.Ordinal) && detail.EndsWith(".", StringComparison.Ordinal))
+        {
+            var status = detail[kycPrefix.Length..^1];
+            return T["KYC status: {0}.", T[status]].Value;
+        }
+
+        const string signedPrefix = "Signed by ";
+        if (detail.StartsWith(signedPrefix, StringComparison.Ordinal))
+        {
+            return T["Signed by {0}", detail[signedPrefix.Length..]].Value;
+        }
+
+        return detail;
+    }
+
+    private string ChannelLabel(PayoutChannelEnum? channel)
+    {
+        return channel switch
+        {
+            PayoutChannelEnum.MtnMoney => "MTN Money",
+            PayoutChannelEnum.OrangeMoney => "Orange Money",
+            _ => T["Not configured"].Value
+        };
+    }
+
+    private static string OtpCardClass(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return OtpCardClass(otp.Status);
+    }
+
+    private static string OtpCardClass(string? status)
+    {
+        return status switch
+        {
+            "active" => "has-code status-active",
+            "used" => "status-used",
+            "expired" => "is-expired status-expired",
+            "not-required" => "status-not-required",
+            _ => "is-empty status-not-generated"
+        };
+    }
+
+    private static string OtpChipClass(string? status)
+    {
+        return status switch
+        {
+            "active" => "rh-chip-success",
+            "used" => "rh-chip-primary",
+            "expired" => "rh-chip-warning",
+            "not-required" => "rh-chip-info",
+            _ => "rh-chip-info"
+        };
+    }
+
+    private static bool CanCopyOtp(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.HasCode && !otp.IsUsed && !otp.IsExpired && otp.Status == "active";
+    }
+
+    private string OtpDisplayCode(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.Status switch
+        {
+            "used" => T["PIN already used"].Value,
+            "not-required" => T["No PIN required"].Value,
+            "not-generated" => T["No active OTP"].Value,
+            _ => otp.HasCode ? otp.Code ?? string.Empty : T["No active OTP"].Value
+        };
+    }
+
+    private string OtpMetaText(Common.CommunicationModels.AdminUserOtpDto otp)
+    {
+        return otp.Status switch
+        {
+            "active" when otp.ExpiresAt.HasValue => T["Expires in {0}", FormatDuration(otp.RemainingSeconds ?? 0)].Value,
+            "used" when otp.UsedAt.HasValue => T["Used {0}", FormatDate(otp.UsedAt.Value)].Value,
+            "used" => T["PIN has already been used"].Value,
+            "expired" => T["Expired without being used"].Value,
+            "not-required" => T["This verification is not required for this user"].Value,
+            _ => otp.ExpiresAt.HasValue ? T["Expires {0}", FormatDate(otp.ExpiresAt.Value)].Value : T["No OTP has been generated yet"].Value
+        };
+    }
+
+    private static string FormatDuration(int seconds)
+    {
+        if (seconds <= 0)
+        {
+            return "00:00";
+        }
+
+        var minutes = seconds / 60;
+        var remainder = seconds % 60;
+        return $"{minutes:00}:{remainder:00}";
+    }
+
+    private Microsoft.AspNetCore.Html.IHtmlContent StatusChip(bool ok)
+    {
+        var label = ok ? T["Verified"].Value : T["Pending"].Value;
+        var css = ok ? "rh-chip-success" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private Microsoft.AspNetCore.Html.IHtmlContent StepChip(Common.CommunicationModels.AdminUserOnboardingStepDto step)
+    {
+        var label = step.IsComplete ? T["Complete"].Value : step.IsCurrent ? T["Current"].Value : T["Pending"].Value;
+        var css = step.IsComplete ? "rh-chip-success" : step.IsCurrent ? "rh-chip-primary" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private static string KycChipClass(LandlordKycStatusEnum status)
+    {
+        return status switch
+        {
+            LandlordKycStatusEnum.Approved => "rh-chip-success",
+            LandlordKycStatusEnum.Rejected => "rh-chip-danger",
+            LandlordKycStatusEnum.Submitted => "rh-chip-warning",
+            _ => "rh-chip-info"
+        };
+    }
+
+    private static bool RequiresDocumentBack(KycDocumentTypeEnum? documentType)
+    {
+        return documentType is KycDocumentTypeEnum.NationalId
+            or KycDocumentTypeEnum.DriverLicense
+            or KycDocumentTypeEnum.ResidencePermit
+            or KycDocumentTypeEnum.Other;
+    }
+
+    private IEnumerable<string> RejectedFileLabels(Common.CommunicationModels.LandlordKycRejectedFilesDto rejectedFiles, KycDocumentTypeEnum? documentType)
+    {
+        if (rejectedFiles.FaceFront) yield return T["front selfie"].Value;
+        if (rejectedFiles.FaceRight) yield return T["right selfie"].Value;
+        if (rejectedFiles.FaceLeft) yield return T["left selfie"].Value;
+        if (rejectedFiles.DocumentFront) yield return T["document front"].Value;
+        if (rejectedFiles.DocumentBack && RequiresDocumentBack(documentType)) yield return T["document back"].Value;
+    }
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const previewModalEl = document.getElementById("kycPreviewModal");
+            const previewImage = previewModalEl?.querySelector("[data-kyc-preview-image]");
+            const previewTitle = previewModalEl?.querySelector("[data-kyc-preview-title]");
+            const previewModal = previewModalEl ? new bootstrap.Modal(previewModalEl) : null;
+
+            document.querySelectorAll("[data-kyc-preview]").forEach(button => {
+                button.addEventListener("click", () => {
+                    if (!previewModal || !previewImage || !previewTitle) return;
+                    previewImage.src = button.dataset.imageUrl || "";
+                    previewImage.alt = button.dataset.imageTitle || @Html.Raw(JsonSerializer.Serialize(T["KYC image"].Value));
+                    previewTitle.textContent = button.dataset.imageTitle || @Html.Raw(JsonSerializer.Serialize(T["KYC image"].Value));
+                    previewModal.show();
+                });
+            });
+
+            previewModalEl?.addEventListener("hidden.bs.modal", () => {
+                if (previewImage) {
+                    previewImage.src = "";
+                }
+            });
+
+        })();
+
+        (() => {
+            const i18n = {
+                active: @Html.Raw(JsonSerializer.Serialize(T["Active"].Value)),
+                used: @Html.Raw(JsonSerializer.Serialize(T["Used"].Value)),
+                expired: @Html.Raw(JsonSerializer.Serialize(T["Expired"].Value)),
+                notRequired: @Html.Raw(JsonSerializer.Serialize(T["Not required"].Value)),
+                notGenerated: @Html.Raw(JsonSerializer.Serialize(T["Not generated"].Value)),
+                pinAlreadyUsed: @Html.Raw(JsonSerializer.Serialize(T["PIN already used"].Value)),
+                noPinRequired: @Html.Raw(JsonSerializer.Serialize(T["No PIN required"].Value)),
+                noActiveOtp: @Html.Raw(JsonSerializer.Serialize(T["No active OTP"].Value)),
+                expiresIn: @Html.Raw(JsonSerializer.Serialize(T["Expires in {0}"].Value)),
+                usedAt: @Html.Raw(JsonSerializer.Serialize(T["Used {0}"].Value)),
+                pinUsed: @Html.Raw(JsonSerializer.Serialize(T["PIN has already been used"].Value)),
+                expiredUnused: @Html.Raw(JsonSerializer.Serialize(T["Expired without being used"].Value)),
+                verificationNotRequired: @Html.Raw(JsonSerializer.Serialize(T["This verification is not required for this user"].Value)),
+                expiresAt: @Html.Raw(JsonSerializer.Serialize(T["Expires {0}"].Value)),
+                noOtpGenerated: @Html.Raw(JsonSerializer.Serialize(T["No OTP has been generated yet"].Value)),
+                noDestination: @Html.Raw(JsonSerializer.Serialize(T["no destination"].Value)),
+                statusRefreshFailed: @Html.Raw(JsonSerializer.Serialize(T["OTP status refresh failed"].Value)),
+                copied: @Html.Raw(JsonSerializer.Serialize(T["Copied"].Value)),
+                copyFailed: @Html.Raw(JsonSerializer.Serialize(T["Copy failed"].Value)),
+                labels: {
+                    "Email verification OTP": @Html.Raw(JsonSerializer.Serialize(T["Email verification OTP"].Value)),
+                    "Primary phone OTP": @Html.Raw(JsonSerializer.Serialize(T["Primary phone OTP"].Value)),
+                    "Subscription payment OTP": @Html.Raw(JsonSerializer.Serialize(T["Subscription payment OTP"].Value)),
+                    "Rent payout OTP": @Html.Raw(JsonSerializer.Serialize(T["Rent payout OTP"].Value)),
+                    "WhatsApp OTP": @Html.Raw(JsonSerializer.Serialize(T["WhatsApp OTP"].Value)),
+                    "Verification OTP": @Html.Raw(JsonSerializer.Serialize(T["Verification OTP"].Value))
+                },
+                channels: {
+                    "Email": @Html.Raw(JsonSerializer.Serialize(T["Email"].Value)),
+                    "WhatsApp": @Html.Raw(JsonSerializer.Serialize(T["WhatsApp"].Value)),
+                    "SMS": @Html.Raw(JsonSerializer.Serialize(T["SMS"].Value))
+                }
+            };
+            const formatText = (template, value) => template.replace("{0}", value);
+            const section = document.querySelector("[data-otp-section]");
+            const refreshUrl = section?.dataset.otpRefreshUrl;
+            const refreshState = section?.querySelector("[data-otp-refresh-state]");
+            const cardClasses = ["has-code", "is-empty", "is-expired", "status-active", "status-used", "status-expired", "status-not-required", "status-not-generated"];
+
+            const statusChipClass = status => {
+                switch (status) {
+                    case "active": return "rh-chip-success";
+                    case "used": return "rh-chip-primary";
+                    case "expired": return "rh-chip-warning";
+                    case "not-required": return "rh-chip-info";
+                    default: return "rh-chip-info";
+                }
+            };
+
+            const cardClass = status => {
+                switch (status) {
+                    case "active": return ["has-code", "status-active"];
+                    case "used": return ["status-used"];
+                    case "expired": return ["is-expired", "status-expired"];
+                    case "not-required": return ["status-not-required"];
+                    default: return ["is-empty", "status-not-generated"];
+                }
+            };
+
+            const formatDuration = seconds => {
+                const safe = Math.max(0, Math.floor(seconds));
+                const minutes = Math.floor(safe / 60).toString().padStart(2, "0");
+                const remainder = (safe % 60).toString().padStart(2, "0");
+                return `${minutes}:${remainder}`;
+            };
+
+            const formatDate = value => {
+                if (!value) return "";
+                return new Intl.DateTimeFormat(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit"
+                }).format(new Date(value));
+            };
+
+            const resolveClientStatus = otp => {
+                if (!otp.isRequired) return "not-required";
+                if (otp.isUsed) return "used";
+                if (otp.expiresAt && new Date(otp.expiresAt).getTime() <= Date.now()) return "expired";
+                if (otp.hasCode) return "active";
+                return "not-generated";
+            };
+
+            const normalizeOtp = raw => ({
+                key: raw.key ?? raw.Key,
+                label: i18n.labels[raw.label ?? raw.Label] ?? raw.label ?? raw.Label,
+                channel: i18n.channels[raw.channel ?? raw.Channel] ?? raw.channel ?? raw.Channel,
+                destination: raw.destination ?? raw.Destination,
+                code: raw.code ?? raw.Code,
+                expiresAt: raw.expiresAt ?? raw.ExpiresAt,
+                usedAt: raw.usedAt ?? raw.UsedAt,
+                hasCode: raw.hasCode ?? raw.HasCode ?? false,
+                isUsed: raw.isUsed ?? raw.IsUsed ?? false,
+                isRequired: raw.isRequired ?? raw.IsRequired ?? true,
+                statusLabel: raw.statusLabel ?? raw.StatusLabel ?? ""
+            });
+
+            const displayCode = otp => {
+                const status = resolveClientStatus(otp);
+                if (status === "used") return i18n.pinAlreadyUsed;
+                if (status === "not-required") return i18n.noPinRequired;
+                if (status === "not-generated") return i18n.noActiveOtp;
+                return otp.hasCode ? otp.code : i18n.noActiveOtp;
+            };
+
+            const metaText = otp => {
+                const status = resolveClientStatus(otp);
+                if (status === "active" && otp.expiresAt) {
+                    const remaining = (new Date(otp.expiresAt).getTime() - Date.now()) / 1000;
+                    return formatText(i18n.expiresIn, formatDuration(remaining));
+                }
+                if (status === "used") {
+                    return otp.usedAt ? formatText(i18n.usedAt, formatDate(otp.usedAt)) : i18n.pinUsed;
+                }
+                if (status === "expired") return i18n.expiredUnused;
+                if (status === "not-required") return i18n.verificationNotRequired;
+                return otp.expiresAt ? formatText(i18n.expiresAt, formatDate(otp.expiresAt)) : i18n.noOtpGenerated;
+            };
+
+            const applyOtp = otp => {
+                const card = section?.querySelector(`[data-otp-card][data-otp-key="${otp.key}"]`);
+                if (!card) return;
+
+                const status = resolveClientStatus(otp);
+                card.dataset.status = status;
+                card.dataset.expiresAt = otp.expiresAt ?? "";
+                cardClasses.forEach(name => card.classList.remove(name));
+                card.classList.add(...cardClass(status));
+
+                const statusEl = card.querySelector("[data-otp-status]");
+                if (statusEl) {
+                    statusEl.className = `rh-chip ${statusChipClass(status)}`;
+                    statusEl.textContent = status === "expired" ? i18n.expired : otp.statusLabel;
+                    if (status === "active") statusEl.textContent = i18n.active;
+                    if (status === "used") statusEl.textContent = i18n.used;
+                    if (status === "not-required") statusEl.textContent = i18n.notRequired;
+                    if (status === "not-generated") statusEl.textContent = i18n.notGenerated;
+                }
+
+                const label = card.querySelector("[data-otp-label]");
+                if (label) label.textContent = otp.label ?? "";
+
+                const channel = card.querySelector("[data-otp-channel]");
+                if (channel) channel.textContent = otp.channel ?? "";
+
+                const destination = card.querySelector("[data-otp-destination]");
+                if (destination) destination.textContent = otp.destination || i18n.noDestination;
+
+                const code = card.querySelector("[data-otp-code]");
+                if (code) code.textContent = displayCode(otp);
+
+                const button = card.querySelector("[data-copy-value]");
+                if (button) {
+                    button.dataset.copyValue = otp.code || "";
+                    button.disabled = status !== "active" || !otp.hasCode;
+                }
+
+                const countdown = card.querySelector("[data-otp-countdown]");
+                if (countdown) countdown.textContent = metaText(otp);
+            };
+
+            const getDomOtp = card => ({
+                key: card.dataset.otpKey,
+                label: card.querySelector("[data-otp-label]")?.textContent ?? "",
+                channel: card.querySelector("[data-otp-channel]")?.textContent ?? "",
+                destination: card.querySelector("[data-otp-destination]")?.textContent ?? "",
+                code: card.querySelector("[data-copy-value]")?.dataset.copyValue || "",
+                expiresAt: card.dataset.expiresAt || null,
+                usedAt: null,
+                hasCode: !!card.querySelector("[data-copy-value]")?.dataset.copyValue,
+                isUsed: card.dataset.status === "used",
+                isRequired: card.dataset.status !== "not-required",
+                statusLabel: card.querySelector("[data-otp-status]")?.textContent?.trim() ?? ""
+            });
+
+            const tickCountdowns = () => {
+                section?.querySelectorAll("[data-otp-card]").forEach(card => applyOtp(getDomOtp(card)));
+            };
+
+            const refreshOtpStatus = async () => {
+                if (!refreshUrl) return;
+
+                try {
+                    const response = await fetch(refreshUrl, {
+                        headers: { "Accept": "application/json" },
+                        cache: "no-store"
+                    });
+
+                    if (!response.ok) throw new Error("OTP refresh failed");
+                    const otps = await response.json();
+                    otps.map(normalizeOtp).forEach(applyOtp);
+                    if (refreshState) {
+                        refreshState.textContent = "";
+                        refreshState.hidden = true;
+                    }
+                } catch {
+                    if (refreshState) {
+                        refreshState.textContent = i18n.statusRefreshFailed;
+                        refreshState.hidden = false;
+                    }
+                }
+            };
+
+            const copyTextToClipboard = async value => {
+                if (!value) return false;
+
+                if (navigator.clipboard?.writeText && window.isSecureContext) {
+                    try {
+                        await navigator.clipboard.writeText(value);
+                        return true;
+                    } catch {
+                        // Fall back below when browser permissions block the Clipboard API.
+                    }
+                }
+
+                const textarea = document.createElement("textarea");
+                textarea.value = value;
+                textarea.setAttribute("readonly", "");
+                textarea.style.position = "fixed";
+                textarea.style.left = "-9999px";
+                textarea.style.top = "0";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+
+                try {
+                    return document.execCommand("copy");
+                } finally {
+                    document.body.removeChild(textarea);
+                }
+            };
+
+            section?.addEventListener("click", async event => {
+                const button = event.target.closest("[data-copy-value]");
+                if (!button || button.disabled) return;
+
+                const value = button.dataset.copyValue?.trim();
+                if (!value) return;
+
+                const card = button.closest(".rh-otp-card");
+                const feedback = card?.querySelector(".rh-copy-feedback");
+
+                try {
+                    const copied = await copyTextToClipboard(value);
+                    if (!copied) throw new Error("Copy failed");
+
+                    button.classList.add("is-copied");
+                    if (feedback) feedback.textContent = i18n.copied;
+                    window.setTimeout(() => {
+                        button.classList.remove("is-copied");
+                        if (feedback) feedback.textContent = "";
+                    }, 1600);
+                } catch {
+                    if (feedback) feedback.textContent = i18n.copyFailed;
+                }
+            });
+
+            tickCountdowns();
+            window.setInterval(tickCountdowns, 1000);
+            window.setInterval(refreshOtpStatus, 5000);
+            window.setTimeout(refreshOtpStatus, 800);
+        })();
+    </script>
+    <partial name="_KycReviewModal" />
+}

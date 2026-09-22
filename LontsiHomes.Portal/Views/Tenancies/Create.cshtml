@@ -1,0 +1,748 @@
+@model LontsiHomes.Portal.ViewModels.Tenancies.TenancyCreateWizardVm
+@using Common.Enums
+@using System.Globalization
+@using Common.Helpers
+@{
+    ViewData["Title"] = T["Create Tenancy"];
+
+    var draft = Model.Draft;
+    var step = Model.Step;
+    var periods = draft.RentPeriods ?? new List<Common.CommunicationModels.RentPeriodSeedDto>();
+    var orderedPeriods = periods.OrderBy(period => period.PeriodStart).ToList();
+    var today = DateTimeOffset.UtcNow.Date;
+    var prepaidEligiblePeriods = orderedPeriods
+        .Where(period => period.DueDate.Date > today)
+        .ToList();
+    var scheduleErrors = periods.Any()
+        ? RentPeriodScheduleHelper.ValidateGeneratedSchedule(periods, draft.StartDate, draft.EndDate, draft.EndBehavior, draft.PaymentIntervalMonths, draft.RentTrackingStartDate)
+        : new List<string> { "Rent schedule has not been generated yet." };
+    var canContinueFromSchedule = !scheduleErrors.Any();
+    var canSubmit = !Model.ValidationErrors.Any()
+        && !Model.HasBlockingOpenEndedTenancy
+        && canContinueFromSchedule
+        && draft.MonthlyRent > 0
+        && draft.MaxMembers >= 1
+        && draft.RentDueDay is >= 1 and <= 31
+        && draft.PaymentIntervalMonths is >= 1 and <= 12
+        && draft.HasSelectedImportMode
+        && draft.ImportMode.HasValue
+        && !string.IsNullOrWhiteSpace(draft.MainTenant.Email);
+    var periodStarts = string.Join("|", orderedPeriods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
+    var periodEnds = string.Join("|", orderedPeriods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
+    var prepaidPeriodStarts = string.Join("|", prepaidEligiblePeriods.Select(period => period.PeriodStart.ToString("yyyy-MM-dd")));
+    var prepaidPeriodEnds = string.Join("|", prepaidEligiblePeriods.Select(period => period.PeriodEnd.ToString("yyyy-MM-dd")));
+    var minPeriodDate = orderedPeriods.Any() ? orderedPeriods.First().PeriodStart.ToString("yyyy-MM-dd") : string.Empty;
+    var maxPeriodDate = orderedPeriods.Any() ? orderedPeriods.Last().PeriodEnd.ToString("yyyy-MM-dd") : string.Empty;
+    var minPrepaidDate = prepaidEligiblePeriods.Any() ? prepaidEligiblePeriods.First().PeriodStart.ToString("yyyy-MM-dd") : string.Empty;
+    var maxPrepaidDate = prepaidEligiblePeriods.Any() ? prepaidEligiblePeriods.Last().PeriodEnd.ToString("yyyy-MM-dd") : string.Empty;
+    var oldestOpenPeriod = orderedPeriods
+        .Where(period => !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+        .OrderBy(period => period.PeriodStart)
+        .FirstOrDefault();
+    var billingGroups = orderedPeriods
+        .GroupBy(period => period.BillingGroupSequence)
+        .OrderBy(group => group.Key)
+        .Select(group => group.OrderBy(period => period.PeriodStart).ToList())
+        .ToList();
+    var totalDueAfterCreation = orderedPeriods
+        .Where(period => period.DueDate.Date <= today && !RentPeriodScheduleHelper.IsPaidStatus(period.Status))
+        .Sum(period => Math.Max(0, period.Amount - period.PaidAmount));
+    var nextPaymentGroup = billingGroups
+        .Where(group => group.Any(period => period.DueDate.Date > today && !RentPeriodScheduleHelper.IsPaidStatus(period.Status)))
+        .OrderBy(group => group[0].DueDate)
+        .FirstOrDefault();
+    var enabledReminderRules = draft.RentReminderRules
+        .Where(rule => rule.IsEnabled && (rule.EmailEnabled || rule.SmsEnabled))
+        .ToList();
+    var firstReminderPossibleAt = enabledReminderRules.Count == 0
+        ? (DateTimeOffset?)null
+        : orderedPeriods
+            .SelectMany(period => enabledReminderRules.Select(rule => rule.Timing switch
+            {
+                RentReminderTimingEnum.BeforeDue => period.DueDate.AddDays(-rule.Days),
+                RentReminderTimingEnum.AfterDue => period.DueDate.AddDays(rule.Days),
+                _ => period.DueDate
+            }))
+            .OrderBy(date => date)
+            .Select(date => (DateTimeOffset?)date)
+            .FirstOrDefault();
+
+    string DateValue(DateTimeOffset? value) => value?.ToString("yyyy-MM-dd") ?? string.Empty;
+    string DateLabel(DateTimeOffset value) => value.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    string LongDateLabel(DateTimeOffset value) => value.Date.ToString("dddd d MMMM yyyy", CultureInfo.CurrentCulture);
+    string FrequencyLabel(int months) => months switch
+    {
+        1 => T["Monthly"],
+        3 => T["Quarterly"],
+        6 => T["Semiannual"],
+        12 => T["Annual"],
+        _ => T["Every {0} months", months]
+    };
+    string StatusClass(RentPeriodStatusEnum status) => status switch
+    {
+        RentPeriodStatusEnum.PaidInAdvance or RentPeriodStatusEnum.Paid => "rh-chip-primary",
+        RentPeriodStatusEnum.PaidBeforeLontsiHomes => "rh-chip-info",
+        RentPeriodStatusEnum.Overdue or RentPeriodStatusEnum.Due => "rh-chip-warning",
+        RentPeriodStatusEnum.Cancelled or RentPeriodStatusEnum.Waived => "rh-chip-info",
+        _ => "rh-chip-info"
+    };
+
+    bool IsStep(int value) => step == value;
+    string StepClass(int value) => value == step ? "active" : value < step ? "done" : string.Empty;
+}
+
+<section class="rh-overview-shell">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@draft.ApartmentId">&#8592; @T["Back to apartment"]</a>
+            <p class="rh-kicker">@T["Guided tenancy setup"]</p>
+            <h1 class="rh-heading-title">@draft.ApartmentName</h1>
+            <p class="rh-heading-subtitle">@draft.PropertyName</p>
+        </div>
+        @if (!Model.HasBlockingOpenEndedTenancy)
+        {
+            <div class="rh-overview-hero-actions">
+                <form asp-action="CancelCreate" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
+                    <button type="submit" class="btn rh-btn-subtle">@T["Cancel setup"]</button>
+                </form>
+            </div>
+        }
+    </section>
+
+    @if (Model.HasBlockingOpenEndedTenancy)
+    {
+        <section class="rh-panel rh-panel-elevated rh-tenancy-block-panel" role="alert" aria-live="assertive">
+            <div class="rh-tenancy-block-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                </svg>
+            </div>
+            <div class="rh-tenancy-block-content">
+                <p class="rh-kicker">@T["Tenancy conflict"]</p>
+                <h2>@T["Another tenancy cannot be added"]</h2>
+                <p>@T["This apartment already has an active tenancy with no end date."]</p>
+                @if (draft.BlockingOpenEndedTenancyStartDate.HasValue)
+                {
+                    <p class="rh-tenancy-block-current">
+                        @T["Active tenancy started on {0}.", LongDateLabel(draft.BlockingOpenEndedTenancyStartDate.Value)]
+                    </p>
+                }
+                <p><strong>@T["To add another tenancy, first use one of these options:"]</strong></p>
+                <ul>
+                    <li>@T["Set an end date for the active tenancy, then start the new tenancy after that date."]</li>
+                    <li>@T["Terminate the active tenancy, then start the new tenancy after the termination date."]</li>
+                    <li>@T["Delete the active tenancy only if it was created by mistake."]</li>
+                    <li>@T["For a historical tenancy, choose dates that end before the active tenancy starts."]</li>
+                </ul>
+                <div class="rh-tenancy-block-actions">
+                    <a class="btn rh-btn-danger" asp-action="Overview" asp-route-id="@draft.BlockingOpenEndedTenancyId">@T["Open active tenancy"]</a>
+                    <a class="btn rh-btn-subtle" asp-controller="Apartments" asp-action="Overview" asp-route-id="@draft.ApartmentId">@T["Back to apartment"]</a>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="rh-tenancy-wizard-steps">
+                <span class="@StepClass(1)">@T["1. Details"]</span>
+                <span class="@StepClass(2)">@T["2. Schedule"]</span>
+                <span class="@StepClass(3)">@T["3. Payment history"]</span>
+                <span class="@StepClass(4)">@T["4. Tenant"]</span>
+                <span class="@StepClass(5)">@T["5. Review"]</span>
+            </div>
+        </section>
+
+    @if (Model.ValidationErrors.Any())
+    {
+        <section class="rh-panel rh-panel-elevated mb-3">
+            <div class="alert alert-warning mb-0">
+                @foreach (var error in Model.ValidationErrors)
+                {
+                    <div>@error</div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (IsStep(1))
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Tenancy details"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Set the contract dates, rent amount, reminder day, and end behavior."]</p>
+                </div>
+            </div>
+
+            <form asp-action="SaveDetails" method="post" enctype="multipart/form-data" class="row g-3" data-details-form>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
+
+                <div class="col-md-6">
+                    <label class="form-label">@T["Start date"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="date" name="StartDate" value="@DateValue(draft.StartDate)" required data-details-start />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">@T["End date"] <span class="text-danger" data-end-date-required hidden aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="date" name="EndDate" value="@DateValue(draft.EndDate)" data-end-date-input data-details-end />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">@T["Monthly rent"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="text" inputmode="decimal" name="MonthlyRent" value="@draft.MonthlyRent.ToString("0.##", CultureInfo.CurrentCulture)" required data-localized-decimal data-details-rent />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">@T["Max members"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="number" name="MaxMembers" min="1" value="@draft.MaxMembers" required data-details-members />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">@T["Rent due day"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="number" name="RentDueDay" min="1" max="31" value="@draft.RentDueDay" required data-details-due-day />
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">@T["Rent payment frequency"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="rh-select-wrap">
+                        <select class="form-select rh-input rh-select" name="PaymentIntervalMonths" required data-details-payment-interval>
+                            @for (var monthCount = 1; monthCount <= 12; monthCount++)
+                            {
+                                var intervalLabel = monthCount switch
+                                {
+                                    1 => T["Monthly"].Value,
+                                    3 => T["Quarterly"].Value,
+                                    6 => T["Semiannual"].Value,
+                                    12 => T["Annual"].Value,
+                                    _ => T["Every {0} months", monthCount].Value
+                                };
+                                <option value="@monthCount" selected="@(draft.PaymentIntervalMonths == monthCount ? "selected" : null)">@intervalLabel</option>
+                            }
+                        </select>
+                    </div>
+                    <small class="text-muted">@T["The payment frequency automatically determines and provisions each complete payment group."]</small>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">@T["After end date behavior"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="rh-guided-option-grid rh-guided-option-grid-two">
+                        <label class="rh-guided-option">
+                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.NoEndDate)" @(draft.EndBehavior is TenancyEndBehaviorEnum.NoEndDate or TenancyEndBehaviorEnum.ContinueMonthToMonth ? "checked" : null) required data-end-behavior />
+                            <span>@T["No end date"]</span>
+                            <small>@T["The tenancy stays active until it is terminated. The rent schedule automatically maintains the next complete payment group."]</small>
+                        </label>
+                        <label class="rh-guided-option">
+                            <input type="radio" name="EndBehavior" value="@((int)TenancyEndBehaviorEnum.ExpireAutomatically)" @(draft.EndBehavior == TenancyEndBehaviorEnum.ExpireAutomatically ? "checked" : null) required data-end-behavior />
+                            <span>@T["Expire automatically"]</span>
+                            <small>@T["No new rent is generated automatically after the end date."]</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">@T["Contract PDF optional"]</label>
+                    <input class="form-control rh-input" type="file" name="ContractDocument" accept=".pdf,application/pdf" />
+                    @if (!string.IsNullOrWhiteSpace(draft.ContractFileName))
+                    {
+                        <small class="text-muted d-block mt-2">@T["Current draft file: {0}", draft.ContractFileName]</small>
+                    }
+                </div>
+
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn rh-btn-primary" data-details-submit disabled>@T["Continue to rent schedule"]</button>
+                </div>
+            </form>
+        </section>
+    }
+
+    @if (IsStep(2))
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Rent schedule"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["The system generated continuous monthly periods from the tenancy details."]</p>
+                </div>
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">@T["Edit details"]</a>
+            </div>
+
+            <div class="table-responsive rh-responsive-table-wrap">
+                <table class="table align-middle rh-responsive-data-table">
+                    <thead>
+                        <tr>
+                            <th>@T["Period"]</th>
+                            <th>@T["Due date"]</th>
+                            <th class="text-end">@T["Amount"]</th>
+                            <th>@T["Status"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var period in periods)
+                        {
+                            <tr>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                    <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                    <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                </td>
+                                <td data-label="@T["Due date"]">
+                                    <strong>@DateLabel(period.DueDate)</strong>
+                                    <small class="d-block text-muted">@LongDateLabel(period.DueDate)</small>
+                                </td>
+                                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)">@T["Pending setup"]</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (scheduleErrors.Any())
+            {
+                <div class="alert alert-warning">
+                    @foreach (var error in scheduleErrors)
+                    {
+                        <div>@error</div>
+                    }
+                </div>
+            }
+
+            <div class="d-flex justify-content-between">
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="1">@T["Back"]</a>
+                @if (canContinueFromSchedule)
+                {
+                    <a class="btn rh-btn-primary" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">@T["Continue to payment history"]</a>
+                }
+                else
+                {
+                    <span class="btn rh-btn-primary disabled" aria-disabled="true">@T["Continue to payment history"]</span>
+                }
+            </div>
+        </section>
+    }
+
+    @if (IsStep(3))
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Payment history import"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Choose the first monthly period that Lontsi Homes must track. Covered periods are not created and will not be regenerated."]</p>
+                </div>
+            </div>
+
+            <form asp-action="SaveImport" method="post" class="row g-3" data-import-form data-period-starts="@periodStarts" data-period-ends="@periodEnds" data-prepaid-starts="@prepaidPeriodStarts" data-prepaid-ends="@prepaidPeriodEnds">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
+
+                <div class="col-12">
+                    <label class="form-label">@T["Payment history treatment"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="rh-guided-option-grid">
+                        <label class="rh-guided-option">
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllGeneratedPeriodsUnpaid ? "checked" : null) required data-import-mode />
+                            <span>@T["Rent is unpaid from the tenancy start"]</span>
+                            <small>@T["Create every monthly period because none of them is covered."]</small>
+                        </label>
+                        <label class="rh-guided-option">
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeLontsiHomes)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeLontsiHomes ? "checked" : null) required data-import-mode />
+                            <span>@T["The tenant is up to date"]</span>
+                            <small>@T["Do not create paid history; begin with the next applicable payment group."]</small>
+                        </label>
+                        <label class="rh-guided-option">
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.SomePeriodsWerePaid ? "checked" : null) required data-import-mode />
+                            <span>@T["The tenant has unpaid rent"]</span>
+                            <small>@T["Choose the first monthly period that is no longer covered. Earlier covered periods will not be created."]</small>
+                        </label>
+                        <label class="rh-guided-option">
+                            <input type="radio" name="ImportMode" value="@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)" @(draft.HasSelectedImportMode && draft.ImportMode == RentPaymentImportModeEnum.TenantPaidInAdvance ? "checked" : null) required data-import-mode />
+                            <span>@T["Tenant paid in advance"]</span>
+                            <small>@T["Choose the first monthly period not covered by the advance. Covered months will not be created as fake payments."]</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-12" data-unpaid-range>
+                    <div class="rh-inline-settings-note">
+                        <strong>@T["First uncovered monthly period"]</strong>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-8">
+                                <label class="form-label">@T["Tracking starts with"]</label>
+                                <select class="form-select rh-input rh-select" name="UnpaidFrom" data-unpaid-from>
+                                    <option value="">@T["Choose a period"]</option>
+                                    @foreach (var item in orderedPeriods)
+                                    {
+                                        <option value="@item.PeriodStart.ToString("yyyy-MM-dd")" selected="@(draft.UnpaidFrom?.Date == item.PeriodStart.Date ? "selected" : null)">
+                                            @DateLabel(item.PeriodStart) - @DateLabel(item.PeriodEnd)
+                                        </option>
+                                    }
+                                </select>
+                                <small class="text-muted">@T["Only boundaries calculated from the real tenancy start date can be selected."]</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="table-responsive rh-responsive-table-wrap">
+                        <table class="table align-middle rh-responsive-data-table">
+                            <thead>
+                                <tr>
+                                    <th>@T["Period"]</th>
+                                    <th>@T["Due date"]</th>
+                                    <th class="text-end">@T["Amount"]</th>
+                                    <th>@T["Status after import"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var period in periods)
+                                {
+                                    <tr>
+                                        <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                            <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                            <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                        </td>
+                                        <td data-label="@T["Due date"]">
+                                            <strong>@DateLabel(period.DueDate)</strong>
+                                            <small class="d-block text-muted">@LongDateLabel(period.DueDate)</small>
+                                        </td>
+                                        <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                        <td data-label="@T["Status after import"]"><span class="rh-chip @StatusClass(period.Status)" title="@(period.Status == RentPeriodStatusEnum.PaidBeforeLontsiHomes ? T["Paid before this tenancy was recorded in Lontsi Homes."].Value : null)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-between">
+                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="2">@T["Back"]</a>
+                    <button type="submit" class="btn rh-btn-primary" data-import-submit disabled>@T["Continue to tenant invitation"]</button>
+                </div>
+            </form>
+        </section>
+    }
+
+    @if (IsStep(4))
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Tenant invitation"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Invite the main tenant and store phone/WhatsApp contact details for reminders."]</p>
+                </div>
+            </div>
+
+            <form asp-action="SaveTenant" method="post" class="row g-3" data-tenant-form>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="ApartmentId" value="@draft.ApartmentId" />
+                <input type="hidden" name="Role" value="@TenancyMemberRoleEnum.MainTenant" />
+
+                <div class="col-md-6">
+                    <label class="form-label">@T["Tenant email"] <span class="text-danger" aria-hidden="true">*</span></label>
+                    <input class="form-control rh-input" type="email" name="Email" value="@draft.MainTenant.Email" required data-tenant-email />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">@T["Full name"]</label>
+                    <input class="form-control rh-input" name="FullName" value="@draft.MainTenant.FullName" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">@T["Country code"]</label>
+                    <input class="form-control rh-input" name="CountryCode" value="@draft.MainTenant.CountryCode" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" placeholder="@T["e.g. +1"]" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">@T["Phone number optional"]</label>
+                    <input class="form-control rh-input" name="PhoneNumber" value="@draft.MainTenant.PhoneNumber" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">@T["WhatsApp number optional"]</label>
+                    <input class="form-control rh-input" name="WhatsAppPhoneNumber" value="@draft.MainTenant.WhatsAppPhoneNumber" inputmode="numeric" pattern="^\s*\+?(?:\s*\d)+\s*$" />
+                </div>
+                <div class="col-12">
+                    <small class="text-muted">@T["This number is only proposed. The tenant must sign in, consent, and verify it before receiving WhatsApp notifications."]</small>
+                </div>
+                <div class="col-12">
+                    <div class="rh-inline-settings-note">
+                        @T["Tenant identity photos, KYC, and landlord payout setup are not required here. The tenant will confirm their email before opening rent payment pages."]
+                    </div>
+                </div>
+                <div class="col-12 d-flex justify-content-between">
+                    <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="3">@T["Back"]</a>
+                    <button type="submit" class="btn rh-btn-primary" data-tenant-submit disabled>@T["Continue to review"]</button>
+                </div>
+            </form>
+        </section>
+    }
+
+    @if (IsStep(5))
+    {
+        <section class="rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">@T["Review and create"]</h2>
+                    <p class="rh-dashboard-panel-copy">@T["Nothing is saved permanently until you create the tenancy."]</p>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["Start"]</span>
+                        <strong class="rh-stat-value">@DateLabel(draft.StartDate)</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["Rent"]</span>
+                        <strong class="rh-stat-value">@draft.MonthlyRent.ToString("N0", CultureInfo.CurrentCulture)</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["Tenant"]</span>
+                        <strong class="rh-stat-value">@draft.MainTenant.Email</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["Payment frequency"]</span>
+                        <strong class="rh-stat-value">@FrequencyLabel(draft.PaymentIntervalMonths)</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["Total due after creation"]</span>
+                        <strong class="rh-stat-value">@totalDueAfterCreation.ToString("N0", CultureInfo.CurrentCulture) XAF</strong>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="rh-stat-box">
+                        <span class="rh-stat-label">@T["First possible reminder"]</span>
+                        <strong class="rh-stat-value">@(firstReminderPossibleAt.HasValue ? DateLabel(firstReminderPossibleAt.Value) : T["No active reminder rule"].Value)</strong>
+                    </div>
+                </div>
+            </div>
+
+            @if (nextPaymentGroup != null)
+            {
+                <div class="rh-inline-settings-note mb-3">
+                    @T["Next expected payment:"]
+                    <strong>@DateLabel(nextPaymentGroup[0].DueDate) · @nextPaymentGroup.Sum(period => Math.Max(0, period.Amount - period.PaidAmount)).ToString("N0", CultureInfo.CurrentCulture) XAF</strong>
+                    (@DateLabel(nextPaymentGroup[0].PeriodStart) - @DateLabel(nextPaymentGroup[^1].PeriodEnd)).
+                </div>
+            }
+
+            <div class="table-responsive rh-responsive-table-wrap mb-4">
+                <table class="table align-middle rh-responsive-data-table">
+                    <thead>
+                        <tr>
+                            <th>@T["Payment group"]</th>
+                            <th>@T["Due date"]</th>
+                            <th class="text-end">@T["Contract total"]</th>
+                            <th>@T["Monthly periods"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in billingGroups)
+                        {
+                            <tr>
+                                <td data-label="@T["Payment group"]"><strong>@DateLabel(group[0].PeriodStart) - @DateLabel(group[^1].PeriodEnd)</strong></td>
+                                <td data-label="@T["Due date"]">@DateLabel(group[0].DueDate)</td>
+                                <td class="text-end" data-label="@T["Contract total"]">@group.Sum(period => period.Amount).ToString("N0", CultureInfo.CurrentCulture) XAF</td>
+                                <td data-label="@T["Monthly periods"]">@group.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (oldestOpenPeriod != null)
+            {
+                <div class="rh-inline-settings-note mb-3">
+                    @T["Oldest payable period after creation:"] <strong>@DateLabel(oldestOpenPeriod.PeriodStart) - @DateLabel(oldestOpenPeriod.PeriodEnd)</strong>.
+                    @T["Tenant payments will always start there first."]
+                </div>
+            }
+
+            <div class="table-responsive rh-responsive-table-wrap mb-4">
+                <table class="table align-middle rh-responsive-data-table">
+                    <thead>
+                        <tr>
+                            <th>@T["Period"]</th>
+                            <th class="text-end">@T["Amount"]</th>
+                            <th>@T["Status"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var period in periods)
+                        {
+                            <tr>
+                                <td class="rh-mobile-card-title" data-label="@T["Period"]">
+                                    <strong>@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</strong>
+                                    <small class="d-block text-muted">@T["From {0} to {1}", LongDateLabel(period.PeriodStart), LongDateLabel(period.PeriodEnd)]</small>
+                                </td>
+                                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0", CultureInfo.CurrentCulture)</td>
+                                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)" title="@(period.Status == RentPeriodStatusEnum.PaidBeforeLontsiHomes ? T["Paid before this tenancy was recorded in Lontsi Homes."].Value : null)">@T[RentPeriodScheduleHelper.StatusLabel(period.Status)]</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <a class="btn rh-btn-subtle" asp-action="Create" asp-route-apartmentId="@draft.ApartmentId" asp-route-step="4">@T["Back"]</a>
+                <form asp-action="CompleteCreate" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="apartmentId" value="@draft.ApartmentId" />
+                    <button type="submit" class="btn rh-btn-primary" @(!canSubmit ? "disabled" : null)>@T["Create tenancy"]</button>
+                </form>
+            </div>
+        </section>
+    }
+    }
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const endDateInput = document.querySelector("[data-end-date-input]");
+            const endDateRequired = document.querySelector("[data-end-date-required]");
+            const endBehaviorInputs = Array.from(document.querySelectorAll("[data-end-behavior]"));
+            const importModeInputs = Array.from(document.querySelectorAll("[data-import-mode]"));
+            const unpaidRange = document.querySelector("[data-unpaid-range]");
+            const detailsForm = document.querySelector("[data-details-form]");
+            const importForm = document.querySelector("[data-import-form]");
+            const tenantForm = document.querySelector("[data-tenant-form]");
+            const expireAutomaticallyValue = "@((int)TenancyEndBehaviorEnum.ExpireAutomatically)";
+            const noEndDateValue = "@((int)TenancyEndBehaviorEnum.NoEndDate)";
+            const detailsStartInput = detailsForm?.querySelector("[data-details-start]");
+            const detailsDueDayInput = detailsForm?.querySelector("[data-details-due-day]");
+            let dueDayWasEdited = false;
+            const somePaidValue = "@((int)RentPaymentImportModeEnum.SomePeriodsWerePaid)";
+            const prepaidValue = "@((int)RentPaymentImportModeEnum.TenantPaidInAdvance)";
+
+            const parseDateValue = (value) => {
+                if (!value) return null;
+                const parsed = new Date(`${value}T00:00:00`);
+                return Number.isNaN(parsed.getTime()) ? null : parsed;
+            };
+
+            const setButtonState = (button, enabled) => {
+                if (!button) return;
+                button.disabled = !enabled;
+                button.setAttribute("aria-disabled", enabled ? "false" : "true");
+            };
+
+            const selectedValue = (inputs) => inputs.find(input => input.checked)?.value ?? "";
+
+            const rangeLooksValid = (fromValue, toValue, starts, ends) => {
+                const from = parseDateValue(fromValue);
+                const to = parseDateValue(toValue);
+                if (!from || !to || from > to) return false;
+                return starts.includes(fromValue) && ends.includes(toValue);
+            };
+
+            const syncEndDate = () => {
+                if (!endDateInput || !endBehaviorInputs.length) return;
+                const selected = selectedValue(endBehaviorInputs);
+                const noEndDate = selected === noEndDateValue;
+                endDateInput.disabled = noEndDate;
+                endDateInput.required = !noEndDate;
+                if (endDateRequired) endDateRequired.hidden = noEndDate;
+                if (noEndDate) endDateInput.value = "";
+                syncDetailsForm();
+            };
+
+            const syncImport = () => {
+                if (!unpaidRange || !importModeInputs.length) return;
+                const selected = selectedValue(importModeInputs);
+                unpaidRange.hidden = selected !== somePaidValue && selected !== prepaidValue;
+                syncImportForm();
+            };
+
+            const syncDetailsForm = () => {
+                if (!detailsForm) return;
+                const startInput = detailsForm.querySelector("[data-details-start]");
+                const endInput = detailsForm.querySelector("[data-details-end]");
+                const rentInput = detailsForm.querySelector("[data-details-rent]");
+                const membersInput = detailsForm.querySelector("[data-details-members]");
+                const dueDayInput = detailsForm.querySelector("[data-details-due-day]");
+                const paymentIntervalInput = detailsForm.querySelector("[data-details-payment-interval]");
+                const submitButton = detailsForm.querySelector("[data-details-submit]");
+                const selectedBehavior = selectedValue(endBehaviorInputs);
+
+                const start = parseDateValue(startInput?.value);
+                const end = parseDateValue(endInput?.value);
+                const rent = window.rhDecimals?.parse(rentInput?.value ?? "") ?? Number.NaN;
+                const members = Number.parseInt(membersInput?.value ?? "", 10);
+                const dueDay = Number.parseInt(dueDayInput?.value ?? "", 10);
+                const paymentInterval = Number.parseInt(paymentIntervalInput?.value ?? "", 10);
+
+                if (startInput && endInput) {
+                    endInput.min = startInput.value || "";
+                }
+
+                const needsEndDate = selectedBehavior === expireAutomaticallyValue;
+                const dateRangeValid = selectedBehavior === noEndDateValue
+                    ? true
+                    : !end || (!!start && end >= start);
+
+                const formValid = !!start
+                    && Number.isFinite(rent) && rent > 0
+                    && Number.isInteger(members) && members >= 1
+                    && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 31
+                    && Number.isInteger(paymentInterval) && paymentInterval >= 1 && paymentInterval <= 12
+                    && !!selectedBehavior
+                    && (!needsEndDate || !!end)
+                    && dateRangeValid
+                    && detailsForm.checkValidity();
+
+                setButtonState(submitButton, formValid);
+            };
+
+            const syncImportForm = () => {
+                if (!importForm) return;
+                const submitButton = importForm.querySelector("[data-import-submit]");
+                const unpaidFrom = importForm.querySelector("[data-unpaid-from]");
+                const starts = (importForm.dataset.periodStarts || "").split("|").filter(Boolean);
+                const ends = (importForm.dataset.periodEnds || "").split("|").filter(Boolean);
+                const selectedMode = selectedValue(importModeInputs);
+
+                let valid = !!selectedMode && starts.length > 0 && ends.length > 0;
+
+                if (selectedMode === somePaidValue || selectedMode === prepaidValue) {
+                    valid = valid && starts.includes(unpaidFrom?.value || "");
+                }
+
+                setButtonState(submitButton, valid && importForm.checkValidity());
+            };
+
+            const syncTenantForm = () => {
+                if (!tenantForm) return;
+                const submitButton = tenantForm.querySelector("[data-tenant-submit]");
+                setButtonState(submitButton, tenantForm.checkValidity());
+            };
+
+            endBehaviorInputs.forEach(input => input.addEventListener("change", syncEndDate));
+            importModeInputs.forEach(input => input.addEventListener("change", syncImport));
+            detailsDueDayInput?.addEventListener("input", () => { dueDayWasEdited = true; });
+            detailsStartInput?.addEventListener("change", () => {
+                if (!dueDayWasEdited && detailsDueDayInput && detailsStartInput.value) {
+                    const day = Number.parseInt(detailsStartInput.value.split("-")[2] || "", 10);
+                    if (Number.isInteger(day)) detailsDueDayInput.value = String(day);
+                }
+            });
+            detailsForm?.addEventListener("input", syncDetailsForm);
+            detailsForm?.addEventListener("change", syncDetailsForm);
+            importForm?.addEventListener("input", syncImportForm);
+            importForm?.addEventListener("change", syncImportForm);
+            tenantForm?.addEventListener("input", syncTenantForm);
+            tenantForm?.addEventListener("change", syncTenantForm);
+            syncEndDate();
+            syncImport();
+            syncDetailsForm();
+            syncImportForm();
+            syncTenantForm();
+        })();
+    </script>
+}

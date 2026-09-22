@@ -1,7 +1,7 @@
-RentHub.API/appsettings.Development.json
-RentHub.Portal/appsettings.Development.json
-RentHub.API/appsettings.Local.json
-RentHub.API/App_Data/
+LontsiHomes.API/appsettings.Development.json
+LontsiHomes.Portal/appsettings.Development.json
+LontsiHomes.API/appsettings.Local.json
+LontsiHomes.API/App_Data/
 .vs/
 build-verify/
 **/bin/

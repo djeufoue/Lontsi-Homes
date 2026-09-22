@@ -1,0 +1,54 @@
+@model LontsiHomes.Portal.ViewModels.Home.PublicSiteInfoVm
+@{
+    ViewData["Title"] = "Contact";
+    var sanitizedWhatsApp = Model.SupportWhatsApp.Replace("+", string.Empty).Replace(" ", string.Empty);
+    var sanitizedPhone = Model.SupportPhone.Replace(" ", string.Empty);
+}
+
+<section class="rh-legal-page">
+    <div class="rh-legal-shell">
+        <div class="rh-legal-hero">
+            <span class="rh-landing-section-kicker">Contact</span>
+            <h1>Get in touch with @Model.SiteName</h1>
+            <p>
+                Use these contact details for onboarding questions, support requests, subscription issues,
+                and platform follow-up.
+            </p>
+        </div>
+
+        <div class="rh-contact-grid">
+            <article class="rh-legal-card">
+                <h2>Support email</h2>
+                <p><a href="mailto:@Model.SupportEmail">@Model.SupportEmail</a></p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Refund support</h2>
+                <p><a href="mailto:@Model.RefundEmail">@Model.RefundEmail</a></p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Phone</h2>
+                <p><a href="tel:@sanitizedPhone">@Model.SupportPhone</a></p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>WhatsApp</h2>
+                <p><a href="https://wa.me/@sanitizedWhatsApp" target="_blank" rel="noopener">@Model.SupportWhatsApp</a></p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Location</h2>
+                <p>@Model.CompanyAddress</p>
+            </article>
+        </div>
+
+        <div class="rh-legal-note">
+            <h2>Business correspondence</h2>
+            <p>
+                For account, billing, refund, and compliance questions, use the official email addresses listed on
+                this page so requests can be reviewed and routed correctly.
+            </p>
+        </div>
+    </div>
+</section>

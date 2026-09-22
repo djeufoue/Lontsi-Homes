@@ -1,0 +1,131 @@
+@model LontsiHomes.Portal.ViewModels.Auth.LandlordContractVm
+@{
+    ViewData["Title"] = "Platform Agreement";
+    Layout = "_AuthLayout";
+    var progress = new LandlordOnboardingProgressVm
+    {
+        CurrentStep = LandlordOnboardingSteps.Contract,
+        CountryCode = Model.Status?.CountryCode ?? "+1",
+        CountryIsoCode = Model.Status?.CountryIsoCode
+    };
+}
+
+<div class="rh-auth-wrap">
+    <div class="rh-auth-shell rh-auth-shell-register">
+        <aside class="rh-auth-hero">
+            <partial name="_LandlordOnboardingKicker" model="progress" />
+            <h1>Accept platform terms.</h1>
+            <p>Sign the landlord agreement before you enter the workspace. Your signature is saved with the terms version shown here.</p>
+            <ul class="rh-auth-points">
+                <li>Property and tenant data must be accurate</li>
+                <li>Subscription payments are required before creating properties</li>
+                <li>Tenant rent payment collection can be enabled later after payout compliance</li>
+            </ul>
+        </aside>
+
+        <section class="rh-auth-card">
+            <partial name="_LandlordOnboardingStepper" model="progress" />
+
+            <div class="rh-auth-card-header">
+                <h2>Landlord agreement</h2>
+                <p>Read and sign to complete the registration process.</p>
+            </div>
+
+            @if (ViewBag.AuthInfo is string authInfo)
+            {
+                <div class="alert alert-info py-2">@authInfo</div>
+            }
+
+            @if (ViewBag.AuthError is string authError)
+            {
+                <div class="alert alert-danger py-2">@authError</div>
+            }
+
+            <div class="rh-contract-box mb-3">
+                <h3>Lontsi Homes landlord terms</h3>
+                <p>
+                    Lontsi Homes provides tools for landlords and property managers to manage properties,
+                    units, tenants, documents, reminders, communication, and subscription-based access.
+                </p>
+                <p>
+                    You agree to provide accurate identity, contact, property, tenant, and mobile payment
+                    information. You must not use the platform for fraudulent listings, misleading records,
+                    unlawful communication, or unauthorized access to another person's data.
+                </p>
+                <div class="rh-contract-more" hidden data-contract-more>
+                    <p>
+                        You remain responsible for the documents and records that you upload, and for making
+                        sure tenants and other participants have the right to be contacted through the platform.
+                    </p>
+                    <p>
+                        Landlord subscription payments are paid to Lontsi Homes. Tenant rent collection and
+                        payouts to landlords may be added later after additional payment, payout, and compliance
+                        configuration.
+                    </p>
+                    <p>
+                        Access to create properties, units, tenancies, and related records may be restricted
+                        when identity review is pending, rejected, incomplete, or when the active subscription
+                        has expired.
+                    </p>
+                </div>
+                <button type="button" class="btn rh-btn-subtle btn-sm" data-contract-toggle>See more</button>
+            </div>
+
+            <form asp-action="LandlordContract" method="post" class="rh-auth-form">
+                @Html.AntiForgeryToken()
+                <input asp-for="Email" type="hidden" />
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+
+                <div class="rh-auth-choice-block">
+                    <div class="form-check">
+                        <input asp-for="Accepted" class="form-check-input" required data-required-when-visible="true" />
+                        <label asp-for="Accepted" class="form-check-label"></label>
+                    </div>
+                    <span asp-validation-for="Accepted" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="SignatureName" class="form-label rh-auth-label"></label>
+                    <input asp-for="SignatureName" class="form-control rh-auth-input" autocomplete="name" placeholder="Type your full legal name" />
+                    <span asp-validation-for="SignatureName" class="text-danger small"></span>
+                </div>
+
+                <button type="submit" class="btn rh-btn-primary w-100">Sign and enter workspace</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const accepted = document.getElementById("@Html.IdFor(model => model.Accepted)");
+            const acceptedValidation = document.querySelector("[data-valmsg-for='@Html.NameFor(model => model.Accepted)']");
+            const toggle = document.querySelector("[data-contract-toggle]");
+            const more = document.querySelector("[data-contract-more]");
+
+            const clearAcceptedValidation = () => {
+                if (!accepted?.checked || !acceptedValidation) {
+                    return;
+                }
+
+                acceptedValidation.textContent = "";
+                acceptedValidation.classList.remove("field-validation-error");
+                acceptedValidation.classList.add("field-validation-valid");
+            };
+
+            accepted?.addEventListener("change", clearAcceptedValidation);
+            clearAcceptedValidation();
+
+            if (toggle && more) {
+                toggle.addEventListener("click", () => {
+                    const isHidden = more.hidden;
+                    more.hidden = !isHidden;
+                    toggle.textContent = isHidden ? "See less" : "See more";
+                });
+            }
+        })();
+    </script>
+}

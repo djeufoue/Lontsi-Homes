@@ -1,0 +1,113 @@
+@model LontsiHomes.Portal.ViewModels.Documents.DocumentPreviewVm
+@{
+    ViewData["Title"] = "Document Preview";
+    var cacheBuster = Model.Document.UploadedAt.ToUnixTimeMilliseconds();
+    var previewUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = false, v = cacheBuster }) ?? string.Empty;
+    var downloadUrl = Url.Action("DocumentContent", "Properties", new { id = Model.Document.Id, download = true, v = cacheBuster }) ?? string.Empty;
+}
+
+<section class="rh-document-preview-shell">
+    <section class="rh-document-preview-hero rh-panel rh-panel-elevated">
+        <div>
+            @if (Model.TenancyId.HasValue)
+            {
+                <a class="rh-overview-backlink" asp-controller="Tenancies" asp-action="Overview" asp-route-id="@Model.TenancyId.Value">&#8592; Back to tenancy overview</a>
+            }
+            else if (Model.ApartmentId.HasValue)
+            {
+                <a class="rh-overview-backlink" asp-controller="Apartments" asp-action="Overview" asp-route-id="@Model.ApartmentId.Value">&#8592; Back to apartment overview</a>
+            }
+            else if (Model.PropertyId.HasValue)
+            {
+                <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Overview" asp-route-id="@Model.PropertyId.Value">&#8592; Back to property overview</a>
+            }
+            else
+            {
+                <a class="rh-overview-backlink" asp-controller="Properties" asp-action="Index">&#8592; Back to properties</a>
+            }
+            <p class="rh-kicker">@Model.SectionLabel</p>
+            <h1 class="rh-heading-title">@Model.Document.FileName</h1>
+            <p class="rh-heading-subtitle">Preview the file inline or download it when needed.</p>
+        </div>
+
+        <div class="rh-document-preview-actions">
+            <a class="btn rh-btn-subtle" href="@downloadUrl">Download</a>
+        </div>
+    </section>
+
+    <section class="rh-document-preview-grid">
+        <article class="rh-document-preview-stage-card rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head align-start">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">Preview</h2>
+                    <p class="rh-dashboard-panel-copy">Open the content directly when the browser supports it.</p>
+                </div>
+            </div>
+
+            <div class="rh-document-preview-stage">
+                @if (Model.IsImage)
+                {
+                    <img src="@previewUrl" alt="@Model.Document.FileName" class="rh-document-preview-image" />
+                }
+                else if (Model.IsPdf)
+                {
+                    <iframe src="@previewUrl#toolbar=1&navpanes=0&scrollbar=1"
+                            class="rh-document-preview-frame"
+                            title="@Model.Document.FileName">
+                    </iframe>
+                }
+                else
+                {
+                    <div class="rh-document-preview-placeholder">
+                        <strong>Preview not available in browser</strong>
+                        <span>Use the download button to open this file in its native application.</span>
+                        <a class="btn rh-btn-primary" href="@downloadUrl">Download file</a>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <aside class="rh-document-preview-meta rh-panel rh-panel-elevated">
+            <div class="rh-overview-panel-head compact">
+                <div>
+                    <h2 class="rh-dashboard-panel-title">Document information</h2>
+                    <p class="rh-dashboard-panel-copy">Original file details and linked workspace.</p>
+                </div>
+            </div>
+
+            <div class="rh-document-meta-list">
+                <div class="rh-document-meta-item">
+                    <span>Original name</span>
+                    <strong>@Model.Document.FileName</strong>
+                </div>
+                <div class="rh-document-meta-item">
+                    <span>Type</span>
+                    <strong>@Model.Document.DocumentType</strong>
+                </div>
+                <div class="rh-document-meta-item">
+                    <span>Uploaded</span>
+                    <strong>@Model.Document.UploadedAt.LocalDateTime.ToString("dd MMM yyyy HH:mm")</strong>
+                </div>
+                <div class="rh-document-meta-item">
+                    <span>Property</span>
+                    <strong>@(string.IsNullOrWhiteSpace(Model.PropertyName) ? "Not linked" : Model.PropertyName)</strong>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Model.ApartmentName))
+                {
+                    <div class="rh-document-meta-item">
+                        <span>Apartment</span>
+                        <strong>@Model.ApartmentName</strong>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.TenancyName))
+                {
+                    <div class="rh-document-meta-item">
+                        <span>Tenancy</span>
+                        <strong>@Model.TenancyName</strong>
+                    </div>
+                }
+            </div>
+        </aside>
+    </section>
+</section>
+

@@ -1,0 +1,53 @@
+@model LontsiHomes.Portal.ViewModels.Tenancies.TenancyOverviewVm
+@using Common.Enums
+@using Common.Helpers
+@using System.Globalization
+@{
+    // Use all periods, never the filtered/paged table. Newer non-manual payments are barriers.
+    var candidates = Model.AllRentPeriods.OrderByDescending(p => p.PeriodStart).ThenByDescending(p => p.Id)
+        .Where(p => RentPeriodScheduleHelper.IsPaidStatus(p.Status) || p.Status == RentPeriodStatusEnum.PendingPayment || p.PaidAmount > 0)
+        .TakeWhile(p => p.IsCorrectableManualPayment).Take(120).ToList();
+    var warning = T["Selected periods will become unpaid again according to their due dates. Their existing receipts will be cancelled, not deleted. Any retained paid periods will receive replacement receipts. Correction emails will be queued for the tenant and landlord. Previously received PDFs cannot be recalled. No money will be refunded or transferred."].Value
+        + " " + T["Rent reminders may resume for the unpaid periods."].Value;
+}
+<details class="rh-panel mb-3" data-payment-correction-panel>
+    <summary class="fw-bold">@T["Correct a recorded manual payment"]</summary>
+    <p class="text-muted mt-3">@T["Select periods from the latest paid period backwards. Each selection unlocks the preceding period. Online payments and historical balances cannot be undone here."]</p>
+    @if (candidates.Count == 0)
+    {
+        <p>@T["No manual payment can currently be corrected in this order. A newer online, pending or historical payment may block the action."]</p>
+    }
+    else
+    {
+        <form method="post" asp-action="CorrectManualRentPayments" data-payment-correction-form
+              data-confirm-modal="true" data-confirm-warning="true"
+              data-confirm-title="@T["Confirm payment correction?"]"
+              data-confirm-warning-message="@T["Warning: you are cancelling recorded payments and their receipts."]"
+              data-confirm-message="@warning" data-correction-warning="@warning"
+              data-confirm-proceed="@T["Yes, correct these payments"]" data-confirm-style="danger">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="TenancyId" value="@Model.Tenancy.Id" />
+            <input type="hidden" name="RequestId" value="@Guid.NewGuid()" />
+            <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
+            <div class="d-flex flex-column gap-2 mb-3" style="max-height:320px;overflow-y:auto;">
+                @for (var i = 0; i < candidates.Count; i++)
+                {
+                    var period = candidates[i];
+                    var label = $"{period.PeriodStart.ToString("dd MMM yyyy", CultureInfo.CurrentCulture)} - {period.PeriodEnd.ToString("dd MMM yyyy", CultureInfo.CurrentCulture)} · {period.PaidAmount.ToString("N0")} XAF · {period.SystemReceiptNumber}";
+                    <label class="d-flex gap-2 align-items-start">
+                        <input type="checkbox" name="RentPeriodIds" value="@period.Id" disabled="@(i > 0)"
+                               data-correction-period data-label="@label" data-amount="@period.PaidAmount.ToString(CultureInfo.InvariantCulture)" />
+                        <span>@label</span>
+                    </label>
+                    <input type="hidden" name="ExpectedPaymentIds[@period.Id]" value="@period.PaymentId" />
+                }
+            </div>
+            <label class="form-label" for="paymentCorrectionReason">@T["Reason for correction"]</label>
+            <textarea id="paymentCorrectionReason" name="Reason" class="form-control" minlength="5" maxlength="1000" required rows="3"></textarea>
+            <p class="small mt-2" data-correction-summary aria-live="polite"
+               data-summary-template="@T["{0} period(s) selected; amount removed: {1} XAF.", "{0}", "{1}"]"></p>
+            <button type="submit" class="btn rh-btn-primary" data-correction-submit disabled>@T["Review payment correction"]</button>
+        </form>
+    }
+</details>
+<script src="~/js/manual-payment-correction.js" asp-append-version="true"></script>

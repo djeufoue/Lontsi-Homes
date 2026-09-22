@@ -7,7 +7,7 @@ namespace Common.Enums
         Overdue = 2,
         PendingPayment = 3,
         Paid = 4,
-        PaidBeforeRentHub = 5,
+        PaidBeforeLontsiHomes = 5,
         PaidInAdvance = 6,
         Waived = 7,
         Cancelled = 8

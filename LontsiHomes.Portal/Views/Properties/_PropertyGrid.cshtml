@@ -1,0 +1,237 @@
+@using System
+@using System.Linq
+@using System.Text.Json
+@model LontsiHomes.Portal.ViewModels.Properties.PropertyIndexVm
+
+<div class="rh-smart-table-card">
+    <div class="rh-smart-table-header">
+        <div class="rh-smart-table-heading">
+            <p class="rh-kicker rh-kicker-ghost mb-1">@T["Property register"]</p>
+            <div class="rh-smart-table-heading-row">               
+                @if (Model.ShowCreateEntryPoint)
+                {
+                    if (Model.CanCreateProperty)
+                    {
+                        <button class="btn rh-btn-primary rh-smart-table-add-btn" type="button" data-bs-toggle="modal" data-bs-target="#createPropertyModal">
+                            Add+
+                        </button>
+                    }
+                    else if (Model.RequiresPayoutSetup)
+                    {
+                        <a class="btn rh-btn-primary rh-smart-table-add-btn" asp-controller="Profile" asp-action="PayoutSetup">
+                            Add+
+                        </a>
+                    }
+                    else if (Model.RequiresSubscriptionCheckout)
+                    {
+                        <button class="btn rh-btn-primary rh-smart-table-add-btn" type="button" data-bs-toggle="modal" data-bs-target="#subscriptionRequiredModal">
+                            Add+
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+        <div class="rh-smart-table-header-right">
+            <div class="rh-smart-table-header-meta">
+                <div>
+                    <strong>@Model.TotalCount</strong>
+                    <span>@T["properties in scope"]</span>
+                </div>
+                <div>
+                    <strong>@Model.Page / @Math.Max(Model.TotalPages, 1)</strong>
+                    <span>@T["current page"]</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="rh-empty rh-empty-dark">
+            @T["No properties found with the selected filters."]
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle mb-0 rh-smart-table rh-responsive-data-table">
+                <thead>
+                    <tr>
+                        <th>@T["Property"]</th>
+                        <th>@T["City"]</th>
+                        <th>@T["Country"]</th>
+                        <th>@T["Units"]</th>
+                        <th>@T["Landlord"]</th>
+                        <th>@T["Access"]</th>
+                        <th>@T["Permission"]</th>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <th>@T["Automatic payments"]</th>
+                        }
+                        <th class="text-end">@T["Action"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var property in Model.Items)
+                    {
+                        var initials = new string((property.Name ?? string.Empty)
+                            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                            .Where(part => !string.IsNullOrWhiteSpace(part))
+                            .Take(2)
+                            .Select(part => char.ToUpperInvariant(part[0]))
+                            .ToArray());
+                        if (string.IsNullOrWhiteSpace(initials))
+                        {
+                            initials = "PR";
+                        }
+
+                        var landlordName = string.IsNullOrWhiteSpace(property.LandlordName) ? T["Not assigned"].Value : property.LandlordName;
+                    <tr>
+                        <td class="rh-mobile-card-title" data-label="@T["Property"]">
+                            <div class="rh-table-property">
+                                <div class="rh-table-avatar">@initials</div>
+                                <div class="rh-table-property-copy">
+                                    <a class="rh-table-property-link" asp-controller="Properties" asp-action="Overview" asp-route-id="@property.Id">@property.Name</a>
+                                    <span class="rh-table-secondary">@property.Address</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="@T["City"]">
+                            <span class="rh-table-city">@property.City</span>
+                        </td>
+                        <td data-label="@T["Country"]">
+                            <span class="rh-chip rh-chip-info">@(string.IsNullOrWhiteSpace(property.CountryIsoCode) ? T["Not set"].Value : property.CountryIsoCode)</span>
+                        </td>
+                        <td data-label="@T["Units"]">
+                            <div class="rh-row-metric">
+                                <strong>@property.ApartmentCount</strong>
+                                <span>@T["registered units"]</span>
+                            </div>
+                        </td>
+                        <td data-label="@T["Landlord"]">
+                            <div class="rh-row-landlord">
+                                <strong>@landlordName</strong>
+                                <span>@T["portfolio owner"]</span>
+                            </div>
+                        </td>
+                        <td data-label="@T["Access"]">
+                            <span class="rh-chip @(string.Equals(property.AccessSource, "Owned", StringComparison.OrdinalIgnoreCase) || string.Equals(property.AccessSource, "Owner", StringComparison.OrdinalIgnoreCase) ? "rh-chip-primary" : "rh-chip-info")">@T[property.AccessSource]</span>
+                        </td>
+                        <td data-label="@T["Permission"]">
+                            @if (property.CanWrite)
+                            {
+                                <span class="rh-chip rh-chip-primary">@T["Write Access"]</span>
+                            }
+                            else
+                            {
+                                <span class="rh-chip rh-chip-warning">@T["Read Access"]</span>
+                            }
+                        </td>
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <td data-label="@T["Automatic payments"]">
+                                <button type="button"
+                                        class="btn btn-sm @(property.AutomaticPaymentsEnabled ? "rh-btn-primary" : "rh-btn-subtle")"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#propertyPaymentToggleModal"
+                                        data-property-payment-id="@property.Id"
+                                        data-property-payment-name="@property.Name"
+                                        data-property-payment-enabled="@property.AutomaticPaymentsEnabled.ToString().ToLowerInvariant()"
+                                        disabled="@(!Model.PlatformAutomaticPaymentsEnabled && !property.AutomaticPaymentsEnabled ? "disabled" : null)">
+                                    @(property.AutomaticPaymentsEnabled ? T["Enabled"].Value : T["Disabled"].Value)
+                                </button>
+                            </td>
+                        }
+                        <td class="text-end" data-label="@T["Action"]">
+                            <a class="btn btn-sm rh-table-action" asp-controller="Properties" asp-action="Overview" asp-route-id="@property.Id">
+                                @T["Open"]
+                            </a>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="rh-table-footer" aria-label="@T["Property pages"]">
+        <a class="btn btn-sm rh-btn-subtle @(Model.Page <= 1 ? "disabled" : "")" asp-action="Index" asp-route-search="@Model.Search" asp-route-city="@Model.City" asp-route-access="@Model.Access" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize">@T["Previous"]</a>
+        <div class="rh-table-page-size"><label class="form-label mb-0" for="propertyPageSize">@T["Rows"]</label><select id="propertyPageSize" class="form-select rh-input rh-select" data-auto-page-size><option value="6" selected="@(Model.PageSize == 6 ? "selected" : null)">6</option><option value="12" selected="@(Model.PageSize == 12 ? "selected" : null)">12</option><option value="24" selected="@(Model.PageSize == 24 ? "selected" : null)">24</option></select><small class="text-muted">@T["Page {0} of {1}", Model.Page, Model.TotalPages]</small></div>
+        <a class="btn btn-sm rh-btn-subtle rh-table-footer-next @(Model.Page >= Model.TotalPages ? "disabled" : "")" asp-action="Index" asp-route-search="@Model.Search" asp-route-city="@Model.City" asp-route-access="@Model.Access" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize">@T["Next"]</a>
+    </div>
+</div>
+
+@if (Model.RequiresSubscriptionCheckout)
+{
+    <div class="modal fade" id="subscriptionRequiredModal" tabindex="-1" aria-labelledby="subscriptionRequiredModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered rh-confirm-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <p class="rh-kicker mb-1">@T["Subscription required"]</p>
+                        <h2 class="modal-title" id="subscriptionRequiredModalLabel">@T["Pay your subscription to continue"]</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@T["Your subscription must be paid and approved before you can add a property, unit, tenancy, member, user, image, document, or other new item."]</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Not now"]</button>
+                    <a class="btn rh-btn-primary" asp-controller="Profile" asp-action="Payments">@T["Open Payment Center"]</a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (User.IsInRole("Admin"))
+{
+    <div class="modal fade" id="propertyPaymentToggleModal" tabindex="-1" aria-labelledby="propertyPaymentToggleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered rh-confirm-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <p class="rh-kicker mb-1">@T["Admin payment control"]</p>
+                        <h2 class="modal-title" id="propertyPaymentToggleModalLabel">@T["Change automatic payment mode?"]</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0" data-property-payment-confirmation></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn rh-btn-subtle" data-bs-dismiss="modal">@T["Cancel"]</button>
+                    <form asp-controller="Properties" asp-action="UpdateAutomaticPayments" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="propertyId" data-property-payment-form-id />
+                        <input type="hidden" name="enabled" data-property-payment-form-enabled />
+                        <button type="submit" class="btn rh-btn-primary" data-property-payment-submit>@T["Confirm"]</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const paymentToggleTranslations = {
+            thisProperty: @Html.Raw(JsonSerializer.Serialize(T["this property"].Value)),
+            enable: @Html.Raw(JsonSerializer.Serialize(T["Enable card, Orange Money and MTN automatic payment flows for {0}?"].Value)),
+            disable: @Html.Raw(JsonSerializer.Serialize(T["Disable all automatic payment flows for {0}? Tenants will see manual payment instructions instead."].Value)),
+            enableButton: @Html.Raw(JsonSerializer.Serialize(T["Enable payments"].Value)),
+            disableButton: @Html.Raw(JsonSerializer.Serialize(T["Disable payments"].Value))
+        };
+        document.getElementById("propertyPaymentToggleModal")?.addEventListener("show.bs.modal", event => {
+            const button = event.relatedTarget;
+            const enabled = button?.dataset.propertyPaymentEnabled === "true";
+            const name = button?.dataset.propertyPaymentName || paymentToggleTranslations.thisProperty;
+            const nextEnabled = !enabled;
+            document.querySelector("[data-property-payment-form-id]").value = button?.dataset.propertyPaymentId || "";
+            document.querySelector("[data-property-payment-form-enabled]").value = nextEnabled ? "true" : "false";
+            document.querySelector("[data-property-payment-confirmation]").textContent = nextEnabled
+                ? paymentToggleTranslations.enable.replace("{0}", name)
+                : paymentToggleTranslations.disable.replace("{0}", name);
+            document.querySelector("[data-property-payment-submit]").textContent = nextEnabled ? paymentToggleTranslations.enableButton : paymentToggleTranslations.disableButton;
+        });
+    </script>
+}

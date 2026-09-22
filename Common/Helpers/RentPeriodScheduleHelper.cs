@@ -169,11 +169,11 @@ namespace Common.Helpers
                 period.PaidDate = null;
             }
 
-            if (importMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeRentHub)
+            if (importMode == RentPaymentImportModeEnum.AllPastPeriodsPaidBeforeLontsiHomes)
             {
                 foreach (var period in periods.Where(period => period.PeriodEnd.Date < nowUtc.Date))
                 {
-                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, null);
+                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeLontsiHomes, null);
                 }
             }
             else if (importMode == RentPaymentImportModeEnum.SomePeriodsWerePaid)
@@ -185,7 +185,7 @@ namespace Common.Helpers
 
                 foreach (var period in periods.Where(period => period.PeriodEnd.Date < unpaidFrom.Value.Date))
                 {
-                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeRentHub, null);
+                    MarkPaid(period, RentPeriodStatusEnum.PaidBeforeLontsiHomes, null);
                 }
 
                 foreach (var period in periods.Where(period =>
@@ -370,7 +370,7 @@ namespace Common.Helpers
         public static bool IsPaidStatus(RentPeriodStatusEnum status)
         {
             return status is RentPeriodStatusEnum.Paid
-                or RentPeriodStatusEnum.PaidBeforeRentHub
+                or RentPeriodStatusEnum.PaidBeforeLontsiHomes
                 or RentPeriodStatusEnum.PaidInAdvance
                 or RentPeriodStatusEnum.Waived
                 or RentPeriodStatusEnum.Cancelled;
@@ -385,7 +385,7 @@ namespace Common.Helpers
                 RentPeriodStatusEnum.Overdue => "Overdue",
                 RentPeriodStatusEnum.PendingPayment => "Pending payment",
                 RentPeriodStatusEnum.Paid => "Paid",
-                RentPeriodStatusEnum.PaidBeforeRentHub => "Historical payment",
+                RentPeriodStatusEnum.PaidBeforeLontsiHomes => "Historical payment",
                 RentPeriodStatusEnum.PaidInAdvance => "Paid in advance",
                 RentPeriodStatusEnum.Waived => "Waived",
                 RentPeriodStatusEnum.Cancelled => "Cancelled",

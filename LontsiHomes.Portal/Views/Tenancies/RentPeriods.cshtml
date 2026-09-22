@@ -1,0 +1,24 @@
+@model LontsiHomes.Portal.ViewModels.Tenancies.TenancyOverviewVm
+@{
+    ViewData["Title"] = T["Rent periods"].Value;
+    var tenancy = Model.Tenancy;
+}
+
+<section class="rh-overview-shell rh-tenancy-shell">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            <a class="rh-overview-backlink" asp-action="Overview" asp-route-id="@tenancy.Id">&#8592; @T["Back to tenancy overview"]</a>
+            <p class="rh-kicker">@T["Rent Ledger"]</p>
+            <h1 class="rh-heading-title">@T["Rent periods"]</h1>
+            <p class="rh-heading-subtitle">@tenancy.PropertyName - @tenancy.ApartmentName</p>
+            <div class="rh-overview-badges">
+                <span class="rh-chip rh-chip-info">@T["{0} matching period(s)", Model.TotalRentPeriods]</span>
+                <span class="rh-chip @(tenancy.CanMarkRentPaid || tenancy.CanCancelPendingPayment ? "rh-chip-primary" : "rh-chip-info")">@(tenancy.CanMarkRentPaid || tenancy.CanCancelPendingPayment ? T["Payment management"] : T["Read Access"])</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="rh-panel rh-panel-elevated">
+        <partial name="_RentPeriodsTable" model="Model" />
+    </section>
+</section>

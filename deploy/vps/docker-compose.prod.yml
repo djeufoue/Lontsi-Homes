@@ -1,7 +1,7 @@
 services:
   caddy:
     image: caddy:2.10-alpine
-    container_name: renthub-caddy
+    container_name: lontsihomes-caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -18,13 +18,13 @@ services:
       api:
         condition: service_healthy
     networks:
-      - renthub
+      - lontsihomes
 
   portal:
     build:
       context: ../..
-      dockerfile: RentHub.Portal/Dockerfile
-    container_name: renthub-portal
+      dockerfile: LontsiHomes.Portal/Dockerfile
+    container_name: lontsihomes-portal
     restart: unless-stopped
     env_file:
       - .env.production
@@ -49,13 +49,13 @@ services:
     expose:
       - "8080"
     networks:
-      - renthub
+      - lontsihomes
 
   api:
     build:
       context: ../..
-      dockerfile: RentHub.API/Dockerfile
-    container_name: renthub-api
+      dockerfile: LontsiHomes.API/Dockerfile
+    container_name: lontsihomes-api
     restart: unless-stopped
     env_file:
       - .env.production
@@ -130,11 +130,11 @@ services:
     expose:
       - "8080"
     networks:
-      - renthub
+      - lontsihomes
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: renthub-sqlserver
+    container_name: lontsihomes-sqlserver
     restart: unless-stopped
     environment:
       ACCEPT_EULA: "Y"
@@ -155,10 +155,10 @@ services:
     ports:
       - "127.0.0.1:1433:1433"
     networks:
-      - renthub
+      - lontsihomes
 
 networks:
-  renthub:
+  lontsihomes:
     driver: bridge
 
 volumes:

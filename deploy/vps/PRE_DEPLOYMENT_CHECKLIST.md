@@ -18,7 +18,7 @@ These pages are important because they make the website look complete and help w
 
 Before going live, supply these values through `PUBLIC_SITE_*` variables in the
 ignored `deploy/vps/.env.production` file. For local development, use an ignored
-`RentHub.Portal/appsettings.Development.json` file with this section:
+`LontsiHomes.Portal/appsettings.Development.json` file with this section:
 
 ```json
 "PublicSite": {

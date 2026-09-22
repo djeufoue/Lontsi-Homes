@@ -1,0 +1,99 @@
+@model LontsiHomes.Portal.ViewModels.Profile.ProfileIndexVm
+@using Common.Enums
+@using System.Globalization
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    var overview = Model.Overview;
+    var now = Model.NowUtc;
+    var usdToXafRate = Configuration.GetValue<decimal?>("Subscriptions:UsdToXafRate") ?? 565m;
+    if (usdToXafRate <= 0)
+    {
+        usdToXafRate = 565m;
+    }
+    string NormalizeCountryCode(string? countryCode)
+    {
+        var digits = new string((countryCode ?? string.Empty).Where(char.IsDigit).ToArray());
+        return string.IsNullOrWhiteSpace(digits) ? string.Empty : $"+{digits}";
+    }
+    string FormatUsd(decimal xaf) => (xaf / usdToXafRate).ToString("C", CultureInfo.CurrentCulture);
+    string FormatXaf(decimal xaf) => xaf.ToString("N0", CultureInfo.CurrentCulture);
+    var isCameroonLandlord = string.Equals(NormalizeCountryCode(overview.CountryCode), "+237", StringComparison.Ordinal);
+    var hasCurrentPlan = overview.HasActiveSubscription && overview.SubscriptionEndDate.HasValue && overview.SubscriptionEndDate.Value > now;
+    var hasPendingSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus == PaymentStatusEnum.Pending &&
+        overview.PendingPaymentMethod != PaymentMethodEnum.Card;
+    var hasFailedSubscriptionPayment = overview.PendingSubscriptionId.HasValue &&
+        overview.PendingPaymentStatus is PaymentStatusEnum.Failed or PaymentStatusEnum.Error or PaymentStatusEnum.Unknown;
+    var refreshUrl = hasPendingSubscriptionPayment && !string.IsNullOrWhiteSpace(overview.PendingPaymentReference)
+        ? Url.Action("SubscriptionDetails", "Profile", new { reference = overview.PendingPaymentReference })
+        : string.Empty;
+}
+
+<div id="subscription-details-panel"
+     data-subscription-details
+     data-pending-payment="@(hasPendingSubscriptionPayment ? "true" : "false")"
+     data-refresh-url="@refreshUrl">
+    <h2 class="rh-section-title mb-2">@T["Subscription Details"]</h2>
+    @if (hasCurrentPlan)
+    {
+        <div class="rh-profile-plan-banner">
+            <div>
+                <p class="mb-1">@T["Current Plan"]</p>
+                <h3 class="mb-0">@overview.CurrentPlanName</h3>
+            </div>
+            <div class="text-end">
+                <p class="mb-1">@T["Price"]</p>
+                <h3 class="mb-0">@FormatUsd(overview.CurrentPlanPrice ?? 0m)</h3>
+                @if (isCameroonLandlord)
+                {
+                    <small class="text-muted">@T["Approx. {0} XAF", FormatXaf(overview.CurrentPlanPrice ?? 0m)]</small>
+                }
+            </div>
+        </div>
+        <div class="mt-2 text-muted small">
+            @T["Started: {0} | Ends: {1}", overview.SubscriptionStartDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not available"].Value, overview.SubscriptionEndDate?.LocalDateTime.ToString("d", CultureInfo.CurrentCulture) ?? T["Not available"].Value]
+        </div>
+        <div class="mt-1 text-muted small">
+            @if (overview.SubscriptionApproved)
+            {
+                <span>@T["Plan is approved and active."]</span>
+            }
+            else
+            {
+                <span>@T["Plan exists but restricted actions stay blocked until the payment is confirmed."]</span>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="rh-empty">@T["No active subscription. Choose a plan below to subscribe."]</div>
+    }
+
+    @if (!overview.CanStartSubscriptionCheckout && !string.IsNullOrWhiteSpace(overview.SubscriptionBlockedReason))
+    {
+        <div class="alert alert-warning mt-3 mb-0">
+            @T[overview.SubscriptionBlockedReason]
+        </div>
+    }
+
+    @if (hasPendingSubscriptionPayment)
+    {
+        <div class="alert alert-warning mt-3 mb-0" role="status" aria-live="polite">
+            <span>@T["{0} pending for {1}.", overview.PendingPaymentMethod == PaymentMethodEnum.Card ? T["Card checkout"].Value : T["Payment"].Value, overview.PendingPlanName]</span>
+            @if (overview.PendingPaymentMethod == PaymentMethodEnum.Cash)
+            {
+                <div class="small mt-2">@T["This request is waiting for administrator review. You may choose another plan below until it is approved."]</div>
+            }
+            else
+            {
+                <div class="small mt-2">@T["We are checking automatically. This section will update when the payment is confirmed."]</div>
+            }
+        </div>
+    }
+    else if (hasFailedSubscriptionPayment)
+    {
+        <div class="alert alert-danger mt-3 mb-0" role="status" aria-live="polite">
+            @T["Payment for {0} was not completed. You can try again below.", overview.PendingPlanName]
+        </div>
+    }
+</div>

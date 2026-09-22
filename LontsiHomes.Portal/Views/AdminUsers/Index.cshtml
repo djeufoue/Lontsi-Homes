@@ -1,0 +1,211 @@
+@model LontsiHomes.Portal.ViewModels.AdminUsers.AdminUsersIndexVm
+@using Common.Enums
+@{
+    ViewData["Title"] = "User Validation";
+}
+
+<section class="rh-page-header rh-page-header-elevated">
+    <div>
+        <p class="rh-kicker">Admin Workspace</p>
+        <h1 class="rh-heading-title">User Validation Monitor</h1>
+        <p class="rh-heading-subtitle">Search non-landlord users, inspect onboarding status, and restart validation during testing without touching the database manually.</p>
+    </div>
+    <div class="rh-toolbar">
+        <a asp-action="Landlords" class="btn rh-btn-subtle">Landlord Validation</a>
+        <a asp-action="LandlordApprovals" class="btn rh-btn-primary">KYC Approval Queue</a>
+    </div>
+</section>
+
+<section class="rh-panel rh-panel-elevated mb-3">
+    <form method="get" class="rh-table-filter-grid rh-auto-search-form rh-collapsible-filter">
+        <div class="col-md-9">
+            <label class="form-label rh-auth-label" for="search">Search</label>
+            <input id="search" name="search" class="form-control rh-input js-auto-submit" value="@Model.Search" placeholder="Email, name, or phone number" />
+        </div>
+        <div class="col-md-3 rh-filter-action-group">
+            <button type="submit" class="btn rh-btn-primary flex-grow-1">Apply Filter</button>
+        </div>
+    </form>
+</section>
+
+<section class="rh-panel rh-panel-elevated">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="rh-section-title mb-0">Non-landlord users</h2>
+        <small class="text-muted">Showing up to 100 records</small>
+    </div>
+
+    @if (!Model.Users.Any())
+    {
+        <div class="rh-empty">No users match this filter.</div>
+    }
+    else
+    {
+        <div class="table-responsive rh-responsive-table-wrap">
+            <table class="table align-middle rh-table rh-responsive-data-table mb-0">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Roles</th>
+                        <th>Status</th>
+                        <th>KYC</th>
+                        <th>Contract</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Subscription Payment</th>
+                        <th>Rent Payout</th>
+                        <th>WhatsApp</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.Users)
+                    {
+                        var isAdmin = user.Roles.Any(r => string.Equals(r, "Admin", StringComparison.OrdinalIgnoreCase));
+                        <tr>
+                            <td class="rh-mobile-card-title" data-label="User">
+                                <div class="fw-semibold">@(string.IsNullOrWhiteSpace(user.FullName) ? "N/A" : user.FullName)</div>
+                                <small class="text-muted">@user.Email</small>
+                            </td>
+                            <td data-label="Roles">
+                                @foreach (var role in user.Roles)
+                                {
+                                    <span class="rh-chip rh-chip-info me-1">@role</span>
+                                }
+                            </td>
+                            <td data-label="Status">
+                                <span class="rh-chip @(user.IsOnboardingComplete ? "rh-chip-success" : "rh-chip-warning")">
+                                    @(user.IsOnboardingComplete ? "Complete" : user.NextOnboardingStep)
+                                </span>
+                            </td>
+                            <td data-label="KYC">
+                                <span class="rh-chip @KycChipClass(user.KycStatus)">@user.KycStatus</span>
+                            </td>
+                            <td data-label="Contract">
+                                <span class="rh-chip @(user.PlatformTermsAccepted ? "rh-chip-success" : "rh-chip-warning")">
+                                    @(user.PlatformTermsAccepted ? "Signed" : "Pending")
+                                </span>
+                            </td>
+                            <td data-label="Email">@StatusChip(user.EmailConfirmed)</td>
+                            <td data-label="Phone">
+                                <div>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "Not provided" : user.PhoneNumber)</div>
+                                @StatusChip(user.PhoneNumberConfirmed)
+                            </td>
+                            <td data-label="Subscription Payment">
+                                <div>@(string.IsNullOrWhiteSpace(user.SubscriptionPaymentPhoneNumber) ? "Not provided" : user.SubscriptionPaymentPhoneNumber)</div>
+                                <small class="text-muted">@ChannelLabel(user.SubscriptionPaymentChannel)</small>
+                                @StatusChip(user.IsSubscriptionPaymentPhoneVerified)
+                            </td>
+                            <td data-label="Rent Payout">
+                                <div>@(string.IsNullOrWhiteSpace(user.PayoutPhoneNumber) ? "Not provided" : user.PayoutPhoneNumber)</div>
+                                <small class="text-muted">@ChannelLabel(user.PayoutChannel)</small>
+                                @StatusChip(user.IsPayoutPhoneVerified)
+                            </td>
+                            <td data-label="WhatsApp">
+                                <div>@(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) ? "Not provided" : user.WhatsAppPhoneNumber)</div>
+                                @StatusChip(string.IsNullOrWhiteSpace(user.WhatsAppPhoneNumber) || user.IsWhatsAppPhoneVerified)
+                            </td>
+                            <td class="text-end" data-label="Action">
+                                <div class="d-inline-flex flex-wrap gap-2">
+                                    <a asp-action="Overview" asp-route-userId="@user.UserId" class="btn btn-sm rh-btn-subtle">
+                                        Overview
+                                    </a>
+                                    <form asp-action="RestartValidation" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="userId" value="@user.UserId" />
+                                        <input type="hidden" name="search" value="@Model.Search" />
+                                        <button type="submit" class="btn btn-sm rh-btn-outline-danger" disabled="@isAdmin" data-confirm="Restart validation for @user.Email? This keeps only email and name.">
+                                            Restart
+                                        </button>
+                                    </form>
+                                    @if (Model.CanDeleteUsers && !isAdmin)
+                                    {
+                                        <form asp-action="DeleteUser"
+                                              method="post"
+                                              class="d-inline"
+                                              data-delete-user-form="true"
+                                              data-confirm-modal="true"
+                                              data-confirm-title="Delete user"
+                                              data-confirm-message="Delete @user.Email and all records related to this user? This cannot be undone."
+                                              data-confirm-proceed="Delete"
+                                              data-confirm-style="danger">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="userId" value="@user.UserId" />
+                                            <input type="hidden" name="search" value="@Model.Search" />
+                                            <button type="submit" class="btn btn-sm rh-btn-outline-danger" data-delete-submit="true">
+                                                <span class="spinner-border spinner-border-sm me-1 d-none" aria-hidden="true" data-delete-spinner="true"></span>
+                                                <span data-delete-label="true">Delete</span>
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@functions {
+    private static string ChannelLabel(PayoutChannelEnum? channel)
+    {
+        return channel switch
+        {
+            PayoutChannelEnum.MtnMoney => "MTN Money",
+            PayoutChannelEnum.OrangeMoney => "Orange Money",
+            _ => "Not configured"
+        };
+    }
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent StatusChip(bool ok)
+    {
+        var label = ok ? "Verified" : "Pending";
+        var css = ok ? "rh-chip-success" : "rh-chip-warning";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"rh-chip {css}\">{label}</span>");
+    }
+
+    private static string KycChipClass(LandlordKycStatusEnum status)
+    {
+        return status switch
+        {
+            LandlordKycStatusEnum.Approved => "rh-chip-success",
+            LandlordKycStatusEnum.Rejected => "rh-chip-danger",
+            LandlordKycStatusEnum.Submitted => "rh-chip-warning",
+            _ => "rh-chip-info"
+        };
+    }
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            document.querySelectorAll("[data-confirm]").forEach(button => {
+                button.addEventListener("click", event => {
+                    if (!window.confirm(button.dataset.confirm)) {
+                        event.preventDefault();
+                    }
+                });
+            });
+
+            document.addEventListener("submit", event => {
+                const form = event.target.closest("form[data-delete-user-form='true']");
+                if (!form || event.defaultPrevented) {
+                    return;
+                }
+
+                const button = form.querySelector("[data-delete-submit='true']");
+                if (!button) {
+                    return;
+                }
+
+                button.disabled = true;
+                button.querySelector("[data-delete-spinner='true']")?.classList.remove("d-none");
+                const label = button.querySelector("[data-delete-label='true']");
+                if (label) {
+                    label.textContent = "Deleting";
+                }
+            });
+        })();
+    </script>
+}

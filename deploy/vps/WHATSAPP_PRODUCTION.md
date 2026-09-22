@@ -10,7 +10,7 @@ Sur le VPS, conserver `.env.production` existant. Ne pas le remplacer par le fic
 example et ne pas modifier les clés SQL/JWT/Stripe/Azure qui fonctionnent déjà.
 
 ```bash
-cd /opt/renthub
+cd /opt/lontsihomes
 git pull --ff-only origin master
 cd deploy/vps
 openssl rand -hex 32
@@ -95,7 +95,7 @@ Documentation officielle :
 ## 3. Déployer après la configuration
 
 ```bash
-cd /opt/renthub/deploy/vps
+cd /opt/lontsihomes/deploy/vps
 bash deploy-update.sh
 ```
 

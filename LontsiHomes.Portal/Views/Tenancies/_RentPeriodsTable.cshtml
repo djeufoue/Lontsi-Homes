@@ -1,0 +1,766 @@
+@model LontsiHomes.Portal.ViewModels.Tenancies.TenancyOverviewVm
+@using Common.Enums
+@using Common.Helpers
+@using System.Globalization
+@{
+    var tenancy = Model.Tenancy;
+    var summary = Model.RentSummary;
+    var filterAction = Model.IsRentPeriodsPage ? "RentPeriods" : "Overview";
+    var returnUrl = Context.Request.Path + Context.Request.QueryString;
+    var orderedPeriods = Model.AllRentPeriods.OrderBy(item => item.PeriodStart).ToList();
+    var paymentGroups = orderedPeriods
+        .GroupBy(item => item.BillingGroupSequence)
+        .Where(group => group.Any(item => !IsSettled(item.Status)))
+        .Select(group => new
+        {
+            Periods = group,
+            DisplayPriority = group.Any(item => item.Status is RentPeriodStatusEnum.Due
+                                                   or RentPeriodStatusEnum.Overdue
+                                                   or RentPeriodStatusEnum.PendingPayment)
+                ? 0
+                : group.Any(item => item.Status == RentPeriodStatusEnum.NotDueYet)
+                    ? 1
+                    : 2,
+            FirstPeriodStart = group.Min(item => item.PeriodStart),
+            LastPeriodStart = group.Max(item => item.PeriodStart)
+        })
+        .OrderBy(group => group.DisplayPriority)
+        .ThenBy(group => group.DisplayPriority < 2
+            ? group.FirstPeriodStart.UtcDateTime.Ticks
+            : -group.LastPeriodStart.UtcDateTime.Ticks)
+        .Select(group => group.Periods)
+        .ToList();
+    var visiblePaymentGroups = paymentGroups
+        .Skip((Model.RentGroupPage - 1) * Model.RentGroupPageSize)
+        .Take(Model.RentGroupPageSize)
+        .ToList();
+    var manualCashCandidates = orderedPeriods
+        .SkipWhile(item => !item.IsPayable)
+        .TakeWhile(item => !IsSettled(item.Status) &&
+                           item.Status != RentPeriodStatusEnum.PendingPayment &&
+                           !item.PaymentId.HasValue)
+        .ToList();
+    var correctionPreviewPeriods = tenancy.RentScheduleNeedsReview
+        ? RentPeriodScheduleHelper.GeneratePeriods(
+            tenancy.StartDate,
+            tenancy.EndDate,
+            tenancy.EndBehavior,
+            tenancy.MonthlyRent,
+            tenancy.RentDueDay,
+            DateTimeOffset.UtcNow,
+            tenancy.PaymentIntervalMonths,
+            tenancy.StartDate)
+        : new List<Common.CommunicationModels.RentPeriodSeedDto>();
+
+    string DaysLabel(int days) => days == 1 ? T["1 day"].Value : T["{0} days", days].Value;
+
+    string DeliveryStatusLabel(ReminderDeliveryStatusEnum status) => status switch
+    {
+        ReminderDeliveryStatusEnum.NotRequested => T["Not requested"].Value,
+        ReminderDeliveryStatusEnum.Pending => T["Pending"].Value,
+        ReminderDeliveryStatusEnum.Sent => T["Sent"].Value,
+        ReminderDeliveryStatusEnum.Failed => T["Failed"].Value,
+        ReminderDeliveryStatusEnum.Skipped => T["Skipped"].Value,
+        _ => T[status.ToString()].Value
+    };
+}
+
+<div class="rh-overview-panel-head align-start">
+    <div>
+        <h2 class="rh-dashboard-panel-title">@T["Rent periods"]</h2>
+        <p class="rh-dashboard-panel-copy">@T["Month-by-month rent state for this tenancy."]</p>
+    </div>
+    @if (Model.IsRentPeriodsPage)
+    {
+        @if (tenancy.CanViewRentReminderHistory)
+        {
+            <div class="d-flex flex-column align-items-end gap-2">
+                @if (summary.CanSendManualReminder)
+                {
+                    <form method="post"
+                          asp-action="SendManualRentReminder"
+                          data-confirm-modal="true"
+                          data-confirm-title="@T["Send this rent reminder now?"]"
+                          data-confirm-message="@T["A reminder attempt will start immediately for {0} unpaid period(s), totaling {1} XAF. This action counts toward the manual follow-up limit.", summary.DueNowPeriodCount, summary.DueNowAmount.ToString("N0")]"
+                          data-confirm-proceed="@T["Send the reminder"]"
+                          data-confirm-style="primary">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                        <button type="submit" class="btn btn-sm rh-btn-primary">@T["Send a reminder now"]</button>
+                    </form>
+                }
+                else if (tenancy.CanSendRentReminder && !string.IsNullOrWhiteSpace(summary.ManualReminderUnavailableReason))
+                {
+                    <small class="text-muted text-end">@T[summary.ManualReminderUnavailableReason]</small>
+                }
+                <small class="text-muted">@T["Manual follow-ups used: {0} of {1}", summary.ManualReminderCount, summary.ManualReminderLimit]</small>
+            </div>
+        }
+    }
+    else
+    {
+        <a class="rh-icon-btn"
+           asp-action="RentPeriods"
+           asp-route-tenancyId="@tenancy.Id"
+           title="@T["Open rent periods in a full page"]"
+           aria-label="@T["Open rent periods in a full page"]">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6m0-6-8 8M10 20H4V4h6m10 10v6h-6" /></svg>
+        </a>
+    }
+</div>
+
+@if (Model.IsRentPeriodsPage && tenancy.RentScheduleNeedsReview)
+{
+    <div class="alert alert-warning mb-3" role="alert">
+        <strong>@T["Rent schedule review required"]</strong>
+        <div>@T["This legacy schedule may use incorrect calendar-month boundaries. Automatic rent reminders are paused until the landlord confirms the cycle, payment frequency, and first uncovered period."]</div>
+        @if (tenancy.CanCorrectRentSchedule)
+        {
+            <form method="post"
+                  asp-action="ReconcileLegacyRentSchedule"
+                  class="mt-3"
+                  data-confirm-modal="true"
+                  data-confirm-title="@T["Apply this corrected rent schedule?"]"
+                  data-confirm-message="@T["Monthly periods will be rebuilt from the real tenancy anniversary. Existing real or pending payments will block the operation; historical reminders will be preserved and marked invalidated."]"
+                  data-confirm-proceed="@T["Correct the schedule"]"
+                  data-confirm-style="primary">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">@T["Confirmed cycle day"]</label>
+                        <input class="form-control" value="@tenancy.StartDate.Day" disabled />
+                        <small class="text-muted">@T["Periods remain anchored to the real tenancy start date: {0}.", DateLabel(tenancy.StartDate)]</small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="legacyDueDay">@T["Rent due day"]</label>
+                        <input class="form-control" id="legacyDueDay" name="rentDueDay" type="number" min="1" max="31" value="@tenancy.RentDueDay" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="legacyPaymentInterval">@T["Payment frequency"]</label>
+                        <select class="form-select" id="legacyPaymentInterval" name="paymentIntervalMonths" required>
+                            @for (var months = 1; months <= 12; months++)
+                            {
+                                var label = months switch
+                                {
+                                    1 => T["Monthly"].Value,
+                                    3 => T["Quarterly"].Value,
+                                    6 => T["Semiannual"].Value,
+                                    12 => T["Annual"].Value,
+                                    _ => T["Every {0} months", months].Value
+                                };
+                                <option value="@months" selected="@(months == tenancy.PaymentIntervalMonths ? "selected" : null)">@label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label" for="legacyFirstTracked">@T["First uncovered monthly period"]</label>
+                        <select class="form-select" id="legacyFirstTracked" name="firstTrackedPeriodStart" required>
+                            @foreach (var item in correctionPreviewPeriods)
+                            {
+                                <option value="@item.PeriodStart.ToString("O")"
+                                        selected="@(item.PeriodStart.Date == tenancy.RentTrackingStartDate.Date ? "selected" : null)">
+                                    @DateLabel(item.PeriodStart) – @DateLabel(item.PeriodEnd)
+                                </option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-3 p-3 bg-light rounded">
+                    <strong>@T["Preview"]</strong>
+                    <div class="small text-muted">@T["The corrected calendar keeps one monthly period per line and groups them using the selected frequency. At {0} XAF per month, a complete group currently represents {1} XAF; the final fixed-term group may be shorter.", tenancy.MonthlyRent.ToString("N0"), (tenancy.MonthlyRent * tenancy.PaymentIntervalMonths).ToString("N0")]</div>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        @foreach (var preview in correctionPreviewPeriods
+                            .Where(item => item.PeriodStart.Date >= tenancy.RentTrackingStartDate.Date)
+                            .Take(Math.Max(6, tenancy.PaymentIntervalMonths * 2)))
+                        {
+                            <span class="rh-chip rh-chip-info">@DateLabel(preview.PeriodStart) – @DateLabel(preview.PeriodEnd)</span>
+                        }
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-sm rh-btn-primary mt-3">@T["Review and correct this schedule"]</button>
+            </form>
+        }
+    </div>
+}
+
+@if (Model.IsRentPeriodsPage && tenancy.CanMarkRentPaid && tenancy.CanCancelPendingPayment)
+{
+    <partial name="_ManualPaymentCorrection" model="Model" />
+}
+
+@if (Model.IsRentPeriodsPage && Model.PaymentCorrections.Any())
+{
+    <details class="rh-panel mb-3">
+        <summary class="fw-bold">@T["Payment correction history"]</summary>
+        @foreach (var correction in Model.PaymentCorrections)
+        {
+            <div class="py-3 border-bottom">
+                <strong>@DateTimeLabel(correction.CorrectedAt) · @correction.RemovedAmount.ToString("N0") @correction.Currency</strong>
+                <p>@correction.Reason</p>
+                <a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@correction.OriginalPaymentId">@T["Cancelled invoice"]: @correction.OriginalReceiptNumber</a>
+                @if (correction.ReplacementPaymentId.HasValue)
+                {
+                    <span> · </span><a asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@correction.ReplacementPaymentId">@T["Replacement invoice"]: @correction.ReplacementReceiptNumber</a>
+                }
+                <p class="small text-muted mt-2">@T[correction.EmailsSent ? "Correction emails sent" : "Correction emails pending or being retried"]</p>
+            </div>
+        }
+    </details>
+}
+
+@if (Model.IsRentPeriodsPage && tenancy.CanDeleteHistoricalRentPeriods)
+{
+    <form method="post"
+          asp-action="ArchivePaidBeforePlatformPeriods"
+          class="mb-3"
+          data-confirm-modal="true"
+          data-confirm-title="@T["Remove periods paid before Lontsi Homes?"]"
+          data-confirm-message="@T["{0} historical period(s), from {1} to {2}, without a real transaction or system receipt will be archived. Actual payments, receipts, unpaid periods, pending payments, and reminder history will be preserved. These periods will not be regenerated.", tenancy.DeletableHistoricalRentPeriodCount, tenancy.DeletableHistoricalFirstPeriodStart.HasValue ? DateLabel(tenancy.DeletableHistoricalFirstPeriodStart.Value) : "—", tenancy.DeletableHistoricalLastPeriodEnd.HasValue ? DateLabel(tenancy.DeletableHistoricalLastPeriodEnd.Value) : "—"]"
+          data-confirm-proceed="@T["Archive historical periods"]"
+          data-confirm-style="danger">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+        <input type="hidden" name="returnUrl" value="@returnUrl" />
+        <button type="submit" class="btn btn-sm rh-btn-danger">@T["Remove periods paid before Lontsi Homes"]</button>
+    </form>
+}
+
+<form method="get" asp-action="@filterAction" class="rh-table-filter-grid rh-collapsible-filter mb-4">
+    <input type="hidden" name="id" value="@tenancy.Id" />
+    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+    <input type="hidden" name="memberSearch" value="@Model.MemberSearch" />
+    <input type="hidden" name="rentPage" value="1" />
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentStatus-@filterAction">@T["Status"]</label>
+        <select class="form-select rh-input rh-select" id="rentStatus-@filterAction" name="rentStatus">
+            <option value="All" selected="@(string.IsNullOrWhiteSpace(Model.RentStatus) || string.Equals(Model.RentStatus, "All", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["All statuses"]</option>
+            <option value="Unpaid" selected="@(string.Equals(Model.RentStatus, "Unpaid", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["Unpaid periods"]</option>
+            <option value="Future" selected="@(string.Equals(Model.RentStatus, "Future", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T["Future periods to pay"]</option>
+            @foreach (var status in Model.RentStatuses)
+            {
+                <option value="@status" selected="@(string.Equals(Model.RentStatus, status, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@T[status]</option>
+            }
+        </select>
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentFrom-@filterAction">@T["From"]</label>
+        <input class="form-control rh-input" id="rentFrom-@filterAction" type="date" name="rentFrom" value="@Model.RentFrom?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentTo-@filterAction">@T["To date"]</label>
+        <input class="form-control rh-input" id="rentTo-@filterAction" type="date" name="rentTo" value="@Model.RentTo?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="rh-table-filter-field">
+        <label class="form-label" for="rentSortDirection-@filterAction">@T["Period date"]</label>
+        <select class="form-select rh-input rh-select" id="rentSortDirection-@filterAction" name="rentSortDirection">
+            <option value="priority" selected="@(Model.RentSortDirection == "priority" ? "selected" : null)">@T["Rent to pay first"]</option>
+            <option value="asc" selected="@(Model.RentSortDirection == "asc" ? "selected" : null)">@T["Oldest first"]</option>
+            <option value="desc" selected="@(Model.RentSortDirection == "desc" ? "selected" : null)">@T["Newest first"]</option>
+        </select>
+    </div>
+    <div class="rh-table-filter-actions">
+        <button class="btn rh-btn-primary" type="submit">@T["Filter"]</button>
+        <a class="btn rh-btn-subtle"
+           asp-action="@filterAction"
+           asp-route-id="@tenancy.Id"
+           asp-route-tenancyId="@tenancy.Id"
+           asp-route-rentStatus="All"
+           asp-route-rentSortDirection="priority">@T["Clear"]</a>
+    </div>
+</form>
+
+@if (Model.IsRentPeriodsPage && tenancy.CanMarkRentPaid && manualCashCandidates.Any())
+{
+    <form method="post"
+          asp-action="MarkRentPeriodsPaid"
+          class="card border-0 shadow-sm mb-4 rh-rent-workflow-card rh-rent-selection-card"
+          data-rent-batch-form
+          data-confirm-modal="true"
+          data-confirm-title="@T["Mark the selected periods as paid by cash?"]"
+          data-confirm-message="@T["The consecutive periods will be recorded as one cash payment with one itemized receipt."]"
+          data-confirm-proceed="@T["Record the cash payment"]"
+          data-confirm-style="payment-danger"
+          data-confirm-warning="true">
+        <div class="card-body">
+            <h3 class="h6">@T["Select consecutive monthly periods"]</h3>
+            <p class="text-muted small">@T["Selection must start with the oldest unpaid period. Selecting a period unlocks the next one."]</p>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+            <input type="hidden" name="rentPeriodIds" value="" data-rent-batch-ids />
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+            <div class="d-grid gap-2 mb-3">
+                @for (var index = 0; index < manualCashCandidates.Count; index++)
+                {
+                    var item = manualCashCandidates[index];
+                    <label class="d-flex align-items-center gap-2">
+                        <input class="form-check-input m-0"
+                               type="checkbox"
+                               value="@item.Id"
+                               data-rent-batch-checkbox
+                               disabled="@(index == 0 ? null : "disabled")" />
+                        <span>@DateLabel(item.PeriodStart) – @DateLabel(item.PeriodEnd) · @item.Amount.ToString("N0") XAF</span>
+                    </label>
+                }
+            </div>
+                <button type="submit" class="btn btn-sm rh-btn-danger" data-rent-batch-submit disabled>@T["Mark selected periods paid in cash"]</button>
+        </div>
+    </form>
+}
+
+@if (Model.IsRentPeriodsPage && paymentGroups.Any())
+{
+    <section class="mb-4" aria-label="@T["Rent payment groups"]">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+            <div>
+                <h3 class="h6 mb-1">@T["Payment groups"]</h3>
+                <p class="text-muted small mb-0">@T["Monthly periods remain independent. Their group is fixed by the tenancy calendar and its payment frequency."]</p>
+            </div>
+        </div>
+        <div class="d-grid gap-3">
+            @foreach (var group in visiblePaymentGroups)
+            {
+                var groupPeriods = group.OrderBy(item => item.PeriodStart).ToList();
+                var unpaidGroupPeriods = groupPeriods
+                    .Where(item => !IsSettled(item.Status) &&
+                                   item.Status != RentPeriodStatusEnum.PendingPayment &&
+                                   !item.PaymentId.HasValue)
+                    .ToList();
+                var total = groupPeriods.Sum(item => item.Amount);
+                var paid = groupPeriods.Sum(item => item.PaidAmount);
+                var remaining = Math.Max(0, total - paid);
+                var canPayRemainingGroup = tenancy.CanMarkRentPaid &&
+                    unpaidGroupPeriods.Count > 0 &&
+                    unpaidGroupPeriods[0].IsPayable;
+                var groupPeriodIds = string.Join(',', unpaidGroupPeriods.Select(item => item.Id));
+                var groupReceipts = groupPeriods
+                    .Where(item => IsSettled(item.Status) && item.PaymentId.HasValue)
+                    .GroupBy(item => item.PaymentId!.Value)
+                    .OrderBy(receipt => receipt.Min(item => item.PeriodStart))
+                    .ToList();
+
+                <article class="card border-0 shadow-sm rh-rent-workflow-card rh-rent-period-group-card">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                            <div>
+                                <strong>@DateLabel(groupPeriods.First().PeriodStart) – @DateLabel(groupPeriods.Last().PeriodEnd)</strong>
+                                <small class="d-block text-muted">@T["Grouped due date"]: @DateLabel(groupPeriods.First().DueDate)</small>
+                            </div>
+                            <div class="d-flex flex-wrap gap-3 text-end">
+                                <span><small class="d-block text-muted">@T["Contract total"]</small><strong>@total.ToString("N0") XAF</strong></span>
+                                <span><small class="d-block text-muted">@T["Paid"]</small><strong>@paid.ToString("N0") XAF</strong></span>
+                                <span><small class="d-block text-muted">@T["Remaining"]</small><strong>@remaining.ToString("N0") XAF</strong></span>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            @foreach (var item in groupPeriods)
+                            {
+                                <span class="rh-chip @StatusClass(item.Status)">@DateLabel(item.PeriodStart) – @DateLabel(item.PeriodEnd) · @item.Amount.ToString("N0") XAF</span>
+                            }
+                        </div>
+                        @if (groupReceipts.Any())
+                        {
+                            <div class="rh-rent-receipt-list mt-3">
+                                @foreach (var receipt in groupReceipts)
+                                {
+                                    var receiptPeriods = receipt.OrderBy(item => item.PeriodStart).ToList();
+                                    <div class="rh-rent-receipt-row">
+                                        <small class="text-muted">
+                                            @DateLabel(receiptPeriods.First().PeriodStart) – @DateLabel(receiptPeriods.Last().PeriodEnd)
+                                        </small>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@receipt.Key">@T["Receipt"]</a>
+                                            <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@receipt.Key">@T["Download"]</a>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (canPayRemainingGroup)
+                        {
+                            <form method="post"
+                                  asp-action="MarkRentPeriodsPaid"
+                                  class="mt-3"
+                                  data-confirm-modal="true"
+                                  data-confirm-title="@T["Mark the remaining group balance as paid by cash?"]"
+                                  data-confirm-message="@T["One cash payment of {0} XAF will cover {1} consecutive monthly period(s) and create one itemized receipt.", remaining.ToString("N0"), unpaidGroupPeriods.Count]"
+                                  data-confirm-proceed="@T["Mark group balance paid cash"]"
+                                  data-confirm-style="payment-danger"
+                                  data-confirm-warning="true">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                <input type="hidden" name="rentPeriodIds" value="@groupPeriodIds" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button type="submit" class="btn btn-sm rh-btn-danger">@T["Mark the remaining group balance as paid in cash"]</button>
+                            </form>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+        <div class="rh-table-footer mt-3">
+            <a class="btn btn-sm rh-btn-subtle @(Model.RentGroupPage <= 1 ? "disabled" : null)"
+               asp-action="@filterAction"
+               asp-route-id="@tenancy.Id"
+               asp-route-tenancyId="@tenancy.Id"
+               asp-route-memberSearch="@Model.MemberSearch"
+               asp-route-rentStatus="@Model.RentStatus"
+               asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+               asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+               asp-route-rentSortDirection="@Model.RentSortDirection"
+               asp-route-rentPage="@Model.RentPage"
+               asp-route-rentPageSize="@Model.RentPageSize"
+               asp-route-rentGroupPage="@(Model.RentGroupPage - 1)">@T["Previous"]</a>
+            <div class="rh-table-page-size">
+                <small class="text-muted">@T["{0} result(s) · Page {1} of {2}", Model.TotalRentGroups, Model.RentGroupPage, Model.TotalRentGroupPages]</small>
+            </div>
+            <a class="btn btn-sm rh-btn-subtle rh-table-footer-next @(Model.RentGroupPage >= Model.TotalRentGroupPages ? "disabled" : null)"
+               asp-action="@filterAction"
+               asp-route-id="@tenancy.Id"
+               asp-route-tenancyId="@tenancy.Id"
+               asp-route-memberSearch="@Model.MemberSearch"
+               asp-route-rentStatus="@Model.RentStatus"
+               asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+               asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+               asp-route-rentSortDirection="@Model.RentSortDirection"
+               asp-route-rentPage="@Model.RentPage"
+               asp-route-rentPageSize="@Model.RentPageSize"
+               asp-route-rentGroupPage="@(Model.RentGroupPage + 1)">@T["Next"]</a>
+        </div>
+    </section>
+}
+
+@if (!Model.RentPeriods.Any())
+{
+    <div class="rh-empty">@T["No rent periods match these filters."]</div>
+}
+else
+{
+<div class="table-responsive rh-responsive-table-wrap">
+    <table class="table align-middle rh-table rh-responsive-data-table mb-0">
+            <thead>
+                <tr>
+                    <th>@T["Period"]</th>
+                    <th>@T["Due date"]</th>
+                    <th class="text-end">@T["Amount"]</th>
+                    <th class="text-end">@T["Paid"]</th>
+                    <th>@T["Status"]</th>
+                    @if (tenancy.CanViewRentReminderHistory)
+                    {
+                        <th>@T["Reminders"]</th>
+                    }
+                    <th>@T["Reference"]</th>
+                    <th>@T["Action"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var period in Model.RentPeriods)
+                {
+                    <tr>
+                <td class="rh-mobile-card-title" data-label="@T["Period"]">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</td>
+                <td data-label="@T["Due date"]">@DateLabel(period.DueDate)</td>
+                <td class="text-end" data-label="@T["Amount"]">@period.Amount.ToString("N0") XAF</td>
+                <td class="text-end" data-label="@T["Paid"]">
+                    <strong>@period.PaidAmount.ToString("N0") XAF</strong>
+                    @if (period.PaidDate.HasValue)
+                    {
+                        <small class="d-block text-muted">@T["Paid on {0}", period.PaidDate.Value.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)]</small>
+                    }
+                    else if (period.Status == RentPeriodStatusEnum.PaidBeforeLontsiHomes)
+                    {
+                        <small class="d-block text-muted">@T["Historical payment — date not recorded"]</small>
+                    }
+                </td>
+                <td data-label="@T["Status"]"><span class="rh-chip @StatusClass(period.Status)" title="@(period.Status == RentPeriodStatusEnum.PaidBeforeLontsiHomes ? T["Paid before this tenancy was recorded in Lontsi Homes."].Value : null)">@T[period.StatusLabel]</span></td>
+                @if (tenancy.CanViewRentReminderHistory)
+                {
+                    <td data-label="@T["Reminders"]">
+                        @if (period.ReminderHistory.Any())
+                        {
+                            <button type="button" class="btn btn-sm rh-btn-subtle" data-bs-toggle="modal" data-bs-target="#rentReminderHistory-@period.Id">
+                                @T["View ({0})", period.ReminderHistory.Count]
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-muted">@T["None sent"]</span>
+                        }
+                    </td>
+                }
+                <td data-label="@T["Reference"]"><small>@(string.IsNullOrWhiteSpace(period.SystemReceiptNumber) ? (string.IsNullOrWhiteSpace(period.PaymentReference) ? "—" : period.PaymentReference) : period.SystemReceiptNumber)</small></td>
+                <td data-label="@T["Action"]">
+                            @if (period.Status == RentPeriodStatusEnum.PendingPayment)
+                            {
+                                @if (tenancy.CanCancelPendingPayment && period.CanCancelPendingPayment)
+                                {
+                                    <form method="post" asp-action="CancelPendingRentPayment" data-confirm-modal="true" data-confirm-title="@T["Cancel this pending payment?"]" data-confirm-message="@T["This cancels only the oldest pending payment, keeps its history, releases its rent period(s), and unlocks the next period. A completed payment cannot be cancelled."]" data-confirm-proceed="@T["Cancel pending payment"]" data-confirm-style="danger">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                        <input type="hidden" name="rentPeriodId" value="@period.Id" />
+                                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                        <button type="submit" class="btn btn-sm rh-btn-danger">@T["Cancel pending payment"]</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@T[period.CanCancelPendingPayment ? "Payment pending" : "Pay previous periods first"]</span>
+                                }
+                            }
+                            else if (period.PaymentId.HasValue)
+                            {
+                                <div class="d-flex flex-wrap gap-2">
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="Payment" asp-route-paymentId="@period.PaymentId.Value">@T["Receipt"]</a>
+                                    <a class="btn btn-sm rh-btn-subtle" asp-controller="Receipts" asp-action="DownloadPayment" asp-route-paymentId="@period.PaymentId.Value">@T["Download"]</a>
+                                </div>
+                            }
+                            else if (tenancy.CanMarkRentPaid && period.IsPayable)
+                            {
+                                <form method="post"
+                                      asp-action="MarkRentPeriodPaid"
+                                      class="rh-rent-payment-action"
+                                      data-confirm-modal="true"
+                                      data-confirm-title="@T["Mark this rent period as paid by cash?"]"
+                                      data-confirm-message="@T["This will mark the oldest unlocked rent period as paid outside the automatic payment provider, create a system payment record, generate a Lontsi Homes receipt, and unlock the next rent period. Use it only if the tenant already paid you by cash or another off-platform method."]"
+                                      data-confirm-proceed="@T["Mark paid cash"]"
+                                      data-confirm-style="payment-danger"
+                                      data-confirm-warning="true"
+                                      data-submit-progress="true"
+                                      data-submit-progress-button-label="@T["Processing..."]">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="tenancyId" value="@tenancy.Id" />
+                                    <input type="hidden" name="rentPeriodId" value="@period.Id" />
+                                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                    <button type="submit" class="btn btn-sm rh-btn-danger" data-submit-progress-button>@T["Mark paid cash"]</button>
+                                    <div class="rh-submit-progress"
+                                         data-submit-progress-status
+                                         role="status"
+                                         aria-live="polite"
+                                         hidden>
+                                        <span class="rh-submit-progress-spinner" aria-hidden="true"></span>
+                                        <span>@T["Payment processing is in progress. Please wait."]</span>
+                                    </div>
+                                </form>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(period.LockedReason))
+                            {
+                                <span class="text-muted">@T[period.LockedReason]</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">@T["No receipt"]</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (tenancy.CanViewRentReminderHistory)
+{
+    foreach (var period in Model.RentPeriods.Where(item => item.ReminderHistory.Any()))
+    {
+        <div class="modal fade" id="rentReminderHistory-@period.Id" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content rh-modal-content">
+                    <div class="modal-header border-0">
+                        <div>
+                            <h5 class="modal-title">@T["Reminder history"]</h5>
+                            <p class="text-muted mb-0">@DateLabel(period.PeriodStart) - @DateLabel(period.PeriodEnd)</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
+                    </div>
+                    <div class="modal-body pt-0">
+                        <p class="text-muted mb-3">@T["Only reminders triggered by this rent period are shown here."]</p>
+                        <div class="d-grid gap-2">
+                            @foreach (var reminder in period.ReminderHistory.OrderByDescending(item => item.SentAt ?? item.CreatedAt))
+                            {
+                                var periodSnapshots = reminder.Periods
+                                    .Where(item => item.RentPeriodId == period.Id)
+                                    .OrderBy(item => item.PeriodStart)
+                                    .ToList();
+                                var triggerPeriod = periodSnapshots.FirstOrDefault(item => item.IsTrigger && !item.IsUpcomingInformation);
+                                var periodSnapshot = triggerPeriod ?? periodSnapshots.FirstOrDefault();
+                                var scheduledOffsetDays = triggerPeriod == null
+                                    ? 0
+                                    : (reminder.ScheduledFor.Date - triggerPeriod.DueDate.Date).Days;
+                                var absoluteOffsetDays = Math.Abs(scheduledOffsetDays);
+                                var appliedRuleLabel = reminder.IsManual
+                                    ? T["Manual follow-up requested by an authorized user"].Value
+                                    : scheduledOffsetDays < 0
+                                        ? T["{0} before the due date", DaysLabel(absoluteOffsetDays)].Value
+                                        : scheduledOffsetDays > 0
+                                            ? T["{0} after the due date", DaysLabel(absoluteOffsetDays)].Value
+                                            : T["On the due date"].Value;
+                                var recordedAt = reminder.SentAt ?? reminder.CreatedAt;
+
+                                <article class="rh-reminder-history-card">
+                                    <div class="rh-reminder-history-heading">
+                                        <div>
+                                            <span class="rh-reminder-history-kicker">@T[reminder.CategoryLabel]</span>
+                                            <strong>@(reminder.SentAt.HasValue ? T["Sent on {0}", DateTimeLabel(recordedAt)].Value : T["Recorded on {0}", DateTimeLabel(recordedAt)].Value)</strong>
+                                        </div>
+                                        <span class="rh-chip @(reminder.Status is RentReminderStatusEnum.Sent or RentReminderStatusEnum.PartiallySent ? "rh-chip-success" : reminder.Status == RentReminderStatusEnum.Failed ? "rh-chip-warning" : "rh-chip-info")">@T[reminder.StatusLabel]</span>
+                                    </div>
+
+                                    <section class="rh-reminder-calculation" aria-label="@T["Reminder schedule calculation"]">
+                                        <div class="rh-reminder-calculation-item">
+                                            <span>@T["Applied rule"]</span>
+                                            <strong>@appliedRuleLabel</strong>
+                                        </div>
+                                        <div class="rh-reminder-calculation-item">
+                                            <span>@T["Due date"]</span>
+                                            <strong>@(triggerPeriod == null ? DateLabel(period.DueDate) : DateLabel(triggerPeriod.DueDate))</strong>
+                                        </div>
+                                        <div class="rh-reminder-calculation-item">
+                                            <span>@T["Outstanding"]</span>
+                                            <strong>@(periodSnapshot == null ? "—" : $"{periodSnapshot.OutstandingAmount:N0} XAF")</strong>
+                                        </div>
+                                    </section>
+
+                                    <div class="rh-reminder-delivery-summary">
+                                        @if (!string.IsNullOrWhiteSpace(reminder.RecipientEmail))
+                                        {
+                                            <div>
+                                                <span>@T["Email recipient"]</span>
+                                                <strong>@reminder.RecipientEmail</strong>
+                                                <small>@T["Email status"] : @DeliveryStatusLabel(reminder.EmailStatus)</small>
+                                            </div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(reminder.RecipientPhone) || reminder.SmsStatus != ReminderDeliveryStatusEnum.NotRequested)
+                                        {
+                                            <div>
+                                                <span>@T["SMS recipient"]</span>
+                                                <strong>@(string.IsNullOrWhiteSpace(reminder.RecipientPhone) ? "—" : reminder.RecipientPhone)</strong>
+                                                <small>@T["SMS status"] : @DeliveryStatusLabel(reminder.SmsStatus)</small>
+                                            </div>
+                                        }
+                                        @if (reminder.IsManual && !string.IsNullOrWhiteSpace(reminder.RequestedByName))
+                                        {
+                                            <div>
+                                                <span>@T["Requested by"]</span>
+                                                <strong>@reminder.RequestedByName</strong>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(reminder.FailureReason))
+                                    {
+                                        <div class="rh-reminder-failure"><strong>@T["Delivery problem"]</strong><span>@reminder.FailureReason</span></div>
+                                    }
+                                    @if (reminder.InvalidatedAt.HasValue)
+                                    {
+                                        <div class="rh-reminder-failure"><strong>@T["Invalidated reminder"]</strong><span>@T[string.IsNullOrWhiteSpace(reminder.InvalidationReason) ? "Sent using an old schedule — invalidated after correction." : reminder.InvalidationReason]</span></div>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<div class="rh-table-footer">
+    <a class="btn btn-sm rh-btn-subtle @(Model.RentPage <= 1 ? "disabled" : null)"
+           asp-action="@filterAction"
+           asp-route-id="@tenancy.Id"
+           asp-route-tenancyId="@tenancy.Id"
+           asp-route-memberSearch="@Model.MemberSearch"
+           asp-route-rentStatus="@Model.RentStatus"
+           asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+           asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+           asp-route-rentSortDirection="@Model.RentSortDirection"
+           asp-route-rentGroupPage="@Model.RentGroupPage"
+           asp-route-rentPage="@(Model.RentPage - 1)"
+           asp-route-rentPageSize="@Model.RentPageSize">@T["Previous"]</a>
+    <div class="rh-table-page-size">
+        <label class="form-label mb-0" for="rentPageSize-@filterAction">@T["Rows"]</label>
+        <select class="form-select rh-input rh-select" id="rentPageSize-@filterAction" data-auto-page-size data-page-size-parameter="rentPageSize" data-page-parameter="rentPage">
+            @foreach (var size in new[] { 5, 10, 20, 50 }) { <option value="@size" selected="@(Model.RentPageSize == size ? "selected" : null)">@size</option> }
+        </select>
+        <small class="text-muted">@T["{0} result(s) · Page {1} of {2}", Model.TotalRentPeriods, Model.RentPage, Model.TotalRentPages]</small>
+    </div>
+    <a class="btn btn-sm rh-btn-subtle rh-table-footer-next @(Model.RentPage >= Model.TotalRentPages ? "disabled" : null)"
+           asp-action="@filterAction"
+           asp-route-id="@tenancy.Id"
+           asp-route-tenancyId="@tenancy.Id"
+           asp-route-memberSearch="@Model.MemberSearch"
+           asp-route-rentStatus="@Model.RentStatus"
+           asp-route-rentFrom="@Model.RentFrom?.ToString("yyyy-MM-dd")"
+           asp-route-rentTo="@Model.RentTo?.ToString("yyyy-MM-dd")"
+           asp-route-rentSortDirection="@Model.RentSortDirection"
+           asp-route-rentGroupPage="@Model.RentGroupPage"
+           asp-route-rentPage="@(Model.RentPage + 1)"
+           asp-route-rentPageSize="@Model.RentPageSize">@T["Next"]</a>
+</div>
+
+@if (Model.IsRentPeriodsPage && manualCashCandidates.Any())
+{
+    <script>
+        document.querySelectorAll('[data-rent-batch-form]').forEach(function (form) {
+            const checkboxes = Array.from(form.querySelectorAll('[data-rent-batch-checkbox]'));
+            const ids = form.querySelector('[data-rent-batch-ids]');
+            const submit = form.querySelector('[data-rent-batch-submit]');
+            const refresh = function () {
+                let prefixComplete = true;
+                checkboxes.forEach(function (checkbox, index) {
+                    if (index === 0) {
+                        checkbox.disabled = false;
+                    } else {
+                        checkbox.disabled = !prefixComplete;
+                        if (checkbox.disabled) checkbox.checked = false;
+                    }
+                    prefixComplete = prefixComplete && checkbox.checked;
+                });
+                const selected = checkboxes.filter(function (checkbox) {
+                    return checkbox.checked && !checkbox.disabled;
+                });
+                ids.value = selected.map(function (checkbox) { return checkbox.value; }).join(',');
+                submit.disabled = selected.length === 0;
+                submit.setAttribute('aria-disabled', submit.disabled ? 'true' : 'false');
+            };
+            checkboxes.forEach(function (checkbox) { checkbox.addEventListener('change', refresh); });
+            form.addEventListener('rent-batch:refresh', refresh);
+            form.addEventListener('submit', function (event) {
+                refresh();
+                if (submit.disabled || !ids.value) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+            });
+            refresh();
+        });
+    </script>
+}
+
+@functions {
+    private static string DateLabel(DateTimeOffset value) => value.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
+
+    private static string DateTimeLabel(DateTimeOffset value) => value.ToLocalTime().ToString("dd MMM yyyy · HH:mm", CultureInfo.CurrentCulture);
+
+    private static bool IsSettled(RentPeriodStatusEnum status) => status is
+        RentPeriodStatusEnum.Paid or
+        RentPeriodStatusEnum.PaidBeforeLontsiHomes or
+        RentPeriodStatusEnum.PaidInAdvance or
+        RentPeriodStatusEnum.Waived or
+        RentPeriodStatusEnum.Cancelled;
+
+    private static string StatusClass(RentPeriodStatusEnum status)
+    {
+        return status switch
+        {
+            RentPeriodStatusEnum.Paid => "rh-chip-success",
+            RentPeriodStatusEnum.PaidBeforeLontsiHomes => "rh-chip-info",
+            RentPeriodStatusEnum.PaidInAdvance => "rh-chip-success",
+            RentPeriodStatusEnum.Overdue => "rh-chip-warning",
+            RentPeriodStatusEnum.Waived => "rh-chip-info",
+            RentPeriodStatusEnum.Cancelled => "rh-chip-info",
+            _ => "rh-chip-info"
+        };
+    }
+}

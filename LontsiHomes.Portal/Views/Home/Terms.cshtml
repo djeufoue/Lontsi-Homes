@@ -1,0 +1,68 @@
+@model LontsiHomes.Portal.ViewModels.Home.PublicSiteInfoVm
+@{
+    ViewData["Title"] = "Terms & Conditions";
+}
+
+<section class="rh-legal-page">
+    <div class="rh-legal-shell">
+        <div class="rh-legal-hero">
+            <span class="rh-landing-section-kicker">Legal</span>
+            <h1>Terms &amp; Conditions</h1>
+            <p>
+                These terms explain how landlords and platform users may access and use @Model.SiteName for
+                account creation, subscription activation, property management, tenant follow-up, and related
+                operational workflows.
+            </p>
+        </div>
+
+        <div class="rh-legal-grid">
+            <article class="rh-legal-card">
+                <h2>Platform scope</h2>
+                <p>
+                    @Model.SiteName is a landlord operations platform that helps users manage properties, apartments,
+                    tenants, reminders, and subscription-based workspace access.
+                </p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Account responsibility</h2>
+                <p>
+                    Users are responsible for the accuracy of the information they submit, including contact
+                    details, payout numbers, WhatsApp numbers, and property-related operational data.
+                </p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Subscription access</h2>
+                <p>
+                    Certain landlord features may require an active subscription. Access levels, publishing rights,
+                    and operational limits may depend on the selected plan and its approval state.
+                </p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Acceptable use</h2>
+                <p>
+                    Users must not use the platform for fraudulent payments, misleading property records, abusive
+                    communication, or unauthorized access to another user&rsquo;s data or workspace.
+                </p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Payment services</h2>
+                <p>
+                    Payment services may be processed through third-party providers. Availability of MTN, Orange,
+                    Visa, or other methods depends on provider approval, account configuration, and platform rollout.
+                </p>
+            </article>
+
+            <article class="rh-legal-card">
+                <h2>Contact</h2>
+                <p>
+                    For support or legal questions, contact <a href="mailto:@Model.SupportEmail">@Model.SupportEmail</a>
+                    or use the details on the contact page.
+                </p>
+            </article>
+        </div>
+    </div>
+</section>

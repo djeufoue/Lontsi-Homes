@@ -16,23 +16,26 @@ A property and rent management application for landlords, property managers, and
 
 | Component | Responsibility |
 | --- | --- |
-| `RentHub.Portal` | ASP.NET Core MVC interface, authentication cookies, and SignalR |
-| `RentHub.API` | ASP.NET Core API, Identity, JWT authentication, and application services |
+| `LontsiHomes.Portal` | ASP.NET Core MVC interface, authentication cookies, and SignalR |
+| `LontsiHomes.API` | ASP.NET Core API, Identity, JWT authentication, and application services |
 | `Common` | Shared contracts, scheduling rules, and receipt generation |
 | SQL Server / EF Core | Relational storage and schema migrations |
 | Hangfire | Scheduled rent-period generation, reminders, and notification delivery |
 | Azure Blob Storage | Document storage |
 | Docker Compose / Caddy | VPS deployment and HTTPS reverse proxy |
 
-The product and repository are named **Lontsi Homes**. Existing `RentHub.*` code namespaces,
-assembly names, database names, and deployment service identifiers are retained for
-compatibility with running installations. Open **`LontsiHomes.sln`** in Visual Studio.
+The product is **Lontsi Homes**; project folders, assemblies, and namespaces use
+`LontsiHomes.*`. Open **`LontsiHomes.sln`** in Visual Studio.
+
+For existing deployments, retain the configured SQL database, Azure container, JWT settings,
+Docker Compose project name, and data volumes. A few explicit legacy strings are retained
+only to read existing authentication cookies, Identity tokens, and queued background jobs.
 
 ## Local setup
 
 1. Install the .NET 9 SDK and provide a development SQL Server instance.
-2. Create ignored `RentHub.API/appsettings.Development.json` and
-   `RentHub.Portal/appsettings.Development.json` files, or use environment variables.
+2. Create ignored `LontsiHomes.API/appsettings.Development.json` and
+   `LontsiHomes.Portal/appsettings.Development.json` files, or use environment variables.
    Never place credentials in the tracked `appsettings.json` files.
 3. Supply `ConnectionStrings:DefaultConnection` and a randomly generated
    `JwtSettings:SigningKey` to the API. Configure storage and the providers you intend to use.
@@ -45,9 +48,9 @@ compatibility with running installations. Open **`LontsiHomes.sln`** in Visual S
 ```sh
 dotnet restore LontsiHomes.sln
 dotnet build LontsiHomes.sln -c Release
-dotnet run --project RentHub.API
+dotnet run --project LontsiHomes.API
 # In another terminal:
-dotnet run --project RentHub.Portal
+dotnet run --project LontsiHomes.Portal
 ```
 
 The API applies migrations at startup. Use a dedicated development database.

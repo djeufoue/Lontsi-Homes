@@ -5,10 +5,22 @@ For the WhatsApp update on an **existing VPS**, follow
 and `bash deploy-update.sh` (verified backup, startup migrations, schema checks).
 Do not overwrite the existing production `.env.production` with the example file.
 
+## Updating an existing installation after the project rename
+
+Keep the existing checkout directory and Docker Compose project name. The
+`/opt/lontsihomes` paths below are examples for new installations. Changing the
+Compose project name can select new, empty data volumes instead of the existing
+database. Retain the existing volume names and production values for
+`SQL_DATABASE`, JWT issuer/audience, and Azure storage containers.
+
+The renamed projects and Docker entry points are updated together. Existing
+authentication cookies, Identity verification tokens, and stored background-job
+types retain explicit compatibility with the previous application identifiers.
+
 This deployment target is designed for a single low-cost Linux VPS that runs:
 
-- `RentHub.Portal` (public website and workspace UI)
-- `RentHub.API` (backend API)
+- `LontsiHomes.Portal` (public website and workspace UI)
+- `LontsiHomes.API` (backend API)
 - `SQL Server 2022 Express`
 - `Caddy` as the HTTPS reverse proxy
 
@@ -57,8 +69,8 @@ apt install -y docker-compose-plugin
 Create a deploy user:
 
 ```bash
-adduser renthub
-usermod -aG docker renthub
+adduser lontsihomes
+usermod -aG docker lontsihomes
 ```
 
 ## Firewall
@@ -77,8 +89,8 @@ Do not expose port `1433` publicly.
 ## Copy the project
 
 ```bash
-mkdir -p /opt/renthub
-cd /opt/renthub
+mkdir -p /opt/lontsihomes
+cd /opt/lontsihomes
 git clone <your-repo-url> .
 ```
 
@@ -87,7 +99,7 @@ git clone <your-repo-url> .
 Create the production env file:
 
 ```bash
-cd /opt/renthub/deploy/vps
+cd /opt/lontsihomes/deploy/vps
 cp .env.production.example .env.production
 nano .env.production
 ```
@@ -111,7 +123,7 @@ For property address geocoding, enable only the **Geocoding API** in Google Clou
 GOOGLE_GEOCODING_API_KEY=your-production-server-key
 ```
 
-This key is consumed by `RentHub.API`; it is never embedded in the browser map. Restrict it to the VPS public IP and restrict its API scope to **Geocoding API**. Do not use an HTTP-referrer browser key for this variable.
+This key is consumed by `LontsiHomes.API`; it is never embedded in the browser map. Restrict it to the VPS public IP and restrict its API scope to **Geocoding API**. Do not use an HTTP-referrer browser key for this variable.
 
 The embedded property map remains OpenStreetMap. If an older property already contains incorrect coordinates, open its property overview after deployment and use **Refresh from saved address** once the key is configured.
 
@@ -123,8 +135,8 @@ changing that variable does not reset an existing account password.
 
 Point your DNS records to the VPS public IP:
 
-- `A renthub.example.com -> <server-ip>`
-- `A api.renthub.example.com -> <server-ip>`
+- `A lontsihomes.example.com -> <server-ip>`
+- `A api.lontsihomes.example.com -> <server-ip>`
 
 Caddy will automatically provision HTTPS once DNS resolves correctly.
 
@@ -133,7 +145,7 @@ Caddy will automatically provision HTTPS once DNS resolves correctly.
 From the VPS:
 
 ```bash
-cd /opt/renthub/deploy/vps
+cd /opt/lontsihomes/deploy/vps
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
@@ -151,7 +163,7 @@ docker compose -f docker-compose.prod.yml logs -f caddy
 Use the update script so the database is backed up before applying new columns:
 
 ```bash
-cd /opt/renthub
+cd /opt/lontsihomes
 git pull --ff-only
 cd deploy/vps
 bash deploy-update.sh

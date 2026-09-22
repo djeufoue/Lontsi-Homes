@@ -1,0 +1,181 @@
+@model LontsiHomes.Portal.ViewModels.Apartments.ApartmentOverviewVm
+@using Common.Enums
+@using System.Linq
+@{
+    ViewData["Title"] = T["Apartment reminder settings"];
+    var apartment = Model.Apartment;
+    var reminderRules = apartment.RentReminderRules.OrderBy(rule => rule.SortOrder).ToList();
+}
+
+<section class="rh-overview-shell rh-property-settings-page" data-apartment-reminder-root="true">
+    <section class="rh-overview-hero rh-panel rh-panel-elevated">
+        <div class="rh-overview-hero-copy">
+            <a class="rh-overview-backlink" asp-action="Overview" asp-route-id="@apartment.Id">&#8592; @T["Back to apartment overview"]</a>
+            <p class="rh-kicker">@T["Apartment Workspace"]</p>
+            <h1 class="rh-heading-title">@T["Apartment reminder settings"]</h1>
+            <p class="rh-heading-subtitle">@apartment.Name - @apartment.PropertyName</p>
+        </div>
+        <div class="rh-overview-hero-actions">
+            <a class="btn rh-btn-subtle" asp-action="Overview" asp-route-id="@apartment.Id">@T["Back to apartment overview"]</a>
+        </div>
+    </section>
+
+    <article class="rh-overview-members-card rh-panel rh-panel-elevated" data-apartment-section="reminders">
+        <div class="rh-overview-panel-head align-start">
+            <div>
+                <h2 class="rh-dashboard-panel-title">@T["Apartment reminder settings"]</h2>
+                <p class="rh-dashboard-panel-copy">@T["Choose when automatic reminders are sent and how many immediate manual follow-ups are allowed."]</p>
+            </div>
+            @if (Model.CanManageRentReminderSettings)
+            {
+                <button type="button" class="rh-icon-btn" id="apartmentReminderEditToggle" title="@T["Edit apartment reminder settings"]" aria-label="@T["Edit apartment reminder settings"]">
+                    <span class="rh-icon-pencil"></span>
+                </button>
+            }
+        </div>
+
+        <form method="post" asp-action="UpdateReminderSettings" class="rh-inline-settings-grid rh-inline-editor-form" id="apartmentReminderForm" data-inline-editor="locked">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="apartmentId" value="@apartment.Id" />
+            <input type="hidden" name="RentReminderDaysBeforeDue" value="@apartment.RentReminderDaysBeforeDue" />
+
+            <div class="col-12 rh-reminder-rules-field">
+                <div class="rh-overview-panel-head align-start mb-2">
+                    <div>
+                        <label class="form-label mb-1">@T["Automatic rent reminders"]</label>
+                        <small class="text-muted d-block">@T["Each active rule is sent once per rent period. A future period is shown for information but is not included in the amount due."]</small>
+                    </div>
+                    @if (Model.CanManageRentReminderSettings)
+                    {
+                        <button type="button" class="btn btn-sm rh-btn-subtle" data-reminder-rule-add hidden>@T["Add a rule"]</button>
+                    }
+                </div>
+
+                <div class="d-grid gap-2" data-reminder-rules>
+                    @for (var ruleIndex = 0; ruleIndex < reminderRules.Count; ruleIndex++)
+                    {
+                        var rule = reminderRules[ruleIndex];
+                        <div class="rh-card-spotlight p-3" data-reminder-rule-row>
+                            <input type="hidden" data-reminder-field="Id" name="RentReminderRules[@ruleIndex].Id" value="@rule.Id" />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label">@T["When"]</label>
+                                    <select class="form-select rh-input" data-reminder-editable data-reminder-timing data-reminder-field="Timing" name="RentReminderRules[@ruleIndex].Timing">
+                                        <option value="0" selected="@(rule.Timing == RentReminderTimingEnum.BeforeDue)">@T["Before the due date"]</option>
+                                        <option value="1" selected="@(rule.Timing == RentReminderTimingEnum.OnDueDate)">@T["On the due date"]</option>
+                                        <option value="2" selected="@(rule.Timing == RentReminderTimingEnum.AfterDue)">@T["After the due date"]</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">@T["Number of days"]</label>
+                                    <input class="form-control rh-input" data-reminder-editable data-reminder-days data-reminder-field="Days" type="number" min="0" max="365" name="RentReminderRules[@ruleIndex].Days" value="@rule.Days" required />
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="IsEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].IsEnabled" value="true" checked="@rule.IsEnabled" />
+                                        <label class="form-check-label">@T["Active"]</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="IsEnabled" name="RentReminderRules[@ruleIndex].IsEnabled" value="false" />
+                                    <div class="form-check">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="EmailEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].EmailEnabled" value="true" checked="@rule.EmailEnabled" />
+                                        <label class="form-check-label">@T["Email"]</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="EmailEnabled" name="RentReminderRules[@ruleIndex].EmailEnabled" value="false" />
+                                    <div class="form-check">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="SmsEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].SmsEnabled" value="true" checked="@rule.SmsEnabled" />
+                                        <label class="form-check-label">@T["SMS"]</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="SmsEnabled" name="RentReminderRules[@ruleIndex].SmsEnabled" value="false" />
+                                    <div class="form-check">
+                                        <input class="form-check-input" data-reminder-editable data-reminder-field="WhatsAppEnabled" type="checkbox" name="RentReminderRules[@ruleIndex].WhatsAppEnabled" value="true" checked="@rule.WhatsAppEnabled" />
+                                        <label class="form-check-label">WhatsApp</label>
+                                    </div>
+                                    <input type="hidden" data-reminder-field="WhatsAppEnabled" name="RentReminderRules[@ruleIndex].WhatsAppEnabled" value="false" />
+                                </div>
+                                <div class="col-md-2 text-md-end">
+                                    <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label">@T["Lease termination lead days"]</label>
+                <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="365" name="LeaseTerminationReminderDaysBeforeEnd" value="@apartment.LeaseTerminationReminderDaysBeforeEnd" required />
+                <small class="text-muted">@T["If the tenancy has an end date, the tenant will be notified this many days before the lease ends."]</small>
+            </div>
+
+            <div>
+                <label class="form-label">@T["Immediate manual follow-ups allowed"]</label>
+                <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="20" name="ManualRentReminderLimit" value="@apartment.ManualRentReminderLimit" required />
+                <small class="text-muted">@T["This limit applies to the oldest unpaid period and resets when that period is paid."]</small>
+            </div>
+
+            <div>
+                <label class="form-label">@T["Hours between manual follow-ups"]</label>
+                <input class="form-control rh-input" data-reminder-editable type="number" min="0" max="168" name="ManualRentReminderCooldownHours" value="@apartment.ManualRentReminderCooldownHours" required />
+                <small class="text-muted">@T["Use 0 only if authorized users may send follow-ups without a waiting period."]</small>
+            </div>
+
+            <div class="rh-inline-settings-note">
+                @T["Payment reminders use each tenancy rent amount, not the apartment reference price. If a tenant pays several periods ahead, the reminder schedule waits until that advance coverage is nearly exhausted."]
+            </div>
+
+            @if (Model.CanManageRentReminderSettings)
+            {
+                <div class="col-12 rh-inline-editor-actions" hidden>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button class="btn rh-btn-subtle" type="button" id="apartmentReminderCancel">@T["Cancel"]</button>
+                        <button class="btn rh-btn-primary" type="submit">@T["Save reminder settings"]</button>
+                    </div>
+                </div>
+            }
+        </form>
+
+        <template id="apartmentReminderRuleTemplate">
+            <div class="rh-card-spotlight p-3" data-reminder-rule-row>
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label">@T["When"]</label>
+                        <select class="form-select rh-input" data-reminder-editable data-reminder-timing data-reminder-field="Timing">
+                            <option value="0">@T["Before the due date"]</option>
+                            <option value="1">@T["On the due date"]</option>
+                            <option value="2" selected>@T["After the due date"]</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">@T["Number of days"]</label>
+                        <input class="form-control rh-input" data-reminder-editable data-reminder-days data-reminder-field="Days" type="number" min="0" max="365" value="5" required />
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="IsEnabled" type="checkbox" value="true" checked />
+                            <label class="form-check-label">@T["Active"]</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="IsEnabled" value="false" />
+                        <div class="form-check">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="EmailEnabled" type="checkbox" value="true" checked />
+                            <label class="form-check-label">@T["Email"]</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="EmailEnabled" value="false" />
+                        <div class="form-check">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="SmsEnabled" type="checkbox" value="true" />
+                            <label class="form-check-label">@T["SMS"]</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="SmsEnabled" value="false" />
+                        <div class="form-check">
+                            <input class="form-check-input" data-reminder-editable data-reminder-field="WhatsAppEnabled" type="checkbox" value="true" />
+                            <label class="form-check-label">WhatsApp</label>
+                        </div>
+                        <input type="hidden" data-reminder-field="WhatsAppEnabled" value="false" />
+                    </div>
+                    <div class="col-md-2 text-md-end">
+                        <button type="button" class="btn btn-sm rh-btn-outline-danger" data-reminder-editable data-reminder-rule-remove>@T["Remove"]</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </article>
+</section>

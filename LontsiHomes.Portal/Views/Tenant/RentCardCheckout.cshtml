@@ -1,0 +1,99 @@
+@model LontsiHomes.Portal.ViewModels.Tenant.RentCardCheckoutVm
+@using System.Globalization
+@using System.Text.Json
+@{
+    ViewData["Title"] = T["Secure Rent Payment"].Value;
+    var rentAmount = Model.RentAmount.ToString("N0", CultureInfo.CurrentCulture);
+    var chargeAmount = Model.ChargeAmount.ToString("C", CultureInfo.CurrentCulture);
+    var publishableKeyJson = JsonSerializer.Serialize(Model.PublishableKey);
+    var clientSecretJson = JsonSerializer.Serialize(Model.ClientSecret);
+}
+
+<section class="rh-card-checkout-page">
+    <div class="rh-card-checkout-shell">
+        <aside class="rh-card-checkout-summary">
+            <p class="rh-kicker">@T["Rent payment"]</p>
+            <h1>@T["Complete your rent payment"]</h1>
+            <p>@T["Stripe securely checks and processes your card. Your rent period is marked paid only after Stripe confirms the payment."]</p>
+
+            <div class="rh-card-checkout-plan">
+                <span>@T["Property"]</span>
+                <strong>@Model.PropertyName</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>@T["Apartment"]</span>
+                <strong>@Model.ApartmentName</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>@T["Period"]</span>
+                <strong>@Model.PeriodLabel</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>@T["Rent amount"]</span>
+                <strong>@rentAmount @Model.RentCurrency.ToUpperInvariant()</strong>
+            </div>
+            <div class="rh-card-checkout-plan">
+                <span>@T["Card charge"]</span>
+                <strong>@chargeAmount @Model.ChargeCurrency.ToUpperInvariant()</strong>
+            </div>
+        </aside>
+
+        <div class="rh-card-checkout-panel">
+            <div class="rh-card-checkout-panel-head">
+                <div>
+                    <p class="rh-kicker mb-1">@T["Secure checkout"]</p>
+                    <h2>@T["Enter card details"]</h2>
+                </div>
+                <a class="btn rh-btn-subtle" asp-action="Index">@T["Cancel"]</a>
+            </div>
+
+            <div class="alert alert-danger d-none" data-card-checkout-error></div>
+            <div id="stripe-checkout" class="rh-stripe-checkout-frame" aria-live="polite"></div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        (() => {
+            const publishableKey = @Html.Raw(publishableKeyJson);
+            const clientSecret = @Html.Raw(clientSecretJson);
+            const container = document.getElementById("stripe-checkout");
+            const errorBox = document.querySelector("[data-card-checkout-error]");
+            const checkoutMessages = {
+                load: @Html.Raw(JsonSerializer.Serialize(T["Unable to load the secure card form. Please try again."].Value)),
+                configuration: @Html.Raw(JsonSerializer.Serialize(T["Card checkout is not configured yet. Please try again later."].Value)),
+                stripe: @Html.Raw(JsonSerializer.Serialize(T["Stripe could not be loaded. Check your connection and refresh this page."].Value)),
+                refresh: @Html.Raw(JsonSerializer.Serialize(T["Unable to load the secure card form. Please refresh and try again."].Value))
+            };
+
+            const showError = (message) => {
+                if (!errorBox) return;
+                errorBox.textContent = message || checkoutMessages.load;
+                errorBox.classList.remove("d-none");
+            };
+
+            if (!container) return;
+            if (!publishableKey || !clientSecret) {
+                showError(checkoutMessages.configuration);
+                return;
+            }
+
+            if (!window.Stripe) {
+                showError(checkoutMessages.stripe);
+                return;
+            }
+
+            const stripe = Stripe(publishableKey);
+            stripe
+                .initEmbeddedCheckout({
+                    fetchClientSecret: () => Promise.resolve(clientSecret)
+                })
+                .then((checkout) => checkout.mount("#stripe-checkout"))
+                .catch((error) => {
+                    showError(error?.message || checkoutMessages.refresh);
+                });
+        })();
+    </script>
+}
