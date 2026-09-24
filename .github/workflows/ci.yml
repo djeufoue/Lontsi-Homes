@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: 'true'
+
+jobs:
+  build-and-test:
+    name: Build and regression tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore LontsiHomes.sln --configfile NuGet.Config
+
+      - name: Build solution
+        run: dotnet build LontsiHomes.sln --configuration Release --no-restore
+
+      # This project is an executable test harness; dotnet test does not run it.
+      - name: Run regression tests
+        run: dotnet run --project LontsiHomes.ScheduleTests/LontsiHomes.ScheduleTests.csproj --configuration Release --no-build --no-restore
+
+  docker-build:
+    name: Build ${{ matrix.project }} image
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [LontsiHomes.API, LontsiHomes.Portal]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build Linux image for the VPS architecture
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: docker build --platform linux/amd64 --file "$PROJECT/Dockerfile" .
