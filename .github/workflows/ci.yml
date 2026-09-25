@@ -47,6 +47,9 @@ jobs:
       - name: Check deployment failure handling
         run: bash deploy/vps/tests/deploy-images.test.sh
 
+      - name: Test Portal HTTP health check
+        run: python3 deploy/vps/tests/test_portal_healthcheck.py
+
   docker-build:
     name: Build ${{ matrix.project }} image
     needs: build-and-test

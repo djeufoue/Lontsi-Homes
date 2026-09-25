@@ -225,6 +225,27 @@ Live image startup and migration behavior remain unverified until the first
 approved production deployment. Database backups retained here are on the same
 VPS; off-server backup storage remains separate work.
 
+### First deployment health-check correction
+
+The first deployment (`36080423569`, source `427ea0e`) downloaded both images,
+verified a fresh backup, and recreated the application containers. The API was
+healthy and the Portal logs showed successful startup on port 8080. The Portal
+health probe failed with Bash `unexpected EOF while looking for ']]'` from the
+probe's shell expression, so the workflow failed before schema verification and
+before writing `current-ci-release`. This was not a pre-deployment failure.
+
+The corrected probe uses exec-form `CMD`, passes the script directly to Bash,
+and checks the HTTP status line with `grep` instead of the malformed Bash
+expression. CI now renders the actual Compose health-check configuration and
+executes it against controlled HTTP responses, including successful responses,
+redirects, HTTP errors, and a closed port. These tests require no Docker daemon.
+
+To apply the fix, push it, wait for the new CI run, then manually deploy that
+new run ID. The workflow takes another verified backup and recreates the Portal
+with the corrected health-check configuration. Do not reuse the old CI run ID
+or treat the first deployment as rolled back. Review schema checks and public
+application behavior after the corrected deployment succeeds.
+
 Configured production environment variables: `VPS_HOST`, `VPS_USER`,
 `VPS_DEPLOY_PATH`, and `COMPOSE_PROJECT_NAME`. The two SSH environment secrets
 have been verified by the successful production connection check.
