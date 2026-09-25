@@ -1,5 +1,11 @@
 # Lontsi Homes VPS Deployment
 
+For the existing `/opt/renthub` installation using images published by GitHub
+Actions, follow [the CI/CD guide](../../docs/CI_CD.md). Its manual **Deploy
+production** workflow preserves the existing server Compose configuration and
+uses an image overlay. Once using that workflow, continue using it for updates;
+the build-based commands below operate on the server's source checkout.
+
 For the WhatsApp update on an **existing VPS**, follow
 [WHATSAPP_PRODUCTION.md](WHATSAPP_PRODUCTION.md). It includes secret/webhook setup
 and `bash deploy-update.sh` (verified backup, startup migrations, schema checks).

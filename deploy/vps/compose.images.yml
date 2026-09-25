@@ -1,0 +1,38 @@
+# Overlay for the EXISTING VPS compose file. Keep its container names, networks,
+# ports, volumes, and production environment file. Only api/portal are recreated.
+services:
+  api:
+    image: __API_IMAGE__
+    build: !reset null
+    environment:
+      AdminSeed__Enabled: "false"
+      Maps__GoogleGeocodingApiKey: ${GOOGLE_GEOCODING_API_KEY:-}
+      Infobip__ApiKey: ${INFOBIP_API_KEY:?Set the production Infobip API key}
+      Infobip__WhatsAppSender: ${INFOBIP_WHATSAPP_SENDER:?Set the approved WhatsApp sender}
+      Infobip__WebhookSecret: ${INFOBIP_WEBHOOK_SECRET:?Set the production webhook secret}
+      Infobip__UrlButtonParameters__landlord_rent_payment_received: ${WHATSAPP_BUTTON_LANDLORD_RECEIPT:-}
+      Infobip__UrlButtonParameters__rent_due_soon: ${WHATSAPP_BUTTON_RENT_DUE_SOON:-}
+      Infobip__UrlButtonParameters__rent_due_today: ${WHATSAPP_BUTTON_RENT_DUE_TODAY:-}
+      Infobip__UrlButtonParameters__rent_overdue: ${WHATSAPP_BUTTON_RENT_OVERDUE:-}
+      Infobip__UrlButtonParameters__tenancy_ending_soon: ${WHATSAPP_BUTTON_TENANCY_ENDING:-}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 120s
+  portal:
+    image: __PORTAL_IMAGE__
+    build: !reset null
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8080;
+          printf "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3;
+          read -r line <&3;
+          [[ "$$line" =~ ^HTTP/1\.[01]\ (200|30[1278])\ ]]'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

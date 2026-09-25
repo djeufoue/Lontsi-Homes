@@ -18,6 +18,10 @@ HierarchyCache.v1.txt
 /tmp/
 /output/
 /deploy/vps/backups/
+/deploy/vps/.ci-releases/
+/deploy/vps/.ci-deploy.lock
+/deploy/vps/current-ci-release
+/deploy/vps/.current-ci-release.tmp
 
 # Machine-specific configuration and credentials (examples stay public).
 **/appsettings.*.json

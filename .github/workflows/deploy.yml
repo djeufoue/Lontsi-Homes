@@ -1,0 +1,80 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'Successful CI run ID for the current master commit. This deploys the live application.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Back up database and deploy API and Portal
+    if: github.ref == 'refs/heads/master'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out deployment code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate CI run for this exact master commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$CI_RUN_ID" =~ ^[0-9]+$ ]]
+          record=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID")
+          jq -e --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" '
+            .repository.full_name == $repo and .head_repository.full_name == $repo and
+            .path == ".github/workflows/ci.yml" and .head_branch == "master" and
+            .head_sha == $sha and (.event == "push" or .event == "workflow_dispatch") and
+            .status == "completed" and .conclusion == "success"
+          ' <<< "$record" > /dev/null
+          attempt=$(jq -r '.run_attempt' <<< "$record")
+          [[ "$attempt" =~ ^[0-9]+$ ]]
+          echo "attempt=$attempt" >> "$GITHUB_OUTPUT"
+          printf 'Approved CI run: %s; source commit: %s\n' "$CI_RUN_ID" "$GITHUB_SHA"
+
+      - name: Download API digest from selected CI run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-reference-api-${{ steps.ci.outputs.attempt }}
+          run-id: ${{ inputs.ci_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/image-references
+
+      - name: Download Portal digest from selected CI run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-reference-portal-${{ steps.ci.outputs.attempt }}
+          run-id: ${{ inputs.ci_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/image-references
+
+      - name: Deploy approved images with database backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH }}
+          COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          IMAGE_REFERENCE_DIR: ${{ runner.temp }}/image-references
+        run: bash .github/scripts/deploy-production.sh

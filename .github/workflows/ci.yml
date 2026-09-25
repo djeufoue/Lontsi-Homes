@@ -44,6 +44,9 @@ jobs:
       - name: Run regression tests
         run: dotnet run --project LontsiHomes.ScheduleTests/LontsiHomes.ScheduleTests.csproj --configuration Release --no-build --no-restore
 
+      - name: Check deployment failure handling
+        run: bash deploy/vps/tests/deploy-images.test.sh
+
   docker-build:
     name: Build ${{ matrix.project }} image
     needs: build-and-test

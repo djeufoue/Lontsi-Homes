@@ -128,18 +128,102 @@ services, or modify the database. Its summary identifies exactly which commit
 and image digests were checked. Success proves registry metadata access; the
 real deployment must still verify downloads, backups, and application readiness.
 
-### Deployment work remaining
+### Verified registry and backup preparation
 
-1. Run the image access check to verify private registry access from the VPS.
-2. Add a deployment job gated by the `production` environment approval.
-3. Connect using `VPS_SSH_KEY` with strict host verification against
-   `VPS_SSH_KNOWN_HOSTS`.
-4. Preserve `/opt/renthub/deploy/vps`, Compose project `vps`, the existing
-   production environment file, and database volumes. The server checkout was
-   reported on an older Git history; reconcile it explicitly before automated
-   updates instead of assuming a fast-forward pull will work.
-5. Back up and verify the database, deploy the exact published image digests,
-   and run readiness and schema checks before reporting success.
+Image access check `36078966696` succeeded for CI run `36078326537`. An online
+copy-only backup of `RentHubDb` also passed `RESTORE VERIFYONLY WITH CHECKSUM`
+and was copied into `/opt/renthub/deploy/vps/backups/` (approximately 39.7 MB).
+These checks did not deploy the application. Backup verification checks
+readability/completeness and checksums; it is not a full restore rehearsal.
+
+## Stage 3: manual production deployment
+
+**`Deploy production` changes the live API and Portal and may apply database
+migrations. It includes a maintenance window.** Pushing its workflow only runs
+CI; deployment is deliberately manual for this rollout.
+
+1. Commit and push the deployment files to `master`.
+2. Wait for that exact commit's CI run to finish successfully. Copy its numeric
+   run ID from the URL (`.../actions/runs/<ID>`).
+3. Open **Actions → Deploy production → Run workflow**, select `master`, and
+   enter that CI run ID.
+4. Review the intended commit and approve the `production` environment request
+   when ready for the maintenance window. This approval authorizes real deployment.
+5. Verify the deployment job succeeds, then check public login, a property page,
+   and a rent receipt. Check messaging only for approved/configured templates.
+
+The selected CI run must be successful, belong to this repository and `ci.yml`,
+and match the deployment workflow's exact `master` commit. The runner checks
+the current master ref again before contacting the VPS. If master has advanced,
+run CI for the new commit and start a new deployment instead of using stale inputs.
+Both image references come from the same run attempt; expired artifacts or a
+partial rerun lacking either reference fail closed.
+
+### What deployment does
+
+- Transfers only the deployment script, Compose overlay, and two schema checks
+  into `/opt/renthub/deploy/vps/.ci-releases/<deployment-run>-<attempt>/`.
+- Holds an exclusive VPS deployment lock, checks running services and all six
+  existing mounts, and validates the resolved application configuration.
+- Snapshots the server's existing Compose file as `base-compose.yml` in the
+  release directory. It overlays the exact image digests and updated optional
+  application settings, removes source builds, and disables initial admin seeding.
+- Uses a temporary read-only GitHub token to download both images, verifies their
+  Linux/amd64 architecture, and records the previous application image IDs.
+- Stops only the API and Portal, makes a fresh SQL backup, verifies it, copies it
+  to the host backup directory, and compares checksums of the two copies.
+- Starts only API and Portal using `--no-deps --no-build --pull never`. SQL Server
+  and Caddy are not recreated. The API applies migrations before opening its port.
+- Waits for API readiness and a successful Portal HTTP response, runs the
+  WhatsApp/payment schema checks, and verifies image IDs and preserved key mounts.
+- Records the successful release path in `current-ci-release` and removes the
+  temporary registry credentials. Release files and backups remain on the VPS.
+
+The older server Git history is left intact. There is no `git reset`, source
+checkout update, or replacement of `.env.production`, the Caddyfile, network
+configuration, container names, or database volumes. This avoids combining a
+history migration with the first automated application deployment. The overlay
+expects the confirmed legacy `renthub-api` and `renthub-portal` container names.
+
+### Failure handling and operating the deployed version
+
+Failures before maintenance leave existing services running. If backup or its
+host copy fails after stopping the application, the script attempts to restart
+the previous containers. Once the new version may have started, the script does
+not automatically switch images back: migrations may already have changed the
+database. Inspect the job error and preserve the verified backup before recovery.
+The summary is written only after every deployment check passes.
+
+`backup-path.txt`, `source-commit.txt`, and `previous-images.txt` in the release
+directory identify the backup, deployed source, and previous application images.
+For diagnostics, use the release directory printed in the job log, including
+after a failed deployment. For example, replace `<release-directory>` below:
+
+```bash
+cd /opt/renthub/deploy/vps
+docker compose -p vps --project-directory "$PWD" --env-file "$PWD/.env.production" \
+  -f '<release-directory>/base-compose.yml' -f '<release-directory>/images.yml' ps
+```
+
+Use the same files with `logs --tail 100 api portal` to investigate startup
+failures. Future updates should use `Deploy production`; the old server checkout
+and its build-based `deploy-update.sh` still refer to old source code. Do not use
+that older script or a bare Compose `up --build` to update a CI-deployed release.
+Keep the active release files because Compose uses their paths for diagnostics.
+Future changes to runtime configuration must be included in the image overlay
+or handled explicitly on the server; updating repository Compose alone does not
+update the retained VPS base configuration.
+
+### Validation limits
+
+`deploy/vps/tests/deploy-images.test.sh` runs in CI and exercises successful
+deployment, invalid configuration, wrong volumes, failed pulls, failed backups,
+startup failures, and schema failures using a Docker stub. These check ordering,
+cleanup, and restart/rollback behavior without touching production. Workflow and
+shell syntax plus real Compose merge validation are also checked locally.
+Live image startup and migration behavior remain unverified until the first
+approved production deployment. Database backups retained here are on the same
+VPS; off-server backup storage remains separate work.
 
 Configured production environment variables: `VPS_HOST`, `VPS_USER`,
 `VPS_DEPLOY_PATH`, and `COMPOSE_PROJECT_NAME`. The two SSH environment secrets
