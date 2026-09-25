@@ -1,0 +1,86 @@
+name: Production image access check
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'Successful CI run ID (leave empty for the latest successful master push)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: production-image-access-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Verify VPS registry access
+    if: github.ref == 'refs/heads/master'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out verification script
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Select and validate successful CI run
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RUN: ${{ inputs.ci_run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          run_id="$REQUESTED_RUN"
+          if [[ -z "$run_id" ]]; then
+            run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=master&status=success&event=push&per_page=1" --jq '.workflow_runs[0].id')
+          fi
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo 'No valid successful CI run found.' >&2; exit 1; }
+          record=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .repository.full_name == $repo and
+            .head_repository.full_name == $repo and
+            .path == ".github/workflows/ci.yml" and
+            .head_branch == "master" and
+            (.event == "push" or .event == "workflow_dispatch") and
+            .status == "completed" and .conclusion == "success"
+          ' <<< "$record" > /dev/null
+          attempt=$(jq -r '.run_attempt' <<< "$record")
+          sha=$(jq -r '.head_sha' <<< "$record")
+          [[ "$attempt" =~ ^[0-9]+$ && "$sha" =~ ^[a-f0-9]{40}$ ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "attempt=$attempt" >> "$GITHUB_OUTPUT"
+          printf '### Images selected for access check\n\nCI run: %s\n\nCommit: `%s`\n' "$run_id" "$sha" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download API image reference
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-reference-api-${{ steps.ci.outputs.attempt }}
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/image-references
+
+      - name: Download Portal image reference
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-reference-portal-${{ steps.ci.outputs.attempt }}
+          run-id: ${{ steps.ci.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/image-references
+
+      - name: Check registry manifests from the VPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          IMAGE_REFERENCE_DIR: ${{ runner.temp }}/image-references
+        run: bash .github/scripts/verify-registry-access.sh

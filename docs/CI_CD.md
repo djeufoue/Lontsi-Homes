@@ -93,9 +93,44 @@ The job is skipped if dispatched from a branch other than `master`. A successful
 check confirms connectivity and mounts, not registry pull access, backup health,
 or readiness to deploy the renamed application.
 
-### Still to implement
+### Verified setup
 
-1. Run the connection check and configure authenticated registry pulls.
+The production connection check passed in run `36077411497`, including the
+approval gate, SSH host verification, Docker access, and all six volume mounts.
+The production variable-name inventory was reviewed. The user has no Google
+Geocoding key and has not edited `.env.production`; geocoding remains disabled.
+`ADMIN_SEED_ENABLED` and the WhatsApp URL-button variables also remain absent;
+their Compose defaults apply. Variable names alone do not validate secret values
+or whether required settings are nonempty.
+
+### Manual production image access check
+
+Push `.github/workflows/image-access-check.yml` and its helper script, then open
+**Actions → Production image access check → Run workflow**, select `master`, and
+approve the `production` environment request. Leave `ci_run_id` empty to select
+the latest successful CI push on `master`, or enter a specific successful CI run
+ID. This check is independent of the automatic CI run caused by pushing it.
+
+It verifies the selected run's repository, workflow, branch, event, and success
+status. It downloads only that run attempt's two image-reference artifacts and
+accepts only the expected repository's API and Portal SHA-256 digest references.
+Expired or missing artifacts make the check fail instead of falling back to tags.
+
+The VPS logs into GHCR using the check job's temporary `GITHUB_TOKEN`, which has
+read-only package access. Credentials travel over verified SSH and are stored
+in an isolated mode-700 temporary Docker configuration directory, removed when
+the remote script exits normally or handles termination. Existing Docker login
+settings are untouched. No personal access token needs to be created.
+
+The check reads both image manifests from the VPS. It does not pull image layers,
+run images, update the server checkout or production environment file, restart
+services, or modify the database. Its summary identifies exactly which commit
+and image digests were checked. Success proves registry metadata access; the
+real deployment must still verify downloads, backups, and application readiness.
+
+### Deployment work remaining
+
+1. Run the image access check to verify private registry access from the VPS.
 2. Add a deployment job gated by the `production` environment approval.
 3. Connect using `VPS_SSH_KEY` with strict host verification against
    `VPS_SSH_KNOWN_HOSTS`.
@@ -108,5 +143,4 @@ or readiness to deploy the renamed application.
 
 Configured production environment variables: `VPS_HOST`, `VPS_USER`,
 `VPS_DEPLOY_PATH`, and `COMPOSE_PROJECT_NAME`. The two SSH environment secrets
-have been added, but their values and connectivity still require a workflow run
-to verify.
+have been verified by the successful production connection check.
