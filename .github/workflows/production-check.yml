@@ -1,0 +1,98 @@
+name: Production connection check
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: production-connection-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Verify existing VPS installation
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - name: Verify SSH access, Docker, and existing volumes
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          VPS_DEPLOY_PATH: ${{ vars.VPS_DEPLOY_PATH }}
+          COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # These are the installation details verified during initial setup.
+          [[ "$VPS_HOST" == '51.255.193.136' ]]
+          [[ "$VPS_USER" == 'ubuntu' ]]
+          [[ "$VPS_DEPLOY_PATH" == '/opt/renthub/deploy/vps' ]]
+          [[ "$COMPOSE_PROJECT_NAME" == 'vps' ]]
+          [[ -n "$VPS_SSH_KEY" && -n "$VPS_SSH_KNOWN_HOSTS" ]]
+
+          umask 077
+          ssh_dir=$(mktemp -d "$RUNNER_TEMP/production-ssh.XXXXXX")
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > "$ssh_dir/key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" | tr -d '\r' > "$ssh_dir/known_hosts"
+          unset VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS
+          ssh-keygen -y -P '' -f "$ssh_dir/key" > /dev/null
+          ssh-keygen -F "$VPS_HOST" -f "$ssh_dir/known_hosts" > /dev/null
+
+          ssh -T -i "$ssh_dir/key" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null \
+            -o HostKeyAlgorithms=ssh-ed25519 \
+            -o UpdateHostKeys=no \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=3 \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -Eeuo pipefail
+          trap 'printf "Preflight failed at remote line %s. No deployment was attempted.\n" "$LINENO" >&2' ERR
+          [[ "$(id -un)" == ubuntu ]]
+          [[ "$(uname -m)" == x86_64 ]]
+          cd /opt/renthub/deploy/vps
+          test -r .env.production
+          test -r docker-compose.prod.yml
+          test -r Caddyfile
+          test -w .
+          docker version --format 'Docker server: {{.Server.Version}}'
+          docker compose version
+
+          check_mount() {
+            local service="$1" volume="$2" destination="$3"
+            local ids mounts
+            ids=$(docker ps -q --filter label=com.docker.compose.project=vps --filter "label=com.docker.compose.service=$service")
+            if [[ -z "$ids" || "$ids" == *$'\n'* ]]; then
+              printf 'Expected exactly one running %s container.\n' "$service" >&2
+              return 1
+            fi
+            mounts=$(docker inspect --format '{{range .Mounts}}{{println .Name .Destination}}{{end}}' "$ids")
+            grep -Fxq -- "$volume $destination" <<< "$mounts"
+            printf 'Verified %s: %s -> %s\n' "$service" "$volume" "$destination"
+          }
+          check_mount sqlserver vps_sqlserver_data /var/opt/mssql
+          check_mount sqlserver vps_sqlserver_backup /var/opt/mssql/backup
+          check_mount api vps_api_keys /var/aspnet/data-protection-keys
+          check_mount portal vps_portal_keys /var/aspnet/data-protection-keys
+          check_mount caddy vps_caddy_data /data
+          check_mount caddy vps_caddy_config /config
+
+          printf '\nCurrent server checkout:\n'
+          git -C /opt/renthub log -1 --format='%h %s'
+          GIT_OPTIONAL_LOCKS=0 git -C /opt/renthub status --short --untracked-files=no
+          printf '\nContainer status:\n'
+          docker ps --filter label=com.docker.compose.project=vps --format 'table {{.Names}}\t{{.Status}}'
+          printf '\nSSH, Docker access, and all six volume mounts verified.\n'
+          REMOTE
+
+          printf '### Production connection check passed\n\nSSH host verification, deployment-file access, Docker access, and all six existing volume mounts passed. No application deployment was attempted.\n' >> "$GITHUB_STEP_SUMMARY"

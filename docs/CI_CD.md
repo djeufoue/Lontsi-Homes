@@ -57,7 +57,45 @@ and [Container registry access](https://docs.github.com/en/packages/working-with
 
 ## Remaining stages
 
-1. Verify the first publishing run and configure authenticated registry pulls.
+The first image-publishing run (`36076166049`) succeeded. The user also verified
+that the running Compose project is `vps`, with these volume mounts:
+
+| Service | Existing volume | Container destination |
+| --- | --- | --- |
+| sqlserver | vps_sqlserver_data | /var/opt/mssql |
+| sqlserver | vps_sqlserver_backup | /var/opt/mssql/backup |
+| api | vps_api_keys | /var/aspnet/data-protection-keys |
+| portal | vps_portal_keys | /var/aspnet/data-protection-keys |
+| caddy | vps_caddy_data | /data |
+| caddy | vps_caddy_config | /config |
+
+Caddy also binds `/opt/renthub/deploy/vps/Caddyfile` to
+`/etc/caddy/Caddyfile`. Containers still have the `renthub-` name prefix.
+
+### Manual production connection check
+
+`.github/workflows/production-check.yml` only runs through **Actions → Production
+connection check → Run workflow**. Select `master`, then approve the `production`
+environment request using **Review deployments**. Approval permits this check to
+use the SSH secrets; this workflow does not deploy or restart the application.
+
+It verifies the saved private key and pinned host key, logs in as `ubuntu`, checks
+Docker access, confirms production files are readable and the deployment folder
+is writable, and asserts that each running service uses the expected existing
+volume mounts. It reports the current Git revision and tracked changes without
+updating the server checkout. It does not print environment-file contents, pull
+images, change containers, or modify database data. Temporary SSH files exist
+only on the GitHub runner and are removed when the step ends. The four target
+settings are checked against the installation verified during setup; changing
+the VPS requires deliberately updating these checks as well as GitHub variables.
+
+The job is skipped if dispatched from a branch other than `master`. A successful
+check confirms connectivity and mounts, not registry pull access, backup health,
+or readiness to deploy the renamed application.
+
+### Still to implement
+
+1. Run the connection check and configure authenticated registry pulls.
 2. Add a deployment job gated by the `production` environment approval.
 3. Connect using `VPS_SSH_KEY` with strict host verification against
    `VPS_SSH_KNOWN_HOSTS`.
