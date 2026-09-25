@@ -47,6 +47,8 @@ jobs:
   docker-build:
     name: Build ${{ matrix.project }} image
     needs: build-and-test
+    # Pull requests and manual runs on other branches only validate builds.
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -63,3 +65,85 @@ jobs:
         env:
           PROJECT: ${{ matrix.project }}
         run: docker build --platform linux/amd64 --file "$PROJECT/Dockerfile" .
+
+  publish-images:
+    name: Publish ${{ matrix.component }} image
+    needs: build-and-test
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            project: LontsiHomes.API
+          - component: portal
+            project: LontsiHomes.Portal
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Define image name and unique run tag
+        id: image
+        env:
+          COMPONENT: ${{ matrix.component }}
+        shell: bash
+        run: |
+          name="ghcr.io/${GITHUB_REPOSITORY,,}-$COMPONENT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=$name:sha-$GITHUB_SHA-run-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Linux image
+        id: publish
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.project }}/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Record immutable image reference
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+          COMPONENT: ${{ matrix.component }}
+        shell: bash
+        run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          mkdir -p "$RUNNER_TEMP/image-reference"
+          printf '%s@%s\n' "$IMAGE_NAME" "$IMAGE_DIGEST" > "$RUNNER_TEMP/image-reference/$COMPONENT.txt"
+          {
+            printf '### %s image\n\n' "$COMPONENT"
+            printf 'Commit: `%s`\n\n' "$GITHUB_SHA"
+            printf 'Tag: `%s`\n\n' "$IMAGE_TAG"
+            printf 'Deployment reference: `%s@%s`\n' "$IMAGE_NAME" "$IMAGE_DIGEST"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save image reference for deployment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-reference-${{ matrix.component }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/image-reference/${{ matrix.component }}.txt
+          if-no-files-found: error
+          retention-days: 30
